@@ -1,0 +1,18 @@
+[package]
+name = "tabula"
+description = "Transition-matrix state machines whose completeness is enforced by the compiler"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["std"]
+std = ["alloc"]
+alloc = []
+
+# No dependencies. Not "few" — none. The matrix macro is `macro_rules!`,
+# which is part of the language, so there is no proc-macro crate and no
+# build-graph cost. See ARCHITECTURE.md section 11.1.
+[dependencies]

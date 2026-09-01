@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Compile-fail harness. Every diagnostic in spec/diagnostics.md gets a fixture
+# under rust/tabula/tests/compile_fail/, and each fixture must fail to compile
+# with the message named in its `//~ EXPECT:` line.
+#
+# Deliberately not `trybuild`: it would be the crate's only dev-dependency, and
+# the zero-dependency rule is worth more than the convenience.
+set -uo pipefail
+
+cd "$(dirname "$0")/../rust" || exit 1
+FIXTURES="tabula/tests/compile_fail"
+OUT="$(mktemp -d)"
+trap 'rm -rf "$OUT"' EXIT
+
+cargo build --quiet --all-features 2>/dev/null || { echo "build failed"; exit 1; }
+DEPS="target/debug/deps"
+RLIB="$(ls -t "$DEPS"/libtabula-*.rlib 2>/dev/null | head -1)"
+[ -z "$RLIB" ] && { echo "no libtabula rlib found; run cargo build first"; exit 1; }
+
+pass=0; fail=0
+for f in "$FIXTURES"/*.rs; do
+    name="$(basename "$f")"
+    [ "$name" = "_prelude.rs" ] && continue
+
+    expect="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
+    if [ -z "$expect" ]; then
+        echo "FAIL $name -- no '//~ EXPECT:' line"
+        fail=$((fail + 1)); continue
+    fi
+
+    err="$(rustc --edition 2021 --crate-type bin --emit metadata \
+        --extern tabula="$RLIB" -L "$DEPS" \
+        -o "$OUT/$name.meta" "$f" 2>&1)"
+
+    if [ -z "$err" ]; then
+        echo "FAIL $name -- compiled, but was expected to fail"
+        fail=$((fail + 1))
+    elif printf '%s' "$err" | grep -qF -- "$expect"; then
+        echo "ok   $name"
+        pass=$((pass + 1))
+    else
+        echo "FAIL $name"
+        echo "     expected: $expect"
+        echo "     got:"
+        printf '%s\n' "$err" | grep -E '^(error|warning)' | head -3 | sed 's/^/       /'
+        fail=$((fail + 1))
+    fi
+done
+
+echo
+echo "compile-fail: $pass passed, $fail failed"
+[ "$fail" -eq 0 ]

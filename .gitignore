@@ -1,0 +1,21 @@
+# Rust
+/rust/target/
+**/*.rs.bk
+# Kotlin / Gradle
+/kotlin/.gradle/
+/kotlin/build/
+/kotlin/*/build/
+/kotlin/.gradle-home/
+.gradle-home/
+# Swift
+/swift/.build/
+/swift/*.xcodeproj
+# Nix
+.direnv/
+result
+result-*
+# Editors
+.idea/
+.vscode/
+*.swp
+.DS_Store
