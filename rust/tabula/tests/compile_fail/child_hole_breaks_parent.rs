@@ -9,7 +9,7 @@
 // error appears at a call to the PARENT's `step`. This is what DELEGATE buys
 // over HANDLE: a hand-written HANDLE body is free to ignore the child, so no
 // bound would propagate and the hole would go unnoticed.
-use tabula::{transition_matrix, Delegate, Handle, Step};
+use tabula::{transition_matrix, Delegate, Handle, Lens, Step};
 
 mod retry {
     use super::*;
@@ -54,6 +54,22 @@ impl Handle<retry::Retry, retry::Ready, retry::Attempt> for Impl {
 }
 // retry::Waiting x retry::Elapsed is HANDLE and has no impl.
 
+// The lens is per (parent state, child); only the prism is per cell.
+impl Lens<job::Job, job::Retrying, retry::Marker> for Impl {
+    fn child_state(&mut self, s: &job::Retrying) -> retry::State {
+        s.child
+    }
+    fn embed(&mut self, s: job::Retrying, child: retry::State) -> job::State {
+        job::State::Retrying(job::Retrying { child, ..s })
+    }
+    fn lift(&mut self, _e: retry::Effect) -> job::Effect {
+        job::Effect::Backoff(job::Backoff)
+    }
+    fn child_ctx<'a>(&mut self, c: &'a mut job::Ctx) -> &'a mut retry::Ctx {
+        &mut c.retry
+    }
+}
+
 impl Delegate<job::Job, job::Retrying, job::Tick, retry::Marker> for Impl {
     fn to_child(
         &mut self,
@@ -62,18 +78,6 @@ impl Delegate<job::Job, job::Retrying, job::Tick, retry::Marker> for Impl {
         _a: job::Tick,
     ) -> Option<retry::Action> {
         Some(retry::Action::Elapsed(retry::Elapsed))
-    }
-    fn child_state(&mut self, s: &job::Retrying) -> retry::State {
-        s.child
-    }
-    fn embed(&mut self, s: job::Retrying, child: retry::State) -> job::State {
-        job::State::Retrying(job::Retrying { child, ..s })
-    }
-    fn lift(&mut self, _e: retry::Effect) -> job::Effect {
-        job::Effect::Backoff
-    }
-    fn child_ctx<'a>(&mut self, c: &'a mut job::Ctx) -> &'a mut retry::Ctx {
-        &mut c.retry
     }
 }
 

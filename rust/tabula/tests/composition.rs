@@ -130,43 +130,40 @@ impl Handle<retry::Retry, retry::Waiting, retry::Elapsed> for Impl {
     }
 }
 
-// The two delegate cells. Each is a separate impl because each translates a
-// different parent action.
-impl tabula::Delegate<job::Job, Retrying, Run, retry::Marker> for Impl {
-    fn to_child(&mut self, _ctx: &mut job::Ctx, _s: &Retrying, _a: Run) -> Option<retry::Action> {
-        Some(retry::Action::Attempt(retry::Attempt))
-    }
+// The lens: written ONCE for (Retrying, retry), however many cells delegate.
+//
+// An earlier version had all five methods on `Delegate`, instantiated per
+// cell, so these four were duplicated verbatim below. The Kotlin
+// implementation made the duplication obvious, and the finding came back here.
+impl tabula::Lens<job::Job, Retrying, retry::Marker> for Impl {
     fn child_state(&mut self, s: &Retrying) -> retry::State {
         s.child
     }
+
     fn embed(&mut self, _s: Retrying, child: retry::State) -> State {
         lift_child(child)
     }
+
     fn lift(&mut self, e: retry::Effect) -> job::Effect {
         lift_effect(e)
     }
+
     fn child_ctx<'a>(&mut self, ctx: &'a mut job::Ctx) -> &'a mut retry::Ctx {
         ctx.attempts_made += 1;
         &mut ctx.retry
     }
 }
 
+// The prisms: one per delegate cell, and the only genuinely per-cell part.
+impl tabula::Delegate<job::Job, Retrying, Run, retry::Marker> for Impl {
+    fn to_child(&mut self, _ctx: &mut job::Ctx, _s: &Retrying, _a: Run) -> Option<retry::Action> {
+        Some(retry::Action::Attempt(retry::Attempt))
+    }
+}
+
 impl tabula::Delegate<job::Job, Retrying, Tick, retry::Marker> for Impl {
     fn to_child(&mut self, _ctx: &mut job::Ctx, _s: &Retrying, _a: Tick) -> Option<retry::Action> {
         Some(retry::Action::Elapsed(retry::Elapsed))
-    }
-    fn child_state(&mut self, s: &Retrying) -> retry::State {
-        s.child
-    }
-    fn embed(&mut self, _s: Retrying, child: retry::State) -> State {
-        lift_child(child)
-    }
-    fn lift(&mut self, e: retry::Effect) -> job::Effect {
-        lift_effect(e)
-    }
-    fn child_ctx<'a>(&mut self, ctx: &'a mut job::Ctx) -> &'a mut retry::Ctx {
-        ctx.attempts_made += 1;
-        &mut ctx.retry
     }
 }
 

@@ -125,7 +125,23 @@ fn lift_effect(e: retry::Effect) -> job::Effect {
     }
 }
 
-macro_rules! job_delegate {
+// The lens is per (parent state, child); only the action prism is per cell.
+impl tabula::Lens<job::Job, job::Retrying, retry::Marker> for Impl {
+    fn child_state(&mut self, s: &job::Retrying) -> retry::State {
+        s.child
+    }
+    fn embed(&mut self, _s: job::Retrying, child: retry::State) -> job::State {
+        embed_child(child)
+    }
+    fn lift(&mut self, e: retry::Effect) -> job::Effect {
+        lift_effect(e)
+    }
+    fn child_ctx<'a>(&mut self, c: &'a mut job::Ctx) -> &'a mut retry::Ctx {
+        &mut c.retry
+    }
+}
+
+macro_rules! job_prism {
     ($av:ty, $child:expr) => {
         impl Delegate<job::Job, job::Retrying, $av, retry::Marker> for Impl {
             fn to_child(
@@ -136,24 +152,12 @@ macro_rules! job_delegate {
             ) -> Option<retry::Action> {
                 Some($child)
             }
-            fn child_state(&mut self, s: &job::Retrying) -> retry::State {
-                s.child
-            }
-            fn embed(&mut self, _s: job::Retrying, child: retry::State) -> job::State {
-                embed_child(child)
-            }
-            fn lift(&mut self, e: retry::Effect) -> job::Effect {
-                lift_effect(e)
-            }
-            fn child_ctx<'a>(&mut self, c: &'a mut job::Ctx) -> &'a mut retry::Ctx {
-                &mut c.retry
-            }
         }
     };
 }
 
-job_delegate!(job::Run, retry::Action::Attempt(retry::Attempt));
-job_delegate!(job::Tick, retry::Action::Elapsed(retry::Elapsed));
+job_prism!(job::Run, retry::Action::Attempt(retry::Attempt));
+job_prism!(job::Tick, retry::Action::Elapsed(retry::Elapsed));
 
 // ---------------------------------------------------------------------------
 // Adapters

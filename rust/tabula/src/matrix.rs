@@ -489,6 +489,7 @@ macro_rules! transition_matrix {
             states=[$($sv)*] actions=[$($av)*] rows_all=[$($ra)*]
             acc=[$($acc)*
                 $crate::Delegate<$m, $st, $ca, $ch::Marker> +
+                $crate::Lens<$m, $st, $ch::Marker> +
                 $ch::Cells +
             ] st=$st
             cur_actions=[$($carest)*] cur_cells=[$($crest)*]
@@ -767,23 +768,23 @@ macro_rules! __tabula_row {
                     // `Ignored`, not `Stay`: nothing was handled.
                     ::core::option::Option::None => $crate::Step::ignored(),
                     ::core::option::Option::Some(__ca) => {
+                        // The lens is per (parent state, child); only the
+                        // action prism above is per cell.
                         let __cs =
-                            <C as $crate::Delegate<$m, $st, $ca, $ch::Marker>>::child_state($bc, &$bsv);
+                            <C as $crate::Lens<$m, $st, $ch::Marker>>::child_state($bc, &$bsv);
                         let __cx =
-                            <C as $crate::Delegate<$m, $st, $ca, $ch::Marker>>::child_ctx($bc, $bx);
+                            <C as $crate::Lens<$m, $st, $ch::Marker>>::child_ctx($bc, $bx);
                         let __cstep = $ch::step($bc, __cx, __cs, __ca);
                         let mut __out = match __cstep.outcome {
                             $crate::Outcome::Go(__next) => $crate::Step::go(
-                                <C as $crate::Delegate<$m, $st, $ca, $ch::Marker>>::embed(
-                                    $bc, $bsv, __next,
-                                ),
+                                <C as $crate::Lens<$m, $st, $ch::Marker>>::embed($bc, $bsv, __next),
                             ),
                             $crate::Outcome::Stay => $crate::Step::stay(),
                             $crate::Outcome::Ignored => $crate::Step::ignored(),
                         };
                         for __ef in __cstep.effects {
                             __out = __out.emit(
-                                <C as $crate::Delegate<$m, $st, $ca, $ch::Marker>>::lift($bc, __ef),
+                                <C as $crate::Lens<$m, $st, $ch::Marker>>::lift($bc, __ef),
                             );
                         }
                         __out

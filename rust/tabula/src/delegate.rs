@@ -26,12 +26,24 @@
 //!
 //! They are not three APIs. They are the five methods of [`Delegate`]:
 //!
-//! | Operation | Methods |
+//! | Operation | Where |
 //! |---|---|
-//! | nest / alternate | [`Delegate::child_state`] + [`Delegate::embed`] — the lens |
+//! | nest / alternate | [`Lens::child_state`] + [`Lens::embed`] |
+//! | translate (effects) | [`Lens::lift`] |
+//! | context plumbing | [`Lens::child_ctx`] |
 //! | translate (actions) | [`Delegate::to_child`] — the prism |
-//! | translate (effects) | [`Delegate::lift`] |
-//! | context plumbing | [`Delegate::child_ctx`] |
+//!
+//! # Why two traits
+//!
+//! The lens is a property of the *(parent state, child)* pair; only the action
+//! prism differs per cell. An earlier version put all five on one trait,
+//! instantiated per cell, which meant two delegate cells to the same child
+//! repeated four identical methods.
+//!
+//! The Kotlin implementation made this obvious — it names members, so the
+//! duplication was visible as four functions with the same body — and the
+//! finding was folded back here. That is the argument for writing the same
+//! thing twice: the second implementation is a review of the first.
 //!
 //! Nest and alternate collapse into one because a `DELEGATE` cell lives on a
 //! *row*, and the row already is the parent state case. The distinction only
@@ -49,26 +61,12 @@
 
 use crate::machine::Machine;
 
-/// One `DELEGATE` cell: everything needed to run a child machine for this
-/// `(parent state, parent action)` pair and fold the result back.
+/// How a child machine sits inside one parent state.
 ///
-/// `M` is the parent machine, `SV`/`AV` the parent's narrowed state and action
-/// variants, `CM` the child machine's marker (`child::Marker`).
-///
-/// Five methods is more than `HANDLE`'s one, and each is a decision that
-/// cannot be derived: which child action this parent action means, where the
-/// child's state lives, how to put it back, what the child's effects are called
-/// upstairs, and which context the child gets. Deriving any of them would mean
-/// guessing.
-pub trait Delegate<M: Machine, SV, AV, CM: Machine> {
-    /// Translate the parent action into a child action.
-    ///
-    /// `None` means this action has no meaning for the child, and the cell
-    /// reports [`crate::Outcome::Ignored`]. That is the honest answer for a
-    /// parent action the child's alphabet does not contain, and it keeps the
-    /// `IGNORE` / `Stay` distinction intact.
-    fn to_child(&mut self, ctx: &mut M::Ctx, state: &SV, action: AV) -> Option<CM::Action>;
-
+/// Written **once per (parent state, child)**, however many cells of that row
+/// delegate. `M` is the parent machine, `SV` the parent's narrowed state
+/// variant, `CM` the child machine's marker (`child::Marker`).
+pub trait Lens<M: Machine, SV, CM: Machine> {
     /// Read the child's state out of the parent's. Half of the lens.
     fn child_state(&mut self, state: &SV) -> CM::State;
 
@@ -84,48 +82,54 @@ pub trait Delegate<M: Machine, SV, AV, CM: Machine> {
 
     /// Hand the child its context.
     ///
-    /// When parent and child share a context type this is the identity; the
-    /// signature keeps the general case available without a second trait.
+    /// When the parent's context *contains* the child's this is a field
+    /// access, which is the shape to aim for: the child then never sees parent
+    /// data it has no business with.
     fn child_ctx<'a>(&mut self, ctx: &'a mut M::Ctx) -> &'a mut CM::Ctx;
 }
 
-/// Implements the mechanical half of [`Delegate`] for the common shape: the
-/// parent state's payload holds the child state in a named field, and parent
-/// and child share a context type.
+/// One `DELEGATE` cell: which child action this parent action means.
 ///
-/// You still write `to_child` and `lift` by hand, because those are the two
-/// that encode real decisions.
+/// The only part of composition that is genuinely per cell. Everything else is
+/// [`Lens`].
+pub trait Delegate<M: Machine, SV, AV, CM: Machine>: Lens<M, SV, CM> {
+    /// Translate the parent action into a child action.
+    ///
+    /// `None` means this action has no meaning for the child, and the cell
+    /// reports [`crate::Outcome::Ignored`]. That is the honest answer for a
+    /// parent action the child's alphabet does not contain, and it keeps the
+    /// `IGNORE` / `Stay` distinction intact.
+    fn to_child(&mut self, ctx: &mut M::Ctx, state: &SV, action: AV) -> Option<CM::Action>;
+}
+
+/// Implements [`Lens`] for the common shape: the parent state's payload holds
+/// the child state in a named field, and the parent's context contains the
+/// child's.
+///
+/// `to_child` and `lift` stay hand-written — those two encode real decisions,
+/// and deriving them would mean guessing.
 ///
 /// ```ignore
 /// delegate_lens! {
-///     impl Delegate<Timer, Retrying, Tick, retry::Marker> for Cells {
-///         field  child;                       // Retrying.child: retry::State
-///         embed  |s, cs| State::Retrying(Retrying { child: cs, ..s });
-///         action |_ctx, _s, a| Some(retry::Action::Tick(retry::Tick { now: a.now }));
-///         lift   |e| match e { retry::Effect::Log => Effect::Log };
+///     impl Lens<job::Job, Retrying, retry::Marker> for Cells {
+///         field child;
+///         ctx   retry;
+///         embed |s, cs| lift_child(cs);
+///         lift  |e| lift_effect(e);
 ///     }
 /// }
 /// ```
 #[macro_export]
 macro_rules! delegate_lens {
     (
-        impl Delegate<$m:ty, $sv:ty, $av:ty, $cm:ty> for $me:ty {
-            field  $f:ident;
-            embed  |$es:pat_param, $ec:pat_param| $embed:expr;
-            action |$actx:pat_param, $astate:pat_param, $aa:pat_param| $act:expr;
-            lift   |$le:pat_param| $lift:expr;
+        impl Lens<$m:ty, $sv:ty, $cm:ty> for $me:ty {
+            field $f:ident;
+            ctx   $c:ident;
+            embed |$es:pat_param, $ec:pat_param| $embed:expr;
+            lift  |$le:pat_param| $lift:expr;
         }
     ) => {
-        impl $crate::Delegate<$m, $sv, $av, $cm> for $me {
-            fn to_child(
-                &mut self,
-                $actx: &mut <$m as $crate::Machine>::Ctx,
-                $astate: &$sv,
-                $aa: $av,
-            ) -> ::core::option::Option<<$cm as $crate::Machine>::Action> {
-                $act
-            }
-
+        impl $crate::Lens<$m, $sv, $cm> for $me {
             fn child_state(&mut self, state: &$sv) -> <$cm as $crate::Machine>::State {
                 state.$f
             }
@@ -149,7 +153,7 @@ macro_rules! delegate_lens {
                 &mut self,
                 ctx: &'a mut <$m as $crate::Machine>::Ctx,
             ) -> &'a mut <$cm as $crate::Machine>::Ctx {
-                ctx
+                &mut ctx.$c
             }
         }
     };

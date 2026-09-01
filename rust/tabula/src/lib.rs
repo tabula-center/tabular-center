@@ -51,7 +51,7 @@ pub mod export;
 pub mod lint;
 
 pub use cell::{Cell, CellKind};
-pub use delegate::Delegate;
+pub use delegate::{Delegate, Lens};
 pub use driver::{Driver, DriverError, Progress};
 pub use machine::{Handle, Machine, Perform};
 pub use step::{CapacityError, Effects, Outcome, Step, DEFAULT_EFFECT_CAPACITY};

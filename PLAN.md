@@ -522,6 +522,19 @@ comparatively cheap; everything after it assumes M2 held.
   to the same child reuses `childState`, `embed`, `lift`, and `childCtx`; only
   the action prism is per cell.
 
+### Cross-language convergence
+
+Findings now flow both ways, which is the return on implementing twice:
+
+- **Rust -> Kotlin:** the normalisation-order bug in the conformance harness
+  (strip the payload before splitting the path). Kotlin's `toString` produces
+  the same shape and would have hit it identically.
+- **Kotlin -> Rust:** the delegate lens is per *child*, not per cell. Rust's
+  five-method `Delegate` duplicated four bodies for every extra delegate cell
+  to the same child; it is now `Lens` (per child) plus `Delegate` (per cell,
+  one method). Verified the new `Lens` bound is load-bearing: removing the impl
+  fails with `the trait bound Impl: Lens<Job, Retrying, Retry> is not satisfied`.
+
 ### Findings from Phase 7
 
 - **Normalisation order matters.** The conformance harness reduces an effect
