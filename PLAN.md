@@ -233,8 +233,22 @@ the build with a comprehensible message; the developer's source file contains no
 - [ ] Nested-annotation shape that survives Kotlin's array-of-annotation limits
       — **spike this first**, it is the main unknown in Kotlin
 
-**4c. KSP processor** *(next; the shape it must emit is fixed by
-`kotlin/test/ReferenceTimer.kt`)*
+**4c. Code generator** — split so the risky half can be verified without KSP
+
+- [x] `codegen/`: a pure `MachineDesc -> String` emitter. No KSP, no compiler
+      plugin, so it is testable here.
+- [x] Golden emitted source, `--bless` to accept.
+- [x] **The emitted source is compiled**, then a complete implementation and an
+      incomplete one are compiled against it. A golden diff alone proves only
+      determinism; this proves the output still enforces the guarantee.
+- [ ] The KSP processor itself: read annotations, build a `MachineDesc`, call
+      `emit`. Mechanical, and the only part that needs Maven.
+
+The split is worth keeping after KSP lands. A generator whose logic can only be
+exercised through a compiler plugin is a generator nobody refactors.
+
+**4c-old. KSP processor** *(the shape it must emit is fixed by
+`kotlin/test/ReferenceTimer.kt` and `codegen/golden/`)*
 - [x] Core (`Step`, `Cell`, `Table`, `Export`, `Lint`, `Driver`,
       `SuspendDriver`, annotations), compiled by `kotlinc` with no build system
 - [x] Hand-written reference machine — KSP's specification, the exact

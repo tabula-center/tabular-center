@@ -9,7 +9,7 @@
 #
 # Usage:  tools/verify [step ...]      (default: all)
 # Steps:  fmt clippy test no-std compile-fail conformance
-#         kotlin kotlin-compile-fail kotlin-conformance
+#         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
@@ -115,6 +115,68 @@ step_kotlin_conformance() {
     return "$rc"
 }
 
+# Proves the generator emits valid Kotlin that still enforces the guarantee.
+#
+# Four stages, and the last two are the point. A golden diff only proves the
+# emitter is deterministic; compiling its output, then compiling a complete
+# implementation and an incomplete one against that output, proves the emitted
+# code still does what the design promises.
+step_kotlin_codegen() {
+    if ! kotlin_available; then
+        echo "note: $KOTLINC not found; skipping"
+        return 0
+    fi
+    local out gen
+    out="$(mktemp -d)"
+    gen="$out/emitted"
+    local rc=0
+
+    (
+        cd kotlin || exit 1
+        "$KOTLINC" src/dev/tabula/*.kt -d "$out/core" 2>&1 | grep -v "^info:" || true
+        "$KOTLINC" -cp "$out/core" codegen/*.kt -include-runtime -d "$out/cg.jar" 2>&1 \
+            | grep -v "^info:" || true
+        [ -f "$out/cg.jar" ] || { echo "emitter failed to compile"; exit 1; }
+
+        # 1. emit, and diff against the committed golden source
+        java -cp "$out/cg.jar:$out/core" codegen.MainKt codegen/golden "--emit=$gen" || exit 1
+
+        # 2. the emitted source must compile
+        "$KOTLINC" -cp "$out/core" codegen/support/TimerTypes.kt codegen/support/ToggleTypes.kt \
+            "$gen"/*.kt -d "$out/gen" 2>&1 | grep -v "^info:" || true
+        [ -d "$out/gen" ] || { echo "emitted source does not compile"; exit 1; }
+        echo "ok   emitted source compiles"
+
+        # 3. a complete implementation must satisfy it
+        "$KOTLINC" -cp "$out/core:$out/gen" codegen/support/Complete.kt -d "$out/cmp" 2>&1 \
+            | grep -v "^info:" || true
+        [ -d "$out/cmp" ] || { echo "a complete implementation does not compile"; exit 1; }
+        echo "ok   complete implementation compiles"
+
+        # 4. an incomplete one must not -- the guarantee, after generation
+        local f exp err bad=0
+        for f in codegen/compile_fail/*.kt; do
+            exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
+            err="$("$KOTLINC" -cp "$out/core:$out/gen" "$f" -d "$out/x" 2>&1 | grep -v "^info:")"
+            if [ -z "$err" ]; then
+                echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
+                bad=1
+            elif printf '%s' "$err" | grep -qF -- "$exp"; then
+                echo "ok   $(basename "$f")"
+            else
+                echo "FAIL $(basename "$f")"
+                echo "     expected: $exp"
+                printf '%s\n' "$err" | head -3 | sed 's/^/       /'
+                bad=1
+            fi
+        done
+        exit "$bad"
+    )
+    rc=$?
+    rm -rf "$out"
+    return "$rc"
+}
+
 step_kotlin_compile_fail() {
     if ! kotlin_available; then
         echo "note: $KOTLINC not found; skipping"
@@ -151,7 +213,7 @@ step_kotlin_compile_fail() {
 steps=("$@")
 [ ${#steps[@]} -eq 0 ] && \
     steps=(fmt clippy test no-std compile-fail conformance \
-           kotlin kotlin-compile-fail kotlin-conformance)
+           kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen)
 
 for s in "${steps[@]}"; do
     case "$s" in
@@ -164,6 +226,7 @@ for s in "${steps[@]}"; do
         kotlin)              run kotlin              step_kotlin ;;
         kotlin-compile-fail) run kotlin-compile-fail step_kotlin_compile_fail ;;
         kotlin-conformance)  run kotlin-conformance  step_kotlin_conformance ;;
+        kotlin-codegen)      run kotlin-codegen      step_kotlin_codegen ;;
         *) echo "unknown step: $s"; exit 2 ;;
     esac
 done

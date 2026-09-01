@@ -56,12 +56,41 @@ than by a dependency report. `SuspendDriver` needs only the `suspend` keyword �
 no `kotlinx.coroutines` — and `test/RunSuspend.kt` proves it by driving a
 suspending machine with `kotlin.coroutines` intrinsics alone.
 
+## The generator, split in two
+
+KSP is a Maven artifact and this environment cannot reach Maven. Rather than
+ship an unrunnable processor, the generator is split:
+
+- **`codegen/`** turns a `MachineDesc` into Kotlin source. Pure — no KSP, no
+  compiler plugin — and therefore testable here.
+- **The KSP processor** (next) reads annotations, builds a `MachineDesc`, and
+  calls `emit`. Mechanical, and small enough to review by eye.
+
+Worth keeping even once KSP runs: a code generator whose logic can only be
+exercised through a compiler plugin is a generator nobody refactors.
+
+`./tools/verify kotlin-codegen` does four things, and the last two are the
+point:
+
+```
+ok   timer                              # emitted source matches the golden
+ok   toggle
+ok   emitted source compiles            # it is valid Kotlin
+ok   complete implementation compiles   # every member it demands is satisfiable
+ok   hole_in_generated.kt               # and an incomplete one still fails
+```
+
+A golden diff alone would only prove the emitter is deterministic. Compiling
+its output, then compiling both a complete and an incomplete implementation
+against that output, proves the emitted code **still enforces the guarantee**.
+
 ## Layout
 
 ```
 src/dev/tabula/     Step, Cell, Table, Export, Lint, Driver, Annotations
 test/               the reference machine (KSP's specification) and its tests
 conformance/        the shared spec/conformance fixtures, run against Kotlin
+codegen/            the pure emitter, its goldens, and its compile checks
 compile_fail/       one fixture per guarantee
 ```
 

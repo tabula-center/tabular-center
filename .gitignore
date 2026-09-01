@@ -4,6 +4,7 @@
 # Kotlin / Gradle
 /kotlin/.gradle/
 /kotlin/build/
+/kotlin/codegen/emitted/
 /kotlin/*/build/
 /kotlin/.gradle-home/
 .gradle-home/
@@ -16,6 +17,7 @@
 /kotlin/testout/
 /kotlin/testout.jar
 /kotlin/build/
+/kotlin/codegen/emitted/
 
 # Swift
 /swift/.build/
