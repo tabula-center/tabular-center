@@ -52,7 +52,7 @@ same way adding a state breaks every matrix.
 | 3 | Cross-language conformance spec | done |
 | 4 | Kotlin core + KSP | **M2 passed**; core done, processor next |
 | 5 | Swift core + macro | todo |
-| 6 | Composition | done (Rust) |
+| 6 | Composition | done (Rust + Kotlin) |
 | 7 | Effects surface | done (Rust) |
 | 8 | Introspection, lints, golden snapshots | done (Rust) |
 | 9a | Driver and mailbox | done (Rust) |

@@ -436,6 +436,19 @@ When shapes do not line up, register an explicit closure pair on the machine.
 > compiler proves it by the same mechanism as everything else: unimplemented
 > required members.
 
+Now verified in both languages, with a compile-fail fixture each. The mechanism
+differs only in spelling:
+
+| | carries the child's surface | a child hole reads as |
+|---|---|---|
+| Rust | `where C: child::Cells` | `the trait bound Impl: Handle<Retry, Waiting, Elapsed> is not satisfied` |
+| Kotlin | `interface Cells : retry.Cells` | `class 'ChildHole' is not abstract and does not implement abstract member: fun waitingElapsed(...)` |
+
+**Interfaces are Kotlin's trait bounds.** That is why the cell surface is an
+interface rather than a set of abstract members on a class — a class can only
+extend one parent, so abstract members would have capped composition at one
+child.
+
 This belongs at the top of the README. It is the actual differentiator over
 every existing library surveyed.
 
@@ -513,6 +526,16 @@ keeps the Rust `no_std` path allocation-free and makes `TABLE` a true `const`.
 ## 11. Per-language design
 
 ### 11.0 A language-forced divergence: how cells are named
+
+> **Update (Phases 4 and 6).** This divergence is wider than it first looked,
+> and it runs in one direction: *Rust reaches for generics wherever
+> `macro_rules!` cannot build an identifier; Kotlin names things.* It shows up
+> twice — the cell surface below, and the `DELEGATE` cell (§8), where Rust's
+> `Delegate<M, SV, AV, CM>` cannot be transcribed at all, because a Kotlin class
+> may implement a generic interface at only **one** type argument. Kotlin emits
+> one named member per delegate cell instead, which is the better form anyway.
+> Expect the same shape of difference in Swift, and keep `spec/conformance`
+> comparing behaviour rather than source.
 
 **`macro_rules!` cannot concatenate identifiers.** There is no stable
 `concat_idents!`, so the Rust macro cannot synthesize a member named

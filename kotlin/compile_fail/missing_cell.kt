@@ -1,4 +1,4 @@
-//~ EXPECT: class 'Hole' is not abstract and does not implement abstract base class member
+//~ EXPECT: class 'Hole' is not abstract and does not implement abstract member
 //
 // THE GUARANTEE, in Kotlin. `Running x Tick` is a HANDLE cell, so KSP emits an
 // abstract member for it; omitting the override is a plain

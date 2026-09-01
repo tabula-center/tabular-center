@@ -65,6 +65,13 @@ conformance/        the shared spec/conformance fixtures, run against Kotlin
 compile_fail/       one fixture per guarantee
 ```
 
+`test/Composition.kt` holds a parent machine delegating to a child. Its shape
+is the composition property in one line — `interface Cells : retry.Cells` — so
+a hole anywhere in the child breaks any class implementing the parent.
+Interfaces are Kotlin's trait bounds, which is also why the cell surface is an
+interface rather than abstract members on a class: a class extends one parent,
+and that would have capped composition at a single child.
+
 `conformance/` is what keeps the two implementations from drifting. It parses
 the same `.tbl` and `.trace` files the Rust harness reads, and compares the
 rendered grid **byte for byte** against the golden `.grid` file Rust writes.

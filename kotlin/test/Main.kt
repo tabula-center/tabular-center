@@ -103,11 +103,64 @@ private fun blockingStep(m: Timer, c: Ctx, s: S, a: A): Step<S, F> {
     return out!!
 }
 
+private fun composition() {
+    val cells = composition.Impl()
+    val ctx = composition.job.Ctx(composition.retry.Ctx(maxAttempts = 3))
+
+    // The child runs, and its effect is lifted into the parent's vocabulary:
+    // retry.Sleep becomes job.Backoff.
+    val ran = composition.job.step(
+        cells, ctx,
+        composition.job.S.Retrying(composition.retry.S.Ready),
+        composition.job.A.Run,
+    )
+    Assert.eq(
+        ran,
+        Step.Go(
+            composition.job.S.Retrying(composition.retry.S.Waiting(1)),
+            listOf(composition.job.F.Backoff),
+        ),
+        "delegate runs the child and lifts its effects",
+    )
+
+    // A child transition can be a parent transition: `embed` returns the full
+    // parent state, so the child reaching Exhausted moves the parent to Done.
+    val exhausted = composition.job.step(
+        composition.Impl(),
+        composition.job.Ctx(composition.retry.Ctx(maxAttempts = 1)),
+        composition.job.S.Retrying(composition.retry.S.Waiting(1)),
+        composition.job.A.Tick,
+    )
+    Assert.eq(
+        exhausted,
+        Step.Go(composition.job.S.Done, listOf(composition.job.F.Alert)),
+        "a child transition can be a parent transition",
+    )
+
+    // Coverage is not inherited silently: the Retrying row still lists all
+    // three columns, and one of them is not a delegate.
+    Assert.eq(composition.job.TABLE.cell(1, 0), Cell.Delegate("retry"), "Run delegates")
+    Assert.eq(composition.job.TABLE.cell(1, 1), Cell.Delegate("retry"), "Tick delegates")
+    Assert.eq(composition.job.TABLE.cell(1, 2).staticTarget, "Done", "Cancel does not")
+
+    // Nothing about being a child changed the child.
+    val alone = composition.retry.step(
+        cells, composition.retry.Ctx(maxAttempts = 2),
+        composition.retry.S.Ready, composition.retry.A.Attempt,
+    )
+    Assert.eq(
+        alone,
+        Step.Go(composition.retry.S.Waiting(1), listOf(composition.retry.F.Sleep)),
+        "the child can be driven on its own",
+    )
+}
+
 fun main() {
     runSuspend {
         transitions()
         effectSurface()
     }
+    composition()
     tableAndLints()
     gridMatchesRust()
     drivers()

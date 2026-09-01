@@ -70,15 +70,36 @@ interface TimerSpec {
 // GENERATED — everything below this line is what KSP must emit
 // ===========================================================================
 
-abstract class TimerMachine {
-    // One required member per non-static cell, with NARROWED argument types.
-    // The prototype's `suspend` is copied onto each.
-    //
-    // Static cells (IGNORE, GO) appear nowhere: they are resolved in the
-    // dispatcher. Six of this machine's nine cells are static, which is what
-    // keeps an N x M matrix survivable.
-    abstract suspend fun idleStart(ctx: Ctx, state: S.Idle, action: A.Start): Step<S, F>
-    abstract suspend fun runningTick(ctx: Ctx, state: S.Running, action: A.Tick): Step<S, F>
+/**
+ * The cell surface: one required member per non-static cell, with NARROWED
+ * argument types. The prototype's `suspend` is copied onto each.
+ *
+ * Static cells (IGNORE, GO) appear nowhere — they are resolved in the
+ * dispatcher. Six of this machine's nine cells are static, which is what keeps
+ * an N x M matrix survivable.
+ *
+ * An **interface**, not abstract members on the class, because this is what
+ * composes: a parent machine that delegates here declares
+ * `interface Cells : TimerCells`, and a hole anywhere in this surface then
+ * breaks the *parent's* build. Interfaces are Kotlin's trait bounds. See
+ * `Composition.kt`.
+ */
+interface TimerCells {
+    suspend fun idleStart(ctx: Ctx, state: S.Idle, action: A.Start): Step<S, F>
+    suspend fun runningTick(ctx: Ctx, state: S.Running, action: A.Tick): Step<S, F>
+
+    // One required member per effect variant, again with narrowed payloads.
+    // Add an effect to the declaration and every handler stops compiling.
+    suspend fun startClock(ctx: Ctx, effect: F.StartClock): A?
+    suspend fun stopClock(ctx: Ctx, effect: F.StopClock): A?
+}
+
+/**
+ * Convenience base class. The surface is [TimerCells]; this adds the
+ * dispatcher as a method so a developer writes `class Timer : TimerMachine()`
+ * rather than threading `this` through a free function.
+ */
+abstract class TimerMachine : TimerCells {
 
     /**
      * The dispatcher, which exists **only here**.
@@ -106,14 +127,6 @@ abstract class TimerMachine {
             is A.Cancel -> Step.Ignored
         }
     }
-
-    /**
-     * One required member per effect variant, again with narrowed payloads.
-     *
-     * Add an effect to the declaration and every handler stops compiling.
-     */
-    abstract suspend fun startClock(ctx: Ctx, effect: F.StartClock): A?
-    abstract suspend fun stopClock(ctx: Ctx, effect: F.StopClock): A?
 
     /** Effect dispatch. Also no `else`. */
     suspend fun perform(ctx: Ctx, f: F): A? = when (f) {

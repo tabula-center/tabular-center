@@ -36,7 +36,7 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 3 The spec | **done** |
 | 4 Kotlin core + KSP | **M2 PASSED**; core done, processor next |
 | 5 Swift | not started |
-| 6 Composition | **done (Rust half)** |
+| 6 Composition | **done (Rust and Kotlin)** |
 | 7 Effects surface | **done (Rust half)** |
 | 8 Introspection & tooling | **done (Rust half)** |
 | 9 Runtime / drivers | **done (Rust half)** |
@@ -326,7 +326,12 @@ color-mismatch is a build error in all three.
       child inside a colorless parent emits `.await` in a non-`async` `fn`,
       which rustc rejects. No check to write and nothing to circumvent. Kotlin
       and Swift will need the explicit `tabula::color-mismatch` diagnostic.
-- [ ] Kotlin and Swift halves (blocked on Phase 4)
+- [x] Kotlin half. `interface Cells : retry.Cells` — interfaces are Kotlin's
+      trait bounds — with `compile_fail/child_hole_breaks_parent.kt` proving the
+      property.
+- [x] All four conformance fixtures now pass in **both** languages, with
+      matching lint output. Nothing is skipped.
+- [ ] Swift half
 
 ---
 
@@ -481,6 +486,22 @@ comparatively cheap; everything after it assumes M2 held.
 - **The trace format's `from` needed payload fields**, symmetric with `go`.
   It silently dropped them, which started a composition trace in the wrong
   child state and produced a passing-looking wrong answer.
+
+### Findings from Phase 6's Kotlin half
+
+- **A Kotlin class may implement a generic interface at only one type
+  argument.** `Cells : Delegate<A.Run>, Delegate<A.Tick>` is
+  `type parameter 'AV' has inconsistent values`. Rust's `Delegate<M, SV, AV, CM>`
+  therefore cannot be transcribed; Kotlin emits one named member per delegate
+  cell. That is the better form regardless — Rust only reaches for a generic
+  trait because `macro_rules!` cannot concatenate identifiers.
+- **The cell surface had to become an interface**, not abstract members on a
+  class. A class extends one parent, so abstract members would have capped
+  composition at a single child. `abstract class Machine : Cells` remains as a
+  convenience wrapper.
+- **The four lens members are per child, not per cell.** A second delegate cell
+  to the same child reuses `childState`, `embed`, `lift`, and `childCtx`; only
+  the action prism is per cell.
 
 ### Findings from Phase 7
 

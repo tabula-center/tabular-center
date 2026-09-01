@@ -1,4 +1,4 @@
-//~ EXPECT: does not implement abstract base class member
+//~ EXPECT: does not implement abstract member
 //
 // The effect surface, same mechanism. Add an effect variant to a shipped
 // machine and every handler in the codebase stops compiling.

@@ -100,10 +100,15 @@ step_kotlin_conformance() {
         cd kotlin || exit 1
         "$KOTLINC" src/dev/tabula/*.kt -d "$out/core" 2>&1 | grep -v "^info:" || true
         [ -d "$out/core" ] || { echo "core failed to compile"; exit 1; }
-        "$KOTLINC" -cp "$out/core" conformance/*.kt -include-runtime -d "$out/c.jar" 2>&1 \
+        # The fixture machines live in test/Composition.kt: they are KSP's
+        # specification first and conformance fixtures second.
+        "$KOTLINC" -cp "$out/core" test/Composition.kt -d "$out/comp" 2>&1 \
             | grep -v "^info:" || true
+        [ -d "$out/comp" ] || { echo "composition failed to compile"; exit 1; }
+        "$KOTLINC" -cp "$out/core:$out/comp" conformance/*.kt -include-runtime \
+            -d "$out/c.jar" 2>&1 | grep -v "^info:" || true
         [ -f "$out/c.jar" ] || { echo "conformance failed to compile"; exit 1; }
-        java -cp "$out/c.jar:$out/core" conformance.MainKt ../spec/conformance
+        java -cp "$out/c.jar:$out/core:$out/comp" conformance.MainKt ../spec/conformance
     )
     local rc=$?
     rm -rf "$out"
@@ -120,8 +125,8 @@ step_kotlin_compile_fail() {
     bad=0
 
     (cd kotlin && "$KOTLINC" src/dev/tabula/*.kt -d "$out/core" 2>&1 | grep -v "^info:") || true
-    (cd kotlin && "$KOTLINC" -cp "$out/core" test/ReferenceTimer.kt -d "$out/ref" 2>&1 \
-        | grep -v "^info:") || true
+    (cd kotlin && "$KOTLINC" -cp "$out/core" test/ReferenceTimer.kt test/Composition.kt \
+        -d "$out/ref" 2>&1 | grep -v "^info:") || true
 
     for f in kotlin/compile_fail/*.kt; do
         exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"

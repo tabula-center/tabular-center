@@ -230,4 +230,4 @@ object ToggleAdapter : Adapter {
 }
 
 /** Every adapter that has landed. A fixture with none is reported as skipped. */
-val adapters: List<Adapter> = listOf(TimerAdapter, ToggleAdapter)
+val adapters: List<Adapter> = listOf(TimerAdapter, ToggleAdapter, RetryAdapter, JobAdapter)
