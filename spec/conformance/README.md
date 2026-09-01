@@ -80,6 +80,16 @@ trace reaches-done
   `Step::stay()` where the trace says `ignored` fails, and should — the
   distinction is load-bearing for the reachability linter.
 
+## What the golden grids prove
+
+`<name>.grid` is written by the Rust harness (`--bless`) and **read** by every
+other implementation. The Kotlin harness never blesses: a renderer that drifts
+by a single space fails there rather than quietly rewriting the shared file.
+
+Two renderers agreeing byte for byte is a stronger statement than it looks. It
+means the padding rules, the right-trimming, and the cell text for all six
+kinds match — and those are exactly the details that rot silently.
+
 ## Adding a fixture
 
 1. Write `<name>.tbl` and `traces/<name>.trace`.

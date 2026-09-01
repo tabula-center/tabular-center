@@ -8,7 +8,8 @@
 # checked different things.
 #
 # Usage:  tools/verify [step ...]      (default: all)
-# Steps:  fmt clippy test no-std compile-fail conformance kotlin kotlin-compile-fail
+# Steps:  fmt clippy test no-std compile-fail conformance
+#         kotlin kotlin-compile-fail kotlin-conformance
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
@@ -88,6 +89,27 @@ step_kotlin() {
     return "$rc"
 }
 
+step_kotlin_conformance() {
+    if ! kotlin_available; then
+        echo "note: $KOTLINC not found; skipping"
+        return 0
+    fi
+    local out
+    out="$(mktemp -d)"
+    (
+        cd kotlin || exit 1
+        "$KOTLINC" src/dev/tabula/*.kt -d "$out/core" 2>&1 | grep -v "^info:" || true
+        [ -d "$out/core" ] || { echo "core failed to compile"; exit 1; }
+        "$KOTLINC" -cp "$out/core" conformance/*.kt -include-runtime -d "$out/c.jar" 2>&1 \
+            | grep -v "^info:" || true
+        [ -f "$out/c.jar" ] || { echo "conformance failed to compile"; exit 1; }
+        java -cp "$out/c.jar:$out/core" conformance.MainKt ../spec/conformance
+    )
+    local rc=$?
+    rm -rf "$out"
+    return "$rc"
+}
+
 step_kotlin_compile_fail() {
     if ! kotlin_available; then
         echo "note: $KOTLINC not found; skipping"
@@ -123,7 +145,8 @@ step_kotlin_compile_fail() {
 
 steps=("$@")
 [ ${#steps[@]} -eq 0 ] && \
-    steps=(fmt clippy test no-std compile-fail conformance kotlin kotlin-compile-fail)
+    steps=(fmt clippy test no-std compile-fail conformance \
+           kotlin kotlin-compile-fail kotlin-conformance)
 
 for s in "${steps[@]}"; do
     case "$s" in
@@ -135,6 +158,7 @@ for s in "${steps[@]}"; do
         conformance)  run conformance  step_conformance ;;
         kotlin)              run kotlin              step_kotlin ;;
         kotlin-compile-fail) run kotlin-compile-fail step_kotlin_compile_fail ;;
+        kotlin-conformance)  run kotlin-conformance  step_kotlin_conformance ;;
         *) echo "unknown step: $s"; exit 2 ;;
     esac
 done

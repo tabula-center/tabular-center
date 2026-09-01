@@ -7,6 +7,16 @@
 /kotlin/*/build/
 /kotlin/.gradle-home/
 .gradle-home/
+# Kotlin
+#
+# The module builds with `kotlinc` directly for now, which writes wherever it
+# is told rather than into a build directory a build system would already
+# ignore. 59 class files and a 4.7 MB jar reached a commit before this existed.
+/kotlin/out/
+/kotlin/testout/
+/kotlin/testout.jar
+/kotlin/build/
+
 # Swift
 /swift/.build/
 /swift/*.xcodeproj

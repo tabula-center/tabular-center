@@ -166,6 +166,8 @@
             kotlin-test = mkCheck "kotlin" kotlinInputs "./tools/verify kotlin";
             kotlin-compile-fail =
               mkCheck "kotlin-compile-fail" kotlinInputs "./tools/verify kotlin-compile-fail";
+            kotlin-conformance =
+              mkCheck "kotlin-conformance" kotlinInputs "./tools/verify kotlin-conformance";
           }
           // lib.optionalAttrs hasKotlinGradle {
             # Guards the zero-runtime-dependency rule. See ARCHITECTURE 11.2.

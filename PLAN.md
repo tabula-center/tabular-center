@@ -257,7 +257,13 @@ the build with a comprehensible message; the developer's source file contains no
       hierarchies — a change to `S` must reprocess dependent machines)
 
 **4d. Conformance**
-- [ ] Kotlin harness green on all Phase 3 fixtures
+- [x] Kotlin harness green on `timer` and `toggle`; `retry` and
+      `nested-delegate` report as **skipped**, not passed. Verified to catch
+      both table drift and behavioural drift.
+- [x] The golden `.grid` files are now genuinely shared: Rust writes them,
+      Kotlin reads and never blesses. Two renderers agreeing byte for byte
+      covers padding, trimming, and the text of all six cell kinds — the
+      details that rot silently.
 
 **Known friction to absorb, not fight:** slower incremental builds; IDE symbol
 resolution flaky before first build; ktlint fighting column alignment; wordy

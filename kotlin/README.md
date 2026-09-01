@@ -40,7 +40,12 @@ repeat the mistake of shipping unverified code.
 ```sh
 ./tools/verify kotlin
 ./tools/verify kotlin-compile-fail
+./tools/verify kotlin-conformance
 ```
+
+Both compile into a temporary directory, never into the tree. Building by hand
+writes wherever you point `-d`, so prefer the script — a stray `kotlinc ... -d
+out` put 59 class files and a 4.7 MB jar into a commit once already.
 
 Both are wired into `nix flake check`. Gradle, KSP, and Maven publication come
 next, and the `@Row` annotation shape they will read is already validated here.
@@ -56,8 +61,14 @@ suspending machine with `kotlin.coroutines` intrinsics alone.
 ```
 src/dev/tabula/     Step, Cell, Table, Export, Lint, Driver, Annotations
 test/               the reference machine (KSP's specification) and its tests
+conformance/        the shared spec/conformance fixtures, run against Kotlin
 compile_fail/       one fixture per guarantee
 ```
+
+`conformance/` is what keeps the two implementations from drifting. It parses
+the same `.tbl` and `.trace` files the Rust harness reads, and compares the
+rendered grid **byte for byte** against the golden `.grid` file Rust writes.
+Verified to catch both table drift and behavioural drift.
 
 `test/ReferenceTimer.kt` is the artifact to read first. It is marked with a
 `GENERATED` line: everything below is what KSP must emit, everything around it
