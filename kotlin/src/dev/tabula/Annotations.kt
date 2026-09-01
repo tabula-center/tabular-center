@@ -16,6 +16,15 @@ enum class Kind { HANDLE, IGNORE, GO, EMIT, UNREACHABLE, DELEGATE }
 annotation class CellSpec(
     val kind: Kind,
     val to: KClass<*> = Unit::class,
+    /**
+     * Literal constructor arguments for [to], e.g. "(0)".
+     *
+     * A string because an annotation cannot hold an expression. Rule R3 keeps
+     * this honest: a GO target that needs runtime data is rejected outright
+     * rather than papered over here, so the only thing this ever carries is a
+     * literal.
+     */
+    val args: String = "",
     val emit: Array<KClass<*>> = [],
     val child: KClass<*> = Unit::class,
 )

@@ -241,8 +241,13 @@ the build with a comprehensible message; the developer's source file contains no
 - [x] **The emitted source is compiled**, then a complete implementation and an
       incomplete one are compiled against it. A golden diff alone proves only
       determinism; this proves the output still enforces the guarantee.
-- [ ] The KSP processor itself: read annotations, build a `MachineDesc`, call
-      `emit`. Mechanical, and the only part that needs Maven.
+- [x] `codegen/Raw.kt`: validation and **every declaration diagnostic**, with
+      14 test cases. Moved out of the processor precisely so it could be
+      tested; a `RawMachine` round-trips to the same source as the goldens.
+- [x] The KSP adapter, ~200 lines of extraction. **Unverified** — it is the
+      only file in the repository that has never been run. `ksp/README.md`
+      lists four honest guesses at what will need fixing first.
+- [ ] One run against Maven to confirm or correct it.
 
 The split is worth keeping after KSP lands. A generator whose logic can only be
 exercised through a compiler plugin is a generator nobody refactors.

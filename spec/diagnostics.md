@@ -128,6 +128,29 @@ diagnostics tabula itself authors.
 
 ---
 
+## Declaration diagnostics
+
+These concern the *declaration* rather than the generated code, so they fire
+before any compiler plugin is involved. In Kotlin they live in
+`codegen/Raw.kt` — deliberately outside the KSP processor, so each one has a
+test rather than living in code that needs Maven to run.
+
+| Code | Fires when |
+|---|---|
+| `tabula::row-arity` | a row has the wrong number of cells |
+| `tabula::missing-row` | a state has no row, or rows are out of declaration order |
+| `tabula::extra-row` | a row names something that is not a declared state |
+| `tabula::unknown-cell` | a cell is not one of the six kinds |
+| `tabula::unknown-state` | `GO` targets, or `initial` names, an undeclared state |
+| `tabula::unknown-effect` | a cell emits an undeclared effect |
+| `tabula::unknown-child` | `DELEGATE` names an undeclared child |
+| `tabula::go-target` | `GO` targets a payload state with no literal arguments |
+| `tabula::empty-emit` | `EMIT` lists no effects; use `IGNORE` or `HANDLE` |
+
+Rows are identified by **position**, so an out-of-order row is reported as
+`missing-row` rather than accepted as a reordering: it is a row for the wrong
+state, not the right row in the wrong place.
+
 ## `tabula::color-mismatch` (Phase 6)
 
 ```

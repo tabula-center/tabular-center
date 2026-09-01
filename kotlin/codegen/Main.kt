@@ -59,6 +59,8 @@ val toggleDesc = MachineDesc(
 private val all = mapOf("timer" to timerDesc, "toggle" to toggleDesc)
 
 fun main(args: Array<String>) {
+    if (runValidationTests() > 0) kotlin.system.exitProcess(1)
+
     val bless = args.contains("--bless")
     val dir = File(args.firstOrNull { !it.startsWith("--") } ?: "codegen/golden")
     dir.mkdirs()
