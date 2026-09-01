@@ -1,0 +1,11 @@
+# Payload-carrying states, mixed static and dynamic cells.
+# The machine this fixture describes is the one in ARCHITECTURE.md.
+
+machine Timer
+initial Idle
+states  Idle Running Done
+actions Start Tick Cancel
+
+Idle    | HANDLE                  | IGNORE | IGNORE
+Running | IGNORE                  | HANDLE | GO(Idle, StopClock)
+Done    | GO(Running, StartClock) | IGNORE | IGNORE

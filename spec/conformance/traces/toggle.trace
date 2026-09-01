@@ -1,0 +1,14 @@
+trace flip-and-emit
+  from Off
+  Flip => go On    ! Light
+  Poke => stay
+  Flip => go Off
+  Poke => stay     ! Buzz
+  Reset => ignored
+
+trace emit-stays-put
+  # EMIT(Buzz) must not transition. A generator that treated EMIT as a
+  # self-GO would still pass a state assertion, so the effect is asserted too.
+  from Off
+  Poke => stay ! Buzz
+  Poke => stay ! Buzz

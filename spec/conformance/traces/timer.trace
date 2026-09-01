@@ -1,0 +1,25 @@
+trace reaches-done
+  ctx  limit=3
+  from Idle
+  Start      => go Running since=0  ! StartClock
+  Tick now=1 => stay
+  Tick now=9 => go Done             ! StopClock
+  Cancel     => ignored
+
+trace cancel-returns-to-idle
+  ctx  limit=100
+  from Idle
+  Start        => go Running since=0 ! StartClock
+  Tick now=1   => stay
+  Cancel       => go Idle            ! StopClock
+  Tick now=2   => ignored
+
+trace stay-is-not-ignored
+  # A machine returning Step::stay() where this says `ignored` must fail.
+  # The distinction drives the reachability linter and the coverage report.
+  ctx  limit=100
+  from Idle
+  Cancel     => ignored
+  Tick now=1 => ignored
+  Start      => go Running since=0 ! StartClock
+  Tick now=1 => stay

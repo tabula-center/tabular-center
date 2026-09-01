@@ -1,0 +1,146 @@
+//! Adapter for `spec/conformance/timer.tbl`.
+
+use std::collections::BTreeMap;
+
+use tabula::{transition_matrix, Handle, Outcome, Step};
+
+use super::{Adapter, Observed};
+use crate::{last_segment, Expect, Spec, Trace};
+
+#[derive(Debug, Default)]
+pub struct Ctx {
+    pub limit: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Effect {
+    StartClock,
+    StopClock,
+}
+
+transition_matrix! {
+    machine Timer;
+    context Ctx;
+    state   State;
+    action  Action;
+    effect  Effect;
+    initial Idle;
+
+    states  { Idle, Running { since: u32 }, Done }
+    actions { Start, Tick { now: u32 }, Cancel }
+
+    //            Start                                          Tick      Cancel
+    Idle    => [  HANDLE,                                        IGNORE,   IGNORE                       ];
+    Running => [  IGNORE,                                        HANDLE,   GO!(Idle, Effect::StopClock) ];
+    Done    => [  GO!(Running { since: 0 }, Effect::StartClock), IGNORE,   IGNORE                       ];
+}
+
+struct Cells;
+
+impl Handle<Timer, Idle, Start> for Cells {
+    fn handle(&mut self, _c: &mut Ctx, _s: Idle, _a: Start) -> Step<State, Effect> {
+        Step::go(State::Running(Running { since: 0 })).emit(Effect::StartClock)
+    }
+}
+
+impl Handle<Timer, Running, Tick> for Cells {
+    fn handle(&mut self, c: &mut Ctx, s: Running, a: Tick) -> Step<State, Effect> {
+        if a.now.saturating_sub(s.since) >= c.limit {
+            Step::go(State::Done(Done)).emit(Effect::StopClock)
+        } else {
+            Step::stay()
+        }
+    }
+}
+
+pub struct TimerAdapter;
+
+fn state_from(name: &str, f: &BTreeMap<String, i64>) -> Result<State, String> {
+    Ok(match name {
+        "Idle" => State::Idle(Idle),
+        "Done" => State::Done(Done),
+        "Running" => State::Running(Running {
+            since: f.get("since").copied().unwrap_or(0) as u32,
+        }),
+        _ => return Err(format!("timer: unknown state `{name}`")),
+    })
+}
+
+fn action_from(name: &str, a: &BTreeMap<String, i64>) -> Result<Action, String> {
+    Ok(match name {
+        "Start" => Action::Start(Start),
+        "Cancel" => Action::Cancel(Cancel),
+        "Tick" => Action::Tick(Tick {
+            now: a.get("now").copied().unwrap_or(0) as u32,
+        }),
+        _ => return Err(format!("timer: unknown action `{name}`")),
+    })
+}
+
+/// Render a state back into fixture vocabulary: variant name plus the fields
+/// the trace chose to assert on.
+fn describe(s: State, want: &BTreeMap<String, i64>) -> (String, BTreeMap<String, i64>) {
+    let mut fields = BTreeMap::new();
+    let name = match s {
+        State::Idle(_) => "Idle",
+        State::Done(_) => "Done",
+        State::Running(r) => {
+            if want.contains_key("since") {
+                fields.insert("since".to_string(), r.since as i64);
+            }
+            "Running"
+        }
+    };
+    (name.to_string(), fields)
+}
+
+impl Adapter for TimerAdapter {
+    fn name(&self) -> &'static str {
+        "timer"
+    }
+
+    fn check_table(&self, spec: &Spec) -> Vec<String> {
+        crate::check_table(&TABLE, spec)
+    }
+
+    fn replay(&self, trace: &Trace) -> Result<Vec<Observed>, String> {
+        let mut ctx = Ctx {
+            limit: trace.ctx.get("limit").copied().unwrap_or(0) as u32,
+        };
+        let mut cells = Cells;
+        let mut state = state_from(&trace.from, &BTreeMap::new())?;
+        let mut out = vec![];
+
+        for st in &trace.steps {
+            let action = action_from(&st.action, &st.args)?;
+            let step = step(&mut cells, &mut ctx, state, action);
+
+            let effects = step.effects.iter().map(|e| format!("{e:?}")).collect();
+            let expect = match step.outcome {
+                Outcome::Stay => Expect::Stay,
+                Outcome::Ignored => Expect::Ignored,
+                Outcome::Go(next) => {
+                    state = next;
+                    let want = match &st.expect {
+                        Expect::Go { fields, .. } => fields.clone(),
+                        _ => BTreeMap::new(),
+                    };
+                    let (name, fields) = describe(next, &want);
+                    Expect::Go {
+                        state: name,
+                        fields,
+                    }
+                }
+            };
+            out.push(Observed { expect, effects });
+        }
+        Ok(out)
+    }
+}
+
+/// `Effect::StopClock` debug-prints as `StopClock`, which is already the last
+/// segment; keep the normalisation explicit anyway so an adapter that formats
+/// differently still compares correctly.
+pub fn normalise(e: &str) -> &str {
+    last_segment(e)
+}

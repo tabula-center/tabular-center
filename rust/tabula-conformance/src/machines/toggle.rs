@@ -1,0 +1,102 @@
+//! Adapter for `spec/conformance/toggle.tbl`.
+//!
+//! Payload-free states, and the only coverage for `EMIT` and `UNREACHABLE`.
+
+use std::collections::BTreeMap;
+
+use tabula::{transition_matrix, Handle, Outcome, Step};
+
+use super::{Adapter, Observed};
+use crate::{Expect, Spec, Trace};
+
+#[derive(Debug, Default)]
+pub struct Ctx;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Effect {
+    Light,
+    Buzz,
+}
+
+transition_matrix! {
+    machine Toggle;
+    context Ctx;
+    state   State;
+    action  Action;
+    effect  Effect;
+    initial Off;
+
+    states  { Off, On }
+    actions { Flip, Poke, Reset }
+
+    //         Flip                    Poke                Reset
+    Off => [   GO!(On, Effect::Light), EMIT!(Effect::Buzz), IGNORE       ];
+    On  => [   GO!(Off),               HANDLE,              UNREACHABLE  ];
+}
+
+struct Cells;
+
+impl Handle<Toggle, On, Poke> for Cells {
+    fn handle(&mut self, _c: &mut Ctx, _s: On, _a: Poke) -> Step<State, Effect> {
+        Step::stay()
+    }
+}
+
+pub struct ToggleAdapter;
+
+fn state_from(name: &str) -> Result<State, String> {
+    Ok(match name {
+        "Off" => State::Off(Off),
+        "On" => State::On(On),
+        _ => return Err(format!("toggle: unknown state `{name}`")),
+    })
+}
+
+fn action_from(name: &str) -> Result<Action, String> {
+    Ok(match name {
+        "Flip" => Action::Flip(Flip),
+        "Poke" => Action::Poke(Poke),
+        "Reset" => Action::Reset(Reset),
+        _ => return Err(format!("toggle: unknown action `{name}`")),
+    })
+}
+
+impl Adapter for ToggleAdapter {
+    fn name(&self) -> &'static str {
+        "toggle"
+    }
+
+    fn check_table(&self, spec: &Spec) -> Vec<String> {
+        crate::check_table(&TABLE, spec)
+    }
+
+    fn replay(&self, trace: &Trace) -> Result<Vec<Observed>, String> {
+        let mut ctx = Ctx;
+        let mut cells = Cells;
+        let mut state = state_from(&trace.from)?;
+        let mut out = vec![];
+
+        for st in &trace.steps {
+            let action = action_from(&st.action)?;
+            let step = step(&mut cells, &mut ctx, state, action);
+            let effects = step.effects.iter().map(|e| format!("{e:?}")).collect();
+            let expect = match step.outcome {
+                Outcome::Stay => Expect::Stay,
+                Outcome::Ignored => Expect::Ignored,
+                Outcome::Go(next) => {
+                    state = next;
+                    let name = match next {
+                        State::Off(_) => "Off",
+                        State::On(_) => "On",
+                    };
+                    Expect::Go {
+                        state: name.to_string(),
+                        fields: BTreeMap::new(),
+                    }
+                }
+            };
+            out.push(Observed { expect, effects });
+        }
+        Ok(out)
+    }
+}

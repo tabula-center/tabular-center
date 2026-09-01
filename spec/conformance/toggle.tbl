@@ -1,0 +1,13 @@
+# Payload-free states, and the only coverage for EMIT and UNREACHABLE.
+#
+# `On x Reset` is UNREACHABLE because a supervisor guarantees Reset only
+# arrives while Off. That is exactly the kind of claim UNREACHABLE exists to
+# record: if it fires, the surrounding system has a bug, not this machine.
+
+machine Toggle
+initial Off
+states  Off On
+actions Flip Poke Reset
+
+Off | GO(On, Light) | EMIT(Buzz) | IGNORE
+On  | GO(Off)       | HANDLE     | UNREACHABLE

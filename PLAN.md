@@ -33,11 +33,12 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 0 Foundations | **done** |
 | 1 Rust core, no macro | **done** |
 | 2 `transition_matrix!` | **done** |
-| 3 The spec | in progress — `spec/diagnostics.md` written |
+| 3 The spec | **done** |
 | 4+ | not started |
 
-40 tests and 6 compile-fail fixtures green. Findings from 1 and 2 are recorded
-in the commit messages and folded back into `ARCHITECTURE.md`.
+47 tests, 6 compile-fail fixtures, 2 conformance fixtures (19 trace steps).
+Findings from each phase are recorded in its commit message and folded back
+into `ARCHITECTURE.md`.
 
 ---
 
@@ -143,13 +144,34 @@ could be written from it without reading the Rust source.
       (not anticipated) and records that the *missing-implementation* error is
       deliberately **not ours**: it comes from the language compiler, reads
       differently in each, and must not be intercepted or normalized.
-- [ ] `spec/conformance/schema.json` — declarative machine description
-- [ ] Fixtures: `timer`, `retry`, `nested-delegate`, `payload-hoist`,
-      `payload-free-fastpath`, `effects-never`
+
+- [x] Fixtures: `timer` (payload states, HANDLE, GO with effects),
+      `toggle` (payload-free, and the only coverage for EMIT and UNREACHABLE)
+- [ ] Fixtures deferred to their own phases: `nested-delegate` (6),
+      `effects-never` (7), `payload-hoist` (8)
 - [ ] Trace format: `(state, action) → (state, effects)` sequences
-- [ ] `tools/conformance-runner` skeleton + Rust harness passing all fixtures
+- [x] Rust harness passing all fixtures, plus `table-diff`. Verified against
+      three classes of deliberately introduced drift: a wrong cell kind, a
+      `stay`/`ignored` confusion, and a wrong effect. **Table checking is not
+      redundant with trace replay** — several wrong tables produce right
+      answers on any one trace, so the generated `TABLE` is compared cell by
+      cell as well.
+- [x] A fixture with no adapter reports as **skipped**, never as passed.
+      Phases 4 and 5 begin with everything skipped and that has to be visible.
 
 ---
+
+### Decisions recorded in Phase 3
+
+- **Effect names compare by last path segment.** Rust holds
+  `Effect::StopClock` because the macro stringifies the expression it was
+  given; Kotlin will hold `F.StopClock`. Qualification is spelling, not
+  behaviour.
+- **Generated source is never compared.** Rust names cells by trait bound,
+  Kotlin and Swift by identifier. Comparing source would encode a
+  `macro_rules!` limitation as a cross-language requirement.
+- **Diagnostic text is normative only for codes tabula authors.** The
+  missing-implementation error belongs to each language's own compiler.
 
 ## Phase 4 — Kotlin core + KSP
 

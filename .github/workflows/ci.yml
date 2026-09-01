@@ -17,6 +17,7 @@ jobs:
       - run: cd rust && cargo clippy --all-targets --all-features -- -D warnings
       - run: cd rust && cargo test --all-features
       - run: ./tools/compile-fail
+      - run: cd rust && cargo run -q -p tabula-conformance
       # Phase 1 exit criterion: core must build without std.
       - run: cd rust && cargo build -p tabula --no-default-features --target thumbv7em-none-eabihf
 
