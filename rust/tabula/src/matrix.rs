@@ -66,6 +66,14 @@
 /// }
 /// ```
 ///
+/// # Reserved names
+///
+/// The macro emits `State`, `Action`, `Marker`, `Cells`, `step`, and `TABLE`
+/// into the invoking module, plus one struct per state and action variant.
+/// Put each machine in its own module: the narrowed structs (`Idle`, `Start`)
+/// would otherwise collide between machines, and `Cells` is a trait here, not
+/// a name you can reuse.
+///
 /// # What it generates
 ///
 /// - One narrowed struct per state and action variant (`Idle`, `Running`,
@@ -88,7 +96,7 @@
 /// | `HANDLE` | **yes** | developer writes the body |
 /// | `UNREACHABLE` | no | asserted impossible; compiles to a trap |
 ///
-/// `DELEGATE!` is reserved for composition and is not yet implemented.
+/// | `DELEGATE!(child_module)` | **yes** | run the child machine and fold the result back |
 ///
 /// # `GO!` targets are statically constructible
 ///
@@ -231,6 +239,28 @@ macro_rules! transition_matrix {
         acc=[$($acc:tt)*]
         rows=[]
     ) => {
+        /// This machine's marker type, under a fixed name.
+        ///
+        /// A parent delegating to this machine writes `DELEGATE!(module)` and
+        /// the generator needs the marker's type without knowing what the
+        /// child called it. `macro_rules!` cannot build an identifier, so the
+        /// alias is the way to reach it by path.
+        pub type Marker = $m;
+
+        /// This machine's entire cell surface, as one bound.
+        ///
+        /// The point of bundling is composition: a parent's `DELEGATE` cell
+        /// adds `child::Cells` to its own bounds, so a hole anywhere in the
+        /// child breaks the *parent's* build. That is the composition
+        /// property, and it costs one blanket impl.
+        ///
+        /// `step` keeps the expanded `where` clause rather than using this,
+        /// because rustc then names the specific missing `Handle` rather than
+        /// reporting `Cells` unsatisfied.
+        pub trait Cells: $($acc)* ::core::marker::Sized {}
+
+        impl<T> Cells for T where T: $($acc)* ::core::marker::Sized {}
+
         /// Dispatch one `(state, action)` pair.
         ///
         /// The `where` clause below is the cell surface: one bound per
@@ -382,6 +412,29 @@ macro_rules! transition_matrix {
         );
     };
 
+    // ---- DELEGATE: contributes the delegate bound AND the child's whole
+    // cell surface. This is what makes a total child compose into a total
+    // parent, checked by the compiler rather than asserted in a doc.
+    (@bound_row
+        m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
+        states=[$($sv:ident)*] actions=[$($av:ident)*] rows_all=[$($ra:tt)*]
+        acc=[$($acc:tt)*] st=$st:ident
+        cur_actions=[$ca:ident $($carest:ident)*]
+        cur_cells=[DELEGATE ! ($ch:ident) $($crest:tt)*]
+        rows=[$($rest:tt)*]
+    ) => {
+        $crate::transition_matrix!(@bound_row
+            m=$m s=$s a=$a e=$e x=$x i=$i
+            states=[$($sv)*] actions=[$($av)*] rows_all=[$($ra)*]
+            acc=[$($acc)*
+                $crate::Delegate<$m, $st, $ca, $ch::Marker> +
+                $ch::Cells +
+            ] st=$st
+            cur_actions=[$($carest)*] cur_cells=[$($crest)*]
+            rows=[$($rest)*]
+        );
+    };
+
     // ---- static cells: consume a column, contribute nothing ----
     (@bound_row
         m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
@@ -459,7 +512,7 @@ macro_rules! transition_matrix {
             "tabula::unknown-cell: `", ::core::stringify!($bad),
             "` in row `", ::core::stringify!($st), "`, column `",
             ::core::stringify!($ca),
-            "`. Expected one of: IGNORE, HANDLE, UNREACHABLE, GO!(..), EMIT!(..)."
+            "`. Expected one of: IGNORE, HANDLE, UNREACHABLE, GO!(..), EMIT!(..), DELEGATE!(..)."
         ));
     };
 }
@@ -471,11 +524,14 @@ macro_rules! transition_matrix {
 #[macro_export]
 macro_rules! __tabula_struct {
     ($n:ident) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub struct $n;
     };
     ($n:ident { $($f:ident : $t:ty),* $(,)? }) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+        // Deliberately no `Default`: deriving it would impose `Default` on
+        // every payload type for no benefit, and a state whose payload is a
+        // child machine's state (composition) rarely has one.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub struct $n { $(pub $f: $t),* }
     };
 }
@@ -624,6 +680,55 @@ macro_rules! __tabula_row {
             },])
     };
 
+    // DELEGATE!(child_module)
+    //
+    // Runs the child's `step` and folds the result back through the lens. A
+    // colored child inside a colorless parent fails here, because the `.await`
+    // the colored form emits is illegal in a non-async fn -- color flows one
+    // way by construction, with no check to write.
+    (@go m=$m:ident s=$s:ident a=$a:ident st=$st:ident
+        bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
+        actions=[$ca:ident $($carest:ident)*]
+        cells=[DELEGATE ! ($ch:ident) $($crest:tt)*]
+        arms=[$($arm:tt)*]
+    ) => {
+        $crate::__tabula_row!(@go m=$m s=$s a=$a st=$st
+            bind=[$bs $ba $bc $bx $bsv]
+            actions=[$($carest)*] cells=[$($crest)*]
+            arms=[$($arm)* $a::$ca(__tabula_a) => {
+                let __child_action = <C as $crate::Delegate<$m, $st, $ca, $ch::Marker>>::to_child(
+                    $bc, $bx, &$bsv, __tabula_a,
+                );
+                match __child_action {
+                    // The child's alphabet does not contain this action.
+                    // `Ignored`, not `Stay`: nothing was handled.
+                    ::core::option::Option::None => $crate::Step::ignored(),
+                    ::core::option::Option::Some(__ca) => {
+                        let __cs =
+                            <C as $crate::Delegate<$m, $st, $ca, $ch::Marker>>::child_state($bc, &$bsv);
+                        let __cx =
+                            <C as $crate::Delegate<$m, $st, $ca, $ch::Marker>>::child_ctx($bc, $bx);
+                        let __cstep = $ch::step($bc, __cx, __cs, __ca);
+                        let mut __out = match __cstep.outcome {
+                            $crate::Outcome::Go(__next) => $crate::Step::go(
+                                <C as $crate::Delegate<$m, $st, $ca, $ch::Marker>>::embed(
+                                    $bc, $bsv, __next,
+                                ),
+                            ),
+                            $crate::Outcome::Stay => $crate::Step::stay(),
+                            $crate::Outcome::Ignored => $crate::Step::ignored(),
+                        };
+                        for __ef in __cstep.effects {
+                            __out = __out.emit(
+                                <C as $crate::Delegate<$m, $st, $ca, $ch::Marker>>::lift($bc, __ef),
+                            );
+                        }
+                        __out
+                    }
+                }
+            },])
+    };
+
     // EMIT!(effects..)
     (@go m=$m:ident s=$s:ident a=$a:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
@@ -662,6 +767,12 @@ macro_rules! __tabula_cells {
 
     (@go cells=[UNREACHABLE $($r:tt)*] acc=[$($c:tt)*]) => {
         $crate::__tabula_cells!(@go cells=[$($r)*] acc=[$($c)* $crate::Cell::Unreachable,])
+    };
+
+    (@go cells=[DELEGATE ! ($ch:ident) $($r:tt)*] acc=[$($c:tt)*]) => {
+        $crate::__tabula_cells!(@go cells=[$($r)*] acc=[$($c)* $crate::Cell::Delegate {
+            child: ::core::stringify!($ch),
+        },])
     };
 
     (@go cells=[GO ! ($t:expr $(, $ef:expr)* $(,)?) $($r:tt)*] acc=[$($c:tt)*]) => {

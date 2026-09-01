@@ -8,6 +8,7 @@
 //! a fixture with no adapter in some language reports as **skipped**, never as
 //! passed.
 
+pub mod compose;
 pub mod timer;
 pub mod toggle;
 
@@ -44,5 +45,7 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
     vec![
         Box::new(timer::TimerAdapter),
         Box::new(toggle::ToggleAdapter),
+        Box::new(compose::RetryAdapter),
+        Box::new(compose::JobAdapter),
     ]
 }

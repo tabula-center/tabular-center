@@ -65,7 +65,14 @@ trace reaches-done
   Cancel     => ignored
 ```
 
-- `ctx` seeds cross-state data; `from` is the starting state.
+- `ctx` seeds cross-state data; `from` is the starting state, and accepts
+  payload fields exactly as `go` does (`from Running since=4`). The two must
+  stay symmetric — an earlier version parsed fields on `go` only, which
+  silently dropped them from `from` and started a composition trace in the
+  wrong child state.
+- A nested state is addressed by a prefixed field (`child_attempt=1`) rather
+  than by nesting. The format is flat on purpose; nesting would buy little and
+  cost every implementation a recursive parser.
 - Outcomes: `go <State> [field=value ...]`, `stay`, `ignored`.
 - `!` introduces the effects expected from that step, in emission order.
   Absent means none.

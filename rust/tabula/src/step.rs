@@ -148,16 +148,11 @@ impl<F, const K: usize> Effects<F, K> {
         self.items[..self.len].iter().filter_map(Option::as_ref)
     }
 
-    /// Consume, yielding the effects in emission order.
-    pub fn into_iter(self) -> impl Iterator<Item = F> {
-        self.items.into_iter().flatten()
-    }
-
     /// Relabel every effect. Used by the `translate` composition operator and
     /// by `DELEGATE` cells lifting a child's effects into the parent's.
     pub fn map<G, H: FnMut(F) -> G>(self, mut h: H) -> Effects<G, K> {
         let mut out = Effects::<G, K>::none();
-        for f in self.into_iter() {
+        for f in self {
             out.push(h(f));
         }
         out

@@ -1,0 +1,156 @@
+//! Composition: driving a child machine from one cell of a parent's matrix.
+//!
+//! # The property this exists to deliver
+//!
+//! > Scoping a total child into a total parent yields a total parent, and the
+//! > compiler proves it by the same mechanism as everything else.
+//!
+//! `DELEGATE!(child)` is not a nicer `HANDLE`. The generated cell *calls the
+//! child's `step`*, so the parent's bound set includes the child's entire cell
+//! surface (`child::Cells`). A hole anywhere in the child breaks the parent's
+//! build. `HANDLE` could never give that: a hand-written body is free to
+//! ignore the child entirely.
+//!
+//! # Coverage is never inherited silently
+//!
+//! The parent row still lists every column. You can see at a glance which
+//! cells delegate. A parent does not get to say "everything else goes to the
+//! child" -- that would be exactly the wildcard this library exists to remove,
+//! wearing a different hat.
+//!
+//! # The three operations, and where they went
+//!
+//! ARCHITECTURE section 8 names three: *nest* (child state is a field of
+//! parent state), *alternate* (child state **is** one case of parent state),
+//! and *translate* (relabel a generic machine into a domain vocabulary).
+//!
+//! They are not three APIs. They are the five methods of [`Delegate`]:
+//!
+//! | Operation | Methods |
+//! |---|---|
+//! | nest / alternate | [`Delegate::child_state`] + [`Delegate::embed`] — the lens |
+//! | translate (actions) | [`Delegate::to_child`] — the prism |
+//! | translate (effects) | [`Delegate::lift`] |
+//! | context plumbing | [`Delegate::child_ctx`] |
+//!
+//! Nest and alternate collapse into one because a `DELEGATE` cell lives on a
+//! *row*, and the row already is the parent state case. The distinction only
+//! mattered when composition was an operator applied to whole machines.
+//!
+//! Closure pairs rather than key paths, per ARCHITECTURE: Swift key paths cost
+//! real performance and Swift has no native case key paths. Here they are
+//! trait methods, which monomorphise to nothing.
+//!
+//! # Color flows one way, by construction
+//!
+//! A colorless child composes into a colored parent. The reverse does not: the
+//! generated cell would need `.await` inside a non-`async` `step`, and rustc
+//! rejects it. No check to write, and nothing to circumvent.
+
+use crate::machine::Machine;
+
+/// One `DELEGATE` cell: everything needed to run a child machine for this
+/// `(parent state, parent action)` pair and fold the result back.
+///
+/// `M` is the parent machine, `SV`/`AV` the parent's narrowed state and action
+/// variants, `CM` the child machine's marker (`child::Marker`).
+///
+/// Five methods is more than `HANDLE`'s one, and each is a decision that
+/// cannot be derived: which child action this parent action means, where the
+/// child's state lives, how to put it back, what the child's effects are called
+/// upstairs, and which context the child gets. Deriving any of them would mean
+/// guessing.
+pub trait Delegate<M: Machine, SV, AV, CM: Machine> {
+    /// Translate the parent action into a child action.
+    ///
+    /// `None` means this action has no meaning for the child, and the cell
+    /// reports [`crate::Outcome::Ignored`]. That is the honest answer for a
+    /// parent action the child's alphabet does not contain, and it keeps the
+    /// `IGNORE` / `Stay` distinction intact.
+    fn to_child(&mut self, ctx: &mut M::Ctx, state: &SV, action: AV) -> Option<CM::Action>;
+
+    /// Read the child's state out of the parent's. Half of the lens.
+    fn child_state(&mut self, state: &SV) -> CM::State;
+
+    /// Put the child's state back into the parent's. The other half.
+    ///
+    /// Returns the full parent state rather than the narrowed variant, so a
+    /// delegate may move the parent elsewhere on a child transition — a child
+    /// reaching its terminal state is often the parent's cue to leave.
+    fn embed(&mut self, state: SV, child: CM::State) -> M::State;
+
+    /// Lift a child effect into the parent's vocabulary.
+    fn lift(&mut self, effect: CM::Effect) -> M::Effect;
+
+    /// Hand the child its context.
+    ///
+    /// When parent and child share a context type this is the identity; the
+    /// signature keeps the general case available without a second trait.
+    fn child_ctx<'a>(&mut self, ctx: &'a mut M::Ctx) -> &'a mut CM::Ctx;
+}
+
+/// Implements the mechanical half of [`Delegate`] for the common shape: the
+/// parent state's payload holds the child state in a named field, and parent
+/// and child share a context type.
+///
+/// You still write `to_child` and `lift` by hand, because those are the two
+/// that encode real decisions.
+///
+/// ```ignore
+/// delegate_lens! {
+///     impl Delegate<Timer, Retrying, Tick, retry::Marker> for Cells {
+///         field  child;                       // Retrying.child: retry::State
+///         embed  |s, cs| State::Retrying(Retrying { child: cs, ..s });
+///         action |_ctx, _s, a| Some(retry::Action::Tick(retry::Tick { now: a.now }));
+///         lift   |e| match e { retry::Effect::Log => Effect::Log };
+///     }
+/// }
+/// ```
+#[macro_export]
+macro_rules! delegate_lens {
+    (
+        impl Delegate<$m:ty, $sv:ty, $av:ty, $cm:ty> for $me:ty {
+            field  $f:ident;
+            embed  |$es:pat_param, $ec:pat_param| $embed:expr;
+            action |$actx:pat_param, $astate:pat_param, $aa:pat_param| $act:expr;
+            lift   |$le:pat_param| $lift:expr;
+        }
+    ) => {
+        impl $crate::Delegate<$m, $sv, $av, $cm> for $me {
+            fn to_child(
+                &mut self,
+                $actx: &mut <$m as $crate::Machine>::Ctx,
+                $astate: &$sv,
+                $aa: $av,
+            ) -> ::core::option::Option<<$cm as $crate::Machine>::Action> {
+                $act
+            }
+
+            fn child_state(&mut self, state: &$sv) -> <$cm as $crate::Machine>::State {
+                state.$f
+            }
+
+            fn embed(
+                &mut self,
+                $es: $sv,
+                $ec: <$cm as $crate::Machine>::State,
+            ) -> <$m as $crate::Machine>::State {
+                $embed
+            }
+
+            fn lift(
+                &mut self,
+                $le: <$cm as $crate::Machine>::Effect,
+            ) -> <$m as $crate::Machine>::Effect {
+                $lift
+            }
+
+            fn child_ctx<'a>(
+                &mut self,
+                ctx: &'a mut <$m as $crate::Machine>::Ctx,
+            ) -> &'a mut <$cm as $crate::Machine>::Ctx {
+                ctx
+            }
+        }
+    };
+}

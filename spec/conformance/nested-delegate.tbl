@@ -1,0 +1,15 @@
+# Composition. The `Retrying` row delegates two of its three columns to the
+# child machine in `retry.tbl`, and handles the third statically.
+#
+# Note that the row still lists every column. Coverage is never inherited
+# silently: a parent does not get to say "everything else goes to the child",
+# which would be the wildcard this library exists to remove wearing a hat.
+
+machine Job
+initial Idle
+states  Idle Retrying Done
+actions Run Tick Cancel
+
+Idle     | HANDLE           | IGNORE           | IGNORE
+Retrying | DELEGATE(retry)  | DELEGATE(retry)  | GO(Done, Log)
+Done     | IGNORE           | IGNORE           | IGNORE

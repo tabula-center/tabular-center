@@ -101,6 +101,12 @@ pub struct Trace {
     pub name: String,
     pub ctx: BTreeMap<String, i64>,
     pub from: String,
+    /// Payload fields of the starting state.
+    ///
+    /// `go` accepted fields from the start and `from` did not, which silently
+    /// dropped `from Retrying child_attempt=1` and made a composition trace
+    /// start in the wrong child state. The two are now symmetric.
+    pub from_fields: BTreeMap<String, i64>,
     pub steps: Vec<TraceStep>,
 }
 
@@ -271,6 +277,7 @@ pub fn parse_traces(src: &str, origin: &str) -> Result<Vec<Trace>, String> {
                 name: words.get(1).unwrap_or(&"unnamed").to_string(),
                 ctx: BTreeMap::new(),
                 from: String::new(),
+                from_fields: BTreeMap::new(),
                 steps: vec![],
             });
             continue;
@@ -282,7 +289,10 @@ pub fn parse_traces(src: &str, origin: &str) -> Result<Vec<Trace>, String> {
 
         match words[0] {
             "ctx" => t.ctx = parse_kv(&words[1..], &at)?,
-            "from" => t.from = words[1].to_string(),
+            "from" => {
+                t.from = words[1].to_string();
+                t.from_fields = parse_kv(&words[2..], &at)?;
+            }
             _ => {
                 let (lhs, rhs) = line
                     .split_once("=>")
@@ -480,6 +490,7 @@ mod tests {
         let t = &ts[0];
         assert_eq!(t.ctx["limit"], 3);
         assert_eq!(t.from, "A");
+        assert!(t.from_fields.is_empty());
         assert_eq!(t.steps[0].effects, ["E1", "E2"]);
         // `since=0` sits on the expectation (`go B since=0`), not on the
         // action. Action arguments and expected-state fields are separate
@@ -495,6 +506,13 @@ mod tests {
         assert_eq!(t.steps[1].args["now"], 1);
         assert_eq!(t.steps[1].expect, Expect::Stay);
         assert_eq!(t.steps[2].expect, Expect::Ignored);
+    }
+
+    #[test]
+    fn from_accepts_payload_fields_like_go_does() {
+        let ts = parse_traces("trace t\n  from Retrying child_attempt=2\n", "t.trace").unwrap();
+        assert_eq!(ts[0].from, "Retrying");
+        assert_eq!(ts[0].from_fields["child_attempt"], 2);
     }
 
     #[test]

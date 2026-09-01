@@ -34,9 +34,26 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 1 Rust core, no macro | **done** |
 | 2 `transition_matrix!` | **done** |
 | 3 The spec | **done** |
-| 4+ | not started |
+| 4 Kotlin core + KSP | **blocked — see below** |
+| 5 Swift | not started |
+| 6 Composition | **done (Rust half)** |
+| 7+ | not started |
 
-47 tests, 6 compile-fail fixtures, 2 conformance fixtures (19 trace steps).
+54 tests, 7 compile-fail fixtures, 4 conformance fixtures (28 trace steps).
+
+### Why Phase 6 landed before Phase 4
+
+Phase 4 requires a Kotlin 2.x toolchain, KSP, and Gradle with Maven access.
+None was available in the environment doing this work, and Kotlin 1.3 — the
+only version obtainable — predates sealed interfaces, context parameters, and
+KSP entirely. Shipping unverified Kotlin would be worse than shipping none:
+the whole point of M2 is finding out whether required-member enforcement
+*feels* right, and that cannot be assessed from source that has never
+compiled.
+
+Phase 6 was done instead because it was verifiable and because its vocabulary
+is what Kotlin will copy — which is the plan's own stated reason for doing
+Rust first. **M2 remains the stop-or-go gate and is still unproven.**
 Findings from each phase are recorded in its commit message and folded back
 into `ARCHITECTURE.md`.
 
@@ -242,15 +259,32 @@ needed; note it in `spec/diagnostics.md`.
 **Exit criterion:** `nested-delegate` fixture green in all three languages;
 color-mismatch is a build error in all three.
 
-- [ ] `Nest` / `Alternate` / `Translate` as closure pairs (all three languages)
-- [ ] `DELEGATE` cell in all three generators
-- [ ] Derived lens when a state payload type *is* the child state type
-- [ ] Explicit lens registration for mismatched shapes
-- [ ] **Enforce one-way color flow**; colorless child → colored parent OK,
-      reverse is an error naming the child
-- [ ] Verify: parent rows still list every column (no inherited coverage)
-- [ ] Test the composition property — a total child in a total parent stays
-      total, and removing a child cell breaks the parent's build
+- [x] Nest / Alternate / Translate — **not three APIs.** They are the five
+      methods of one `Delegate` trait: `child_state` + `embed` are the lens
+      (nest/alternate), `to_child` is the action prism, `lift` relabels
+      effects, `child_ctx` plumbs context. Nest and alternate collapsed into
+      one because a `DELEGATE` cell lives on a *row*, and the row already is
+      the parent state case — the distinction only mattered when composition
+      was an operator over whole machines.
+- [x] `DELEGATE!(child_module)` cell in the Rust generator
+- [x] `delegate_lens!` helper for the common shape (payload field holds the
+      child state, parent context contains the child's). `to_child` and `lift`
+      stay hand-written: those two encode real decisions, and deriving them
+      would mean guessing.
+- [x] Parent rows still list every column — asserted in `composition.rs`
+- [x] **The composition property, proven:** `compile_fail/child_hole_breaks_parent.rs`
+      removes a cell from the *child* and the error appears at a call to the
+      *parent's* `step`. This is what `DELEGATE` buys over `HANDLE` — a
+      hand-written `HANDLE` body is free to ignore the child, so no bound
+      propagates and the hole goes unnoticed.
+- [x] `nested-delegate` and `retry` conformance fixtures. The child is
+      conformant **on its own**: being composed does not change it, and a child
+      that only works inside its parent is not a reusable machine.
+- [x] One-way color flow — enforced **by construction** in Rust: a colored
+      child inside a colorless parent emits `.await` in a non-`async` `fn`,
+      which rustc rejects. No check to write and nothing to circumvent. Kotlin
+      and Swift will need the explicit `tabula::color-mismatch` diagnostic.
+- [ ] Kotlin and Swift halves (blocked on Phase 4)
 
 ---
 
@@ -343,6 +377,25 @@ comparatively cheap; everything after it assumes M2 held.
 | N×M cell count makes real machines unpleasant | any | Static cell kinds keep most cells one word; measure on a genuine 8×12 machine before M4 |
 
 ---
+
+### Findings from Phase 6
+
+- **`Cells` and `Marker` are reserved names** in a machine's module. The
+  generator emits both so a parent can reach a child's bound bundle and marker
+  type by path, since it cannot build the identifiers. Machines already needed
+  their own module (narrowed structs collide otherwise); this makes it a hard
+  requirement rather than a convention.
+- **Narrowed structs must not derive `Default`.** It imposed `Default` on
+  every payload type, and a state whose payload is a child machine's state
+  rarely has one. Found by the composition test failing to compile.
+- **`embed` returns the full parent state**, not the narrowed variant, because
+  a child reaching its terminal state is usually the parent's cue to leave.
+- **`to_child` returning `None` reports `Ignored`, not `Stay`.** A parent
+  action the child's alphabet does not contain was not handled, and the
+  distinction is load-bearing for the reachability linter.
+- **The trace format's `from` needed payload fields**, symmetric with `go`.
+  It silently dropped them, which started a composition trace in the wrong
+  child state and produced a passing-looking wrong answer.
 
 ## Explicitly deferred
 

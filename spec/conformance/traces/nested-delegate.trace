@@ -1,0 +1,18 @@
+trace child-effects-are-lifted
+  # retry emits Sleep; the parent's vocabulary calls it Backoff.
+  ctx  max_attempts=3
+  from Retrying
+  Run  => go Retrying ! Backoff
+  Tick => go Retrying ! Backoff
+
+trace child-exhaustion-moves-the-parent
+  # `embed` returns the full parent state, so the child reaching its terminal
+  # state is the parent's cue to leave Retrying entirely.
+  ctx  max_attempts=1
+  from Retrying child_attempt=1
+  Tick => go Done ! Alert
+
+trace static_cell_beside_a_delegate
+  ctx  max_attempts=3
+  from Retrying
+  Cancel => go Done ! Log

@@ -1,0 +1,11 @@
+# The child of nested-delegate.tbl, and a machine in its own right.
+# Nothing about being a child changes it.
+
+machine Retry
+initial Ready
+states  Ready Waiting Exhausted
+actions Attempt Elapsed Abort
+
+Ready     | HANDLE | IGNORE | GO(Exhausted)
+Waiting   | IGNORE | HANDLE | GO(Exhausted)
+Exhausted | IGNORE | IGNORE | IGNORE

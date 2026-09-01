@@ -38,11 +38,12 @@ languages: *you declared a required member and did not implement it.*
 |---|---|---|
 | 0 | Foundations, flake, CI | done |
 | 1 | Rust core, hand-written reference | done |
-| 2 | `transition_matrix!` | in progress |
-| 3 | Cross-language conformance spec | todo |
-| 4 | Kotlin core + KSP | todo |
+| 2 | `transition_matrix!` | done |
+| 3 | Cross-language conformance spec | done |
+| 4 | Kotlin core + KSP | blocked (needs Kotlin 2.x + KSP toolchain) |
 | 5 | Swift core + macro | todo |
-| 6+ | Composition, effects, tooling | todo |
+| 6 | Composition | done (Rust) |
+| 7+ | Effects surface, tooling | todo |
 
 See `ARCHITECTURE.md` for the design and `PLAN.md` for the task breakdown.
 

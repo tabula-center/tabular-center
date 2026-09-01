@@ -1,0 +1,12 @@
+trace attempt-then-give-up
+  ctx  max_attempts=1
+  from Ready
+  Attempt => go Waiting attempt=1 ! Sleep
+  Elapsed => go Exhausted          ! GiveUp
+  Attempt => ignored
+
+trace abort-is-static
+  ctx  max_attempts=5
+  from Ready
+  Abort   => go Exhausted
+  Abort   => ignored

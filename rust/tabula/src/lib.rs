@@ -37,6 +37,7 @@
 #![warn(missing_docs)]
 
 pub mod cell;
+pub mod delegate;
 pub mod machine;
 pub mod matrix;
 pub mod step;
@@ -46,6 +47,7 @@ pub mod table;
 pub mod export;
 
 pub use cell::{Cell, CellKind};
+pub use delegate::Delegate;
 pub use machine::{Handle, Machine};
 pub use step::{CapacityError, Effects, Outcome, Step, DEFAULT_EFFECT_CAPACITY};
 pub use table::{Coverage, Table};
