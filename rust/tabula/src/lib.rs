@@ -38,6 +38,7 @@
 
 pub mod cell;
 pub mod delegate;
+pub mod driver;
 pub mod machine;
 pub mod matrix;
 pub mod step;
@@ -46,8 +47,12 @@ pub mod table;
 #[cfg(feature = "alloc")]
 pub mod export;
 
+#[cfg(feature = "alloc")]
+pub mod lint;
+
 pub use cell::{Cell, CellKind};
 pub use delegate::Delegate;
+pub use driver::{Driver, DriverError, Progress};
 pub use machine::{Handle, Machine};
 pub use step::{CapacityError, Effects, Outcome, Step, DEFAULT_EFFECT_CAPACITY};
 pub use table::{Coverage, Table};

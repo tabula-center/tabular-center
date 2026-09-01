@@ -43,7 +43,9 @@ languages: *you declared a required member and did not implement it.*
 | 4 | Kotlin core + KSP | blocked (needs Kotlin 2.x + KSP toolchain) |
 | 5 | Swift core + macro | todo |
 | 6 | Composition | done (Rust) |
-| 7+ | Effects surface, tooling | todo |
+| 7 | Effects surface | needs a grammar change |
+| 8 | Introspection, lints, golden snapshots | done (Rust) |
+| 9a | Driver and mailbox | done (Rust) |
 
 See `ARCHITECTURE.md` for the design and `PLAN.md` for the task breakdown.
 

@@ -37,7 +37,39 @@ fn check_trace(adapter: &dyn Adapter, trace: &Trace) -> Vec<String> {
     errs
 }
 
+/// Compare the generated grid against `<name>.grid`, or write it with
+/// `--bless`.
+///
+/// The golden file is committed, so a behaviour change shows up in review as a
+/// table diff rather than only as a diff of macro invocation lines.
+fn check_grid(root: &std::path::Path, name: &str, grid: &str, bless: bool) -> Vec<String> {
+    let path = root.join(format!("{name}.grid"));
+    if bless {
+        let _ = std::fs::write(&path, grid);
+        return vec![];
+    }
+    match std::fs::read_to_string(&path) {
+        Ok(golden) if golden == grid => vec![],
+        Ok(golden) => {
+            let mut errs = vec![format!("grid differs from {}:", path.display())];
+            for (n, (g, w)) in grid.lines().zip(golden.lines()).enumerate() {
+                if g != w {
+                    errs.push(format!("  line {n}: got    |{g}|"));
+                    errs.push(format!("  line {n}: golden |{w}|"));
+                }
+            }
+            errs.push("  run with --bless to accept".into());
+            errs
+        }
+        Err(_) => vec![format!(
+            "no golden grid at {}; run with --bless to create it",
+            path.display()
+        )],
+    }
+}
+
 fn main() -> ExitCode {
+    let bless = std::env::args().any(|a| a == "--bless");
     let root = spec_root();
     let mut failed = 0usize;
     let (mut tables, mut steps) = (0usize, 0usize);
@@ -54,6 +86,7 @@ fn main() -> ExitCode {
         };
 
         let mut errs = adapter.check_table(&spec);
+        errs.extend(check_grid(&root, name, &adapter.grid(), bless));
         tables += 1;
 
         for t in &traces {
@@ -68,6 +101,11 @@ fn main() -> ExitCode {
                 spec.actions.len(),
                 traces.len()
             );
+            // Lints are advisory and printed indented, never counted as
+            // failures. A rule that is a judgement call must not fail a build.
+            for line in adapter.lint().lines() {
+                println!("       {line}");
+            }
         } else {
             println!("FAIL {name}");
             for e in &errs {

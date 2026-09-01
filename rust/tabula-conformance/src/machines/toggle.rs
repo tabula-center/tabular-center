@@ -72,6 +72,14 @@ impl Adapter for ToggleAdapter {
         crate::check_table(&TABLE, spec)
     }
 
+    fn grid(&self) -> String {
+        tabula::export::to_grid(&TABLE)
+    }
+
+    fn lint(&self) -> String {
+        tabula::lint::report(&TABLE)
+    }
+
     fn replay(&self, trace: &Trace) -> Result<Vec<Observed>, String> {
         let mut ctx = Ctx;
         let mut cells = Impl;

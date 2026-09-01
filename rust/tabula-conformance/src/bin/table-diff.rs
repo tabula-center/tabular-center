@@ -78,16 +78,21 @@ fn spec_grid(s: &tabula_conformance::Spec) -> String {
         })
         .collect();
 
-    let mut out = format!("{:w$}", s.machine, w = label_w);
+    // Right-trimmed, matching `tabula::export::to_grid`, so a spec grid and a
+    // generated grid diff cleanly against each other.
+    let mut out = String::new();
+    let mut line = format!("{:w$}", s.machine, w = label_w);
     for (j, a) in s.actions.iter().enumerate() {
-        out.push_str(&format!("  {:w$}", a, w = col_w[j]));
+        line.push_str(&format!("  {:w$}", a, w = col_w[j]));
     }
+    out.push_str(line.trim_end());
     out.push('\n');
     for (i, st) in s.states.iter().enumerate() {
-        out.push_str(&format!("{:w$}", st, w = label_w));
+        line = format!("{:w$}", st, w = label_w);
         for (j, t) in texts[i].iter().enumerate() {
-            out.push_str(&format!("  {:w$}", t, w = col_w[j]));
+            line.push_str(&format!("  {:w$}", t, w = col_w[j]));
         }
+        out.push_str(line.trim_end());
         out.push('\n');
     }
     out

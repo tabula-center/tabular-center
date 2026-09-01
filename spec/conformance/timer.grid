@@ -1,0 +1,4 @@
+Timer    Start                            Tick    Cancel
+Idle     HANDLE                           IGNORE  IGNORE
+Running  IGNORE                           HANDLE  GO(Idle, Effect::StopClock)
+Done     GO(Running, Effect::StartClock)  IGNORE  IGNORE

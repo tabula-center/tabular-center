@@ -1,0 +1,4 @@
+Job       Run              Tick             Cancel
+Idle      HANDLE           IGNORE           IGNORE
+Retrying  DELEGATE(retry)  DELEGATE(retry)  GO(Done, Effect::Log)
+Done      IGNORE           IGNORE           IGNORE

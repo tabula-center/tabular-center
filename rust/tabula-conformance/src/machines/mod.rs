@@ -32,6 +32,16 @@ pub trait Adapter {
     /// Compare the generated `TABLE` against the fixture.
     fn check_table(&self, spec: &Spec) -> Vec<String>;
 
+    /// The generated `TABLE` rendered as an aligned grid.
+    ///
+    /// Snapshotted to `<name>.grid` so a PR that changes machine behaviour
+    /// shows a *table* diff. Reviewing a matrix is what this library is for;
+    /// reviewing a `match` arm is what it exists to avoid.
+    fn grid(&self) -> String;
+
+    /// Lint findings for the generated `TABLE`, one per line.
+    fn lint(&self) -> String;
+
     /// Replay one trace, returning one `Observed` per step.
     ///
     /// Returns `Err` when the trace names an action or state the adapter does

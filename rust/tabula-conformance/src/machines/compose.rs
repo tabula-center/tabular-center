@@ -203,6 +203,14 @@ impl Adapter for RetryAdapter {
         crate::check_table(&retry::TABLE, spec)
     }
 
+    fn grid(&self) -> String {
+        tabula::export::to_grid(&retry::TABLE)
+    }
+
+    fn lint(&self) -> String {
+        tabula::lint::report(&retry::TABLE)
+    }
+
     fn replay(&self, trace: &Trace) -> Result<Vec<Observed>, String> {
         let mut ctx = retry::Ctx {
             max_attempts: trace.ctx.get("max_attempts").copied().unwrap_or(1) as u32,
@@ -254,6 +262,14 @@ impl Adapter for JobAdapter {
 
     fn check_table(&self, spec: &Spec) -> Vec<String> {
         crate::check_table(&job::TABLE, spec)
+    }
+
+    fn grid(&self) -> String {
+        tabula::export::to_grid(&job::TABLE)
+    }
+
+    fn lint(&self) -> String {
+        tabula::lint::report(&job::TABLE)
     }
 
     fn replay(&self, trace: &Trace) -> Result<Vec<Observed>, String> {

@@ -37,9 +37,24 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 4 Kotlin core + KSP | **blocked — see below** |
 | 5 Swift | not started |
 | 6 Composition | **done (Rust half)** |
-| 7+ | not started |
+| 7 Effects surface | **not started — needs a grammar change, see below** |
+| 8 Introspection & tooling | **done (Rust half)** |
+| 9 Runtime / drivers | **done (Rust half)** |
 
-54 tests, 7 compile-fail fixtures, 4 conformance fixtures (28 trace steps).
+68 tests, 7 compile-fail fixtures, 4 conformance fixtures (28 trace steps),
+4 golden matrix snapshots.
+
+### Why Phase 7 is still open
+
+The total effect handler needs one required member per *effect variant*, and
+that needs narrowed effect types — which means the macro must generate the
+effect enum, as it already does for states and actions. Today `effect Effect;`
+names a user-written enum, so the generator never sees the variants.
+
+That is a breaking grammar change touching every machine in the repo. It is
+the right change and should be made deliberately, not squeezed in beside other
+work. Phases 8 and 9 were done first because they are additive and do not
+constrain the choice.
 
 ### Why Phase 6 landed before Phase 4
 
@@ -300,18 +315,45 @@ color-mismatch is a build error in all three.
 
 ## Phase 8 — Introspection & tooling
 
-- [ ] Mermaid, DOT, PlantUML export from `TABLE` (all three)
-- [ ] Reachability check → generated test, **warning not error**
-- [ ] Coverage report by cell kind, surfaced in build output
-- [ ] `tools/table-diff` — golden matrix snapshots, readable diffs in review
-- [ ] Payload-hoist warning (same name+type in ≥3 payloads)
+- [x] Mermaid, DOT, and aligned-grid export from `TABLE` (Rust)
+- [x] `lint` module: six findings, all warnings. Two rules learned writing it —
+      a lint that fires on healthy machines gets turned off, and two warnings
+      for one problem is noise. See `spec/diagnostics.md`.
+- [x] Coverage report by cell kind
+- [x] Golden matrix snapshots (`<name>.grid`, `--bless` to accept). A PR that
+      changes behaviour now shows a **table** diff, which is the artifact worth
+      reviewing.
+- [ ] PlantUML export
+- [ ] Payload-hoist warning. Needs comparing field names across states, which
+      the `macro_rules!` muncher cannot do cheaply — it belongs in a separate
+      pass over `TABLE`, and `TABLE` does not currently carry payload field
+      names. Deferred with that note rather than half-built.
 
 Ship export early if you want adopters. It is the most demoable feature and
 falls out of `TABLE` almost for free.
 
 ---
 
-## Phase 9 — Rendering surface (optional, gated)
+## Phase 9a — Driver and mailbox
+
+- [x] `Driver<S, A, Q>`: fixed-capacity mailbox, `no_std`, no allocator
+- [x] **`step` is never re-entered** — `run` refuses to run inside itself
+- [x] **Follow-up actions are queued, never recursed.** An effect handler
+      returns an action as *data*; it is handed no way back into `step`.
+- [x] Outcome applied before effects are performed, so a handler that enqueues
+      an action sees the post-transition state. The reverse order would make
+      `go(X).emit(E)` mean "perform E while still in the old state", which is
+      not what a cell author means.
+- [x] Overflow names its capacity rather than growing. An unbounded mailbox
+      just moves the failure somewhere harder to see.
+
+The handler is a closure, not a trait: `step` needs the cell object and the
+context, which the caller already has. That keeps `Driver` free of the
+machine's four type parameters and, more importantly, keeps it **colorless** —
+an `async` caller writes an `async` loop around `pump` rather than asking this
+type to be generic over an effect system it cannot abstract over.
+
+## Phase 9b — Rendering surface (optional, gated)
 
 - [ ] Second prototype for view derivation (`S -> UI`)
 - [ ] One required member per state, narrowed payloads

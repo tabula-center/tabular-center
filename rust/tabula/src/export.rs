@@ -161,17 +161,26 @@ pub fn to_grid<const N: usize, const M: usize>(t: &Table<N, M>) -> String {
         }
     }
 
+    // Lines are right-trimmed. The padding on the last column is invisible,
+    // gets flagged by every whitespace check, and makes the golden snapshots
+    // noisy in `git am`. Alignment only needs the padding *between* columns.
     let mut s = String::new();
-    s.push_str(&format!("{:w$}", t.machine, w = row_label_w));
+    let mut line = String::new();
+
+    line.push_str(&format!("{:w$}", t.machine, w = row_label_w));
     for (j, action) in t.actions.iter().enumerate() {
-        s.push_str(&format!("  {:w$}", action, w = col_w[j]));
+        line.push_str(&format!("  {:w$}", action, w = col_w[j]));
     }
+    s.push_str(line.trim_end());
     s.push('\n');
+
     for (i, state) in t.states.iter().enumerate() {
-        s.push_str(&format!("{:w$}", state, w = row_label_w));
+        line.clear();
+        line.push_str(&format!("{:w$}", state, w = row_label_w));
         for (j, text) in texts[i].iter().enumerate() {
-            s.push_str(&format!("  {:w$}", text, w = col_w[j]));
+            line.push_str(&format!("  {:w$}", text, w = col_w[j]));
         }
+        s.push_str(line.trim_end());
         s.push('\n');
     }
     s
@@ -258,6 +267,13 @@ mod tests {
         let d = to_dot(&T);
         assert!(d.starts_with("digraph Toggle {"));
         assert!(d.trim_end().ends_with('}'));
+    }
+
+    #[test]
+    fn grid_lines_have_no_trailing_padding() {
+        for line in to_grid(&T).lines() {
+            assert_eq!(line, line.trim_end(), "trailing space in |{line}|");
+        }
     }
 
     #[test]

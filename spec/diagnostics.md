@@ -138,6 +138,41 @@ from a non-suspending parent.
 
 ---
 
+## Lints (warnings, from `TABLE`)
+
+Everything below is computed from the matrix as a pure function, which is the
+payoff for emitting it as data. All are **warnings**, never errors: each is a
+judgement call with legitimate exceptions, and a lint that fails a build on a
+judgement call teaches people to disable lints.
+
+Two rules govern the set, learned by writing it:
+
+- **A lint that fires on healthy machines is a lint people turn off.**
+  `no-static-entry` originally fired on nearly every machine, because a state
+  reached only through a `HANDLE` cell looks unreachable from the table. It now
+  reports only for a *fully static* matrix, where the answer is knowable.
+  `unreachable-heavy` likewise fires on a concentration, not on the one or two
+  deliberate assertions the cell kind exists for.
+- **Two warnings for one problem is noise.** `dead-row` subsumes
+  `no-static-exit`; a row that is entirely `IGNORE` reports once.
+
+| Code | Fires when |
+|---|---|
+| `tabula::no-static-entry` | nothing can transition into a state, in a fully static matrix |
+| `tabula::no-static-exit` | no cell in a row can statically leave it |
+| `tabula::dead-row` | every cell in a row is `IGNORE` |
+| `tabula::dead-column` | no state responds to an action |
+| `tabula::ignore-heavy` | `IGNORE` is at least 70% of the matrix |
+| `tabula::unreachable-heavy` | `UNREACHABLE` is at least 25% of the matrix |
+
+`dead-row` fires on genuinely terminal states, intentionally: an intended
+terminal state and a forgotten row are indistinguishable from the matrix, and
+one line of output is a fair price for catching the second.
+
+**Status:** implemented (Rust).
+
+---
+
 ## `tabula::payload-hoist` (warning, Phase 8)
 
 ```
