@@ -34,7 +34,7 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 1 Rust core, no macro | **done** |
 | 2 `transition_matrix!` | **done** |
 | 3 The spec | **done** |
-| 4 Kotlin core + KSP | **blocked — see below** |
+| 4 Kotlin core + KSP | **M2 PASSED**; core done, processor next |
 | 5 Swift | not started |
 | 6 Composition | **done (Rust half)** |
 | 7 Effects surface | **done (Rust half)** |
@@ -59,19 +59,26 @@ and everything else followed from that:
 
 Breaking for every machine, which is why it was held back to its own patch.
 
-### Why Phase 6 landed before Phase 4
+### M2: passed
 
-Phase 4 requires a Kotlin 2.x toolchain, KSP, and Gradle with Maven access.
-None was available in the environment doing this work, and Kotlin 1.3 — the
-only version obtainable — predates sealed interfaces, context parameters, and
-KSP entirely. Shipping unverified Kotlin would be worse than shipping none:
-the whole point of M2 is finding out whether required-member enforcement
-*feels* right, and that cannot be assessed from source that has never
-compiled.
+The gate the whole plan hung on. Kotlin 2.1.20 turned out to be reachable
+after all — the compiler ships as a GitHub release, and only *Gradle* needs
+Maven. Three properties verified, each with a fixture in
+`kotlin/compile_fail/`:
 
-Phase 6 was done instead because it was verifiable and because its vocabulary
-is what Kotlin will copy — which is the plan's own stated reason for doing
-Rust first. **M2 remains the stop-or-go gate and is still unproven.**
+1. Omitting a cell fails to compile, with an error that names the cell and
+   shows its narrowed argument types. Arguably better than Rust's trait-bound
+   error.
+2. Adding a state breaks the generated dispatcher — the same free second
+   guarantee rustc gives the macro.
+3. `else` is not available: the developer's file contains no `when` at all.
+
+Point 3 is the load-bearing one. KSP cannot rewrite code, only generate new
+files, so the only way to own the dispatch is to be its sole author — which is
+why the matrix lives in annotations. That constraint converts what was
+Kotlin's weakest guarantee into one as strong as Rust's.
+
+**Go.** The design is sound in both languages.
 Findings from each phase are recorded in its commit message and folded back
 into `ARCHITECTURE.md`.
 
@@ -226,7 +233,18 @@ the build with a comprehensible message; the developer's source file contains no
 - [ ] Nested-annotation shape that survives Kotlin's array-of-annotation limits
       — **spike this first**, it is the main unknown in Kotlin
 
-**4c. KSP processor**
+**4c. KSP processor** *(next; the shape it must emit is fixed by
+`kotlin/test/ReferenceTimer.kt`)*
+- [x] Core (`Step`, `Cell`, `Table`, `Export`, `Lint`, `Driver`,
+      `SuspendDriver`, annotations), compiled by `kotlinc` with no build system
+- [x] Hand-written reference machine — KSP's specification, the exact
+      counterpart of `reference_timer.rs`
+- [x] `@Row` annotation shape validated with `KClass` cells. **The fallback
+      (an external `.tabula` file read from resources) is not needed.**
+- [x] Zero runtime dependencies, enforced by construction: with no build system
+      there is no classpath but the stdlib. `SuspendDriver` needs only the
+      `suspend` keyword, proven by driving it with `kotlin.coroutines`
+      intrinsics in `test/RunSuspend.kt`.
 - [ ] Resolve sealed hierarchies to ordered variant lists
 - [ ] Read the `handle` prototype: `suspend`, annotations, context parameters,
       extension receiver, visibility
@@ -412,7 +430,7 @@ type to be generic over an effect system it cannot abstract over.
 |---|---|---|
 | **M0** | Phases 0–2 | Rust works. Design is validated in its friendliest language. |
 | **M1** | Phase 3 | Spec exists. Divergence becomes a CI failure. |
-| **M2** | Phase 4 | **The critical proof.** Kotlin's guarantee is as strong as Rust's. |
+| **M2** | Phase 4 | **PASSED.** Kotlin's guarantee is as strong as Rust's. |
 | **M3** | Phase 5 | Three languages at parity. |
 | **M4** | Phases 6–7 | Composition and effects. The library is now differentiated. |
 | **M5** | Phases 8–10 | Tooling, docs, published. |
@@ -431,7 +449,7 @@ comparatively cheap; everything after it assumes M2 held.
 | Risk | Phase | Mitigation |
 |---|---|---|
 | ~~`macro_rules!` diagnostics are unusable~~ | 2 | **Retired.** `compile_error!` catch-all arms; 6/6 fixtures pass. |
-| Kotlin nested annotations can't express the matrix | 4b | Spike first; fallback to external `.tabula` file read from resources |
+| ~~Kotlin nested annotations can't express the matrix~~ | 4b | **Retired.** `@Row(S.Idle::class, [CellSpec(...)])` compiles with `KClass` cells. No fallback needed. |
 | KSP incremental processing misses sealed-hierarchy changes | 4c | Explicit dependency tracking + a regression test that edits `S` |
 | Swift macro diagnostics land on wrong source lines | 5 | Accept row-level positions in v1, document in spec |
 | Three implementations drift | 3+ | Conformance suite gates merges. Phase 2 proved this must compare **behaviour**, not generated source: Rust names cells by trait bound, Kotlin and Swift by identifier. |

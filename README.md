@@ -50,7 +50,7 @@ same way adding a state breaks every matrix.
 | 1 | Rust core, hand-written reference | done |
 | 2 | `transition_matrix!` | done |
 | 3 | Cross-language conformance spec | done |
-| 4 | Kotlin core + KSP | blocked (needs Kotlin 2.x + KSP toolchain) |
+| 4 | Kotlin core + KSP | **M2 passed**; core done, processor next |
 | 5 | Swift core + macro | todo |
 | 6 | Composition | done (Rust) |
 | 7 | Effects surface | done (Rust) |

@@ -8,7 +8,7 @@
 # checked different things.
 #
 # Usage:  tools/verify [step ...]      (default: all)
-# Steps:  fmt clippy test no-std compile-fail conformance
+# Steps:  fmt clippy test no-std compile-fail conformance kotlin kotlin-compile-fail
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
@@ -58,8 +58,72 @@ step_compile_fail() { ./tools/compile-fail; }
 
 step_conformance() { (cd rust && cargo run -q -p tabula-conformance $CARGO_FLAGS); }
 
+# Kotlin builds with `kotlinc` directly -- no Gradle, no Maven.
+#
+# Not a preference. Gradle needs Maven Central for the stdlib, which this
+# environment cannot reach, and shipping an unrunnable build file would repeat
+# the mistake of shipping unverified code. kotlinc alone is enough to prove the
+# thing that matters (required-member enforcement), so that is what runs.
+KOTLINC="${KOTLINC:-kotlinc}"
+
+kotlin_available() { command -v "$KOTLINC" >/dev/null 2>&1; }
+
+step_kotlin() {
+    if ! kotlin_available; then
+        echo "note: $KOTLINC not found; skipping (set KOTLINC= to point at one)"
+        return 0
+    fi
+    local out
+    out="$(mktemp -d)"
+    (
+        cd kotlin || exit 1
+        "$KOTLINC" src/dev/tabula/*.kt -d "$out/core" 2>&1 | grep -v "^info:" || true
+        [ -d "$out/core" ] || { echo "core failed to compile"; exit 1; }
+        "$KOTLINC" -cp "$out/core" test/*.kt -include-runtime -d "$out/t.jar" 2>&1             | grep -v "^info:" || true
+        [ -f "$out/t.jar" ] || { echo "tests failed to compile"; exit 1; }
+        java -cp "$out/t.jar:$out/core" harness.MainKt
+    )
+    local rc=$?
+    rm -rf "$out"
+    return "$rc"
+}
+
+step_kotlin_compile_fail() {
+    if ! kotlin_available; then
+        echo "note: $KOTLINC not found; skipping"
+        return 0
+    fi
+    local out bad f exp err
+    out="$(mktemp -d)"
+    bad=0
+
+    (cd kotlin && "$KOTLINC" src/dev/tabula/*.kt -d "$out/core" 2>&1 | grep -v "^info:") || true
+    (cd kotlin && "$KOTLINC" -cp "$out/core" test/ReferenceTimer.kt -d "$out/ref" 2>&1 \
+        | grep -v "^info:") || true
+
+    for f in kotlin/compile_fail/*.kt; do
+        exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
+        err="$("$KOTLINC" -cp "$out/core:$out/ref" "$f" -d "$out/x" 2>&1 | grep -v "^info:")"
+        if [ -z "$err" ]; then
+            echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
+            bad=1
+        elif printf '%s' "$err" | grep -qF -- "$exp"; then
+            echo "ok   $(basename "$f")"
+        else
+            echo "FAIL $(basename "$f")"
+            echo "     expected: $exp"
+            printf '%s\n' "$err" | head -3 | sed 's/^/       /'
+            bad=1
+        fi
+    done
+
+    rm -rf "$out"
+    return "$bad"
+}
+
 steps=("$@")
-[ ${#steps[@]} -eq 0 ] && steps=(fmt clippy test no-std compile-fail conformance)
+[ ${#steps[@]} -eq 0 ] && \
+    steps=(fmt clippy test no-std compile-fail conformance kotlin kotlin-compile-fail)
 
 for s in "${steps[@]}"; do
     case "$s" in
@@ -69,6 +133,8 @@ for s in "${steps[@]}"; do
         no-std)       run no-std       step_no_std ;;
         compile-fail) run compile-fail step_compile_fail ;;
         conformance)  run conformance  step_conformance ;;
+        kotlin)              run kotlin              step_kotlin ;;
+        kotlin-compile-fail) run kotlin-compile-fail step_kotlin_compile_fail ;;
         *) echo "unknown step: $s"; exit 2 ;;
     esac
 done

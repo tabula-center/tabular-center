@@ -33,7 +33,11 @@
         ## Gradle can actually run.
         ##########################################################
 
-        hasKotlin = builtins.pathExists ./kotlin/settings.gradle.kts;
+        # Kotlin builds with kotlinc directly for now: Gradle needs Maven Central,
+        # which the sandbox cannot reach. Gate on the sources, and switch to
+        # the Gradle gate when a build file lands that can actually run.
+        hasKotlin = builtins.pathExists ./kotlin/src;
+        hasKotlinGradle = builtins.pathExists ./kotlin/settings.gradle.kts;
         hasSwift = builtins.pathExists ./swift/Package.swift;
         hasRustConformance = builtins.pathExists ./rust/tabula-conformance/Cargo.toml;
 
@@ -159,11 +163,14 @@
             rust-conformance = verify "conformance" rustInputs;
           }
           // lib.optionalAttrs hasKotlin {
-            kotlin-test = mkCheck "kotlin-test" kotlinInputs ''
-              cd kotlin && gradle --offline --no-daemon test
-            '';
-
+            kotlin-test = mkCheck "kotlin" kotlinInputs "./tools/verify kotlin";
+            kotlin-compile-fail =
+              mkCheck "kotlin-compile-fail" kotlinInputs "./tools/verify kotlin-compile-fail";
+          }
+          // lib.optionalAttrs hasKotlinGradle {
             # Guards the zero-runtime-dependency rule. See ARCHITECTURE 11.2.
+            # Only meaningful once Gradle can resolve; until then the rule is
+            # enforced by kotlinc seeing no classpath but the stdlib.
             kotlin-no-runtime-deps = mkCheck "kotlin-no-runtime-deps" kotlinInputs ''
               cd kotlin
               gradle --offline --no-daemon :tabula-core:dependencies \
