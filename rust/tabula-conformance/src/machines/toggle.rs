@@ -12,25 +12,19 @@ use crate::{Expect, Spec, Trace};
 #[derive(Debug, Default)]
 pub struct Ctx;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Effect {
-    Light,
-    Buzz,
-}
-
 transition_matrix! {
     machine Toggle;
     context Ctx;
     state   State;
     action  Action;
-    effect  Effect;
+    effects Effect { Light, Buzz }
     initial Off;
 
     states  { Off, On }
     actions { Flip, Poke, Reset }
 
     //         Flip                    Poke                Reset
-    Off => [   GO!(On, Effect::Light), EMIT!(Effect::Buzz), IGNORE       ];
+    Off => [   GO!(On, Light), EMIT!(Buzz), IGNORE       ];
     On  => [   GO!(Off),               HANDLE,              UNREACHABLE  ];
 }
 

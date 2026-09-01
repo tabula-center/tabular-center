@@ -1,3 +1,3 @@
-Toggle  Flip                   Poke                Reset
-Off     GO(On, Effect::Light)  EMIT(Effect::Buzz)  IGNORE
-On      GO(Off)                HANDLE              UNREACHABLE
+Toggle  Flip           Poke        Reset
+Off     GO(On, Light)  EMIT(Buzz)  IGNORE
+On      GO(Off)        HANDLE      UNREACHABLE

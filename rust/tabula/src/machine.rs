@@ -41,3 +41,25 @@ pub trait Handle<M: Machine, SV, AV> {
     /// Decide what happens for this `(state, action)` pair.
     fn handle(&mut self, ctx: &mut M::Ctx, state: SV, action: AV) -> Step<M::State, M::Effect>;
 }
+
+/// One effect variant's handler.
+///
+/// The generated `Handlers` bundle names one `Perform` bound per effect
+/// variant, so **adding a variant breaks every handler's build**. That is the
+/// same required-member mechanism the transition side uses, applied to the
+/// other half of the machine.
+///
+/// No other library in this space offers total effect handling. It falls out
+/// for free here: once effects are a generated sum type, the generator knows
+/// the variants, and knowing the variants is the whole trick.
+///
+/// `EV` is the *narrowed* effect variant, so a handler receives its payload
+/// already destructured — the same treatment cells get.
+pub trait Perform<M: Machine, EV> {
+    /// Carry out the effect, optionally producing a follow-up action.
+    ///
+    /// The action is returned as **data**. The driver enqueues it; a handler
+    /// is given no way back into `step`, which is what makes re-entrancy
+    /// impossible rather than merely discouraged. See [`crate::driver`].
+    fn perform(&mut self, ctx: &mut M::Ctx, effect: EV) -> Option<M::Action>;
+}

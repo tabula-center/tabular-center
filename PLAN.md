@@ -37,24 +37,27 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 4 Kotlin core + KSP | **blocked — see below** |
 | 5 Swift | not started |
 | 6 Composition | **done (Rust half)** |
-| 7 Effects surface | **not started — needs a grammar change, see below** |
+| 7 Effects surface | **done (Rust half)** |
 | 8 Introspection & tooling | **done (Rust half)** |
 | 9 Runtime / drivers | **done (Rust half)** |
 
 68 tests, 7 compile-fail fixtures, 4 conformance fixtures (28 trace steps),
 4 golden matrix snapshots.
 
-### Why Phase 7 is still open
+### Phase 7: the grammar change, made
 
-The total effect handler needs one required member per *effect variant*, and
-that needs narrowed effect types — which means the macro must generate the
-effect enum, as it already does for states and actions. Today `effect Effect;`
-names a user-written enum, so the generator never sees the variants.
+`effect Effect;` became `effects Effect { StartClock, StopClock { reason: u32 } }`.
+The generator now owns the effect enum, exactly as it owns states and actions,
+and everything else followed from that:
 
-That is a breaking grammar change touching every machine in the repo. It is
-the right change and should be made deliberately, not squeezed in beside other
-work. Phases 8 and 9 were done first because they are additive and do not
-constrain the choice.
+- Narrowed effect variant structs, so a handler's payload arrives destructured.
+- `Handlers`, one `Perform` bound per variant, plus a `perform` dispatcher.
+- `GO!(Idle, StopClock { reason: 0 })` — effects convert through `From`, so the
+  bare variant name works and `Effect::StopClock` still does.
+- Effect names in `TABLE` normalise to the bare variant, so grids read
+  `GO(Idle, StopClock)` rather than carrying a struct literal.
+
+Breaking for every machine, which is why it was held back to its own patch.
 
 ### Why Phase 6 landed before Phase 4
 
@@ -305,11 +308,18 @@ color-mismatch is a build error in all three.
 
 ## Phase 7 — Effects surface
 
-- [ ] `effects Never` / `Nothing` mode, fully supported (not degraded)
-- [ ] Effect-handler prototype → one required member per effect variant, with
-      narrowed payloads, returning optional follow-up action
-- [ ] Follow-up actions route through the mailbox, never re-entering `step`
-- [ ] Test: adding an effect variant breaks every handler's build
+- [x] Effects are generated, like states and actions. **This was the whole
+      blocker**: the generator can only emit one required member per variant if
+      it knows the variants, and naming a hand-written enum left it nothing to
+      iterate.
+- [x] `effects Effect { }` — an uninhabited enum, a machine with no effects.
+      Supported, not degraded.
+- [x] One required member per effect variant, narrowed payloads, returning an
+      optional follow-up action
+- [x] Follow-up actions route through the mailbox, never re-entering `step`
+      (Phase 9a's driver; `effects.rs` tests the two halves meeting)
+- [x] `compile_fail/missing_perform_impl.rs`: adding an effect breaks every
+      handler's build
 
 ---
 
@@ -438,6 +448,20 @@ comparatively cheap; everything after it assumes M2 held.
 - **The trace format's `from` needed payload fields**, symmetric with `go`.
   It silently dropped them, which started a composition trace in the wrong
   child state and produced a passing-looking wrong answer.
+
+### Findings from Phase 7
+
+- **Normalisation order matters.** The conformance harness reduces an effect
+  rendering to its bare variant name, and `{:?}` on a generated newtype enum
+  produces `StopClock(StopClock { reason: 0 })`. Splitting on the path
+  separator first yields ` 0 }`, because the payload contains a colon. The
+  payload must be stripped before the path is split.
+- **Metavariable collision.** `$ef` already meant "an effect expression" inside
+  `GO!`; threading the effect *type* under the same name silently changed what
+  the arms matched. Renamed to `$et`. `macro_rules!` gives no warning for this.
+- **Effects convert through `From`**, so `GO!(Idle, StopClock)` and
+  `GO!(Idle, Effect::StopClock)` both compile. The blanket `impl<T> From<T> for T`
+  makes the qualified spelling keep working for free.
 
 ## Explicitly deferred
 

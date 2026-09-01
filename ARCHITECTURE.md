@@ -340,9 +340,19 @@ we have dropped that claim. What remains is a real but narrower benefit: effects
 that appear in the table are visible in the diagram export and testable without
 running the side effect.
 
-`effects Never` (Rust `!`/`Never`, Kotlin `Nothing`, Swift `Never`) declares a
-machine with no effects, and cells perform IO directly. This is a fully
-supported mode, not a degraded one.
+**Effects are declared like states and actions, and generated the same way:**
+
+```
+effects Effect { StartClock, StopClock { reason: u32 } }
+```
+
+This is not cosmetic. The generator can only emit one required member per
+variant if it *knows* the variants, and naming a hand-written enum leaves it
+with nothing to iterate. Everything below follows from that one decision.
+
+An empty variant list (`effects Effect { }`) yields an uninhabited enum: a
+machine with no effects, cells doing IO directly. A fully supported mode, not a
+degraded one.
 
 Machines that do declare effects get the same totality treatment, with its own
 prototype:
@@ -363,6 +373,10 @@ One required member per effect variant, with narrowed payloads, returning an
 optional follow-up action. **Add an effect variant and every handler stops
 compiling.** No other library in this space offers total effect handling, and it
 falls out of the same mechanism for free.
+
+The follow-up action is returned as **data**. The driver enqueues it; a handler
+is handed no way back into `step`, which is what makes re-entrancy impossible
+rather than merely discouraged (§9).
 
 ---
 

@@ -45,31 +45,41 @@
 ///
 /// pub struct Ctx { pub limit: u32 }
 ///
-/// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// pub enum Effect { StartClock, StopClock }
-///
 /// transition_matrix! {
 ///     machine Timer;
 ///     context Ctx;
 ///     state   State;
 ///     action  Action;
-///     effect  Effect;
+///     effects Effect { StartClock, StopClock { reason: u32 } }
 ///     initial Idle;
 ///
 ///     states  { Idle, Running { since: u32 }, Done }
 ///     actions { Start, Tick { now: u32 }, Cancel }
 ///
-///     //            Start                                  Tick      Cancel
-///     Idle    => [  HANDLE,                                IGNORE,   IGNORE                    ];
-///     Running => [  IGNORE,                                HANDLE,   GO!(Idle, Effect::StopClock) ];
-///     Done    => [  GO!(Running { since: 0 }, Effect::StartClock), IGNORE, IGNORE              ];
+///     //            Start                              Tick     Cancel
+///     Idle    => [  HANDLE,                            IGNORE,  IGNORE                          ];
+///     Running => [  IGNORE,                            HANDLE,  GO!(Idle, StopClock { reason: 0 }) ];
+///     Done    => [  GO!(Running { since: 0 }, StartClock), IGNORE, IGNORE                       ];
 /// }
 /// ```
 ///
+/// # Effects are generated too
+///
+/// `effects` declares a sum type exactly as `states` and `actions` do, and for
+/// the same reason: the generator can only produce one required member per
+/// variant if it knows the variants. That yields a **total effect handler** —
+/// add an effect and every handler stops compiling — which no other library in
+/// this space offers, and which costs nothing once effects are generated.
+///
+/// `effects Fx { }` with no variants yields an uninhabited enum: a machine
+/// that emits nothing, with cells doing IO directly. A fully supported mode,
+/// not a degraded one.
+///
 /// # Reserved names
 ///
-/// The macro emits `State`, `Action`, `Marker`, `Cells`, `step`, and `TABLE`
-/// into the invoking module, plus one struct per state and action variant.
+/// The macro emits `State`, `Action`, `Marker`, `Cells`, `Handlers`, `step`,
+/// `perform`, and `TABLE` into the invoking module, plus one struct per state,
+/// action, and effect variant.
 /// Put each machine in its own module: the narrowed structs (`Idle`, `Start`)
 /// would otherwise collide between machines, and `Cells` is a trait here, not
 /// a name you can reuse.
@@ -84,6 +94,8 @@
 /// - A machine marker type (`Timer`) implementing [`Machine`](crate::Machine).
 /// - `step(...)`, whose `where` clause lists one
 ///   [`Handle`](crate::Handle) bound per `HANDLE` cell.
+/// - `Handlers`, one [`Perform`](crate::Perform) bound per effect variant, and
+///   `perform(...)` dispatching to them.
 /// - `TABLE`, the matrix as inert data.
 ///
 /// # Cell kinds
@@ -113,7 +125,7 @@ macro_rules! transition_matrix {
         context $x:ident;
         state   $s:ident;
         action  $a:ident;
-        effect  $e:ident;
+        effects $e:ident { $($ev:ident $({ $($eff:ident : $efft:ty),* $(,)? })? ),* $(,)? }
         initial $i:ident;
 
         states  { $($sv:ident $({ $($sf:ident : $sft:ty),* $(,)? })? ),* $(,)? }
@@ -128,6 +140,7 @@ macro_rules! transition_matrix {
         // hand-writing a `match`.
         $( $crate::__tabula_struct!($sv $({ $($sf : $sft),* })?); )*
         $( $crate::__tabula_struct!($av $({ $($af : $aft),* })?); )*
+        $( $crate::__tabula_struct!($ev $({ $($eff : $efft),* })?); )*
 
         // -- the sum types, newtyping their narrowed structs -------------
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -136,11 +149,22 @@ macro_rules! transition_matrix {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub enum $a { $( $av($av) ),* }
 
+        /// This machine's effects.
+        ///
+        /// Declaring `effects Fx { }` with no variants yields an uninhabited
+        /// enum: a machine that cannot emit anything, and cells that do IO
+        /// directly. That is a fully supported mode, not a degraded one.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum $e { $( $ev($ev) ),* }
+
         $( impl ::core::convert::From<$sv> for $s {
             fn from(v: $sv) -> Self { $s::$sv(v) }
         } )*
         $( impl ::core::convert::From<$av> for $a {
             fn from(v: $av) -> Self { $a::$av(v) }
+        } )*
+        $( impl ::core::convert::From<$ev> for $e {
+            fn from(v: $ev) -> Self { $e::$ev(v) }
         } )*
 
         // -- machine marker ----------------------------------------------
@@ -152,6 +176,43 @@ macro_rules! transition_matrix {
             type Action = $a;
             type Effect = $e;
             type Ctx = $x;
+        }
+
+        /// This machine's entire effect surface, as one bound.
+        ///
+        /// One `Perform` bound per effect variant. **Add a variant and every
+        /// handler stops compiling** — the same required-member mechanism the
+        /// transition side uses, applied to the other half of the machine.
+        ///
+        /// Unlike the cell surface, this needs no muncher: effect variants are
+        /// a flat list, with no row/column zip to flatten.
+        pub trait Handlers:
+            $( $crate::Perform<$m, $ev> + )* ::core::marker::Sized
+        {
+        }
+
+        impl<T> Handlers for T where
+            T: $( $crate::Perform<$m, $ev> + )* ::core::marker::Sized
+        {
+        }
+
+        /// Carry out one effect, returning any follow-up action.
+        ///
+        /// Pair with [`tabula::Driver`](crate::Driver), which enqueues the
+        /// follow-up rather than recursing into `step`.
+        #[allow(unused_variables, unreachable_code)]
+        pub fn perform<H: Handlers>(
+            __tabula_handlers: &mut H,
+            __tabula_ctx: &mut $x,
+            __tabula_effect: $e,
+        ) -> ::core::option::Option<$a> {
+            match __tabula_effect {
+                $(
+                    $e::$ev(__tabula_ev) => <H as $crate::Perform<$m, $ev>>::perform(
+                        __tabula_handlers, __tabula_ctx, __tabula_ev,
+                    ),
+                )*
+            }
         }
 
         // Check row count against state count *structurally*, before anything
@@ -289,7 +350,7 @@ macro_rules! transition_matrix {
             // identifier from one minted here, even spelled the same. Passing
             // them preserves their syntax context.
             $crate::__tabula_arms!(@rows
-                s=$s a=$a m=$m
+                s=$s a=$a m=$m et=$e
                 bind=[__tabula_state __tabula_action __tabula_cells __tabula_ctx __tabula_s]
                 actions=[$($av)*]
                 rows=[$($rs => [$($rc)*];)*]
@@ -561,7 +622,7 @@ macro_rules! __tabula_unit {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __tabula_arms {
-    (@rows s=$s:ident a=$a:ident m=$m:ident
+    (@rows s=$s:ident a=$a:ident m=$m:ident et=$et:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$($av:ident)*] rows=[] acc=[$($acc:tt)*]
     ) => {
@@ -570,19 +631,19 @@ macro_rules! __tabula_arms {
         match $bs { $($acc)* }
     };
 
-    (@rows s=$s:ident a=$a:ident m=$m:ident
+    (@rows s=$s:ident a=$a:ident m=$m:ident et=$et:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$($av:ident)*]
         rows=[$rs:ident => [$($rc:tt)*]; $($rest:tt)*]
         acc=[$($acc:tt)*]
     ) => {
-        $crate::__tabula_arms!(@rows s=$s a=$a m=$m
+        $crate::__tabula_arms!(@rows s=$s a=$a m=$m et=$et
             bind=[$bs $ba $bc $bx $bsv]
             actions=[$($av)*]
             rows=[$($rest)*]
             acc=[$($acc)*
                 $s::$rs($bsv) => $crate::__tabula_row!(@go
-                    m=$m s=$s a=$a st=$rs
+                    m=$m s=$s a=$a et=$et st=$rs
                     bind=[$bs $ba $bc $bx $bsv]
                     actions=[$($av)*]
                     cells=[$($rc)*]
@@ -601,7 +662,7 @@ macro_rules! __tabula_arms {
 #[macro_export]
 macro_rules! __tabula_row {
     // done
-    (@go m=$m:ident s=$s:ident a=$a:ident st=$st:ident
+    (@go m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[] cells=[] arms=[$($arm:tt)*]
     ) => {
@@ -609,34 +670,34 @@ macro_rules! __tabula_row {
     };
 
     // separator
-    (@go m=$m:ident s=$s:ident a=$a:ident st=$st:ident
+    (@go m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$($ca:ident)*] cells=[, $($crest:tt)*] arms=[$($arm:tt)*]
     ) => {
-        $crate::__tabula_row!(@go m=$m s=$s a=$a st=$st
+        $crate::__tabula_row!(@go m=$m s=$s a=$a et=$et st=$st
             bind=[$bs $ba $bc $bx $bsv]
             actions=[$($ca)*] cells=[$($crest)*] arms=[$($arm)*])
     };
 
     // IGNORE
-    (@go m=$m:ident s=$s:ident a=$a:ident st=$st:ident
+    (@go m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$ca:ident $($carest:ident)*] cells=[IGNORE $($crest:tt)*]
         arms=[$($arm:tt)*]
     ) => {
-        $crate::__tabula_row!(@go m=$m s=$s a=$a st=$st
+        $crate::__tabula_row!(@go m=$m s=$s a=$a et=$et st=$st
             bind=[$bs $ba $bc $bx $bsv]
             actions=[$($carest)*] cells=[$($crest)*]
             arms=[$($arm)* $a::$ca(_) => $crate::Step::ignored(),])
     };
 
     // HANDLE -- dispatches into developer code with narrowed arguments
-    (@go m=$m:ident s=$s:ident a=$a:ident st=$st:ident
+    (@go m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$ca:ident $($carest:ident)*] cells=[HANDLE $($crest:tt)*]
         arms=[$($arm:tt)*]
     ) => {
-        $crate::__tabula_row!(@go m=$m s=$s a=$a st=$st
+        $crate::__tabula_row!(@go m=$m s=$s a=$a et=$et st=$st
             bind=[$bs $ba $bc $bx $bsv]
             actions=[$($carest)*] cells=[$($crest)*]
             arms=[$($arm)* $a::$ca(__tabula_a) => {
@@ -645,12 +706,12 @@ macro_rules! __tabula_row {
     };
 
     // UNREACHABLE
-    (@go m=$m:ident s=$s:ident a=$a:ident st=$st:ident
+    (@go m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$ca:ident $($carest:ident)*] cells=[UNREACHABLE $($crest:tt)*]
         arms=[$($arm:tt)*]
     ) => {
-        $crate::__tabula_row!(@go m=$m s=$s a=$a st=$st
+        $crate::__tabula_row!(@go m=$m s=$s a=$a et=$et st=$st
             bind=[$bs $ba $bc $bx $bsv]
             actions=[$($carest)*] cells=[$($crest)*]
             arms=[$($arm)* $a::$ca(_) => ::core::unreachable!(::core::concat!(
@@ -664,18 +725,20 @@ macro_rules! __tabula_row {
     // The dispatcher's bindings are `__tabula_`-prefixed, so `ctx`, `state`,
     // `action`, and `cells` are not in scope here. Rule R3 is enforced by
     // construction: a target needing runtime data fails to resolve.
-    (@go m=$m:ident s=$s:ident a=$a:ident st=$st:ident
+    (@go m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$ca:ident $($carest:ident)*]
         cells=[GO ! ($t:expr $(, $ef:expr)* $(,)?) $($crest:tt)*]
         arms=[$($arm:tt)*]
     ) => {
-        $crate::__tabula_row!(@go m=$m s=$s a=$a st=$st
+        $crate::__tabula_row!(@go m=$m s=$s a=$a et=$et st=$st
             bind=[$bs $ba $bc $bx $bsv]
             actions=[$($carest)*] cells=[$($crest)*]
             arms=[$($arm)* $a::$ca(_) => {
                 let __tabula_step = $crate::Step::go(<$s as ::core::convert::From<_>>::from($t));
-                $( let __tabula_step = __tabula_step.emit($ef); )*
+                $( let __tabula_step = __tabula_step.emit(
+                    <$et as ::core::convert::From<_>>::from($ef),
+                ); )*
                 __tabula_step
             },])
     };
@@ -686,13 +749,13 @@ macro_rules! __tabula_row {
     // colored child inside a colorless parent fails here, because the `.await`
     // the colored form emits is illegal in a non-async fn -- color flows one
     // way by construction, with no check to write.
-    (@go m=$m:ident s=$s:ident a=$a:ident st=$st:ident
+    (@go m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$ca:ident $($carest:ident)*]
         cells=[DELEGATE ! ($ch:ident) $($crest:tt)*]
         arms=[$($arm:tt)*]
     ) => {
-        $crate::__tabula_row!(@go m=$m s=$s a=$a st=$st
+        $crate::__tabula_row!(@go m=$m s=$s a=$a et=$et st=$st
             bind=[$bs $ba $bc $bx $bsv]
             actions=[$($carest)*] cells=[$($crest)*]
             arms=[$($arm)* $a::$ca(__tabula_a) => {
@@ -730,18 +793,20 @@ macro_rules! __tabula_row {
     };
 
     // EMIT!(effects..)
-    (@go m=$m:ident s=$s:ident a=$a:ident st=$st:ident
+    (@go m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$ca:ident $($carest:ident)*]
         cells=[EMIT ! ($($ef:expr),* $(,)?) $($crest:tt)*]
         arms=[$($arm:tt)*]
     ) => {
-        $crate::__tabula_row!(@go m=$m s=$s a=$a st=$st
+        $crate::__tabula_row!(@go m=$m s=$s a=$a et=$et st=$st
             bind=[$bs $ba $bc $bx $bsv]
             actions=[$($carest)*] cells=[$($crest)*]
             arms=[$($arm)* $a::$ca(_) => {
                 let __tabula_step = $crate::Step::stay();
-                $( let __tabula_step = __tabula_step.emit($ef); )*
+                $( let __tabula_step = __tabula_step.emit(
+                    <$et as ::core::convert::From<_>>::from($ef),
+                ); )*
                 __tabula_step
             },])
     };
@@ -778,13 +843,15 @@ macro_rules! __tabula_cells {
     (@go cells=[GO ! ($t:expr $(, $ef:expr)* $(,)?) $($r:tt)*] acc=[$($c:tt)*]) => {
         $crate::__tabula_cells!(@go cells=[$($r)*] acc=[$($c)* $crate::Cell::Go {
             target: $crate::__tabula_target_name!($t),
-            effects: &[$(::core::stringify!($ef)),*],
+            effects: &[$($crate::table::first_ident(::core::stringify!($ef))),*],
         },])
     };
 
     (@go cells=[EMIT ! ($($ef:expr),* $(,)?) $($r:tt)*] acc=[$($c:tt)*]) => {
         $crate::__tabula_cells!(@go cells=[$($r)*] acc=[$($c)* $crate::Cell::Emit {
-            effects: &[$(::core::stringify!($ef)),*],
+            // Normalised like GO targets: `StopClock { reason: 0 }` appears as
+            // `StopClock`, so grids and diagrams stay readable.
+            effects: &[$($crate::table::first_ident(::core::stringify!($ef))),*],
         },])
     };
 }

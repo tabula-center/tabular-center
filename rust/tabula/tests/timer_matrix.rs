@@ -4,7 +4,7 @@
 //! indistinguishable from the hand-written version, and `cargo expand` on it
 //! must be reviewable by someone who did not write the macro.
 
-use tabula::{transition_matrix, Handle, Outcome, Step};
+use tabula::{transition_matrix, Handle, Outcome, Perform, Step};
 
 /// Cross-state data. Rule R4.
 #[derive(Debug, Default)]
@@ -13,18 +13,12 @@ pub struct Ctx {
     pub ticks_seen: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Effect {
-    StartClock,
-    StopClock,
-}
-
 transition_matrix! {
     machine Timer;
     context Ctx;
     state   State;
     action  Action;
-    effect  Effect;
+    effects Effect { StartClock, StopClock { reason: u32 } }
     initial Idle;
 
     states  { Idle, Running { since: u32 }, Done }
@@ -32,8 +26,8 @@ transition_matrix! {
 
     //            Start                                          Tick      Cancel
     Idle    => [  HANDLE,                                        IGNORE,   IGNORE                       ];
-    Running => [  IGNORE,                                        HANDLE,   GO!(Idle, Effect::StopClock) ];
-    Done    => [  GO!(Running { since: 0 }, Effect::StartClock), IGNORE,   IGNORE                       ];
+    Running => [  IGNORE,                                        HANDLE,   GO!(Idle, StopClock { reason: 0 }) ];
+    Done    => [  GO!(Running { since: 0 }, StartClock), IGNORE,   IGNORE                       ];
 }
 
 // ---------------------------------------------------------------------------
@@ -45,7 +39,7 @@ struct TimerImpl;
 
 impl Handle<Timer, Idle, Start> for TimerImpl {
     fn handle(&mut self, _ctx: &mut Ctx, _state: Idle, _action: Start) -> Step<State, Effect> {
-        Step::go(State::Running(Running { since: 0 })).emit(Effect::StartClock)
+        Step::go(State::Running(Running { since: 0 })).emit(StartClock.into())
     }
 }
 
@@ -55,7 +49,7 @@ impl Handle<Timer, Running, Tick> for TimerImpl {
         // and `action.now` are plain fields, not `Option`s behind a match.
         ctx.ticks_seen += 1;
         if action.now.saturating_sub(state.since) >= ctx.limit {
-            Step::go(State::Done(Done)).emit(Effect::StopClock)
+            Step::go(State::Done(Done)).emit(StopClock { reason: 1 }.into())
         } else {
             Step::stay()
         }
@@ -80,7 +74,7 @@ fn handle_cell_dispatches_into_developer_code() {
     assert_eq!(s.outcome, Outcome::Go(State::Running(Running { since: 0 })));
     assert_eq!(
         s.effects.iter().copied().collect::<Vec<_>>(),
-        [Effect::StartClock]
+        [Effect::StartClock(StartClock)]
     );
 }
 
@@ -96,7 +90,7 @@ fn static_go_cell_needs_no_developer_code() {
     assert_eq!(s.outcome, Outcome::Go(State::Idle(Idle)));
     assert_eq!(
         s.effects.iter().copied().collect::<Vec<_>>(),
-        [Effect::StopClock]
+        [Effect::StopClock(StopClock { reason: 0 })]
     );
 }
 
@@ -184,7 +178,7 @@ fn go_targets_are_recorded_as_bare_variant_names() {
     // struct literal, or diagrams and grids become unreadable.
     assert_eq!(TABLE.cell(2, 0).static_target(), Some("Running"));
     assert_eq!(TABLE.cell(1, 2).static_target(), Some("Idle"));
-    assert_eq!(TABLE.cell(1, 2).static_effects(), &["Effect::StopClock"]);
+    assert_eq!(TABLE.cell(1, 2).static_effects(), &["StopClock"]);
 }
 
 #[test]
@@ -200,11 +194,12 @@ fn narrowed_structs_and_from_impls_exist() {
 fn table_renders_the_same_grid_as_the_reference() {
     let grid = tabula::export::to_grid(&TABLE);
     assert!(grid.contains("HANDLE"));
-    assert!(grid.contains("GO(Idle, Effect::StopClock)"));
+    // Effects render as bare variant names now that the generator owns them.
+    assert!(grid.contains("GO(Idle, StopClock)"), "{grid}");
 
     let mermaid = tabula::export::to_mermaid(&TABLE);
     assert!(mermaid.contains("[*] --> Idle"));
-    assert!(mermaid.contains("Running --> Idle: Cancel / Effect::StopClock"));
+    assert!(mermaid.contains("Running --> Idle: Cancel / StopClock"));
     // A HANDLE cell's target is not knowable at build time, so it is a
     // self-loop rather than an invented edge.
     assert!(mermaid.contains("Idle --> Idle: Start / ?handle"));

@@ -13,6 +13,8 @@
 //!    `macro_rules!` cannot concatenate idents. See `src/machine.rs`.)
 //! 3. The **dispatcher** -- a `match (state, action)` with **no wildcard arm**.
 //! 4. The **table** -- the same matrix as inert data.
+//! 5. The **effect surface** -- one `Perform` bound per effect variant, and
+//!    the `perform` dispatcher.
 //!
 //! The matrix being specified:
 //!
@@ -23,7 +25,7 @@
 //!   Done    [   GO(Running(0), StartClock),  IGNORE,     IGNORE                  ]
 //! ```
 
-use tabula::{Cell, Handle, Machine, Outcome, Step, Table};
+use tabula::{Cell, Handle, Machine, Outcome, Perform, Step, Table};
 
 // ---------------------------------------------------------------------------
 // 1. Domain types
@@ -46,10 +48,32 @@ pub enum Action {
     Cancel,
 }
 
+/// Narrowed effect variants, so a handler receives its payload already
+/// destructured -- the same treatment cells get.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StartClock;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StopClock {
+    pub reason: u32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Effect {
-    StartClock,
-    StopClock,
+    StartClock(StartClock),
+    StopClock(StopClock),
+}
+
+impl From<StartClock> for Effect {
+    fn from(v: StartClock) -> Self {
+        Effect::StartClock(v)
+    }
+}
+
+impl From<StopClock> for Effect {
+    fn from(v: StopClock) -> Self {
+        Effect::StopClock(v)
+    }
 }
 
 /// Cross-state data. Rule R4: payload is state-local, Context outlives
@@ -58,6 +82,7 @@ pub enum Effect {
 pub struct Ctx {
     pub limit: u32,
     pub ticks_seen: u32,
+    pub last_stop_reason: Option<u32>,
 }
 
 // ---------------------------------------------------------------------------
@@ -141,10 +166,12 @@ where
         (State::Running(since), Action::Tick { now }) => {
             <C as Handle<Timer, Running, Tick>>::handle(cells, ctx, Running(since), Tick { now })
         }
-        (State::Running(_), Action::Cancel) => Step::go(State::Idle).emit(Effect::StopClock),
+        (State::Running(_), Action::Cancel) => {
+            Step::go(State::Idle).emit(StopClock { reason: 1 }.into())
+        }
 
         // -- Done -------------------------------------------------------
-        (State::Done, Action::Start) => Step::go(State::Running(0)).emit(Effect::StartClock),
+        (State::Done, Action::Start) => Step::go(State::Running(0)).emit(StartClock.into()),
         (State::Done, Action::Tick { .. }) => Step::ignored(),
         (State::Done, Action::Cancel) => Step::ignored(),
     }
@@ -191,7 +218,7 @@ struct TimerImpl;
 
 impl Handle<Timer, Idle, Start> for TimerImpl {
     fn handle(&mut self, _ctx: &mut Ctx, _state: Idle, _action: Start) -> Step<State, Effect> {
-        Step::go(State::Running(0)).emit(Effect::StartClock)
+        Step::go(State::Running(0)).emit(StartClock.into())
     }
 }
 
@@ -202,11 +229,52 @@ impl Handle<Timer, Running, Tick> for TimerImpl {
         ctx.ticks_seen += 1;
         let elapsed = action.now.saturating_sub(state.0);
         if elapsed >= ctx.limit {
-            Step::go(State::Done).emit(Effect::StopClock)
+            Step::go(State::Done).emit(StopClock { reason: 2 }.into())
         } else {
             Step::stay()
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// 5. Effect surface
+// ---------------------------------------------------------------------------
+//
+// One `Perform` bound per effect variant, bundled as `Handlers`. Adding a
+// variant adds a bound, so every handler in the codebase stops compiling.
+// That is the transition side's guarantee applied to the other half, and it
+// only works because the generator owns the effect enum: a hand-written enum
+// leaves it with no variant list to iterate.
+
+pub trait Handlers: Perform<Timer, StartClock> + Perform<Timer, StopClock> {}
+
+impl<T> Handlers for T where T: Perform<Timer, StartClock> + Perform<Timer, StopClock> {}
+
+pub fn perform<H: Handlers>(h: &mut H, ctx: &mut Ctx, effect: Effect) -> Option<Action> {
+    match effect {
+        Effect::StartClock(e) => <H as Perform<Timer, StartClock>>::perform(h, ctx, e),
+        Effect::StopClock(e) => <H as Perform<Timer, StopClock>>::perform(h, ctx, e),
+    }
+}
+
+impl Perform<Timer, StartClock> for TimerImpl {
+    fn perform(&mut self, _ctx: &mut Ctx, _e: StartClock) -> Option<Action> {
+        None
+    }
+}
+
+impl Perform<Timer, StopClock> for TimerImpl {
+    fn perform(&mut self, ctx: &mut Ctx, e: StopClock) -> Option<Action> {
+        ctx.last_stop_reason = Some(e.reason);
+        None
+    }
+}
+
+#[test]
+fn perform_dispatches_with_a_narrowed_payload() {
+    let mut ctx = Ctx::default();
+    perform(&mut TimerImpl, &mut ctx, StopClock { reason: 9 }.into());
+    assert_eq!(ctx.last_stop_reason, Some(9));
 }
 
 // ---------------------------------------------------------------------------
@@ -250,7 +318,7 @@ fn handle_cell_runs_developer_code() {
     assert_eq!(s.outcome, Outcome::Go(State::Running(0)));
     assert_eq!(
         s.effects.iter().copied().collect::<Vec<_>>(),
-        [Effect::StartClock]
+        [Effect::StartClock(StartClock)]
     );
 }
 
@@ -262,7 +330,7 @@ fn static_go_cell_needs_no_developer_code() {
     assert_eq!(s.outcome, Outcome::Go(State::Idle));
     assert_eq!(
         s.effects.iter().copied().collect::<Vec<_>>(),
-        [Effect::StopClock]
+        [Effect::StopClock(StopClock { reason: 1 })]
     );
 }
 

@@ -114,14 +114,25 @@ pub struct Trace {
 // Parsing
 // ---------------------------------------------------------------------------
 
-/// Effect names are compared by their last path segment.
+/// Reduce an effect or state rendering to its bare variant name.
 ///
-/// A Rust table holds `Effect::StopClock` because the macro stringifies the
-/// expression it was given; a Kotlin one will hold `StopClock` or
-/// `F.StopClock`. Languages spell qualification differently and that is not a
-/// behavioural difference.
+/// Three shapes reach this, and all three must land on `StopClock`:
+///
+/// | Input | From |
+/// |---|---|
+/// | `StopClock` | a fixture, or Kotlin |
+/// | `Effect::StopClock` / `F.StopClock` | a qualified path |
+/// | `StopClock(StopClock { reason: 0 })` | `{:?}` on a generated newtype enum |
+///
+/// Order matters. Taking the last path segment first breaks on the third,
+/// because `{ reason: 0 }` contains a colon. So the payload is stripped first,
+/// then the path is split.
 pub fn last_segment(s: &str) -> &str {
-    s.rsplit(&['.', ':'][..]).next().unwrap_or(s).trim()
+    let head = match s.find(['(', '{', ' ']) {
+        Some(i) => &s[..i],
+        None => s,
+    };
+    head.rsplit(['.', ':']).next().unwrap_or(head).trim()
 }
 
 fn strip(line: &str) -> &str {
@@ -560,11 +571,21 @@ mod tests {
     }
 
     #[test]
-    fn effect_names_compare_by_last_segment() {
-        // Rust holds `Effect::StopClock`; Kotlin will hold `F.StopClock`.
-        // Neither is a behavioural difference.
+    fn effect_names_reduce_to_the_bare_variant() {
+        assert_eq!(last_segment("StopClock"), "StopClock");
         assert_eq!(last_segment("Effect::StopClock"), "StopClock");
         assert_eq!(last_segment("F.StopClock"), "StopClock");
-        assert_eq!(last_segment("StopClock"), "StopClock");
+        // `{:?}` on a generated newtype enum. Stripping the payload must come
+        // first: `{ reason: 0 }` contains a colon, so splitting on the path
+        // separator first would yield ` 0 }`.
+        assert_eq!(
+            last_segment("StopClock(StopClock { reason: 0 })"),
+            "StopClock"
+        );
+        assert_eq!(
+            last_segment("Effect::StopClock(StopClock { reason: 0 })"),
+            "StopClock"
+        );
+        assert_eq!(last_segment("Log(Log)"), "Log");
     }
 }

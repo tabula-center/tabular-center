@@ -15,13 +15,9 @@ mod retry {
     use super::*;
     #[derive(Debug, Default)]
     pub struct Ctx;
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum Effect {
-        Sleep,
-    }
 
     transition_matrix! {
-        machine Retry; context Ctx; state State; action Action; effect Effect; initial Ready;
+        machine Retry; context Ctx; state State; action Action; effects Effect { Sleep } initial Ready;
         states  { Ready, Waiting { attempt: u32 } }
         actions { Attempt, Elapsed }
         Ready   => [ HANDLE, IGNORE ];
@@ -35,13 +31,9 @@ mod job {
     pub struct Ctx {
         pub retry: super::retry::Ctx,
     }
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum Effect {
-        Backoff,
-    }
 
     transition_matrix! {
-        machine Job; context Ctx; state State; action Action; effect Effect; initial Retrying;
+        machine Job; context Ctx; state State; action Action; effects Effect { Backoff } initial Retrying;
         states  { Retrying { child: retry::State } }
         actions { Tick }
         Retrying => [ DELEGATE!(retry) ];

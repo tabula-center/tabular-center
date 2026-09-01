@@ -5,14 +5,19 @@ State machines whose declaration *is* the transition matrix.
 ```rust
 transition_matrix! {
     machine Timer;
-    states  { Idle, Running(u32), Done }
-    actions { Start, Tick, Cancel }
-    effects Fx;
+    context Ctx;
+    state   State;
+    action  Action;
+    effects Effect { StartClock, StopClock { reason: u32 } }
+    initial Idle;
 
-    //            Start                        Tick      Cancel
-    Idle    => [  HANDLE,                      IGNORE,   IGNORE                 ];
-    Running => [  IGNORE,                      HANDLE,   GO!(Idle, Fx::Stop)    ];
-    Done    => [  GO!(Running(0), Fx::Start),  IGNORE,   IGNORE                 ];
+    states  { Idle, Running { since: u32 }, Done }
+    actions { Start, Tick { now: u32 }, Cancel }
+
+    //            Start                              Tick     Cancel
+    Idle    => [  HANDLE,                            IGNORE,  IGNORE                             ];
+    Running => [  IGNORE,                            HANDLE,  GO!(Idle, StopClock { reason: 0 }) ];
+    Done    => [  GO!(Running { since: 0 }, StartClock), IGNORE, IGNORE                          ];
 }
 ```
 
@@ -26,6 +31,11 @@ Not enforced by pattern-matcher exhaustiveness — that is defeated by `else`,
 unenforceable in Kotlin and Swift, so any claim built on it is broken by a
 single `println`. Enforced by the oldest mechanism in every one of these
 languages: *you declared a required member and did not implement it.*
+
+States, actions, **and effects** are all generated sum types. Effects too,
+because the generator can only demand one handler per effect variant if it
+knows the variants — so adding an effect breaks every handler's build, the
+same way adding a state breaks every matrix.
 
 ## The composition property
 
@@ -43,7 +53,7 @@ languages: *you declared a required member and did not implement it.*
 | 4 | Kotlin core + KSP | blocked (needs Kotlin 2.x + KSP toolchain) |
 | 5 | Swift core + macro | todo |
 | 6 | Composition | done (Rust) |
-| 7 | Effects surface | needs a grammar change |
+| 7 | Effects surface | done (Rust) |
 | 8 | Introspection, lints, golden snapshots | done (Rust) |
 | 9a | Driver and mailbox | done (Rust) |
 

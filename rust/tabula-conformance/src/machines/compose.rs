@@ -19,18 +19,12 @@ pub mod retry {
         pub max_attempts: u32,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum Effect {
-        Sleep,
-        GiveUp,
-    }
-
     transition_matrix! {
         machine Retry;
         context Ctx;
         state   State;
         action  Action;
-        effect  Effect;
+        effects Effect { Sleep, GiveUp }
         initial Ready;
 
         states  { Ready, Waiting { attempt: u32 }, Exhausted }
@@ -53,19 +47,12 @@ pub mod job {
         pub retry: super::retry::Ctx,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum Effect {
-        Log,
-        Backoff,
-        Alert,
-    }
-
     transition_matrix! {
         machine Job;
         context Ctx;
         state   State;
         action  Action;
-        effect  Effect;
+        effects Effect { Log, Backoff, Alert }
         initial Idle;
 
         states  { Idle, Retrying { child: retry::State }, Done }
@@ -73,7 +60,7 @@ pub mod job {
 
         //             Run                Tick               Cancel
         Idle     => [  HANDLE,            IGNORE,            IGNORE                 ];
-        Retrying => [  DELEGATE!(retry),  DELEGATE!(retry),  GO!(Done, Effect::Log) ];
+        Retrying => [  DELEGATE!(retry),  DELEGATE!(retry),  GO!(Done, Log) ];
         Done     => [  IGNORE,            IGNORE,            IGNORE                 ];
     }
 }
@@ -90,7 +77,7 @@ impl Handle<job::Job, job::Idle, job::Run> for Impl {
         Step::go(job::State::Retrying(job::Retrying {
             child: retry::State::Ready(retry::Ready),
         }))
-        .emit(job::Effect::Log)
+        .emit(job::Log.into())
     }
 }
 
@@ -101,7 +88,7 @@ impl Handle<retry::Retry, retry::Ready, retry::Attempt> for Impl {
         _s: retry::Ready,
         _a: retry::Attempt,
     ) -> Step<retry::State, retry::Effect> {
-        Step::go(retry::State::Waiting(retry::Waiting { attempt: 1 })).emit(retry::Effect::Sleep)
+        Step::go(retry::State::Waiting(retry::Waiting { attempt: 1 })).emit(retry::Sleep.into())
     }
 }
 
@@ -113,12 +100,12 @@ impl Handle<retry::Retry, retry::Waiting, retry::Elapsed> for Impl {
         _a: retry::Elapsed,
     ) -> Step<retry::State, retry::Effect> {
         if s.attempt >= c.max_attempts {
-            Step::go(retry::State::Exhausted(retry::Exhausted)).emit(retry::Effect::GiveUp)
+            Step::go(retry::State::Exhausted(retry::Exhausted)).emit(retry::GiveUp.into())
         } else {
             Step::go(retry::State::Waiting(retry::Waiting {
                 attempt: s.attempt + 1,
             }))
-            .emit(retry::Effect::Sleep)
+            .emit(retry::Sleep.into())
         }
     }
 }
@@ -133,8 +120,8 @@ fn embed_child(child: retry::State) -> job::State {
 
 fn lift_effect(e: retry::Effect) -> job::Effect {
     match e {
-        retry::Effect::Sleep => job::Effect::Backoff,
-        retry::Effect::GiveUp => job::Effect::Alert,
+        retry::Effect::Sleep(_) => job::Effect::Backoff(job::Backoff),
+        retry::Effect::GiveUp(_) => job::Effect::Alert(job::Alert),
     }
 }
 

@@ -25,18 +25,12 @@ mod retry {
         pub max_attempts: u32,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum Effect {
-        Sleep,
-        GiveUp,
-    }
-
     transition_matrix! {
         machine Retry;
         context Ctx;
         state   State;
         action  Action;
-        effect  Effect;
+        effects Effect { Sleep, GiveUp }
         initial Ready;
 
         states  { Ready, Waiting { attempt: u32 }, Exhausted }
@@ -67,19 +61,12 @@ mod job {
         pub retry: super::retry::Ctx,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum Effect {
-        Log,
-        Backoff,
-        Alert,
-    }
-
     transition_matrix! {
         machine Job;
         context Ctx;
         state   State;
         action  Action;
-        effect  Effect;
+        effects Effect { Log, Backoff, Alert }
         initial Idle;
 
         states  { Idle, Retrying { child: retry::State }, Done }
@@ -87,7 +74,7 @@ mod job {
 
         //              Run                 Tick                 Cancel
         Idle      => [  HANDLE,             IGNORE,              IGNORE             ];
-        Retrying  => [  DELEGATE!(retry),   DELEGATE!(retry),    GO!(Done, Effect::Log) ];
+        Retrying  => [  DELEGATE!(retry),   DELEGATE!(retry),    GO!(Done, Log) ];
         Done      => [  IGNORE,             IGNORE,              IGNORE             ];
     }
 }
@@ -107,7 +94,7 @@ impl Handle<job::Job, Idle, Run> for Impl {
         Step::go(State::Retrying(Retrying {
             child: retry::State::Ready(retry::Ready),
         }))
-        .emit(job::Effect::Log)
+        .emit(job::Log.into())
     }
 }
 
@@ -121,7 +108,7 @@ impl Handle<retry::Retry, retry::Ready, retry::Attempt> for Impl {
         _s: retry::Ready,
         _a: retry::Attempt,
     ) -> Step<retry::State, retry::Effect> {
-        Step::go(retry::State::Waiting(retry::Waiting { attempt: 1 })).emit(retry::Effect::Sleep)
+        Step::go(retry::State::Waiting(retry::Waiting { attempt: 1 })).emit(retry::Sleep.into())
     }
 }
 
@@ -133,12 +120,12 @@ impl Handle<retry::Retry, retry::Waiting, retry::Elapsed> for Impl {
         _a: retry::Elapsed,
     ) -> Step<retry::State, retry::Effect> {
         if s.attempt >= c.max_attempts {
-            Step::go(retry::State::Exhausted(retry::Exhausted)).emit(retry::Effect::GiveUp)
+            Step::go(retry::State::Exhausted(retry::Exhausted)).emit(retry::GiveUp.into())
         } else {
             Step::go(retry::State::Waiting(retry::Waiting {
                 attempt: s.attempt + 1,
             }))
-            .emit(retry::Effect::Sleep)
+            .emit(retry::Sleep.into())
         }
     }
 }
@@ -196,8 +183,8 @@ fn lift_child(child: retry::State) -> State {
 
 fn lift_effect(e: retry::Effect) -> job::Effect {
     match e {
-        retry::Effect::Sleep => job::Effect::Backoff,
-        retry::Effect::GiveUp => job::Effect::Alert,
+        retry::Effect::Sleep(_) => job::Effect::Backoff(job::Backoff),
+        retry::Effect::GiveUp(_) => job::Effect::Alert(job::Alert),
     }
 }
 
@@ -232,7 +219,7 @@ fn delegate_runs_the_child_and_lifts_its_effects() {
     );
     assert_eq!(
         s.effects.iter().copied().collect::<Vec<_>>(),
-        [job::Effect::Backoff]
+        [job::Effect::Backoff(job::Backoff)]
     );
     assert_eq!(c.attempts_made, 1);
 }
@@ -253,7 +240,7 @@ fn a_child_transition_can_be_a_parent_transition() {
     assert_eq!(s.outcome, Outcome::Go(State::Done(job::Done)));
     assert_eq!(
         s.effects.iter().copied().collect::<Vec<_>>(),
-        [job::Effect::Alert]
+        [job::Effect::Alert(job::Alert)]
     );
 }
 
@@ -271,7 +258,7 @@ fn a_static_parent_cell_beside_a_delegate_still_works() {
     assert_eq!(s.outcome, Outcome::Go(State::Done(job::Done)));
     assert_eq!(
         s.effects.iter().copied().collect::<Vec<_>>(),
-        [job::Effect::Log]
+        [job::Effect::Log(job::Log)]
     );
     // The delegate never ran, so the child context was never touched.
     assert_eq!(c.attempts_made, 0);
