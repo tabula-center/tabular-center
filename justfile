@@ -1,31 +1,36 @@
-default: test
+# `tools/verify` is the single source of truth for what "green" means.
+# `nix flake check` runs each of its steps in a sandbox; CI runs the flake.
+# All three execute the same commands.
 
-test: test-rust compile-fail conformance
+default: verify
 
-test-rust:
-    cd rust && cargo test --all-features
+# Everything, the way CI sees it.
+verify:
+    ./tools/verify
 
-# Every diagnostic in spec/diagnostics.md must have a fixture that fails to
-# compile with the expected message.
-compile-fail:
-    ./tools/compile-fail
+# One step: fmt, clippy, test, no-std, compile-fail, conformance.
+step STEP:
+    ./tools/verify {{STEP}}
+
+# Sandboxed, exactly as CI runs it. Requires nix.
+check:
+    nix flake check --print-build-logs
 
 fmt:
     cd rust && cargo fmt --all
-
-lint:
-    cd rust && cargo clippy --all-targets --all-features -- -D warnings
-
-no-std:
-    cd rust && cargo build -p tabula --no-default-features --target thumbv7em-none-eabihf
 
 # Replay spec/conformance against every implementation that has landed.
 conformance:
     cd rust && cargo run -q -p tabula-conformance
 
+# Accept new golden matrix snapshots after an intended behaviour change.
+bless:
+    cd rust && cargo run -q -p tabula-conformance -- --bless
+
 # Render a machine's matrix as a diffable grid.
 table-diff FIXTURE="":
     cd rust && cargo run -q -p tabula-conformance --bin table-diff -- {{FIXTURE}}
 
-expand EXAMPLE="timer_matrix":
-    cd rust && cargo expand --example {{EXAMPLE}}
+# Read what the macro actually generates. Reviewing this is a real exit criterion.
+expand TEST="timer_matrix":
+    cd rust && cargo expand --test {{TEST}}

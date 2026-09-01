@@ -120,8 +120,6 @@
               touch $out
             '';
 
-        cargo = args: "cd rust && cargo ${args} --offline --locked";
-
       in
       {
         ##########################################################
@@ -137,57 +135,49 @@
 
         ##########################################################
         ## Checks — `nix flake check`
+        ##
+        ## Every check shells out to `tools/verify <step>`. That script is the
+        ## single source of truth for what "green" means, so `nix flake check`,
+        ## CI, and a developer typing `./tools/verify` all run the *same
+        ## commands*. Three lint escapes reached CI because the local loop and
+        ## the flake checked different things; a duplicated list here is how
+        ## that happens.
         ##########################################################
 
-        checks = {
-          rust-fmt = mkCheck "rust-fmt" rustInputs ''
-            cd rust && cargo fmt --all -- --check
-          '';
+        checks =
+          let
+            verify = name: inputs: mkCheck "rust-${name}" inputs "./tools/verify ${name}";
+          in
+          {
+            rust-fmt = verify "fmt" rustInputs;
+            rust-clippy = verify "clippy" rustInputs;
+            rust-test = verify "test" rustInputs;
+            rust-no-std = verify "no-std" rustInputs;
+            rust-compile-fail = verify "compile-fail" rustInputs;
+          }
+          // lib.optionalAttrs hasRustConformance {
+            rust-conformance = verify "conformance" rustInputs;
+          }
+          // lib.optionalAttrs hasKotlin {
+            kotlin-test = mkCheck "kotlin-test" kotlinInputs ''
+              cd kotlin && gradle --offline --no-daemon test
+            '';
 
-          rust-clippy = mkCheck "rust-clippy" rustInputs ''
-            ${cargo "clippy --all-targets --all-features"} -- -D warnings
-          '';
-
-          rust-test = mkCheck "rust-test" rustInputs ''
-            ${cargo "nextest run --all-features"}
-          '';
-
-          # Phase 1 exit criterion: the core must build without std.
-          rust-no-std = mkCheck "rust-no-std" rustInputs ''
-            ${cargo "build -p tabula --no-default-features --target thumbv7em-none-eabihf"}
-          '';
-
-          # Every diagnostic in spec/diagnostics.md has a fixture that must
-          # fail to compile with the expected message.
-          rust-compile-fail = mkCheck "rust-compile-fail" rustInputs ''
-            ./tools/compile-fail
-          '';
-        }
-        // lib.optionalAttrs hasRustConformance {
-          rust-conformance = mkCheck "rust-conformance" rustInputs ''
-            ${cargo "run -q -p tabula-conformance"}
-          '';
-        }
-        // lib.optionalAttrs hasKotlin {
-          kotlin-test = mkCheck "kotlin-test" kotlinInputs ''
-            cd kotlin && gradle --offline --no-daemon test
-          '';
-
-          # Guards the zero-runtime-dependency rule. See ARCHITECTURE 11.2.
-          kotlin-no-runtime-deps = mkCheck "kotlin-no-runtime-deps" kotlinInputs ''
-            cd kotlin
-            gradle --offline --no-daemon :tabula-core:dependencies \
-              --configuration runtimeClasspath > deps.txt
-            if grep -qE 'kotlinx|org\.jetbrains\.compose' deps.txt; then
-              echo "tabula-core acquired a runtime dependency:"; cat deps.txt; exit 1
-            fi
-          '';
-        }
-        // lib.optionalAttrs (hasSwift && swiftAvailable) {
-          swift-test = mkCheck "swift-test" swiftPkgs ''
-            cd swift && swift test
-          '';
-        };
+            # Guards the zero-runtime-dependency rule. See ARCHITECTURE 11.2.
+            kotlin-no-runtime-deps = mkCheck "kotlin-no-runtime-deps" kotlinInputs ''
+              cd kotlin
+              gradle --offline --no-daemon :tabula-core:dependencies \
+                --configuration runtimeClasspath > deps.txt
+              if grep -qE 'kotlinx|org\.jetbrains\.compose' deps.txt; then
+                echo "tabula-core acquired a runtime dependency:"; cat deps.txt; exit 1
+              fi
+            '';
+          }
+          // lib.optionalAttrs (hasSwift && swiftAvailable) {
+            swift-test = mkCheck "swift-test" swiftPkgs ''
+              cd swift && swift test
+            '';
+          };
 
         ##########################################################
         ## Apps

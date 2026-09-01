@@ -62,10 +62,13 @@ See `ARCHITECTURE.md` for the design and `PLAN.md` for the task breakdown.
 ## Development
 
 ```sh
+./tools/verify       # everything CI checks
+./tools/verify test  # one step
+
 nix develop          # all three toolchains
-nix develop .#rust
-nix flake check      # fmt + lint + test, all implementations
+nix flake check      # the same steps, sandboxed, as CI runs them
 nix run .#conformance
 ```
 
-Without nix: `cd rust && cargo test`.
+Without nix: `./tools/verify` runs the same steps `nix flake check` does, and
+falls back to rustc's lints where clippy is unavailable.

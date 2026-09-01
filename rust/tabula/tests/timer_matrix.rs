@@ -4,7 +4,7 @@
 //! indistinguishable from the hand-written version, and `cargo expand` on it
 //! must be reviewable by someone who did not write the macro.
 
-use tabula::{transition_matrix, Handle, Outcome, Perform, Step};
+use tabula::{transition_matrix, Handle, Outcome, Step};
 
 /// Cross-state data. Rule R4.
 #[derive(Debug, Default)]

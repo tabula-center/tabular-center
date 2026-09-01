@@ -389,6 +389,15 @@ type to be generic over an effect system it cannot abstract over.
 
 ## Cross-cutting, every phase
 
+- [x] **One definition of green.** `tools/verify` is it; `nix flake check` runs
+      its steps in a sandbox and CI runs the flake. Any new check goes in
+      `tools/verify`, never directly in the workflow.
+
+      This was learned the hard way. Three lints reached CI because the
+      workflow, the flake, and the local loop each checked slightly different
+      things — most recently an unused import in a *test* file, which
+      `cargo build` never compiles, so it passed locally and failed clippy in
+      CI. `--all-targets` is load-bearing.
 - [ ] Any behavioural change lands in `spec/conformance` before any implementation
 - [ ] Every diagnostic gets a UI test (`trybuild` / KSP compile-testing /
       swift-macro-testing)
