@@ -71,7 +71,7 @@ impl Adapter for ToggleAdapter {
     }
 
     fn lint(&self) -> String {
-        tabula::lint::report(&TABLE)
+        tabula::lint::report_with_payloads(&TABLE, PAYLOADS)
     }
 
     fn replay(&self, trace: &Trace) -> Result<Vec<Observed>, String> {

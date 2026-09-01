@@ -148,6 +148,23 @@ fun emit(d: MachineDesc): String = buildString {
     }
     appendLine("    ),")
     appendLine(")")
+
+    // Payload metadata, kept separate from TABLE: the table is the matrix, and
+    // this is metadata about the states. Feeds tabula::payload-hoist.
+    appendLine()
+    appendLine("/** State payload fields, as `(state, field, type)`. */")
+    val payloadStates = d.states.filter { it.hasPayload }
+    if (payloadStates.isEmpty()) {
+        appendLine("val PAYLOADS: dev.tabula.Payloads = emptyList()")
+    } else {
+        appendLine("val PAYLOADS: dev.tabula.Payloads = listOf(")
+        for (v in payloadStates) {
+            for ((f, t) in v.fields) {
+                appendLine("    Triple(${q(v.name)}, ${q(f)}, ${q(t)}),")
+            }
+        }
+        appendLine(")")
+    }
 }
 
 private inline fun forEachCell(d: MachineDesc, body: (Int, Int, CellDesc) -> Unit) {

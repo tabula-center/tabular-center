@@ -64,3 +64,8 @@ val TABLE = Table(
         listOf(Cell.Go("Running", listOf("StartClock")), Cell.Ignore, Cell.Ignore),
     ),
 )
+
+/** State payload fields, as `(state, field, type)`. */
+val PAYLOADS: dev.tabula.Payloads = listOf(
+    Triple("Running", "since", "Long"),
+)

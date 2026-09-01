@@ -4,6 +4,7 @@ import codegen.ChildDesc
 import codegen.RawCell
 import codegen.RawMachine
 import codegen.RawRow
+import codegen.RawVariant
 import codegen.TabulaError
 import codegen.buildDesc
 import codegen.emit
@@ -81,7 +82,7 @@ class TabulaProcessor(
         val actions = machineAnn.classes("actions").map { it.variant() }
         val effects = machineAnn.classes("effects").map { it.variant() }
         val initial = machineAnn.classes("initial").firstOrNull()?.simpleName?.asString()
-            ?: states.first().first
+            ?: states.first().name
 
         val rows = decl.annotations
             .filter { it.shortName.asString() == ROW_SIMPLE }
@@ -96,7 +97,7 @@ class TabulaProcessor(
             machine = machineAnn.string("name").ifBlank { decl.simpleName.asString().removeSuffix("Spec") },
             // The sealed hierarchies are nested in the annotated interface, so
             // their outer names are the type names a developer already chose.
-            stateType = states.first().first.let { outerOf(machineAnn, "states") },
+            stateType = outerOf(machineAnn, "states"),
             actionType = outerOf(machineAnn, "actions"),
             effectType = outerOf(machineAnn, "effects"),
             ctxType = ctxTypeOf(decl),
@@ -177,9 +178,22 @@ class TabulaProcessor(
     private fun KSAnnotation.annotations(name: String): List<KSAnnotation> =
         (argument(name) as? List<*>)?.filterIsInstance<KSAnnotation>() ?: emptyList()
 
-    /** `S.Running` carries a payload iff it is a data class rather than an object. */
-    private fun KSClassDeclaration.variant(): Pair<String, Boolean> =
-        simpleName.asString() to (classKind == com.google.devtools.ksp.symbol.ClassKind.CLASS)
+    /**
+     * `S.Running` carries a payload iff it is a data class rather than an
+     * object.
+     *
+     * The field list feeds `tabula::payload-hoist` only, so an unresolvable
+     * type degrades that one lint rather than the machine.
+     */
+    private fun KSClassDeclaration.variant(): RawVariant {
+        val hasPayload = classKind == com.google.devtools.ksp.symbol.ClassKind.CLASS
+        val fields = if (!hasPayload) emptyList() else
+            primaryConstructor?.parameters.orEmpty().mapNotNull { p ->
+                val n = p.name?.asString() ?: return@mapNotNull null
+                n to (p.type.resolve().declaration.simpleName.asString())
+            }
+        return RawVariant(simpleName.asString(), hasPayload, fields)
+    }
 
     /** The sealed hierarchy's own name, e.g. `S` for `S.Idle`. */
     private fun outerOf(ann: KSAnnotation, name: String): String =

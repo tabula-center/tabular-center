@@ -382,10 +382,10 @@ color-mismatch is a build error in all three.
       changes behaviour now shows a **table** diff, which is the artifact worth
       reviewing.
 - [ ] PlantUML export
-- [ ] Payload-hoist warning. Needs comparing field names across states, which
-      the `macro_rules!` muncher cannot do cheaply — it belongs in a separate
-      pass over `TABLE`, and `TABLE` does not currently carry payload field
-      names. Deferred with that note rather than half-built.
+- [x] Payload-hoist warning, in both languages. The field list is emitted as a
+      separate `PAYLOADS` const rather than added to `Table`: the table is the
+      matrix, this is metadata about the states, and keeping them apart meant
+      adding it broke no existing `Table` literal.
 
 Ship export early if you want adopters. It is the most demoable feature and
 falls out of `TABLE` almost for free.

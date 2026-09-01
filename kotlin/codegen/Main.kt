@@ -24,8 +24,16 @@ val timerDesc = MachineDesc(
     ctxType = "Ctx",
     initial = "Idle",
     prototypeModifiers = listOf("suspend"),
-    states = listOf(Variant("Idle"), Variant("Running", hasPayload = true), Variant("Done")),
-    actions = listOf(Variant("Start"), Variant("Tick", hasPayload = true), Variant("Cancel")),
+    states = listOf(
+        Variant("Idle"),
+        Variant("Running", hasPayload = true, fields = listOf("since" to "Long")),
+        Variant("Done"),
+    ),
+    actions = listOf(
+        Variant("Start"),
+        Variant("Tick", hasPayload = true, fields = listOf("now" to "Long")),
+        Variant("Cancel"),
+    ),
     effects = listOf(Variant("StartClock"), Variant("StopClock")),
     rows = listOf(
         listOf(CellDesc.Handle, CellDesc.Ignore, CellDesc.Ignore),

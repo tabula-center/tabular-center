@@ -196,11 +196,24 @@ one line of output is a fair price for catching the second.
 
 ---
 
-## `tabula::payload-hoist` (warning, Phase 8)
+## `tabula::payload-hoist`
 
 ```
-warning[tabula::payload-hoist]: `retryCount: Int` appears in payloads of
-`Connecting`, `Backoff`, `Reconnecting`. Consider hoisting to Context.
+warning[tabula::payload-hoist]: Conn: `retry_count: u32` appears in the
+payloads of Connecting, Backoff, Reconnecting; consider hoisting it to Context
 ```
 
 Warning, never an error: rule R4 is a judgement call, and three is a heuristic.
+
+Two details that keep it from crying wolf:
+
+- **Name *and* type must match.** A `count: Int` and a `count: String` are two
+  different ideas that happen to share a word.
+- **Three states, not two.** Two is a coincidence; three is a pattern.
+
+The field list is metadata about the states, so it is emitted as a separate
+`PAYLOADS` const rather than folded into the table — the table is the matrix.
+A generator that cannot resolve a field's type degrades this one lint rather
+than the machine.
+
+**Status:** implemented (Rust and Kotlin).

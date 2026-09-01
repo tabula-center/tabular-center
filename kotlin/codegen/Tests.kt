@@ -36,9 +36,9 @@ private fun expectError(what: String, code: String, body: () -> Unit) {
 }
 
 private fun raw(
-    states: List<Pair<String, Boolean>> = listOf("Idle" to false, "Running" to true),
-    actions: List<Pair<String, Boolean>> = listOf("Start" to false, "Tick" to false),
-    effects: List<Pair<String, Boolean>> = listOf("Go" to false),
+    states: List<RawVariant> = listOf(RawVariant("Idle"), RawVariant("Running", hasPayload = true)),
+    actions: List<RawVariant> = listOf(RawVariant("Start"), RawVariant("Tick")),
+    effects: List<RawVariant> = listOf(RawVariant("Go")),
     rows: List<RawRow> = listOf(
         RawRow("Idle", listOf(RawCell("HANDLE"), RawCell("IGNORE"))),
         RawRow("Running", listOf(RawCell("IGNORE"), RawCell("HANDLE"))),
@@ -143,6 +143,36 @@ fun runValidationTests(): Int {
         emit(buildDesc(timerRaw)) == emit(timerDesc)
     )
 
+    // payload-hoist: rule R4, asked as a question.
+    check(
+        "a field in three states is flagged",
+        dev.tabula.payloadHoist(
+            listOf(
+                Triple("Connecting", "retryCount", "Int"),
+                Triple("Backoff", "retryCount", "Int"),
+                Triple("Backoff", "until", "Long"),
+                Triple("Reconnecting", "retryCount", "Int"),
+            )
+        ).singleOrNull().let {
+            it is dev.tabula.Finding.PayloadHoist &&
+                it.states == listOf("Connecting", "Backoff", "Reconnecting")
+        }
+    )
+    check(
+        "two states is a coincidence, not a pattern",
+        dev.tabula.payloadHoist(listOf(Triple("A", "n", "Int"), Triple("B", "n", "Int"))).isEmpty()
+    )
+    check(
+        "the same name at different types is not the same field",
+        dev.tabula.payloadHoist(
+            listOf(
+                Triple("A", "count", "Int"),
+                Triple("B", "count", "String"),
+                Triple("C", "count", "Int"),
+            )
+        ).isEmpty()
+    )
+
     if (failures == 0) println("ok   codegen validation ($checks checks)")
     else println("FAIL codegen validation ($failures of $checks checks failed)")
     return failures
@@ -155,9 +185,17 @@ val timerRaw = RawMachine(
     stateType = "S", actionType = "A", effectType = "F", ctxType = "Ctx",
     initial = "Idle",
     prototypeModifiers = listOf("suspend"),
-    states = listOf("Idle" to false, "Running" to true, "Done" to false),
-    actions = listOf("Start" to false, "Tick" to true, "Cancel" to false),
-    effects = listOf("StartClock" to false, "StopClock" to false),
+    states = listOf(
+        RawVariant("Idle"),
+        RawVariant("Running", hasPayload = true, fields = listOf("since" to "Long")),
+        RawVariant("Done"),
+    ),
+    actions = listOf(
+        RawVariant("Start"),
+        RawVariant("Tick", hasPayload = true, fields = listOf("now" to "Long")),
+        RawVariant("Cancel"),
+    ),
+    effects = listOf(RawVariant("StartClock"), RawVariant("StopClock")),
     rows = listOf(
         RawRow("Idle", listOf(RawCell("HANDLE"), RawCell("IGNORE"), RawCell("IGNORE"))),
         RawRow("Running", listOf(

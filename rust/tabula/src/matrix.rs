@@ -142,6 +142,11 @@ macro_rules! transition_matrix {
         $( $crate::__tabula_struct!($av $({ $($af : $aft),* })?); )*
         $( $crate::__tabula_struct!($ev $({ $($eff : $efft),* })?); )*
 
+        // Emitted here, not in the terminal muncher rule: by the time the
+        // rows have been walked, `$sv` is a bare ident list and the payload
+        // field names are gone. Metadata has to be captured where it is bound.
+        $crate::__tabula_payloads!(@go acc=[] rest=[$($sv $({ $($sf : $sft),* })?),*]);
+
         // -- the sum types, newtyping their narrowed structs -------------
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub enum $s { $( $sv($sv) ),* }
@@ -358,6 +363,14 @@ macro_rules! transition_matrix {
             )
         }
 
+        /// State payload fields, as `(state, field, type)`.
+        ///
+        /// A separate const rather than a field on `TABLE`: the table is the
+        /// matrix, and this is metadata about the states. Keeping them apart
+        /// also means adding it broke no existing `Table` literal.
+        ///
+        /// Feeds `tabula::payload-hoist`, which asks whether a field repeated
+        /// across states is really context in disguise. See rule R4.
         /// The matrix as inert data. Diagram export, coverage reporting, and
         /// reachability analysis are pure functions of this.
         pub const TABLE: $crate::Table<
@@ -854,6 +867,42 @@ macro_rules! __tabula_cells {
             // `StopClock`, so grids and diagrams stay readable.
             effects: &[$($crate::table::first_ident(::core::stringify!($ef))),*],
         },])
+    };
+}
+
+/// Emits the `PAYLOADS` const, one state at a time.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __tabula_payloads {
+    (@go acc=[$($acc:tt)*] rest=[]) => {
+        /// State payload fields, as `(state, field, type)`.
+        ///
+        /// A separate const rather than a field on `TABLE`: the table is the
+        /// matrix, and this is metadata about the states. Keeping them apart
+        /// also means adding it broke no existing `Table` literal.
+        ///
+        /// Feeds `tabula::payload-hoist`, which asks whether a field repeated
+        /// across states is really context in disguise. See rule R4.
+        pub const PAYLOADS: &$crate::lint::Payloads = &[$($acc)*];
+    };
+
+    (@go acc=[$($acc:tt)*] rest=[, $($r:tt)*]) => {
+        $crate::__tabula_payloads!(@go acc=[$($acc)*] rest=[$($r)*]);
+    };
+
+    (@go acc=[$($acc:tt)*] rest=[$sv:ident {$($sf:ident : $sft:ty),* $(,)?} $($r:tt)*]) => {
+        $crate::__tabula_payloads!(@go
+            acc=[$($acc)* $((
+                ::core::stringify!($sv),
+                ::core::stringify!($sf),
+                ::core::stringify!($sft),
+            ),)*]
+            rest=[$($r)*]
+        );
+    };
+
+    (@go acc=[$($acc:tt)*] rest=[$sv:ident $($r:tt)*]) => {
+        $crate::__tabula_payloads!(@go acc=[$($acc)*] rest=[$($r)*]);
     };
 }
 

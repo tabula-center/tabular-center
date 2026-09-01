@@ -199,7 +199,7 @@ impl Adapter for RetryAdapter {
     }
 
     fn lint(&self) -> String {
-        tabula::lint::report(&retry::TABLE)
+        tabula::lint::report_with_payloads(&retry::TABLE, retry::PAYLOADS)
     }
 
     fn replay(&self, trace: &Trace) -> Result<Vec<Observed>, String> {
@@ -260,7 +260,7 @@ impl Adapter for JobAdapter {
     }
 
     fn lint(&self) -> String {
-        tabula::lint::report(&job::TABLE)
+        tabula::lint::report_with_payloads(&job::TABLE, job::PAYLOADS)
     }
 
     fn replay(&self, trace: &Trace) -> Result<Vec<Observed>, String> {

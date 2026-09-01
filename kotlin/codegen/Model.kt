@@ -50,8 +50,19 @@ data class MachineDesc(
     }
 }
 
-/** One variant of a sealed hierarchy: its name and whether it carries a payload. */
-data class Variant(val name: String, val hasPayload: Boolean = false)
+/**
+ * One variant of a sealed hierarchy.
+ *
+ * [fields] is `name to type` for a payload-carrying variant. It exists only to
+ * feed `tabula::payload-hoist`, so it may be empty even when [hasPayload] is
+ * true — a processor that cannot resolve a type still produces a usable
+ * machine, just without that one lint.
+ */
+data class Variant(
+    val name: String,
+    val hasPayload: Boolean = false,
+    val fields: List<Pair<String, String>> = emptyList(),
+)
 
 /** A child machine referenced by one or more `DELEGATE` cells. */
 data class ChildDesc(

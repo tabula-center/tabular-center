@@ -76,6 +76,24 @@ pub enum Finding {
         state: &'static str,
     },
 
+    /// The same payload field appears in several states.
+    ///
+    /// Rule R4: payload is state-local, `Context` outlives transitions. A field
+    /// repeated across states is usually context that got copied into payloads
+    /// one state at a time.
+    ///
+    /// A warning, and deliberately so — three is a heuristic, and a field that
+    /// genuinely means something different in each state is a legitimate
+    /// design. Presented as a question, not a verdict.
+    PayloadHoist {
+        /// The repeated field name.
+        field: &'static str,
+        /// Its type.
+        ty: &'static str,
+        /// The states carrying it, in declaration order.
+        states: Vec<&'static str>,
+    },
+
     /// A whole column is inert: no state responds to this action.
     ///
     /// Either the action is dead code or a row was forgotten.
@@ -95,6 +113,7 @@ impl Finding {
             Finding::Unreachables { .. } => "tabula::unreachable-heavy",
             Finding::DeadRow { .. } => "tabula::dead-row",
             Finding::DeadColumn { .. } => "tabula::dead-column",
+            Finding::PayloadHoist { .. } => "tabula::payload-hoist",
         }
     }
 
@@ -123,6 +142,12 @@ impl Finding {
             Finding::DeadColumn { action } => {
                 format!("no state responds to `{action}`; the action is dead or a row was missed")
             }
+            Finding::PayloadHoist { field, ty, states } => format!(
+                "`{}: {}` appears in the payloads of {}; consider hoisting it to Context",
+                field,
+                ty,
+                states.join(", ")
+            ),
         }
     }
 }
@@ -133,6 +158,47 @@ pub const IGNORE_HEAVY_PERCENT: usize = 70;
 /// Percentage of `UNREACHABLE` cells above which [`Finding::Unreachables`]
 /// fires. One or two deliberate assertions must stay silent.
 pub const UNREACHABLE_HEAVY_PERCENT: usize = 25;
+
+/// Number of states a payload field must appear in before
+/// [`Finding::PayloadHoist`] fires.
+///
+/// Two is a coincidence; three is a pattern. Set deliberately high because a
+/// lint that fires on healthy machines is a lint people turn off.
+pub const PAYLOAD_HOIST_STATES: usize = 3;
+
+/// State payload fields, as `(state, field, type)` in declaration order.
+///
+/// Emitted as a separate `PAYLOADS` const rather than folded into
+/// [`Table`](crate::Table): the table is the matrix, and this is metadata about
+/// the states. Keeping them apart also means adding this did not break every
+/// hand-written `Table` literal in the repository.
+pub type Payloads = [(&'static str, &'static str, &'static str)];
+
+/// Fields repeated across [`PAYLOAD_HOIST_STATES`] or more states.
+pub fn payload_hoist(payloads: &Payloads) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let mut seen: Vec<(&'static str, &'static str)> = Vec::new();
+
+    for &(_, field, ty) in payloads {
+        if seen.contains(&(field, ty)) {
+            continue;
+        }
+        seen.push((field, ty));
+
+        // Same name AND same type. A `count: u32` and a `count: String` are
+        // two different ideas that happen to share a word.
+        let states: Vec<&'static str> = payloads
+            .iter()
+            .filter(|(_, f, t)| *f == field && *t == ty)
+            .map(|(s, _, _)| *s)
+            .collect();
+
+        if states.len() >= PAYLOAD_HOIST_STATES {
+            out.push(Finding::PayloadHoist { field, ty, states });
+        }
+    }
+    out
+}
 
 /// Every finding for a machine, in a stable order.
 pub fn lint<const N: usize, const M: usize>(t: &Table<N, M>) -> Vec<Finding> {
@@ -195,12 +261,26 @@ pub fn lint<const N: usize, const M: usize>(t: &Table<N, M>) -> Vec<Finding> {
 
 /// Findings rendered one per line, prefixed with the machine name.
 pub fn report<const N: usize, const M: usize>(t: &Table<N, M>) -> String {
+    render(t.machine, &lint(t))
+}
+
+/// [`report`] plus the payload findings, which need the machine's `PAYLOADS`.
+pub fn report_with_payloads<const N: usize, const M: usize>(
+    t: &Table<N, M>,
+    payloads: &Payloads,
+) -> String {
+    let mut findings = lint(t);
+    findings.extend(payload_hoist(payloads));
+    render(t.machine, &findings)
+}
+
+fn render(machine: &str, findings: &[Finding]) -> String {
     let mut s = String::new();
-    for f in lint(t) {
+    for f in findings {
         s.push_str(&format!(
             "warning[{}]: {}: {}\n",
             f.code(),
-            t.machine,
+            machine,
             f.message()
         ));
     }
@@ -343,6 +423,56 @@ mod tests {
         assert!(!lint(&H)
             .iter()
             .any(|f| matches!(f, Finding::NoStaticExit { .. })));
+    }
+
+    #[test]
+    fn a_field_in_three_states_is_flagged() {
+        const P: &Payloads = &[
+            ("Connecting", "retry_count", "u32"),
+            ("Backoff", "retry_count", "u32"),
+            ("Backoff", "until", "Instant"),
+            ("Reconnecting", "retry_count", "u32"),
+        ];
+        let f = payload_hoist(P);
+        assert_eq!(f.len(), 1);
+        assert_eq!(
+            f[0],
+            Finding::PayloadHoist {
+                field: "retry_count",
+                ty: "u32",
+                states: vec!["Connecting", "Backoff", "Reconnecting"],
+            }
+        );
+    }
+
+    #[test]
+    fn two_states_is_a_coincidence_not_a_pattern() {
+        const P: &Payloads = &[("A", "n", "u32"), ("B", "n", "u32")];
+        assert!(payload_hoist(P).is_empty());
+    }
+
+    #[test]
+    fn the_same_name_at_different_types_is_not_the_same_field() {
+        // `count: u32` and `count: String` are two ideas sharing a word.
+        const P: &Payloads = &[
+            ("A", "count", "u32"),
+            ("B", "count", "String"),
+            ("C", "count", "u32"),
+        ];
+        assert!(payload_hoist(P).is_empty());
+    }
+
+    #[test]
+    fn each_repeated_field_is_reported_once() {
+        const P: &Payloads = &[
+            ("A", "n", "u32"),
+            ("B", "n", "u32"),
+            ("C", "n", "u32"),
+            ("A", "m", "u8"),
+            ("B", "m", "u8"),
+            ("C", "m", "u8"),
+        ];
+        assert_eq!(payload_hoist(P).len(), 2);
     }
 
     #[test]

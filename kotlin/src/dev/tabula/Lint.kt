@@ -59,6 +59,24 @@ sealed interface Finding {
             "$percent% of cells are IGNORE; consider splitting this machine"
     }
 
+    /**
+     * The same payload field appears in several states.
+     *
+     * Rule R4: payload is state-local, Context outlives transitions. A field
+     * repeated across states is usually context that got copied into payloads
+     * one state at a time — but not always, so this warns and never errors.
+     */
+    data class PayloadHoist(
+        val field: String,
+        val type: String,
+        val states: List<String>,
+    ) : Finding {
+        override val code = "tabula::payload-hoist"
+        override val message =
+            "`$field: $type` appears in the payloads of ${states.joinToString(", ")}; " +
+                "consider hoisting it to Context"
+    }
+
     /** `UNREACHABLE` occupies a large share of the matrix. */
     data class UnreachableHeavy(val count: Int, val percent: Int) : Finding {
         override val code = "tabula::unreachable-heavy"
@@ -73,6 +91,29 @@ const val IGNORE_HEAVY_PERCENT = 70
 
 /** Percentage of `UNREACHABLE` cells above which [Finding.UnreachableHeavy] fires. */
 const val UNREACHABLE_HEAVY_PERCENT = 25
+
+/**
+ * Number of states a payload field must appear in before
+ * [Finding.PayloadHoist] fires.
+ *
+ * Two is a coincidence; three is a pattern. Set deliberately high because a
+ * lint that fires on healthy machines is a lint people turn off.
+ */
+const val PAYLOAD_HOIST_STATES = 3
+
+/** State payload fields, as `(state, field, type)` in declaration order. */
+typealias Payloads = List<Triple<String, String, String>>
+
+/** Fields repeated across [PAYLOAD_HOIST_STATES] or more states. */
+fun payloadHoist(payloads: Payloads): List<Finding> =
+    payloads
+        // Same name AND same type. A `count: Int` and a `count: String` are two
+        // different ideas that happen to share a word.
+        .groupBy { it.second to it.third }
+        .filter { (_, group) -> group.size >= PAYLOAD_HOIST_STATES }
+        .map { (key, group) ->
+            Finding.PayloadHoist(key.first, key.second, group.map { it.first })
+        }
 
 /** Every finding for a machine, in a stable order. */
 fun lint(t: Table): List<Finding> = buildList {
@@ -104,5 +145,6 @@ fun lint(t: Table): List<Finding> = buildList {
 }
 
 /** Findings rendered one per line, prefixed with the machine name. */
-fun report(t: Table): String =
-    lint(t).joinToString("") { "warning[${it.code}]: ${t.machine}: ${it.message}\n" }
+fun report(t: Table, payloads: Payloads = emptyList()): String =
+    (lint(t) + payloadHoist(payloads))
+        .joinToString("") { "warning[${it.code}]: ${t.machine}: ${it.message}\n" }

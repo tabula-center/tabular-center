@@ -57,3 +57,6 @@ val TABLE = Table(
         listOf(Cell.Go("Off"), Cell.Handle, Cell.Unreachable),
     ),
 )
+
+/** State payload fields, as `(state, field, type)`. */
+val PAYLOADS: dev.tabula.Payloads = emptyList()

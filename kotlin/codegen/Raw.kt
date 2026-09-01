@@ -22,13 +22,21 @@ data class RawMachine(
     val effectType: String,
     val ctxType: String,
     val initial: String,
-    /** Declared state variants, in row order. `name to hasPayload`. */
-    val states: List<Pair<String, Boolean>>,
-    val actions: List<Pair<String, Boolean>>,
-    val effects: List<Pair<String, Boolean>>,
+    /** Declared state variants, in row order. */
+    val states: List<RawVariant>,
+    val actions: List<RawVariant>,
+    val effects: List<RawVariant>,
     val rows: List<RawRow>,
     val prototypeModifiers: List<String> = emptyList(),
     val children: List<ChildDesc> = emptyList(),
+)
+
+/** A variant as the processor reads it, before validation. */
+data class RawVariant(
+    val name: String,
+    val hasPayload: Boolean = false,
+    /** `name to type`, for `tabula::payload-hoist`. Optional. */
+    val fields: List<Pair<String, String>> = emptyList(),
 )
 
 /** One `@Row`: the state it belongs to, then one cell per action. */
@@ -57,10 +65,10 @@ private fun fail(code: String, message: String): Nothing = throw TabulaError(cod
  * untested processor.
  */
 fun buildDesc(raw: RawMachine): MachineDesc {
-    val stateNames = raw.states.map { it.first }
-    val actionNames = raw.actions.map { it.first }
-    val effectNames = raw.effects.map { it.first }
-    val payloadStates = raw.states.filter { it.second }.map { it.first }.toSet()
+    val stateNames = raw.states.map { it.name }
+    val actionNames = raw.actions.map { it.name }
+    val effectNames = raw.effects.map { it.name }
+    val payloadStates = raw.states.filter { it.hasPayload }.map { it.name }.toSet()
 
     if (raw.initial !in stateNames) {
         fail(
@@ -116,9 +124,9 @@ fun buildDesc(raw: RawMachine): MachineDesc {
         effectType = raw.effectType,
         ctxType = raw.ctxType,
         initial = raw.initial,
-        states = raw.states.map { Variant(it.first, it.second) },
-        actions = raw.actions.map { Variant(it.first, it.second) },
-        effects = raw.effects.map { Variant(it.first, it.second) },
+        states = raw.states.map { Variant(it.name, it.hasPayload, it.fields) },
+        actions = raw.actions.map { Variant(it.name, it.hasPayload, it.fields) },
+        effects = raw.effects.map { Variant(it.name, it.hasPayload, it.fields) },
         rows = rows,
         prototypeModifiers = raw.prototypeModifiers,
         children = raw.children,
