@@ -8,7 +8,7 @@
 //! are static, `TABLE.is_fully_static()` is false only on account of the single
 //! `HANDLE` — flip that to `GO!` and the reachability lint starts speaking.
 
-use tabula::{transition_matrix, Handle, Outcome, Step};
+use tabula::{transition_matrix, Handle, Step};
 
 /// Cross-state data. A machine with nothing to remember still needs a type
 /// here; a unit struct is the honest answer.
@@ -52,6 +52,7 @@ impl Handle<TrafficLight, Amber, Advance> for Controller {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tabula::Outcome;
 
     #[test]
     fn a_full_cycle() {
@@ -90,7 +91,12 @@ mod tests {
     #[test]
     fn a_machine_with_no_effects_emits_nothing() {
         let mut ctx = Ctx { cycles: 0 };
-        let s = step(&mut Controller, &mut ctx, State::Red(Red), Action::Advance(Advance));
+        let s = step(
+            &mut Controller,
+            &mut ctx,
+            State::Red(Red),
+            Action::Advance(Advance),
+        );
         assert!(s.effects.is_empty());
     }
 }

@@ -4,6 +4,9 @@ import composition.Impl
 import composition.job
 import composition.retry
 import dev.tabula.Step
+import dev.tabula.testing.Expect
+import dev.tabula.testing.Spec
+import dev.tabula.testing.Trace
 
 /**
  * Adapters for `retry.tbl` and `nested-delegate.tbl`.

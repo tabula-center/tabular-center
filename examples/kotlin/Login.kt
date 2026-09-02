@@ -3,11 +3,15 @@
  *
  * A login session delegating its authentication to a child machine.
  *
+ * Named for the pair rather than the parent, matching the Rust example: there,
+ * `mod session` inside `mod session` is `clippy::module_inception`, and the
+ * lint is right that it reads badly.
+ *
  * `interface Cells : auth.Cells` is the composition property in one line:
  * implementing the parent requires implementing the child, so a hole anywhere
  * in the child breaks the parent's build. Interfaces are Kotlin's trait bounds.
  */
-package examples.session
+package examples.login
 
 import dev.tabula.Cell
 import dev.tabula.Step
@@ -65,7 +69,7 @@ object auth {
 
 object session {
     sealed interface S {
-        data class LoggedOut(val auth: examples.session.auth.S) : S
+        data class LoggedOut(val auth: examples.login.auth.S) : S
         data object Active : S
         data object Banned : S
     }
@@ -81,27 +85,27 @@ object session {
     }
 
     /** The parent's context contains the child's, so `authChildCtx` is a field. */
-    class Ctx(val auth: examples.session.auth.Ctx)
+    class Ctx(val auth: examples.login.auth.Ctx)
 
-    interface Cells : examples.session.auth.Cells {
+    interface Cells : examples.login.auth.Cells {
         // One per DELEGATE cell: the action prism.
         fun loggedOutCredentialsToChild(
             ctx: Ctx,
             state: S.LoggedOut,
             action: A.Credentials,
-        ): examples.session.auth.A?
+        ): examples.login.auth.A?
 
         fun loggedOutStartOverToChild(
             ctx: Ctx,
             state: S.LoggedOut,
             action: A.StartOver,
-        ): examples.session.auth.A?
+        ): examples.login.auth.A?
 
         // Once per child: the lens, the effect relabelling, the context.
-        fun authChildState(state: S.LoggedOut): examples.session.auth.S
-        fun authEmbed(state: S.LoggedOut, child: examples.session.auth.S): S
-        fun authLift(effect: examples.session.auth.F): F
-        fun authChildCtx(ctx: Ctx): examples.session.auth.Ctx
+        fun authChildState(state: S.LoggedOut): examples.login.auth.S
+        fun authEmbed(state: S.LoggedOut, child: examples.login.auth.S): S
+        fun authLift(effect: examples.login.auth.F): F
+        fun authChildCtx(ctx: Ctx): examples.login.auth.Ctx
     }
 
     fun step(cells: Cells, ctx: Ctx, s: S, a: A): Step<S, F> = when (s) {
@@ -126,12 +130,12 @@ object session {
         cells: Cells,
         ctx: Ctx,
         state: S.LoggedOut,
-        childAction: examples.session.auth.A?,
+        childAction: examples.login.auth.A?,
     ): Step<S, F> {
         // A null child action reports Ignored, not Stay: a parent action the
         // child's alphabet does not contain was not handled.
         if (childAction == null) return Step.Ignored
-        val childStep = examples.session.auth.step(
+        val childStep = examples.login.auth.step(
             cells,
             cells.authChildCtx(ctx),
             cells.authChildState(state),

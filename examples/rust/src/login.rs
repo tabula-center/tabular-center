@@ -2,6 +2,10 @@
 //!
 //! A login session that delegates its authentication to a child machine.
 //!
+//! Two modules, `auth` and `session`, in a file named for neither: `mod
+//! session` inside `mod session` is `clippy::module_inception`, and the lint
+//! is right that it reads badly.
+//!
 //! The property being demonstrated:
 //!
 //! > Scoping a total child into a total parent yields a total parent, and the
@@ -11,7 +15,7 @@
 //! cell of the child unimplemented breaks the *parent's* build. A hand-written
 //! `HANDLE` could not give that: it is free to ignore the child entirely.
 
-use tabula::{transition_matrix, Delegate, Handle, Lens, Outcome, Step};
+use tabula::{transition_matrix, Delegate, Handle, Lens, Step};
 
 /// The child: authentication, written knowing nothing about sessions.
 pub mod auth {
@@ -89,9 +93,11 @@ impl Handle<auth::Auth, auth::AwaitingCredentials, auth::Submit> for Impl {
         } else if s.attempts + 1 >= c.max_attempts {
             Step::go(auth::State::LockedOut(auth::LockedOut)).emit(auth::Lockout.into())
         } else {
-            Step::go(auth::State::AwaitingCredentials(auth::AwaitingCredentials {
-                attempts: s.attempts + 1,
-            }))
+            Step::go(auth::State::AwaitingCredentials(
+                auth::AwaitingCredentials {
+                    attempts: s.attempts + 1,
+                },
+            ))
             .emit(auth::Prompt.into())
         }
     }
@@ -148,22 +154,23 @@ impl Delegate<session::Session, session::LoggedOut, session::StartOver, auth::Ma
     }
 }
 
-fn fresh() -> session::State {
-    session::State::LoggedOut(session::LoggedOut {
-        auth: auth::State::AwaitingCredentials(auth::AwaitingCredentials { attempts: 0 }),
-    })
-}
-
-fn ctx(max_attempts: u32) -> SessionCtx {
-    SessionCtx {
-        auth: auth::Ctx { max_attempts },
-        logins: 0,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tabula::Outcome;
+
+    fn fresh() -> session::State {
+        session::State::LoggedOut(session::LoggedOut {
+            auth: auth::State::AwaitingCredentials(auth::AwaitingCredentials { attempts: 0 }),
+        })
+    }
+
+    fn ctx(max_attempts: u32) -> SessionCtx {
+        SessionCtx {
+            auth: auth::Ctx { max_attempts },
+            logins: 0,
+        }
+    }
 
     #[test]
     fn a_good_credential_promotes_the_parent_out_of_logged_out() {

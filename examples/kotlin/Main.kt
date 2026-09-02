@@ -124,43 +124,43 @@ private fun retry() {
 }
 
 private fun session() {
-    val m = examples.session.Impl()
-    fun fresh() = examples.session.session.S.LoggedOut(examples.session.auth.S.AwaitingCredentials(0))
+    val m = examples.login.Impl()
+    fun fresh() = examples.login.session.S.LoggedOut(examples.login.auth.S.AwaitingCredentials(0))
 
     eq(
-        examples.session.session.step(m, examples.session.session.Ctx(examples.session.auth.Ctx(3)), fresh(), examples.session.session.A.Credentials(true)),
-        Step.Go(examples.session.session.S.Active, emptyList()),
-        "session: a good credential promotes the parent out of LoggedOut",
+        examples.login.session.step(m, examples.login.session.Ctx(examples.login.auth.Ctx(3)), fresh(), examples.login.session.A.Credentials(true)),
+        Step.Go(examples.login.session.S.Active, emptyList()),
+        "login: a good credential promotes the parent out of LoggedOut",
     )
 
-    val bad = examples.session.session.step(m, examples.session.session.Ctx(examples.session.auth.Ctx(3)), fresh(), examples.session.session.A.Credentials(false))
+    val bad = examples.login.session.step(m, examples.login.session.Ctx(examples.login.auth.Ctx(3)), fresh(), examples.login.session.A.Credentials(false))
     eq(
         bad.effects,
-        listOf(examples.session.session.F.Redirect),
-        "session: examples.session.auth.Prompt became examples.session.session.Redirect on the way up",
+        listOf(examples.login.session.F.Redirect),
+        "login: auth.Prompt became session.Redirect on the way up",
     )
     eq(
         (bad as Step.Go).next,
-        examples.session.session.S.LoggedOut(examples.session.auth.S.AwaitingCredentials(1)),
-        "session: a bad credential keeps the parent where it is",
+        examples.login.session.S.LoggedOut(examples.login.auth.S.AwaitingCredentials(1)),
+        "login: a bad credential keeps the parent where it is",
     )
 
     eq(
-        examples.session.session.step(m, examples.session.session.Ctx(examples.session.auth.Ctx(1)), fresh(), examples.session.session.A.Credentials(false)),
-        Step.Go(examples.session.session.S.Banned, listOf(examples.session.session.F.Warn)),
-        "session: exhausting the child bans the session",
+        examples.login.session.step(m, examples.login.session.Ctx(examples.login.auth.Ctx(1)), fresh(), examples.login.session.A.Credentials(false)),
+        Step.Go(examples.login.session.S.Banned, listOf(examples.login.session.F.Warn)),
+        "login: exhausting the child bans the session",
     )
 
     eq(
-        examples.session.auth.step(m, examples.session.auth.Ctx(2), examples.session.auth.S.AwaitingCredentials(0), examples.session.auth.A.Submit(true)),
-        Step.Go(examples.session.auth.S.Authenticated, emptyList()),
-        "session: the child is a machine in its own right",
+        examples.login.auth.step(m, examples.login.auth.Ctx(2), examples.login.auth.S.AwaitingCredentials(0), examples.login.auth.A.Submit(true)),
+        Step.Go(examples.login.auth.S.Authenticated, emptyList()),
+        "login: the child is a machine in its own right",
     )
 
     eq(
-        examples.session.session.TABLE.cell(0, 2),
+        examples.login.session.TABLE.cell(0, 2),
         dev.tabula.Cell.Ignore,
-        "session: coverage is not inherited silently",
+        "login: coverage is not inherited silently",
     )
 }
 

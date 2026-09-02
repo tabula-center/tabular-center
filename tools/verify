@@ -28,7 +28,15 @@ run() {
     fail=1
 }
 
-step_fmt() { (cd rust && cargo fmt --all -- --check); }
+# Both cargo workspaces. The examples sit outside the main one on purpose, and
+# for a while that meant neither fmt nor clippy saw them -- which is how a line
+# of trailing whitespace reached a patch that `cargo fmt --check` had passed.
+step_fmt() {
+    local ok=0
+    (cd rust && cargo fmt --all -- --check) || ok=1
+    (cd examples/rust && cargo fmt --all -- --check) || ok=1
+    return "$ok"
+}
 
 # VERSION is the single source of truth and every manifest is derived from it.
 #
@@ -81,12 +89,27 @@ step_clippy() {
     # --all-targets matters more than it looks: `cargo build` does not compile
     # test targets, so an unused import in a test file passes a plain build and
     # then fails clippy in CI. That exact gap escaped three times.
+    #
+    # Both cargo workspaces, not just the main one. The examples deliberately
+    # sit outside the workspace, so `cd rust && cargo clippy` never saw them --
+    # and five warnings sat there until someone ran `cargo check` by hand.
+    local ok=0
     if (cd rust && cargo clippy --version >/dev/null 2>&1); then
-        (cd rust && cargo clippy --all-targets --all-features $CARGO_FLAGS -- -D warnings)
+        (cd rust && cargo clippy --all-targets --all-features $CARGO_FLAGS -- -D warnings) || ok=1
+        (cd examples/rust && cargo clippy --all-targets $CARGO_FLAGS -- -D warnings) || ok=1
     else
-        echo "note: clippy unavailable; falling back to rustc lints over the same targets"
-        (cd rust && RUSTFLAGS="-D warnings" cargo check --all-targets --all-features $CARGO_FLAGS)
+        # The fallback covers rustc's own lints (unused imports, dead code)
+        # but NOT clippy-only ones. `module_inception` reached CI this way.
+        # Say so loudly rather than reporting a green that means less than it
+        # looks: a check whose coverage is invisible is how gaps survive.
+        echo "WARNING: clippy is unavailable."
+        echo "  Falling back to rustc lints over the same targets."
+        echo "  clippy-only lints (module_inception, needless_range_loop, ...)"
+        echo "  are NOT checked here. Run 'nix flake check' before trusting green."
+        (cd rust && RUSTFLAGS="-D warnings" cargo check --all-targets --all-features $CARGO_FLAGS) || ok=1
+        (cd examples/rust && RUSTFLAGS="-D warnings" cargo check --all-targets $CARGO_FLAGS) || ok=1
     fi
+    return "$ok"
 }
 
 step_test() { (cd rust && cargo test --all-features $CARGO_FLAGS); }
@@ -128,6 +151,40 @@ KOTLINC="${KOTLINC:-kotlinc}"
 
 kotlin_available() { command -v "$KOTLINC" >/dev/null 2>&1; }
 
+# Compile each published artifact against ONLY its declared dependencies.
+#
+# This is the boundary check, not just a build. `tabula-core` compiled with an
+# empty classpath proves it needs nothing -- no annotations, no codegen, no
+# coroutines -- which is the zero-runtime-dependency rule enforced by
+# construction rather than by a dependency report. `tabula-annotations` is
+# compile-time only and must not reach for the runtime. `tabula-testing` may
+# use core and nothing else.
+#
+# Run from the `kotlin/` directory.
+# The classpath the artifacts compile to. Derived rather than exported,
+# because `kotlin_artifacts` is sometimes called inside a subshell and a
+# variable set there does not survive.
+kotlin_cp() { echo "$1/core:$1/annotations:$1/testing"; }
+
+kotlin_artifacts() {
+    local out="$1"
+    "$KOTLINC" core/dev/tabula/*.kt -d "$out/core" 2>&1 | grep -v "^info:" || true
+    [ -d "$out/core" ] || { echo "tabula-core failed to compile"; return 1; }
+
+    "$KOTLINC" annotations/dev/tabula/*.kt -d "$out/annotations" 2>&1 | grep -v "^info:" || true
+    [ -d "$out/annotations" ] || { echo "tabula-annotations failed to compile"; return 1; }
+
+    "$KOTLINC" -cp "$out/core" testing/dev/tabula/testing/*.kt -d "$out/testing" 2>&1 \
+        | grep -v "^info:" || true
+    [ -d "$out/testing" ] || { echo "tabula-testing failed to compile"; return 1; }
+
+    # A classpath, not a merged directory. Each module writes its own
+    # META-INF/main.kotlin_module, so copying them into one place silently
+    # clobbers the metadata that top-level functions live in -- `report` then
+    # resolves at compile time and vanishes at use.
+    return 0
+}
+
 step_kotlin() {
     if ! kotlin_available; then
         echo "note: $KOTLINC not found; skipping (set KOTLINC= to point at one)"
@@ -137,11 +194,12 @@ step_kotlin() {
     out="$(mktemp -d)"
     (
         cd kotlin || exit 1
-        "$KOTLINC" src/dev/tabula/*.kt -d "$out/core" 2>&1 | grep -v "^info:" || true
+        kotlin_artifacts "$out" || exit 1
+        KCP="$(kotlin_cp "$out")"
         [ -d "$out/core" ] || { echo "core failed to compile"; exit 1; }
-        "$KOTLINC" -cp "$out/core" test/*.kt -include-runtime -d "$out/t.jar" 2>&1             | grep -v "^info:" || true
+        "$KOTLINC" -cp "$KCP" test/*.kt -include-runtime -d "$out/t.jar" 2>&1             | grep -v "^info:" || true
         [ -f "$out/t.jar" ] || { echo "tests failed to compile"; exit 1; }
-        java -cp "$out/t.jar:$out/core" harness.MainKt
+        java -cp "$out/t.jar:$KCP" harness.MainKt
     )
     local rc=$?
     rm -rf "$out"
@@ -157,17 +215,18 @@ step_kotlin_conformance() {
     out="$(mktemp -d)"
     (
         cd kotlin || exit 1
-        "$KOTLINC" src/dev/tabula/*.kt -d "$out/core" 2>&1 | grep -v "^info:" || true
+        kotlin_artifacts "$out" || exit 1
+        KCP="$(kotlin_cp "$out")"
         [ -d "$out/core" ] || { echo "core failed to compile"; exit 1; }
         # The fixture machines live in test/Composition.kt: they are KSP's
         # specification first and conformance fixtures second.
-        "$KOTLINC" -cp "$out/core" test/Composition.kt -d "$out/comp" 2>&1 \
+        "$KOTLINC" -cp "$KCP" test/Composition.kt -d "$out/comp" 2>&1 \
             | grep -v "^info:" || true
         [ -d "$out/comp" ] || { echo "composition failed to compile"; exit 1; }
-        "$KOTLINC" -cp "$out/core:$out/comp" conformance/*.kt -include-runtime \
+        "$KOTLINC" -cp "$KCP:$out/comp" conformance/*.kt -include-runtime \
             -d "$out/c.jar" 2>&1 | grep -v "^info:" || true
         [ -f "$out/c.jar" ] || { echo "conformance failed to compile"; exit 1; }
-        java -cp "$out/c.jar:$out/core:$out/comp" conformance.MainKt ../spec/conformance
+        java -cp "$out/c.jar:$KCP:$out/comp" conformance.MainKt ../spec/conformance
     )
     local rc=$?
     rm -rf "$out"
@@ -195,13 +254,14 @@ step_kotlin_examples() {
     out="$(mktemp -d)"
     (
         cd kotlin || exit 1
-        "$KOTLINC" src/dev/tabula/*.kt -d "$out/core" 2>&1 | grep -v "^info:" || true
+        kotlin_artifacts "$out" || exit 1
+        KCP="$(kotlin_cp "$out")"
         [ -d "$out/core" ] || { echo "core failed to compile"; exit 1; }
         cd ../examples/kotlin || exit 1
-        "$KOTLINC" -cp "$out/core" ./*.kt -include-runtime -d "$out/ex.jar" 2>&1 \
+        "$KOTLINC" -cp "$KCP" ./*.kt -include-runtime -d "$out/ex.jar" 2>&1 \
             | grep -v "^info:" || true
         [ -f "$out/ex.jar" ] || { echo "examples failed to compile"; exit 1; }
-        java -cp "$out/ex.jar:$out/core" examples.MainKt
+        java -cp "$out/ex.jar:$KCP" examples.MainKt
     )
     local rc=$?
     rm -rf "$out"
@@ -220,22 +280,23 @@ step_kotlin_codegen() {
 
     (
         cd kotlin || exit 1
-        "$KOTLINC" src/dev/tabula/*.kt -d "$out/core" 2>&1 | grep -v "^info:" || true
-        "$KOTLINC" -cp "$out/core" codegen/*.kt -include-runtime -d "$out/cg.jar" 2>&1 \
+        kotlin_artifacts "$out" || exit 1
+        KCP="$(kotlin_cp "$out")"
+        "$KOTLINC" -cp "$KCP" codegen/*.kt -include-runtime -d "$out/cg.jar" 2>&1 \
             | grep -v "^info:" || true
         [ -f "$out/cg.jar" ] || { echo "emitter failed to compile"; exit 1; }
 
         # 1. emit, and diff against the committed golden source
-        java -cp "$out/cg.jar:$out/core" codegen.MainKt codegen/golden "--emit=$gen" || exit 1
+        java -cp "$out/cg.jar:$KCP" codegen.MainKt codegen/golden "--emit=$gen" || exit 1
 
         # 2. the emitted source must compile
-        "$KOTLINC" -cp "$out/core" codegen/support/TimerTypes.kt codegen/support/ToggleTypes.kt \
+        "$KOTLINC" -cp "$KCP" codegen/support/TimerTypes.kt codegen/support/ToggleTypes.kt \
             "$gen"/*.kt -d "$out/gen" 2>&1 | grep -v "^info:" || true
         [ -d "$out/gen" ] || { echo "emitted source does not compile"; exit 1; }
         echo "ok   emitted source compiles"
 
         # 3. a complete implementation must satisfy it
-        "$KOTLINC" -cp "$out/core:$out/gen" codegen/support/Complete.kt -d "$out/cmp" 2>&1 \
+        "$KOTLINC" -cp "$KCP:$out/gen" codegen/support/Complete.kt -d "$out/cmp" 2>&1 \
             | grep -v "^info:" || true
         [ -d "$out/cmp" ] || { echo "a complete implementation does not compile"; exit 1; }
         echo "ok   complete implementation compiles"
@@ -244,7 +305,7 @@ step_kotlin_codegen() {
         local f exp err bad=0
         for f in codegen/compile_fail/*.kt; do
             exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
-            err="$("$KOTLINC" -cp "$out/core:$out/gen" "$f" -d "$out/x" 2>&1 | grep -v "^info:")"
+            err="$("$KOTLINC" -cp "$KCP:$out/gen" "$f" -d "$out/x" 2>&1 | grep -v "^info:")"
             if [ -z "$err" ]; then
                 echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
                 bad=1
@@ -273,13 +334,14 @@ step_kotlin_compile_fail() {
     out="$(mktemp -d)"
     bad=0
 
-    (cd kotlin && "$KOTLINC" src/dev/tabula/*.kt -d "$out/core" 2>&1 | grep -v "^info:") || true
-    (cd kotlin && "$KOTLINC" -cp "$out/core" test/ReferenceTimer.kt test/Composition.kt \
+    (cd kotlin && kotlin_artifacts "$out") || return 1
+    KCP="$(kotlin_cp "$out")"
+    (cd kotlin && "$KOTLINC" -cp "$KCP" test/ReferenceTimer.kt test/Composition.kt \
         -d "$out/ref" 2>&1 | grep -v "^info:") || true
 
     for f in kotlin/compile_fail/*.kt; do
         exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
-        err="$("$KOTLINC" -cp "$out/core:$out/ref" "$f" -d "$out/x" 2>&1 | grep -v "^info:")"
+        err="$("$KOTLINC" -cp "$KCP:$out/ref" "$f" -d "$out/x" 2>&1 | grep -v "^info:")"
         if [ -z "$err" ]; then
             echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
             bad=1

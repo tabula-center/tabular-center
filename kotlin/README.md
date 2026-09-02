@@ -89,12 +89,22 @@ against that output, proves the emitted code **still enforces the guarantee**.
 ## Layout
 
 ```
-src/dev/tabula/     Step, Cell, Table, Export, Lint, Driver, Annotations
+core/               tabula-core        runtime; compiles against nothing
+annotations/        tabula-annotations compile-time only
+testing/            tabula-testing     fixture parser; needs only core
+codegen/            tabula-codegen     validation and the emitter
+ksp/                tabula-ksp         the processor (unverified; needs Maven)
 test/               the reference machine (KSP's specification) and its tests
 conformance/        the shared spec/conformance fixtures, run against Kotlin
-codegen/            validation, the emitter, goldens, and compile checks
-ksp/                the KSP adapter (unverified; needs Maven)
 compile_fail/       one fixture per guarantee
+```
+
+The directory split is the artifact split — see `RELEASING.md`. `tools/verify
+kotlin` compiles each against **only** its declared dependencies, so
+`tabula-core` building with an empty classpath is the zero-runtime-dependency
+rule enforced by construction rather than asserted.
+
+```
 ```
 
 `test/Composition.kt` holds a parent machine delegating to a child. Its shape

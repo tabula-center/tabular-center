@@ -7,7 +7,7 @@
 //!
 //! The effect carries a payload too, so the handler is narrowed the same way.
 
-use tabula::{transition_matrix, Handle, Outcome, Perform, Step};
+use tabula::{transition_matrix, Handle, Perform, Step};
 
 #[derive(Debug, Default)]
 pub struct Ctx {
@@ -85,6 +85,7 @@ impl Perform<Timer, StopClock> for Impl {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tabula::Outcome;
 
     fn ctx(limit: u64) -> Ctx {
         Ctx {

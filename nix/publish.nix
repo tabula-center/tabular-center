@@ -92,31 +92,43 @@ in
         echo
       fi
 
+      # See RELEASING.md for why each language ships the artifacts it does.
       echo "== rust: crates.io =="
+      # One crate. `transition_matrix!` is macro_rules, which ships inside the
+      # library it is declared in, so there is nothing to separate. The
+      # conformance harness and the examples are publish = false.
       if [ "$execute" -eq 1 ]; then
-        # Needs CARGO_REGISTRY_TOKEN. Only the library is published; the
-        # conformance harness and the examples are publish = false.
-        (cd rust && cargo publish -p tabula)
+        (cd rust && cargo publish -p tabula)   # needs CARGO_REGISTRY_TOKEN
       else
         (cd rust && cargo publish -p tabula --dry-run)
       fi
 
       ${lib.optionalString has.kotlinGradle ''
         echo "== kotlin: maven =="
-        if [ "$execute" -eq 1 ]; then
-          (cd kotlin && gradle --no-daemon publish)
-        else
-          (cd kotlin && gradle --no-daemon publishToMavenLocal)
-        fi
+        # Five artifacts, because they have different scopes: core is
+        # `implementation`, annotations `compileOnly`, ksp `ksp`, testing
+        # `testImplementation`. Publishing one fat jar would force every
+        # consumer to take a processor and a fixture parser into production.
+        for m in tabula-core tabula-annotations tabula-codegen tabula-ksp tabula-testing; do
+          echo "  -> $m"
+          if [ "$execute" -eq 1 ]; then
+            (cd kotlin && gradle --no-daemon ":$m:publish")
+          else
+            (cd kotlin && gradle --no-daemon ":$m:publishToMavenLocal")
+          fi
+        done
       ''}
       ${lib.optionalString (!has.kotlinGradle) ''
         echo "== kotlin: skipped =="
-        echo "  no Gradle build yet; the module compiles with kotlinc alone."
+        echo "  no Gradle build yet; the artifacts compile with kotlinc alone."
+        echo "  planned: tabula-core, -annotations, -codegen, -ksp, -testing"
+        echo "  see RELEASING.md"
       ''}
 
       echo "== swift: package index =="
-      # Swift Package Index resolves from git tags rather than a registry, so
-      # publishing is pushing the tag `release` created. Nothing to upload.
+      # No registry: the Package Index resolves from git tags, so publishing is
+      # pushing the tag `release` created. The three products (Tabula,
+      # TabulaMacros, TabulaTesting) ship from one repository by definition.
       if [ "$execute" -eq 1 ]; then
         git push --follow-tags
       else

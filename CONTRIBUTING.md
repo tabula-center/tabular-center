@@ -33,6 +33,19 @@ therefore passed a local build and failed clippy in CI. Any new check goes in
 `--all-targets` is load-bearing for the same reason. If you are adding a lint
 pass, make sure it covers tests, benches, and examples.
 
+**`tools/verify clippy` degrades when clippy is absent**, and says so. The
+fallback runs rustc's lints over the same targets, which catches unused imports
+and dead code but no clippy-only lint — `module_inception` reached CI exactly
+this way. If you are working without clippy, `nix flake check` is the
+authority.
+
+**There are two cargo workspaces.** `rust/` and `examples/rust/`, the second
+deliberately outside the first so the examples depend on tabula the way a user
+would. Every Rust step must run in both. It has now cost us three times —
+clippy missed five warnings, `cargo fmt --check` passed a file with trailing
+whitespace, and a version bump staled a lockfile nothing refreshed. A step that
+runs in one workspace and reports green for both is worse than no step.
+
 ## After a version change
 
 `VERSION` is the single source of truth; `rust/Cargo.toml` and **both**

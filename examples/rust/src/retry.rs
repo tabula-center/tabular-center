@@ -128,7 +128,13 @@ mod tests {
         let (_, ctx) = run(4);
         assert_eq!(
             ctx.performed,
-            ["sleep:100", "sleep:200", "sleep:300", "sleep:400", "give-up"]
+            [
+                "sleep:100",
+                "sleep:200",
+                "sleep:300",
+                "sleep:400",
+                "give-up"
+            ]
         );
     }
 
