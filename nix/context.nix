@@ -1,12 +1,17 @@
 # Everything the other modules share: package set, toolchains, and the two
 # builders. Imported once per system and threaded through as `ctx`.
-{ self, system, nixpkgs, rust-overlay }:
+{ self, system, nixpkgs, nixpkgs-swift, rust-overlay }:
 
 let
   pkgs = import nixpkgs {
     inherit system;
     overlays = [ (import rust-overlay) ];
   };
+
+  # Swift comes from its own input: the pinned nixpkgs has 5.8, below the 5.9
+  # macros require. Keeping it separate means chasing a Swift toolchain never
+  # moves the Rust or Kotlin ones.
+  swiftPkgsSet = import nixpkgs-swift { inherit system; };
 
   inherit (pkgs) lib stdenv;
 
@@ -36,12 +41,43 @@ let
   # Swift is first-class on Darwin. On Linux nixpkgs' swift lags and macro
   # plugins are toolchain-version sensitive, so treat the Linux path as
   # best-effort. See ARCHITECTURE.md section 13.
-  swiftAvailable = stdenv.isDarwin || builtins.hasAttr "swift" pkgs;
+  swiftAvailable = stdenv.isDarwin || builtins.hasAttr "swift" swiftPkgsSet;
 
+  # Whether `nix flake check` runs the Swift check.
+  #
+  # Darwin only, and that is a retreat rather than a preference. Four rounds of
+  # nixpkgs packaging on Linux -- NIX_CC, a triple mismatch, a missing `ar`, and
+  # `cannot load underlying module for Dispatch` -- never reached a compile of
+  # the library. None of it was our code.
+  #
+  # `nix flake check` should not fail on a dependency's packaging, so on Linux
+  # Swift moves to `nix develop .#swift` + `./tools/verify swift`, which is one
+  # command and reports honestly. If someone gets nixpkgs' Linux Swift working,
+  # flipping this back is a one-line change.
+  swiftChecked = stdenv.isDarwin;
+
+  # Swift's setup-hook reads NIX_CC and dies with `NIX_CC: unbound variable`
+  # without it. The obvious fix -- putting `stdenv.cc` in the inputs -- is
+  # WRONG: it puts gcc on the hook's path, swiftc then takes its default target
+  # from gcc (`x86_64-pc-linux-gnu`), and Swift's own stdlib is built for
+  # `x86_64-unknown-linux-gnu`. The result is
+  #
+  #   could not find module '_Concurrency' for target 'x86_64-pc-linux-gnu'
+  #
+  # which reads like a missing module and is really a triple mismatch. NIX_CC
+  # is supplied as a plain environment variable instead (see mkCheck), so the
+  # hook is satisfied without changing what swiftc thinks it targets.
+  # Every part of the Swift toolchain comes from the SAME nixpkgs.
+  #
+  # I had `binutils` from the pinned 25.05 next to `swift` from unstable, which
+  # is a mistake worth naming: two nixpkgs generations disagree about the host
+  # triple, and swiftc then reports `glibc not found for x86_64-pc-linux-gnu`
+  # while its own modules are built for `x86_64-unknown-linux-gnu`. Every Swift
+  # failure so far has carried that warning; it was the cause, not noise.
   swiftPkgs = lib.optionals swiftAvailable (
-    [ pkgs.swift ]
-    ++ lib.optionals (builtins.hasAttr "swiftpm" pkgs) [ pkgs.swiftpm ]
-    ++ lib.optionals (builtins.hasAttr "swift-format" pkgs) [ pkgs.swift-format ]
+    [ swiftPkgsSet.swift swiftPkgsSet.binutils swiftPkgsSet.stdenv.cc ]
+    ++ lib.optionals (builtins.hasAttr "swiftpm" swiftPkgsSet) [ swiftPkgsSet.swiftpm ]
+    ++ lib.optionals (builtins.hasAttr "swift-format" swiftPkgsSet) [ swiftPkgsSet.swift-format ]
   );
 
   rustInputs = [ rustToolchain pkgs.cargo-expand pkgs.cargo-nextest ];
@@ -53,7 +89,12 @@ let
   # can never silently reach the network.
   mkCheck = name: inputs: script:
     pkgs.runCommand "tabula-check-${name}"
-      { nativeBuildInputs = commonInputs ++ inputs; }
+      {
+        nativeBuildInputs = commonInputs ++ inputs;
+        # For Swift's setup-hook. A variable, not a package on the path -- see
+        # the note on swiftPkgs above.
+        NIX_CC = "${pkgs.stdenv.cc}";
+      }
       ''
         export HOME="$TMPDIR/home"
         export CARGO_HOME="$TMPDIR/cargo"
@@ -83,7 +124,7 @@ in
 {
   inherit
     self system pkgs lib has
-    rustToolchain jdk swiftAvailable swiftPkgs
+    rustToolchain jdk swiftAvailable swiftChecked swiftPkgs
     rustInputs kotlinInputs commonInputs
     mkCheck mkShell;
 }

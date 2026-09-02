@@ -873,9 +873,12 @@ nix flake check          # fmt + lint + test, all three + conformance
 nix run .#conformance    # cross-language conformance runner
 ```
 
-Swift on Linux is marked best-effort: `swiftPackages` in nixpkgs lags, and macro
-plugins in particular are sensitive to toolchain version. The Darwin path is
-primary for Swift; CI runs Swift on macOS runners and Rust/Kotlin everywhere.
+Swift on Linux is marked best-effort, and that is not a formality. nixpkgs 25.05
+ships Swift 5.8 — below the 5.9 that macros require — and its SwiftPM is
+sensitive to how the C toolchain is supplied: adding `stdenv.cc` to satisfy the
+setup-hook changes swiftc's default target triple and breaks the stdlib lookup.
+The Darwin path is primary for Swift; CI runs Swift on macOS runners and
+Rust/Kotlin everywhere.
 
 See `flake.nix` at the repository root for the implementation.
 

@@ -10,7 +10,7 @@
 # Usage:  tools/verify [step ...]      (default: all)
 # Steps:  version fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
-#         kotlin-examples
+#         kotlin-examples swift
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
@@ -268,6 +268,51 @@ step_kotlin_examples() {
     return "$rc"
 }
 
+# Swift builds with SwiftPM. Unlike Kotlin there is no build-system problem
+# here -- nixpkgs ships a Swift toolchain for Linux, so `nix develop .#swift`
+# is enough.
+SWIFT="${SWIFT:-swift}"
+
+swift_available() { command -v "$SWIFT" >/dev/null 2>&1; }
+
+step_swift() {
+    if ! swift_available; then
+        echo "note: $SWIFT not found; skipping (nix develop .#swift provides it)"
+        return 0
+    fi
+    # Report the version. nixpkgs pins an older Swift than swift.org ships, and
+    # a tools-version above the toolchain is a hard refusal -- worth seeing in
+    # the log before reading a wall of compiler errors.
+    "$SWIFT" --version 2>&1 | head -1 | sed 's/^/note: /'
+
+    # SwiftPM wants a writable HOME for its caches and warns twice per run
+    # without one. The sandbox has none; give it a scratch directory rather
+    # than letting two warnings sit in every log until they are ignored.
+    local scratch
+    scratch="$(mktemp -d)"
+    export HOME="${HOME:-$scratch/home}"
+    [ -w "$HOME" ] || export HOME="$scratch/home"
+    mkdir -p "$HOME"
+
+    local out rc
+    out="$( (cd swift && "$SWIFT" test \
+        --scratch-path "$scratch/build" \
+        --cache-path "$scratch/cache") 2>&1 )"
+    rc=$?
+    printf '%s\n' "$out"
+    rm -rf "$scratch"
+
+    # A triple mismatch reads like a missing module. Say what it actually is,
+    # because the message sends you looking for the wrong thing.
+    if printf '%s' "$out" | grep -q "could not find module .* for target"; then
+        echo
+        echo "  This is a target-triple mismatch, not a missing module."
+        echo "  See the note on swiftPkgs in nix/context.nix, and ARCHITECTURE"
+        echo "  section 13 on nixpkgs' Linux Swift being best-effort."
+    fi
+    return "$rc"
+}
+
 step_kotlin_codegen() {
     if ! kotlin_available; then
         echo "note: $KOTLINC not found; skipping"
@@ -363,7 +408,7 @@ steps=("$@")
 [ ${#steps[@]} -eq 0 ] && \
     steps=(version fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
-           kotlin-examples)
+           kotlin-examples swift)
 
 for s in "${steps[@]}"; do
     case "$s" in
@@ -380,6 +425,7 @@ for s in "${steps[@]}"; do
         kotlin-conformance)  run kotlin-conformance  step_kotlin_conformance ;;
         kotlin-codegen)      run kotlin-codegen      step_kotlin_codegen ;;
         kotlin-examples)     run kotlin-examples     step_kotlin_examples ;;
+        swift)               run swift               step_swift ;;
         *) echo "unknown step: $s"; exit 2 ;;
     esac
 done

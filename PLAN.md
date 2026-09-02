@@ -35,7 +35,7 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 2 `transition_matrix!` | **done** |
 | 3 The spec | **done** |
 | 4 Kotlin core + KSP | **M2 PASSED**; core done, processor next |
-| 5 Swift | not started |
+| 5 Swift | core + reference written, **unverified** — see the toolchain note |
 | 6 Composition | **done (Rust and Kotlin)** |
 | 7 Effects surface | **done (Rust half)** |
 | 8 Introspection & tooling | **done (Rust half)** |
@@ -537,6 +537,24 @@ comparatively cheap; everything after it assumes M2 held.
 - **The four lens members are per child, not per cell.** A second delegate cell
   to the same child reuses `childState`, `embed`, `lift`, and `childCtx`; only
   the action prism is per cell.
+
+### The Swift toolchain, so far
+
+Three rounds of nixpkgs packaging, each revealing the next missing piece:
+
+1. `NIX_CC: unbound variable` — the setup-hook needs it.
+2. `could not find module '_Concurrency'` — caused by *fixing* the first with
+   `stdenv.cc`, which changed swiftc's default target triple. Reads like a
+   missing module; is a triple mismatch.
+3. `toolchain is invalid: could not find ar` — SwiftPM needs `binutils`.
+
+None of it is our code, and none has reached a compile of the library yet.
+Swift now comes from its own flake input on `nixos-unstable`, which also lifts
+the 5.8 ceiling that `TabulaMacros` would have hit anyway.
+
+If the toolchain keeps failing, gate the *check* to Darwin and leave
+`nix develop .#swift` for anyone with a working one. `nix flake check` should
+not fail on a packaging problem in a dependency we do not control.
 
 ### Cross-language convergence
 

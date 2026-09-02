@@ -8,7 +8,7 @@
 ctx:
 
 let
-  inherit (ctx) lib has rustInputs kotlinInputs swiftPkgs swiftAvailable mkCheck;
+  inherit (ctx) lib has rustInputs kotlinInputs swiftPkgs swiftChecked mkCheck;
   verify = name: inputs: mkCheck name inputs "./tools/verify ${name}";
 in
 {
@@ -45,7 +45,8 @@ in
     fi
   '';
 }
-// lib.optionalAttrs (has.swift && swiftAvailable) {
+// lib.optionalAttrs (has.swift && swiftChecked) {
+  # Darwin only. See the note on `swiftChecked` in context.nix: on Linux this
+  # is `nix develop .#swift` followed by `./tools/verify swift`.
   swift = verify "swift" swiftPkgs;
-  swift-examples = verify "swift-examples" swiftPkgs;
 }
