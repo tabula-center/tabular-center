@@ -110,6 +110,21 @@
 ///
 /// | `DELEGATE!(child_module)` | **yes** | run the child machine and fold the result back |
 ///
+/// # Large machines need a raised recursion limit
+///
+/// The muncher recurses roughly once per cell, and rustc's default macro
+/// recursion limit is 128. A realistic 8x12 machine (96 cells) exceeds it:
+///
+/// ```text
+/// error: recursion limit reached while expanding `$crate::__tabula_arms!`
+///   help: consider increasing the recursion limit by adding a
+///   `#![recursion_limit = "256"]` attribute to your crate
+/// ```
+///
+/// Add that attribute. Runs of `IGNORE` are consumed several at a time, which
+/// is what keeps most machines under the default, but past roughly 7x10 the
+/// attribute is needed. See `tests/scale.rs` for the measurement.
+///
 /// # `GO!` targets are statically constructible
 ///
 /// The generated dispatcher binds its parameters under `__tabula_`-prefixed
@@ -511,6 +526,48 @@ macro_rules! transition_matrix {
     };
 
     // ---- static cells: consume a column, contribute nothing ----
+    // A run of four IGNOREs in one step.
+    //
+    // Not premature: an 8x12 order machine is 78% IGNORE and blew the default
+    // `recursion_limit` of 128, because the muncher recursed once per cell.
+    // Consuming runs cuts the depth on a realistic machine by roughly four.
+    // The design's central claim -- that IGNORE dominates real matrices -- is
+    // what makes this the right place to optimise.
+    (@bound_row
+        m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
+        states=[$($sv:ident)*] actions=[$($av:ident)*] rows_all=[$($ra:tt)*]
+        acc=[$($acc:tt)*] st=$st:ident
+        cur_actions=[$c1:ident $c2:ident $c3:ident $c4:ident $($carest:ident)*]
+        cur_cells=[IGNORE, IGNORE, IGNORE, IGNORE $($crest:tt)*]
+        rows=[$($rest:tt)*]
+    ) => {
+        $crate::transition_matrix!(@bound_row
+            m=$m s=$s a=$a e=$e x=$x i=$i
+            states=[$($sv)*] actions=[$($av)*] rows_all=[$($ra)*]
+            acc=[$($acc)*] st=$st
+            cur_actions=[$($carest)*] cur_cells=[$($crest)*]
+            rows=[$($rest)*]
+        );
+    };
+
+    // ...and two, for rows where a GO or HANDLE breaks the run.
+    (@bound_row
+        m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
+        states=[$($sv:ident)*] actions=[$($av:ident)*] rows_all=[$($ra:tt)*]
+        acc=[$($acc:tt)*] st=$st:ident
+        cur_actions=[$c1:ident $c2:ident $($carest:ident)*]
+        cur_cells=[IGNORE, IGNORE $($crest:tt)*]
+        rows=[$($rest:tt)*]
+    ) => {
+        $crate::transition_matrix!(@bound_row
+            m=$m s=$s a=$a e=$e x=$x i=$i
+            states=[$($sv)*] actions=[$($av)*] rows_all=[$($ra)*]
+            acc=[$($acc)*] st=$st
+            cur_actions=[$($carest)*] cur_cells=[$($crest)*]
+            rows=[$($rest)*]
+        );
+    };
+
     (@bound_row
         m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
         states=[$($sv:ident)*] actions=[$($av:ident)*] rows_all=[$($ra:tt)*]
@@ -693,6 +750,39 @@ macro_rules! __tabula_row {
             actions=[$($ca)*] cells=[$($crest)*] arms=[$($arm)*])
     };
 
+    // IGNORE, four at a time. See the note in `transition_matrix!`.
+    (@go m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
+        bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
+        actions=[$c1:ident $c2:ident $c3:ident $c4:ident $($carest:ident)*]
+        cells=[IGNORE, IGNORE, IGNORE, IGNORE $($crest:tt)*]
+        arms=[$($arm:tt)*]
+    ) => {
+        $crate::__tabula_row!(@go m=$m s=$s a=$a et=$et st=$st
+            bind=[$bs $ba $bc $bx $bsv]
+            actions=[$($carest)*] cells=[$($crest)*]
+            arms=[$($arm)*
+                $a::$c1(_) => $crate::Step::ignored(),
+                $a::$c2(_) => $crate::Step::ignored(),
+                $a::$c3(_) => $crate::Step::ignored(),
+                $a::$c4(_) => $crate::Step::ignored(),
+            ])
+    };
+
+    (@go m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
+        bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
+        actions=[$c1:ident $c2:ident $($carest:ident)*]
+        cells=[IGNORE, IGNORE $($crest:tt)*]
+        arms=[$($arm:tt)*]
+    ) => {
+        $crate::__tabula_row!(@go m=$m s=$s a=$a et=$et st=$st
+            bind=[$bs $ba $bc $bx $bsv]
+            actions=[$($carest)*] cells=[$($crest)*]
+            arms=[$($arm)*
+                $a::$c1(_) => $crate::Step::ignored(),
+                $a::$c2(_) => $crate::Step::ignored(),
+            ])
+    };
+
     // IGNORE
     (@go m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
@@ -834,6 +924,18 @@ macro_rules! __tabula_cells {
 
     (@go cells=[, $($r:tt)*] acc=[$($c:tt)*]) => {
         $crate::__tabula_cells!(@go cells=[$($r)*] acc=[$($c)*])
+    };
+
+    (@go cells=[IGNORE, IGNORE, IGNORE, IGNORE $($r:tt)*] acc=[$($c:tt)*]) => {
+        $crate::__tabula_cells!(@go cells=[$($r)*] acc=[$($c)*
+            $crate::Cell::Ignore, $crate::Cell::Ignore,
+            $crate::Cell::Ignore, $crate::Cell::Ignore,
+        ])
+    };
+
+    (@go cells=[IGNORE, IGNORE $($r:tt)*] acc=[$($c:tt)*]) => {
+        $crate::__tabula_cells!(@go cells=[$($r)*]
+            acc=[$($c)* $crate::Cell::Ignore, $crate::Cell::Ignore,])
     };
 
     (@go cells=[IGNORE $($r:tt)*] acc=[$($c:tt)*]) => {

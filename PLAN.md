@@ -483,7 +483,7 @@ comparatively cheap; everything after it assumes M2 held.
 | KSP incremental processing misses sealed-hierarchy changes | 4c | Explicit dependency tracking + a regression test that edits `S` |
 | Swift macro diagnostics land on wrong source lines | 5 | Accept row-level positions in v1, document in spec |
 | Three implementations drift | 3+ | Conformance suite gates merges. Phase 2 proved this must compare **behaviour**, not generated source: Rust names cells by trait bound, Kotlin and Swift by identifier. |
-| N×M cell count makes real machines unpleasant | any | Static cell kinds keep most cells one word; measure on a genuine 8×12 machine before M4 |
+| ~~N×M cell count makes real machines unpleasant~~ | any | **Measured** on a genuine 8×12 order machine: 96 cells, 78% `IGNORE`, **9 members to write**. Two costs found and recorded — a raised `recursion_limit` past ~7×10, and `ignore-heavy` firing on a machine that arguably is two machines. See `rust/tabula/tests/scale.rs`. |
 
 ---
 

@@ -889,6 +889,33 @@ Stated up front so they are not discovered as surprises.
 kinds keep most of them one word long, but the count is real. This is the
 reason builder DSLs won the market, and it is the cost of the guarantee.
 
+*Measured, on a genuine 8×12 order-lifecycle machine (`rust/tabula/tests/scale.rs`):*
+
+| | |
+|---|---|
+| cells | 96 |
+| `IGNORE` | 75 (78%) |
+| `GO` | 12 |
+| **members the developer writes** | **9** |
+
+The 78% is the load-bearing number. If those 75 cells each needed a body, nobody
+would write this; they need one word each. The declaration is 8 lines, one per
+row, and stays column-aligned.
+
+Two costs surfaced by the measurement, both recorded rather than smoothed over:
+
+- **Machines past roughly 7×10 need `#![recursion_limit = "256"]`.** The Rust
+  muncher recurses about once per cell against a default limit of 128.
+  Consuming runs of `IGNORE` several at a time brought an 8×12 machine from
+  ~192 to ~160, and the rest is irreducible without abandoning the muncher.
+  rustc's own error names the fix, which is why this is documented instead of
+  engineered around.
+- **A realistic machine trips `tabula::ignore-heavy`.** At 78% it crosses the
+  70% threshold, and the lint is arguably right: the shipping half shares
+  almost no alphabet with the checkout half and would be a cleaner pair of
+  composed machines. The threshold was left alone — moving it to silence a
+  machine that really is two machines would be fitting the rule to the sample.
+
 **Diff noise.** Adding one action means touching every row of every machine.
 That is the feature working as designed, and it will still generate friction in
 code review. The `table-diff` tool exists to make those diffs readable.
