@@ -16,13 +16,25 @@
 //!    reach back into `step` even if it wants to, because it is handed no way
 //!    to.
 //!
-//! # Why the handler is a closure and not a trait
+//! # Why the handlers are closures over a shared environment
 //!
-//! `step` needs the cell object and the context; the caller already has both,
-//! so it closes over them. That keeps `Driver` free of the machine's four type
+//! `step` needs the cell object and the context, and so does `perform`. An
+//! earlier version had both closures *capture* them, which does not compile
+//! for any realistic caller:
+//!
+//! ```text
+//! error[E0499]: cannot borrow `cells` as mutable more than once at a time
+//! ```
+//!
+//! Found by writing `examples/rust/src/retry.rs` — the first caller that
+//! actually needed both closures to touch the same state, which none of the
+//! unit tests did. Both now receive `&mut E` instead of capturing, so the
+//! caller keeps one environment and the borrow checker is satisfied.
+//!
+//! Closures rather than a trait keeps `Driver` free of the machine's four type
 //! parameters and, more importantly, keeps it colorless: an `async` caller
-//! writes an `async` loop around [`Driver::pump`] instead of asking this type
-//! to be generic over an effect system it cannot abstract over.
+//! writes an `async` loop around the same pieces instead of asking this type to
+//! be generic over an effect system it cannot abstract over.
 //!
 //! # Ordering
 //!
@@ -131,18 +143,23 @@ impl<S: Copy, A, const Q: usize> Driver<S, A, Q> {
     /// Dispatch one action and drain everything it causes.
     ///
     /// Equivalent to [`Driver::enqueue`] followed by [`Driver::run`].
-    pub fn dispatch<F, E, H, const K: usize>(
+    ///
+    /// `env` is whatever both closures need — typically the cell object and
+    /// the context together. They receive it rather than capturing it, because
+    /// two closures capturing the same `&mut` do not compile.
+    pub fn dispatch<Env, F, Ef, H, const K: usize>(
         &mut self,
+        env: &mut Env,
         action: A,
         step: F,
         perform: H,
     ) -> Result<Progress, DriverError>
     where
-        F: FnMut(S, A) -> Step<S, E, K>,
-        H: FnMut(E) -> Option<A>,
+        F: FnMut(&mut Env, S, A) -> Step<S, Ef, K>,
+        H: FnMut(&mut Env, Ef) -> Option<A>,
     {
         self.enqueue(action)?;
-        self.run(step, perform)
+        self.run(env, step, perform)
     }
 
     /// Drain the mailbox.
@@ -151,37 +168,39 @@ impl<S: Copy, A, const Q: usize> Driver<S, A, Q> {
     /// applied, its effects performed, and any follow-up actions the handler
     /// returns are appended to the *back* of the mailbox. Strictly FIFO, so a
     /// follow-up never jumps ahead of an action that was already waiting.
-    pub fn run<F, E, H, const K: usize>(
+    pub fn run<Env, F, Ef, H, const K: usize>(
         &mut self,
+        env: &mut Env,
         mut step: F,
         mut perform: H,
     ) -> Result<Progress, DriverError>
     where
-        F: FnMut(S, A) -> Step<S, E, K>,
-        H: FnMut(E) -> Option<A>,
+        F: FnMut(&mut Env, S, A) -> Step<S, Ef, K>,
+        H: FnMut(&mut Env, Ef) -> Option<A>,
     {
         if self.running {
             return Err(DriverError::Reentered);
         }
         self.running = true;
-        let result = self.pump(&mut step, &mut perform);
+        let result = self.pump(env, &mut step, &mut perform);
         self.running = false;
         result
     }
 
-    fn pump<F, E, H, const K: usize>(
+    fn pump<Env, F, Ef, H, const K: usize>(
         &mut self,
+        env: &mut Env,
         step: &mut F,
         perform: &mut H,
     ) -> Result<Progress, DriverError>
     where
-        F: FnMut(S, A) -> Step<S, E, K>,
-        H: FnMut(E) -> Option<A>,
+        F: FnMut(&mut Env, S, A) -> Step<S, Ef, K>,
+        H: FnMut(&mut Env, Ef) -> Option<A>,
     {
         let mut p = Progress::default();
 
         while let Some(action) = self.dequeue() {
-            let outcome = step(self.state, action);
+            let outcome = step(env, self.state, action);
             p.steps += 1;
 
             // Outcome first, effects second: a handler that enqueues an action
@@ -197,7 +216,7 @@ impl<S: Copy, A, const Q: usize> Driver<S, A, Q> {
 
             for effect in outcome.effects {
                 p.effects += 1;
-                if let Some(follow_up) = perform(effect) {
+                if let Some(follow_up) = perform(env, effect) {
                     // Queued, never recursed. This is the whole point.
                     self.enqueue(follow_up)?;
                     p.follow_ups += 1;
@@ -249,14 +268,19 @@ mod tests {
         let seen = RefCell::new(Vec::new());
 
         let p = d
-            .dispatch(Act::Go, machine, |e| {
-                seen.borrow_mut().push(e);
-                // Ping asks for another action. It is queued, not recursed.
-                match e {
-                    Eff::Ping => Some(Act::Again),
-                    Eff::Done => None,
-                }
-            })
+            .dispatch(
+                &mut (),
+                Act::Go,
+                |_, s, a| machine(s, a),
+                |_, e| {
+                    seen.borrow_mut().push(e);
+                    // Ping asks for another action. Queued, not recursed.
+                    match e {
+                        Eff::Ping => Some(Act::Again),
+                        Eff::Done => None,
+                    }
+                },
+            )
             .unwrap();
 
         assert_eq!(d.state(), S::C);
@@ -273,10 +297,15 @@ mod tests {
         // E", never "do E, then move".
         let mut d: Driver<S, Act, 8> = Driver::new(S::A);
         let observed = RefCell::new(Vec::new());
-        d.dispatch(Act::Go, machine, |_e| {
-            observed.borrow_mut().push(S::B);
-            None
-        })
+        d.dispatch(
+            &mut (),
+            Act::Go,
+            |_, s, a| machine(s, a),
+            |_, _e| {
+                observed.borrow_mut().push(S::B);
+                None
+            },
+        )
         .unwrap();
         assert_eq!(*observed.borrow(), [S::B]);
     }
@@ -290,11 +319,12 @@ mod tests {
         let order = RefCell::new(Vec::new());
         let p = d
             .run(
-                |s, a| {
+                &mut (),
+                |_, s, a| {
                     order.borrow_mut().push(a);
                     machine(s, a)
                 },
-                |_| None,
+                |_, _| None,
             )
             .unwrap();
 
@@ -305,7 +335,9 @@ mod tests {
     #[test]
     fn ignored_actions_leave_the_state_alone() {
         let mut d: Driver<S, Act, 4> = Driver::new(S::A);
-        let p = d.dispatch(Act::Nope, machine, |_| None).unwrap();
+        let p = d
+            .dispatch(&mut (), Act::Nope, |_, s, a| machine(s, a), |_, _| None)
+            .unwrap();
         assert_eq!(d.state(), S::A);
         assert_eq!(p.ignored, 1);
         assert_eq!(p.transitions, 0);
@@ -326,7 +358,8 @@ mod tests {
     fn the_ring_buffer_wraps() {
         let mut d: Driver<S, Act, 2> = Driver::new(S::C);
         for _ in 0..5 {
-            d.dispatch(Act::Go, machine, |_| None).unwrap();
+            d.dispatch(&mut (), Act::Go, |_, s, a| machine(s, a), |_, _| None)
+                .unwrap();
             assert_eq!(d.pending(), 0);
         }
         assert_eq!(d.state(), S::C);

@@ -8,8 +8,9 @@
 # checked different things.
 #
 # Usage:  tools/verify [step ...]      (default: all)
-# Steps:  fmt clippy test no-std compile-fail conformance
+# Steps:  fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
+#         kotlin-examples
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
@@ -121,6 +122,34 @@ step_kotlin_conformance() {
 # emitter is deterministic; compiling its output, then compiling a complete
 # implementation and an incomplete one against that output, proves the emitted
 # code still does what the design promises.
+# The examples depend on tabula the way a user would -- by path, from outside
+# the workspace -- so they are a separate cargo invocation, not another
+# workspace member. That separation is the point: it is the only place the
+# public API is exercised from outside.
+step_examples() { (cd examples/rust && cargo test $CARGO_FLAGS); }
+
+step_kotlin_examples() {
+    if ! kotlin_available; then
+        echo "note: $KOTLINC not found; skipping"
+        return 0
+    fi
+    local out
+    out="$(mktemp -d)"
+    (
+        cd kotlin || exit 1
+        "$KOTLINC" src/dev/tabula/*.kt -d "$out/core" 2>&1 | grep -v "^info:" || true
+        [ -d "$out/core" ] || { echo "core failed to compile"; exit 1; }
+        cd ../examples/kotlin || exit 1
+        "$KOTLINC" -cp "$out/core" ./*.kt -include-runtime -d "$out/ex.jar" 2>&1 \
+            | grep -v "^info:" || true
+        [ -f "$out/ex.jar" ] || { echo "examples failed to compile"; exit 1; }
+        java -cp "$out/ex.jar:$out/core" examples.MainKt
+    )
+    local rc=$?
+    rm -rf "$out"
+    return "$rc"
+}
+
 step_kotlin_codegen() {
     if ! kotlin_available; then
         echo "note: $KOTLINC not found; skipping"
@@ -212,8 +241,9 @@ step_kotlin_compile_fail() {
 
 steps=("$@")
 [ ${#steps[@]} -eq 0 ] && \
-    steps=(fmt clippy test no-std compile-fail conformance \
-           kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen)
+    steps=(fmt clippy test no-std compile-fail conformance examples \
+           kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
+           kotlin-examples)
 
 for s in "${steps[@]}"; do
     case "$s" in
@@ -223,10 +253,12 @@ for s in "${steps[@]}"; do
         no-std)       run no-std       step_no_std ;;
         compile-fail) run compile-fail step_compile_fail ;;
         conformance)  run conformance  step_conformance ;;
+        examples)     run examples     step_examples ;;
         kotlin)              run kotlin              step_kotlin ;;
         kotlin-compile-fail) run kotlin-compile-fail step_kotlin_compile_fail ;;
         kotlin-conformance)  run kotlin-conformance  step_kotlin_conformance ;;
         kotlin-codegen)      run kotlin-codegen      step_kotlin_codegen ;;
+        kotlin-examples)     run kotlin-examples     step_kotlin_examples ;;
         *) echo "unknown step: $s"; exit 2 ;;
     esac
 done

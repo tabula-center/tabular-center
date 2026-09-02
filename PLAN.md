@@ -435,6 +435,22 @@ type to be generic over an effect system it cannot abstract over.
 
 ---
 
+### Findings from the examples
+
+Writing the four worked examples immediately found an API bug that none of the
+unit tests could:
+
+- **`Driver::run` did not compile for any realistic caller.** Both closures
+  captured the cell object and the context, which is `cannot borrow as mutable
+  more than once`. Every driver test had passed because none of them needed
+  `perform` to touch the same state as `step`. Both closures now take `&mut Env`.
+- **Kotlin has no such problem**, so its driver keeps the simpler capturing
+  form. A difference in the *API* rather than the semantics, and the right call
+  is to let each language have the shape that works there.
+
+That is the argument for examples over more unit tests: a unit test exercises
+the API the way its author already imagined it.
+
 ## Cross-cutting, every phase
 
 - [x] **One definition of green.** `tools/verify` is it; `nix flake check` runs

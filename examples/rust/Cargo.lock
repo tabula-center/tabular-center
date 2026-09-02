@@ -4,11 +4,11 @@ version = 3
 
 [[package]]
 name = "tabula"
-version = "0.1.0"
+version = "0.0.1"
 
 [[package]]
-name = "tabula-conformance"
-version = "0.1.0"
+name = "tabula-examples"
+version = "0.0.1"
 dependencies = [
  "tabula",
 ]

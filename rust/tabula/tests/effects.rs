@@ -97,15 +97,18 @@ fn effect_payloads_are_narrowed() {
 fn step_and_perform_compose_through_the_driver() {
     // The two halves meet here: `step` returns effects as data, `perform`
     // carries them out, and the driver enqueues anything they produce.
-    let mut c = ctx(3);
+    // One environment holding everything both closures need. Before the
+    // driver took `env`, this did not compile: two closures cannot each
+    // capture `cells` and `ctx` mutably.
+    let mut env = (Impl, ctx(3));
     let mut d: Driver<State, Action, 8> = Driver::new(State::Idle(Idle));
-    let mut cells = Impl;
 
     let p = d
         .dispatch(
+            &mut env,
             Action::Start(Start),
-            |s, a| step(&mut cells, &mut c, s, a),
-            |_e| None,
+            |(cells, c), s, a| step(cells, c, s, a),
+            |(cells, c), e| perform(cells, c, e),
         )
         .unwrap();
 

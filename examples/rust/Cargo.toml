@@ -1,0 +1,15 @@
+[package]
+name = "tabula-examples"
+description = "Worked examples, ordered by what each one adds"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# Deliberately outside the main workspace: an example should depend on tabula
+# the way a user would, by path or by version, not by sharing its build graph.
+[workspace]
+
+[dependencies]
+tabula = { path = "../../rust/tabula" }

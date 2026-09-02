@@ -57,7 +57,9 @@ same way adding a state breaks every matrix.
 | 8 | Introspection, lints, golden snapshots | done (Rust) |
 | 9a | Driver and mailbox | done (Rust) |
 
-See `ARCHITECTURE.md` for the design and `PLAN.md` for the task breakdown.
+See `ARCHITECTURE.md` for the design, `PLAN.md` for the task breakdown, and
+`examples/` for four worked machines — the same four in every language,
+ordered by what each one adds.
 
 ## Development
 
@@ -68,7 +70,16 @@ See `ARCHITECTURE.md` for the design and `PLAN.md` for the task breakdown.
 nix develop          # all three toolchains
 nix flake check      # the same steps, sandboxed, as CI runs them
 nix run .#conformance
+nix run .#table-diff
+
+nix run .#release -- 0.1.0   # set the version everywhere, verify, tag
+nix run .#publish            # dry run; --execute to ship
 ```
+
+`flake.nix` is a table of contents; the pieces live in `nix/`. `VERSION` is the
+single source of truth for the version number and every manifest is derived
+from it — three files drifting apart is the normal way a polyglot release goes
+wrong.
 
 Without nix: `./tools/verify` runs the same steps `nix flake check` does, and
 falls back to rustc's lints where clippy is unavailable.

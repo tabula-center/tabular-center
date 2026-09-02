@@ -31,3 +31,6 @@ result-*
 .vscode/
 *.swp
 .DS_Store
+
+# Examples build output
+/examples/rust/target/
