@@ -30,6 +30,19 @@ in
         exit 1
       fi
 
+      # A failed release must leave nothing behind. Everything below edits
+      # tracked files, and `tools/verify` runs `--locked`, so a half-applied
+      # bump would fail every later run with a stale-lockfile error that says
+      # nothing about the real cause.
+      # `git checkout -- .` only, never `git clean`: everything this script
+      # touches is tracked, and deleting a developer's untracked files to undo
+      # a version bump would be a wildly disproportionate response.
+      restore() {
+        echo "restoring the tree"
+        git checkout -- .
+      }
+      trap 'restore' ERR
+
       echo "== setting version to $version =="
       echo "$version" > VERSION
 
@@ -41,10 +54,18 @@ in
         sed -i "s/^version = \".*\"$/version = \"$version\"/" kotlin/build.gradle.kts
       fi
 
+      # Bumping a version stales every Cargo.lock that records it -- including
+      # the examples', which pin tabula by path. Without this, `--locked` fails
+      # everywhere and the error names the lockfile rather than the bump.
+      echo "== refreshing lockfiles =="
+      (cd rust && cargo update --workspace --offline)
+      (cd examples/rust && cargo update --workspace --offline)
+
       echo "== verifying =="
       ./tools/verify
 
       echo "== committing and tagging =="
+      trap - ERR
       git add -A
       git commit -m "release: $version"
       git tag -a "v$version" -m "tabula $version"

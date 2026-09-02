@@ -33,6 +33,22 @@ therefore passed a local build and failed clippy in CI. Any new check goes in
 `--all-targets` is load-bearing for the same reason. If you are adding a lint
 pass, make sure it covers tests, benches, and examples.
 
+## After a version change
+
+`VERSION` is the single source of truth; `rust/Cargo.toml` and **both**
+`Cargo.lock` files are derived from it. `examples/rust/Cargo.lock` records
+tabula's version too, because the examples depend on it by path — which is easy
+to forget, and produces a failure that looks like a problem with the examples:
+
+```
+error: the lock file examples/rust/Cargo.lock needs to be updated
+       but --locked was passed to prevent this
+```
+
+`./tools/verify version` runs first and diagnoses this before the confusing
+errors appear. `nix run .#release` handles it automatically and restores the
+tree if anything fails.
+
 ## Order of work
 
 See `PLAN.md`. Phases are ordered by risk retirement, not convenience. M2

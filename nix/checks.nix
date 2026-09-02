@@ -12,6 +12,7 @@ let
   verify = name: inputs: mkCheck name inputs "./tools/verify ${name}";
 in
 {
+  version = verify "version" [ ];
   rust-fmt = verify "fmt" rustInputs;
   rust-clippy = verify "clippy" rustInputs;
   rust-test = verify "test" rustInputs;

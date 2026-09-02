@@ -8,7 +8,7 @@
 # checked different things.
 #
 # Usage:  tools/verify [step ...]      (default: all)
-# Steps:  fmt clippy test no-std compile-fail conformance examples
+# Steps:  version fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
 #         kotlin-examples
 set -uo pipefail
@@ -30,6 +30,49 @@ run() {
 
 step_fmt() { (cd rust && cargo fmt --all -- --check); }
 
+# VERSION is the single source of truth and every manifest is derived from it.
+#
+# Runs first, and checks EVERY derived copy, because the derived copies fail in
+# unhelpful ways. A stale lockfile reports
+#
+#   error: the lock file ... needs to be updated but --locked was passed
+#
+# which names the lockfile and says nothing about the version bump that staled
+# it. Worse, `examples/rust/Cargo.lock` records tabula's version too, so a bump
+# that refreshes only the main workspace leaves exactly one step failing --
+# which reads like a problem with the examples rather than with the release.
+step_version() {
+    local want got bad=0
+    want="$(cat VERSION)"
+
+    got="$(sed -n 's/^version = "\(.*\)"$/\1/p' rust/Cargo.toml | head -1)"
+    if [ "$want" != "$got" ]; then
+        echo "VERSION says $want but rust/Cargo.toml says $got"
+        bad=1
+    fi
+
+    # Both lockfiles record tabula's version: the workspace's own, and the
+    # examples' because they depend on it by path.
+    local lock
+    for lock in rust/Cargo.lock examples/rust/Cargo.lock; do
+        [ -f "$lock" ] || continue
+        if ! grep -A1 '^name = "tabula"$' "$lock" | grep -q "^version = \"$want\"$"; then
+            echo "$lock does not record tabula $want"
+            bad=1
+        fi
+    done
+
+    if [ "$bad" -ne 0 ]; then
+        echo
+        echo "  to resync after a version change:"
+        echo "    (cd rust && cargo update --workspace --offline)"
+        echo "    (cd examples/rust && cargo update --workspace --offline)"
+        echo "  or to abandon it:  git checkout -- ."
+        return 1
+    fi
+    echo "version $want, consistent across VERSION and both Cargo.lock files"
+}
+
 step_clippy() {
     # clippy is not always installable (it is absent from Ubuntu's archive, for
     # one), and its absence must not silently mean "no lint pass". Fall back to
@@ -50,10 +93,25 @@ step_test() { (cd rust && cargo test --all-features $CARGO_FLAGS); }
 
 step_no_std() {
     # Phase 1 exit criterion: the core must build without std.
-    (cd rust && cargo build -p tabula --no-default-features $CARGO_FLAGS \
-        --target thumbv7em-none-eabihf 2>/dev/null) && return 0
-    echo "note: thumbv7em-none-eabihf target unavailable; checking --no-default-features on host"
-    (cd rust && cargo build -p tabula --no-default-features $CARGO_FLAGS)
+    #
+    # The fallback is only for a genuinely missing cross target. An earlier
+    # version swallowed stderr and fell back on ANY failure, which reported a
+    # stale-lockfile error as "target unavailable" and sent a real bug looking
+    # in the wrong place for an afternoon.
+    local out rc
+    out="$( (cd rust && cargo build -p tabula --no-default-features $CARGO_FLAGS \
+        --target thumbv7em-none-eabihf) 2>&1 )"
+    rc=$?
+    [ "$rc" -eq 0 ] && return 0
+
+    if printf '%s' "$out" | grep -qE "may not be installed|not find specification for target"; then
+        echo "note: thumbv7em-none-eabihf unavailable; checking --no-default-features on host"
+        (cd rust && cargo build -p tabula --no-default-features $CARGO_FLAGS)
+        return $?
+    fi
+
+    printf '%s\n' "$out"
+    return "$rc"
 }
 
 step_compile_fail() { ./tools/compile-fail; }
@@ -241,12 +299,13 @@ step_kotlin_compile_fail() {
 
 steps=("$@")
 [ ${#steps[@]} -eq 0 ] && \
-    steps=(fmt clippy test no-std compile-fail conformance examples \
+    steps=(version fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
            kotlin-examples)
 
 for s in "${steps[@]}"; do
     case "$s" in
+        version)      run version      step_version ;;
         fmt)          run fmt          step_fmt ;;
         clippy)       run clippy       step_clippy ;;
         test)         run test         step_test ;;
