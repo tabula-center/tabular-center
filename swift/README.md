@@ -202,8 +202,27 @@ exists because there are three implementations:
 Rust owns `--bless`; Kotlin and Swift read and never bless, so a renderer that
 drifts by one space fails rather than quietly rewriting the shared snapshot.
 
-`retry` and `nested-delegate` report as **skipped** until a Swift composition
-reference lands — visible, not silently green.
+All four fixtures now have Swift adapters. `Sources/TabulaConformance/Compose.swift`
+holds the composition reference — a `job` machine delegating to a `retry` one —
+and its shape is the composition property in one line:
+
+```swift
+protocol JobCells: RetryCells { ... }
+```
+
+Implementing the parent requires implementing the child, so a hole anywhere in
+the child breaks any type conforming to the parent.
+`compile_fail/child_hole_breaks_parent.swift` proves that at the type level;
+the conformance fixtures prove the behaviour.
+
+**Protocols are Swift's trait bounds**, exactly as interfaces are Kotlin's —
+and a protocol rather than a base class for the same reason: a class extends
+one parent, which would cap a machine at one child.
+
+The composition machines live beside the adapters rather than in `TabulaCheck`,
+because Swift executables cannot import one another. Kotlin keeps its reference
+in `test/` and adapts it from `conformance/` because kotlinc compiles loose
+files. A language-shaped difference, like every other one in ARCHITECTURE §11.0.
 
 Two things the first run taught, both about the harness rather than the design:
 

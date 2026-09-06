@@ -35,7 +35,7 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 2 `transition_matrix!` | **done** |
 | 3 The spec | **done** |
 | 4 Kotlin core + KSP | **M2 PASSED**; core done, processor next |
-| 5 Swift | core, reference, compile-fail, **testing + conformance**; macros/examples to come |
+| 5 Swift | core, reference, compile-fail, testing, **all four conformance fixtures**; macros/examples to come |
 | 6 Composition | **done (Rust and Kotlin)** |
 | 7 Effects surface | **done (Rust half)** |
 | 8 Introspection & tooling | **done (Rust half)** |
@@ -350,7 +350,10 @@ color-mismatch is a build error in all three.
       property.
 - [x] All four conformance fixtures now pass in **both** languages, with
       matching lint output. Nothing is skipped.
-- [ ] Swift half
+- [x] Swift half. `protocol JobCells: RetryCells` — protocols are Swift's trait
+      bounds — with `compile_fail/child_hole_breaks_parent.swift` proving the
+      property and the `nested-delegate` fixture proving the behaviour.
+      **All four conformance fixtures now pass in all three languages.**
 
 ---
 

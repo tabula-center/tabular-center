@@ -150,7 +150,9 @@ struct ToggleAdapter: Adapter {
 
 /// Every adapter that has landed. A fixture with none is reported as skipped,
 /// never as passed.
-let adapters: [Adapter] = [TimerAdapter(), ToggleAdapter()]
+let adapters: [Adapter] = [
+    TimerAdapter(), ToggleAdapter(), RetryAdapter(), JobAdapter(),
+]
 
 // MARK: - Runner
 
