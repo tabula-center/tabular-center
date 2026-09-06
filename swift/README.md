@@ -179,8 +179,57 @@ Swift now has the evidence, four fixtures, checked by
 `swiftc -typecheck` against the built module, not `swift build`: the fixtures
 must not be part of a target, or the package itself would stop building.
 
-Not yet: `TabulaMacros` (needs swift-syntax and 5.9), `TabulaTesting` (the
-conformance harness), and the four examples.
+### `TabulaTesting` and the conformance harness
+
+`Sources/TabulaTesting` parses the shared `.tbl` and `.trace` fixtures — a third
+parser, deliberately. The format was chosen to parse in about sixty lines
+precisely so each language could own its parser with no dependency; three small
+parsers that agree are worth more than one that no language can build offline.
+
+It depends on `Tabula` and **nothing else — not even Foundation**. Trimming a
+string is not worth putting the whole of Foundation on a consumer's link line,
+so `trim` and `splitOnArrow` are written out. The *runner* imports Foundation,
+because it needs file IO, and it is an executable rather than a published
+library.
+
+`./tools/verify swift-conformance` compares three things, and the third only
+exists because there are three implementations:
+
+1. the generated table, cell by cell;
+2. traces — outcomes and effects, step by step;
+3. the golden `.grid` file, **byte for byte**.
+
+Rust owns `--bless`; Kotlin and Swift read and never bless, so a renderer that
+drifts by one space fails rather than quietly rewriting the shared snapshot.
+
+`retry` and `nested-delegate` report as **skipped** until a Swift composition
+reference lands — visible, not silently green.
+
+Two things the first run taught, both about the harness rather than the design:
+
+- **Swift enum cases are lowerCamel; the fixtures are UpperCamel.**
+  `"\(TimerF.stopClock)"` is `stopClock`, and the shared fixtures use
+  `StopClock` — the variant names the other two languages generate. Adapters
+  name their effects explicitly rather than interpolating. `lastSegment` could
+  have been made case-insensitive instead, but that would hide real drift as
+  well as this.
+
+- **SwiftPM's flags go before the executable name.** `swift run` passes
+  everything *after* it to the program, so
+  `swift run tabula-check --scratch-path X` hands `--scratch-path` to
+  `tabula-check` and leaves swiftpm on its defaults. That is why the
+  `/var/empty` warnings survived being "fixed" twice, and why the conformance
+  runner once tried to read `--scratch-path/timer.tbl`. The runner ignores
+  flag-shaped arguments now, so the mistake is harmless rather than merely
+  legible.
+
+- **`fatalError` loses the diagnostics.** stdout is block-buffered when piped,
+  and `fatalError` traps without flushing, so the first run reported
+  "2 fixture(s) failed" with every explanatory line swallowed. Both executables
+  use `exit(1)` now, which flushes stdio on the way out.
+
+Not yet: `TabulaMacros` (needs swift-syntax and 5.9), the composition
+reference, and the four examples.
 
 ## Two drivers, one per color
 

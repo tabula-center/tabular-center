@@ -10,7 +10,7 @@
 # Usage:  tools/verify [step ...]      (default: all)
 # Steps:  version fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
-#         kotlin-examples swift swift-compile-fail
+#         kotlin-examples swift swift-compile-fail swift-conformance
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
@@ -388,8 +388,13 @@ step_swift() {
     # `emit-module command failed` on the same missing-glibc warning that has
     # dogged this toolchain, and release skips the AST-wrapping step that
     # needs it. The checks do not care about debug info.
+    # SwiftPM's own flags go BEFORE the executable name. Everything after it is
+    # passed to the program, so `swift run tabula-check --scratch-path X` hands
+    # `--scratch-path` to tabula-check and leaves swiftpm using its defaults --
+    # which is why the /var/empty warnings survived being "fixed".
+    #
     # shellcheck disable=SC2046  # word splitting is what swift_paths is for
-    out="$( (cd swift && "$SWIFT" run -c release tabula-check $(swift_paths "$scratch")) 2>&1 )"
+    out="$( (cd swift && "$SWIFT" run -c release $(swift_paths "$scratch") tabula-check) 2>&1 )"
     rc=$?
     printf '%s\n' "$out"
     rm -rf "$scratch"
@@ -418,6 +423,26 @@ step_swift() {
 # `swiftc -typecheck` against the built module rather than `swift build`: the
 # fixtures must not be part of a target, or the package itself would stop
 # building.
+step_swift_conformance() {
+    if ! swift_available; then
+        echo "note: $SWIFT not found; skipping"
+        return 0
+    fi
+    local scratch
+    scratch="$(mktemp -d)"
+    swift_home "$scratch"
+
+    local out rc
+    # shellcheck disable=SC2046
+    # Flags before the executable name; arguments after it. See step_swift.
+    out="$( (cd swift && "$SWIFT" run -c release $(swift_paths "$scratch") \
+        tabula-conformance ../spec/conformance) 2>&1 )"
+    rc=$?
+    printf '%s\n' "$out"
+    rm -rf "$scratch"
+    return "$rc"
+}
+
 step_swift_compile_fail() {
     if ! swift_available; then
         echo "note: $SWIFT not found; skipping"
@@ -571,7 +596,7 @@ steps=("$@")
 [ ${#steps[@]} -eq 0 ] && \
     steps=(version fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
-           kotlin-examples swift swift-compile-fail)
+           kotlin-examples swift swift-compile-fail swift-conformance)
 
 for s in "${steps[@]}"; do
     case "$s" in
@@ -590,6 +615,7 @@ for s in "${steps[@]}"; do
         kotlin-examples)     run kotlin-examples     step_kotlin_examples ;;
         swift)               run swift               step_swift ;;
         swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
+        swift-conformance)   run swift-conformance   step_swift_conformance ;;
         *) echo "unknown step: $s"; exit 2 ;;
     esac
 done

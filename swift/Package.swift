@@ -27,10 +27,20 @@ let package = Package(
     name: "Tabula",
     products: [
         .library(name: "Tabula", targets: ["Tabula"]),
+        .library(name: "TabulaTesting", targets: ["TabulaTesting"]),
         .executable(name: "tabula-check", targets: ["TabulaCheck"]),
+        .executable(name: "tabula-conformance", targets: ["TabulaConformance"]),
     ],
     targets: [
         .target(name: "Tabula"),
+        // Depends on Tabula and nothing else -- no Foundation. A published
+        // library should not put the whole of Foundation on a consumer's link
+        // line in order to trim a string.
+        .target(name: "TabulaTesting", dependencies: ["Tabula"]),
         .executableTarget(name: "TabulaCheck", dependencies: ["Tabula"]),
+        .executableTarget(
+            name: "TabulaConformance",
+            dependencies: ["Tabula", "TabulaTesting"]
+        ),
     ]
 )

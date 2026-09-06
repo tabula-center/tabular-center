@@ -22,6 +22,12 @@ duty as the golden-snapshot format.
 **Compared:** cell kinds, `GO` targets, effect names, outcome per step,
 effects emitted per step, state variant names, optional payload field values.
 
+Names are compared **exactly**, in the fixture's spelling — the variant names
+the generators produce. Swift enum cases are lowerCamel, so its adapters map
+effects to the fixture spelling rather than interpolating the enum. Making the
+comparison case-insensitive would have been easier and would have hidden real
+drift alongside the casing.
+
 **Not compared:** generated source. Rust names cells by trait bound
 (`Handle<Timer, Idle, Start>`) because `macro_rules!` cannot concatenate
 identifiers; Kotlin and Swift name them by identifier (`idleStart`). Both give
@@ -83,12 +89,13 @@ trace reaches-done
 ## What the golden grids prove
 
 `<name>.grid` is written by the Rust harness (`--bless`) and **read** by every
-other implementation. The Kotlin harness never blesses: a renderer that drifts
+other implementation. Neither Kotlin nor Swift blesses: a renderer that drifts
 by a single space fails there rather than quietly rewriting the shared file.
 
-Two renderers agreeing byte for byte is a stronger statement than it looks. It
+Three renderers agreeing byte for byte is a stronger statement than it looks. It
 means the padding rules, the right-trimming, and the cell text for all six
-kinds match — and those are exactly the details that rot silently.
+kinds match across three languages — and those are exactly the details that rot
+silently.
 
 ## Adding a fixture
 

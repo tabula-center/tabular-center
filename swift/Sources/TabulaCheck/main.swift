@@ -1,5 +1,11 @@
 import Tabula
 
+#if canImport(Glibc)
+import Glibc
+#elseif canImport(Darwin)
+import Darwin
+#endif
+
 /// The same assertions as the Rust and Kotlin references.
 ///
 /// Deliberately the same: the three implementations agreeing is what
@@ -204,9 +210,12 @@ drivers()
 
 let failures = Assert.report("swift reference")
 if failures > 0 {
-    // `fatalError`, not `exit`. `exit` lives in Glibc/Darwin, and importing a C
-    // module is exactly what has been failing in this toolchain — a harness
-    // that cannot run is worse than an ugly exit path. This is in the standard
-    // library and returns non-zero, which is all `tools/verify` needs.
-    fatalError("\(failures) checks failed")
+    // `exit`, not `fatalError`. stdout is block-buffered when piped, and
+    // `fatalError` traps without flushing -- the conformance runner reported a
+    // failure count with every diagnostic line swallowed before this was
+    // fixed. `exit` flushes stdio on the way out.
+    //
+    // The earlier worry about importing a C module was reasonable when nothing
+    // compiled; it does now, and losing the diagnostics is the worse failure.
+    exit(1)
 }
