@@ -42,7 +42,11 @@ fun main(args: Array<String>) {
         val traces = parseTraces(File(root, "traces/$name.trace").readText(), "$name.trace")
 
         errs += checkTable(adapter.table, spec)
-        errs += checkGrid(root, name, adapter)
+        errs += checkGolden(root, name, "grid", Export.toGrid(adapter.table))
+        // The lints carry the most per-language logic there is -- thresholds,
+        // the dead-row/no-static-exit subsumption, the fully-static gate on
+        // reachability -- and nothing compared them across languages until now.
+        errs += checkGolden(root, name, "lint", report(adapter.table))
 
         for (t in traces) {
             steps += t.steps.size
@@ -90,19 +94,18 @@ fun main(args: Array<String>) {
 }
 
 /**
- * Compare the rendered grid against the committed golden file.
+ * Compare a generated artifact against its committed golden file.
  *
- * Never blesses: the Rust harness owns `--bless`, so a Kotlin renderer that
- * drifts fails here rather than quietly rewriting the shared snapshot.
+ * Never blesses: the Rust harness owns `--bless`, so a Kotlin renderer or lint
+ * that drifts fails here rather than quietly rewriting the shared snapshot.
  */
-private fun checkGrid(root: File, name: String, adapter: Adapter): List<String> {
-    val golden = File(root, "$name.grid")
-    if (!golden.exists()) return listOf("no golden grid at ${golden.path}")
-    val got = Export.toGrid(adapter.table)
+private fun checkGolden(root: File, name: String, ext: String, got: String): List<String> {
+    val golden = File(root, "$name.$ext")
+    if (!golden.exists()) return listOf("no golden $ext at ${golden.path}")
     val want = golden.readText()
     if (got == want) return emptyList()
 
-    val errs = mutableListOf("grid differs from ${golden.path}:")
+    val errs = mutableListOf("$ext differs from ${golden.path}:")
     got.lines().zip(want.lines()).forEachIndexed { n, (g, w) ->
         if (g != w) {
             errs.add("  line $n: kotlin |$g|")

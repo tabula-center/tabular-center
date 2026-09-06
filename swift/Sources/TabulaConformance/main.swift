@@ -175,19 +175,18 @@ func read(_ path: String) throws -> String {
     return s
 }
 
-/// Compare the rendered grid against the committed golden file.
+/// Compare a generated artifact against its committed golden file.
 ///
-/// Never blesses: Rust owns `--bless`, so a Swift renderer that drifts fails
-/// here rather than quietly rewriting the shared snapshot.
-func checkGrid(_ name: String, _ table: Table) -> [String] {
-    let path = "\(root)/\(name).grid"
+/// Never blesses: Rust owns `--bless`, so a Swift renderer or lint that drifts
+/// fails here rather than quietly rewriting the shared snapshot.
+func checkGolden(_ name: String, _ ext: String, _ got: String) -> [String] {
+    let path = "\(root)/\(name).\(ext)"
     guard let want = try? String(contentsOfFile: path, encoding: .utf8) else {
-        return ["no golden grid at \(path)"]
+        return ["no golden \(ext) at \(path)"]
     }
-    let got = Export.toGrid(table)
     if got == want { return [] }
 
-    var errs = ["grid differs from \(path):"]
+    var errs = ["\(ext) differs from \(path):"]
     let g = got.split(separator: "\n", omittingEmptySubsequences: false)
     let w = want.split(separator: "\n", omittingEmptySubsequences: false)
     for n in 0..<min(g.count, w.count) where g[n] != w[n] {
@@ -212,7 +211,11 @@ for adapter in adapters {
     }
 
     errs += checkTable(adapter.table, spec)
-    errs += checkGrid(adapter.name, adapter.table)
+    errs += checkGolden(adapter.name, "grid", Export.toGrid(adapter.table))
+    // The lints carry the most per-language logic there is -- thresholds, the
+    // dead-row/no-static-exit subsumption, the fully-static gate on
+    // reachability -- and nothing compared them across languages until now.
+    errs += checkGolden(adapter.name, "lint", report(adapter.table))
 
     var traces: [Trace] = []
     do {

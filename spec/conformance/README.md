@@ -86,11 +86,23 @@ trace reaches-done
   `Step::stay()` where the trace says `ignored` fails, and should — the
   distinction is load-bearing for the reachability linter.
 
-## What the golden grids prove
+## What the goldens prove
 
-`<name>.grid` is written by the Rust harness (`--bless`) and **read** by every
-other implementation. Neither Kotlin nor Swift blesses: a renderer that drifts
-by a single space fails there rather than quietly rewriting the shared file.
+`<name>.grid` and `<name>.lint` are written by the Rust harness (`--bless`) and
+**read** by every other implementation. Neither Kotlin nor Swift blesses: a
+renderer or a lint that drifts by a single space fails there rather than quietly
+rewriting the shared file.
+
+The lint golden matters more than it looks. The lints hold the most
+per-language logic in the project — the 70% and 25% thresholds, `dead-row`
+subsuming `no-static-exit`, the fully-static gate on reachability — and until
+this existed the three implementations printed their warnings side by side with
+nothing checking that they agreed.
+
+One caveat: Rust computes its lint report with `PAYLOADS`, and the fixture
+machines in the other two languages do not declare payload metadata. No fixture
+currently triggers `payload-hoist`, so the outputs match. A fixture that did
+would need payload metadata in all three.
 
 Three renderers agreeing byte for byte is a stronger statement than it looks. It
 means the padding rules, the right-trimming, and the cell text for all six

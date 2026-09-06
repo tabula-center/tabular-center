@@ -688,8 +688,11 @@ line-length rule failing a build. It is per-path configurable in
 `.editorconfig`, which is an argument **for** the `.tb.*` naming — scoping
 config by filename — and **against** writing a whole formatter.
 
-**Still unmeasured: Swift.** `swift-format` is in the dev shell and never run.
-The same narrow check would answer it, and is the next cheap step.
+**Swift: not yet measurable.** There is no matrix *declaration* syntax in Swift
+until `TabulaMacros` lands — the reference machine writes its dispatcher by
+hand, and the `Table(...)` literals are one row per line but not column-aligned.
+A `swift-matrix-stable` check today would guard nothing. It becomes the right
+thing to add in the same patch as the macro, and not before.
 
 **So the first task is still not the formatter.** The evidence so far says the
 danger is real but that per-path configuration handles it. Write `tabula-fmt`

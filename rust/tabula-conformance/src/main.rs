@@ -37,22 +37,32 @@ fn check_trace(adapter: &dyn Adapter, trace: &Trace) -> Vec<String> {
     errs
 }
 
-/// Compare the generated grid against `<name>.grid`, or write it with
+/// Compare a generated artifact against its golden file, or write it with
 /// `--bless`.
+///
+/// Used for both the grid and the lint report. Both are committed, so a change
+/// in either shows up in review as a diff of the *output* rather than only of
+/// the code that produces it.
 ///
 /// The golden file is committed, so a behaviour change shows up in review as a
 /// table diff rather than only as a diff of macro invocation lines.
-fn check_grid(root: &std::path::Path, name: &str, grid: &str, bless: bool) -> Vec<String> {
-    let path = root.join(format!("{name}.grid"));
+fn check_golden(
+    root: &std::path::Path,
+    name: &str,
+    ext: &str,
+    got: &str,
+    bless: bool,
+) -> Vec<String> {
+    let path = root.join(format!("{name}.{ext}"));
     if bless {
-        let _ = std::fs::write(&path, grid);
+        let _ = std::fs::write(&path, got);
         return vec![];
     }
     match std::fs::read_to_string(&path) {
-        Ok(golden) if golden == grid => vec![],
+        Ok(golden) if golden == got => vec![],
         Ok(golden) => {
-            let mut errs = vec![format!("grid differs from {}:", path.display())];
-            for (n, (g, w)) in grid.lines().zip(golden.lines()).enumerate() {
+            let mut errs = vec![format!("{ext} differs from {}:", path.display())];
+            for (n, (g, w)) in got.lines().zip(golden.lines()).enumerate() {
                 if g != w {
                     errs.push(format!("  line {n}: got    |{g}|"));
                     errs.push(format!("  line {n}: golden |{w}|"));
@@ -62,7 +72,7 @@ fn check_grid(root: &std::path::Path, name: &str, grid: &str, bless: bool) -> Ve
             errs
         }
         Err(_) => vec![format!(
-            "no golden grid at {}; run with --bless to create it",
+            "no golden {ext} at {}; run with --bless to create it",
             path.display()
         )],
     }
@@ -86,7 +96,12 @@ fn main() -> ExitCode {
         };
 
         let mut errs = adapter.check_table(&spec);
-        errs.extend(check_grid(&root, name, &adapter.grid(), bless));
+        errs.extend(check_golden(&root, name, "grid", &adapter.grid(), bless));
+        // The lints carry the most per-language logic there is -- thresholds,
+        // the dead-row/no-static-exit subsumption, the fully-static gate on
+        // reachability. Nothing compared them across languages until now, so a
+        // rule could drift in one and nobody would know.
+        errs.extend(check_golden(&root, name, "lint", &adapter.lint(), bless));
         tables += 1;
 
         for t in &traces {
@@ -101,8 +116,10 @@ fn main() -> ExitCode {
                 spec.actions.len(),
                 traces.len()
             );
-            // Lints are advisory and printed indented, never counted as
-            // failures. A rule that is a judgement call must not fail a build.
+            // Lints are advisory as OUTPUT -- a rule that is a judgement call
+            // must not fail a build. But the output itself is compared against
+            // a golden above, because "advisory" is about the user's machine,
+            // not about whether three implementations agree.
             for line in adapter.lint().lines() {
                 println!("       {line}");
             }
