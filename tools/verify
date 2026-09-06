@@ -10,7 +10,8 @@
 # Usage:  tools/verify [step ...]      (default: all)
 # Steps:  version fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
-#         kotlin-examples swift swift-compile-fail swift-conformance
+#         kotlin-examples kotlin-matrix-stable
+#         swift swift-compile-fail swift-conformance
 #         swift-examples swift-codegen
 set -uo pipefail
 
@@ -574,6 +575,64 @@ step_swift_compile_fail() {
     return "$bad"
 }
 
+KTLINT="${KTLINT:-ktlint}"
+
+# Does the language formatter destroy the matrix alignment?
+#
+# Measured rather than assumed: run ktlint's formatter over a COPY and compare
+# only the matrix rows. It reformats plenty of ordinary Kotlin around them --
+# that is ktlint's business and not ours -- but the rows themselves must come
+# back byte-identical, because a matrix is only readable while its columns line
+# up.
+#
+# Narrow on purpose. Adopting ktlint as a style gate would mean making the whole
+# tree ktlint-clean, which is a separate decision; this guards the one property
+# the library actually depends on.
+step_kotlin_matrix_stable() {
+    if ! command -v "$KTLINT" >/dev/null 2>&1; then
+        echo "note: $KTLINT not found; skipping (nixpkgs provides it)"
+        return 0
+    fi
+    require_dir kotlin || return 1
+
+    local scratch bad=0 f
+    scratch="$(mktemp -d)"
+    cp -r kotlin "$scratch/kotlin"
+
+    # The .editorconfig comes too, and it is the point of the test.
+    #
+    # Without it ktlint applies `no-multi-spaces` and collapses
+    #
+    #   @Row(S.Idle::class,    [CellSpec(Kind.HANDLE),  CellSpec(Kind.IGNORE), ...
+    #
+    # to single spaces, destroying the alignment outright. The exemptions in
+    # .editorconfig are load-bearing, and this check exists to prove they still
+    # are rather than to assume it.
+    cp .editorconfig "$scratch/.editorconfig"
+
+    # ktlint exits non-zero for rules it cannot auto-correct (line length,
+    # wildcard imports). Those are style opinions we have not adopted; the
+    # formatting pass still runs, which is all this needs.
+    (cd "$scratch" && "$KTLINT" --format "kotlin/**/*.kt" >/dev/null 2>&1) || true
+
+    for f in $(cd kotlin && grep -rl "@Row(\|@Machine(" . 2>/dev/null); do
+        if ! diff -q \
+            <(grep -h "@Row(\|@Machine(\|CellSpec(" "kotlin/$f") \
+            <(grep -h "@Row(\|@Machine(\|CellSpec(" "$scratch/kotlin/$f") >/dev/null; then
+            echo "FAIL ktlint --format changed the matrix in kotlin/$f"
+            diff \
+                <(grep -h "@Row(\|@Machine(\|CellSpec(" "kotlin/$f") \
+                <(grep -h "@Row(\|@Machine(\|CellSpec(" "$scratch/kotlin/$f") | head -6
+            bad=1
+        else
+            echo "ok   matrix rows survive ktlint --format: kotlin/$f"
+        fi
+    done
+
+    rm -rf "$scratch"
+    return "$bad"
+}
+
 step_kotlin_codegen() {
     if ! kotlin_available; then
         echo "note: $KOTLINC not found; skipping"
@@ -670,7 +729,8 @@ steps=("$@")
 [ ${#steps[@]} -eq 0 ] && \
     steps=(version fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
-           kotlin-examples swift swift-compile-fail swift-conformance swift-examples \
+           kotlin-examples kotlin-matrix-stable \
+           swift swift-compile-fail swift-conformance swift-examples \
            swift-codegen)
 
 for s in "${steps[@]}"; do
@@ -688,6 +748,7 @@ for s in "${steps[@]}"; do
         kotlin-conformance)  run kotlin-conformance  step_kotlin_conformance ;;
         kotlin-codegen)      run kotlin-codegen      step_kotlin_codegen ;;
         kotlin-examples)     run kotlin-examples     step_kotlin_examples ;;
+        kotlin-matrix-stable) run kotlin-matrix-stable step_kotlin_matrix_stable ;;
         swift)               run swift               step_swift ;;
         swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
         swift-conformance)   run swift-conformance   step_swift_conformance ;;

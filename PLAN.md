@@ -672,20 +672,31 @@ matrix is not parseable Rust. So **Rust is already safe, and guarded**:
 `tools/verify fmt` runs `cargo fmt --check` over the whole tree, so if a future
 rustfmt starts reformatting matrices, CI says so.
 
-That changes the priority. The unguarded cases are:
+**Kotlin: measured too.** `tools/verify kotlin-matrix-stable` runs ktlint's
+formatter over a copy of the tree and compares the matrix rows. Two findings:
 
-- **Kotlin.** ktlint is not in `nix flake check` at all — only the
-  `.editorconfig` exemptions, which nothing verifies. A ktlint run in CI would
-  either confirm the exemptions work or show that they do not, and costs an
-  afternoon rather than a formatter.
-- **Swift.** `swift-format` is in the dev shell and never run. Same question,
-  same cheap answer.
+- With the repo `.editorconfig`, the rows come back **byte-identical**. ktlint
+  reformats plenty of ordinary Kotlin around them, and leaves the matrix alone.
+- **Without it, ktlint collapses the alignment outright** — `no-multi-spaces`
+  turns the aligned columns into single spaces. The exemptions are load-bearing,
+  and nothing verified that until now. Deleting one turns the check red, which
+  was confirmed by deleting one.
 
-**So the first task is not the formatter.** Add ktlint and swift-format checks
-and see whether they actually break the matrices. If they do not, `tabula-fmt`
-is a solution looking for a problem and the `.tb.*` convention costs users a
-`#[path]` attribute for nothing. If they do, this entry describes what to
-build.
+ktlint also reports `max-line-length` on the longer rows and cannot auto-correct
+it. That is the *real* residual risk for Kotlin: not reformatting, but a
+line-length rule failing a build. It is per-path configurable in
+`.editorconfig`, which is an argument **for** the `.tb.*` naming — scoping
+config by filename — and **against** writing a whole formatter.
+
+**Still unmeasured: Swift.** `swift-format` is in the dev shell and never run.
+The same narrow check would answer it, and is the next cheap step.
+
+**So the first task is still not the formatter.** The evidence so far says the
+danger is real but that per-path configuration handles it. Write `tabula-fmt`
+only if a case turns up that configuration cannot fix — and note that `.tb.*`
+would cost Rust users a `#[path]` attribute on every matrix module, which is the
+largest single cost in the proposal and buys nothing for the language that is
+already safe.
 
 ## Explicitly deferred
 

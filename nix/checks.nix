@@ -32,6 +32,9 @@ in
   kotlin-conformance = verify "kotlin-conformance" kotlinInputs;
   kotlin-codegen = verify "kotlin-codegen" kotlinInputs;
   kotlin-examples = verify "kotlin-examples" kotlinInputs;
+  # Guards the matrix alignment against ktlint's formatter -- narrowly, without
+  # adopting ktlint as a style gate. See the backlog entry in PLAN.md.
+  kotlin-matrix-stable = verify "kotlin-matrix-stable" kotlinInputs;
 }
 // lib.optionalAttrs has.kotlinGradle {
   # Guards the zero-runtime-dependency rule. Only meaningful once Gradle can
