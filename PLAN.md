@@ -35,7 +35,7 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 2 `transition_matrix!` | **done** |
 | 3 The spec | **done** |
 | 4 Kotlin core + KSP | **M2 PASSED**; core done, processor next |
-| 5 Swift | core, reference, compile-fail, testing, **all four conformance fixtures**; macros/examples to come |
+| 5 Swift | core, reference, compile-fail, testing, conformance, **examples**; macros to come |
 | 6 Composition | **done (Rust and Kotlin)** |
 | 7 Effects surface | **done (Rust half)** |
 | 8 Introspection & tooling | **done (Rust half)** |

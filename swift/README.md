@@ -261,6 +261,25 @@ driver. That is not an oversight: Rust needs the parameter because two closures
 cannot each capture the same `&mut`, and Swift has no such rule. Where the
 languages differ, follow the language.
 
+### Path dependencies are named by their directory
+
+`examples/swift-examples` depends on the library by path. It is not called
+`examples/swift`: SwiftPM derives a path dependency's identity from its
+directory basename, so two directories named `swift` become one identity and
+the package appears to depend on itself —
+`cyclic dependency declaration found: TabulaExamples -> TabulaExamples`. SwiftPM identifies such a
+dependency by its **directory name** — `swift` — not by the `name` in its
+manifest, so `.product(name: "Tabula", package: "Tabula")` is
+`unknown package 'Tabula'`.
+
+So the target uses `.product(name: "Tabula", package: "swift")`, with `swift`
+being the directory.
+
+The bare `dependencies: ["Tabula"]` form does not work either: by-name lookup
+matches the *package* name `Tabula`, resolves to the examples package itself,
+and reports `cyclic dependency declaration found: TabulaExamples ->
+TabulaExamples`.
+
 ## Toolchain
 
 **Swift comes from its own flake input** (`nixpkgs-swift`, tracking

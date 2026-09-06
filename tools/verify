@@ -11,12 +11,34 @@
 # Steps:  version fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
 #         kotlin-examples swift swift-compile-fail swift-conformance
+#         swift-examples
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
 
 CARGO_FLAGS="--offline --locked"
 fail=0
+
+# A missing directory here is almost never a missing directory.
+#
+# `nix flake check` builds from the git tree, and on a DIRTY tree nix includes
+# tracked files that were modified but EXCLUDES files that are untracked. So a
+# patch applied with `git apply` rather than `git am` shows up as: the modified
+# scripts are there, and every newly added directory is not.
+#
+# That produces `cd: examples/swift: No such file or directory` from inside a
+# nix build while the directory sits plainly in the working tree, which is a
+# confusing enough five minutes to be worth six lines.
+require_dir() {
+    [ -d "$1" ] && return 0
+    echo "missing directory: $1"
+    echo
+    echo "  If this is a nix build and the directory exists in your working"
+    echo "  tree, it is probably untracked: nix excludes untracked files from a"
+    echo "  dirty tree. Commit it, or 'git add -A', or apply patches with"
+    echo "  'git am' rather than 'git apply'."
+    return 1
+}
 
 run() {
     local name="$1"; shift
@@ -193,6 +215,7 @@ step_kotlin() {
     local out
     out="$(mktemp -d)"
     (
+        require_dir kotlin || exit 1
         cd kotlin || exit 1
         kotlin_artifacts "$out" || exit 1
         KCP="$(kotlin_cp "$out")"
@@ -214,6 +237,7 @@ step_kotlin_conformance() {
     local out
     out="$(mktemp -d)"
     (
+        require_dir kotlin || exit 1
         cd kotlin || exit 1
         kotlin_artifacts "$out" || exit 1
         KCP="$(kotlin_cp "$out")"
@@ -243,7 +267,10 @@ step_kotlin_conformance() {
 # the workspace -- so they are a separate cargo invocation, not another
 # workspace member. That separation is the point: it is the only place the
 # public API is exercised from outside.
-step_examples() { (cd examples/rust && cargo test $CARGO_FLAGS); }
+step_examples() {
+    require_dir examples/rust || return 1
+    (cd examples/rust && cargo test $CARGO_FLAGS)
+}
 
 step_kotlin_examples() {
     if ! kotlin_available; then
@@ -253,6 +280,7 @@ step_kotlin_examples() {
     local out
     out="$(mktemp -d)"
     (
+        require_dir kotlin || exit 1
         cd kotlin || exit 1
         kotlin_artifacts "$out" || exit 1
         KCP="$(kotlin_cp "$out")"
@@ -304,6 +332,7 @@ step_swift() {
         echo "note: $SWIFT not found; skipping (nix develop .#swift provides it)"
         return 0
     fi
+    require_dir swift || return 1
     # Report the version. nixpkgs pins an older Swift than swift.org ships, and
     # a tools-version above the toolchain is a hard refusal -- worth seeing in
     # the log before reading a wall of compiler errors.
@@ -423,6 +452,27 @@ step_swift() {
 # `swiftc -typecheck` against the built module rather than `swift build`: the
 # fixtures must not be part of a target, or the package itself would stop
 # building.
+step_swift_examples() {
+    if ! swift_available; then
+        echo "note: $SWIFT not found; skipping"
+        return 0
+    fi
+    require_dir examples/swift-examples || return 1
+
+    local scratch
+    scratch="$(mktemp -d)"
+    swift_home "$scratch"
+
+    local out rc
+    # shellcheck disable=SC2046
+    out="$( (cd examples/swift-examples && "$SWIFT" run -c release $(swift_paths "$scratch") \
+        tabula-examples) 2>&1 )"
+    rc=$?
+    printf '%s\n' "$out"
+    rm -rf "$scratch"
+    return "$rc"
+}
+
 step_swift_conformance() {
     if ! swift_available; then
         echo "note: $SWIFT not found; skipping"
@@ -512,6 +562,7 @@ step_kotlin_codegen() {
     local rc=0
 
     (
+        require_dir kotlin || exit 1
         cd kotlin || exit 1
         kotlin_artifacts "$out" || exit 1
         KCP="$(kotlin_cp "$out")"
@@ -596,7 +647,7 @@ steps=("$@")
 [ ${#steps[@]} -eq 0 ] && \
     steps=(version fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
-           kotlin-examples swift swift-compile-fail swift-conformance)
+           kotlin-examples swift swift-compile-fail swift-conformance swift-examples)
 
 for s in "${steps[@]}"; do
     case "$s" in
@@ -616,6 +667,7 @@ for s in "${steps[@]}"; do
         swift)               run swift               step_swift ;;
         swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
         swift-conformance)   run swift-conformance   step_swift_conformance ;;
+        swift-examples)      run swift-examples      step_swift_examples ;;
         *) echo "unknown step: $s"; exit 2 ;;
     esac
 done

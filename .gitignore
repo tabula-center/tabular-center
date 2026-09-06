@@ -35,3 +35,5 @@ result-*
 
 # Examples build output
 /examples/rust/target/
+/examples/swift-examples/.build/
+/examples/swift-examples/Package.resolved

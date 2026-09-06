@@ -46,6 +46,23 @@ clippy missed five warnings, `cargo fmt --check` passed a file with trailing
 whitespace, and a version bump staled a lockfile nothing refreshed. A step that
 runs in one workspace and reports green for both is worse than no step.
 
+## Applying patches
+
+Use `git am`, not `git apply`.
+
+`nix flake check` builds from the git tree, and on a **dirty** tree nix includes
+tracked files that were modified but **excludes untracked files**. A patch
+applied with `git apply` therefore shows up half-there: the modified scripts are
+present and every newly added directory is not, producing errors like
+
+```
+cd: examples/swift: No such file or directory
+```
+
+from inside a nix build, while the directory sits plainly in the working tree.
+`tools/verify` recognises that shape now and says so, but committing the change
+avoids it entirely.
+
 ## After a version change
 
 `VERSION` is the single source of truth; `rust/Cargo.toml` and **both**

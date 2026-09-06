@@ -67,4 +67,9 @@ in
     export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     ./tools/verify swift-conformance
   '';
+
+  swift-examples = mkCheck "swift-examples" swiftPkgs ''
+    export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    ./tools/verify swift-examples
+  '';
 }

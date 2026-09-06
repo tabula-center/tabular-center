@@ -1,0 +1,56 @@
+import Tabula
+
+/// **1. The minimum.**
+///
+/// Three states, two actions, no payloads, no effects. Six cells, one of which
+/// the developer writes.
+///
+/// `Never` is Swift's uninhabited type, so `Step<S, Never>` is a machine that
+/// cannot emit — the counterpart of Rust's `effects Effect { }`.
+enum TrafficLight {
+    enum S: Equatable { case red, green, amber }
+    enum A: Equatable { case advance, fault }
+
+    final class Ctx {
+        var cycles = 0
+    }
+
+    protocol Cells {
+        func amberAdvance(_ ctx: Ctx) -> Step<S, Never>
+    }
+
+    static func step(_ c: Cells, _ ctx: Ctx, _ s: S, _ a: A) -> Step<S, Never> {
+        switch (s, a) {
+        case (.red, .advance): return .go(.green, effects: [])
+        case (.red, .fault): return .go(.red, effects: [])
+        case (.green, .advance): return .go(.amber, effects: [])
+        case (.green, .fault): return .go(.red, effects: [])
+        case (.amber, .advance): return c.amberAdvance(ctx)
+        case (.amber, .fault): return .go(.red, effects: [])
+        }
+    }
+
+    static let TABLE = Table(
+        machine: "TrafficLight",
+        states: ["Red", "Green", "Amber"],
+        actions: ["Advance", "Fault"],
+        cells: [
+            [.go(target: "Green", effects: []), .go(target: "Red", effects: [])],
+            [.go(target: "Amber", effects: []), .go(target: "Red", effects: [])],
+            [.handle, .go(target: "Red", effects: [])],
+        ],
+        initial: "Red"
+    )
+
+    struct Controller: Cells {
+        /// The one cell with a decision in it.
+        ///
+        /// It could have been a static `GO` — it is `HANDLE` because it touches
+        /// context, and a static cell cannot. That boundary is why both kinds
+        /// exist.
+        func amberAdvance(_ ctx: Ctx) -> Step<S, Never> {
+            ctx.cycles += 1
+            return .go(.red, effects: [])
+        }
+    }
+}

@@ -39,6 +39,19 @@ genuine 8×12 machine, measured rather than described.
 ```sh
 ./tools/verify examples          # Rust
 ./tools/verify kotlin-examples   # Kotlin
+./tools/verify swift-examples    # Swift
 ```
 
-Both are part of `nix flake check`.
+All three are part of `nix flake check`.
+
+Each language's examples live in a package that depends on tabula **by path,
+the way a user would**, outside the main build: `examples/rust` is its own cargo
+workspace and `examples/swift-examples` its own SwiftPM package.
+
+That last directory is not called `swift` because SwiftPM derives a path
+dependency's identity from its directory basename: with the library at `swift/`
+and the examples at `examples/swift/`, both become `swift` and the package
+appears to depend on itself. That is the only place
+the public API is exercised from outside, and it is how the driver's borrow bug
+was found — every unit test had passed because none of them needed two closures
+to touch the same state.

@@ -12,10 +12,31 @@ FIXTURES="tabula/tests/compile_fail"
 OUT="$(mktemp -d)"
 trap 'rm -rf "$OUT"' EXIT
 
-cargo build --quiet --all-features 2>/dev/null || { echo "build failed"; exit 1; }
+# The uplifted rlib, at a stable hash-free path.
+#
+# This used to be `ls -t deps/libtabula-*.rlib | head -1`, which picks by mtime
+# out of however many builds are lying around -- different feature sets,
+# different RUSTFLAGS, stale artifacts. It failed once in a sequence that would
+# not reproduce, which is exactly what a heuristic like that produces.
+#
+# Parsing `--message-format=json` was the next attempt and is worse: cargo only
+# emits `filenames` when it actually rebuilds, so it returns nothing on a no-op
+# build -- correct on a clean tree and silently empty on every subsequent run.
+#
+# cargo copies the library to target/debug/libtabula.rlib regardless. No mtime
+# race, no JSON, no jq. The glob stays as a fallback for toolchains that do not
+# uplift.
+cargo build --quiet --all-features || { echo "build failed"; exit 1; }
+
 DEPS="target/debug/deps"
-RLIB="$(ls -t "$DEPS"/libtabula-*.rlib 2>/dev/null | head -1)"
-[ -z "$RLIB" ] && { echo "no libtabula rlib found; run cargo build first"; exit 1; }
+RLIB="target/debug/libtabula.rlib"
+if [ ! -f "$RLIB" ]; then
+    RLIB="$(ls -t "$DEPS"/libtabula-*.rlib 2>/dev/null | head -1)"
+fi
+if [ -z "$RLIB" ] || [ ! -f "$RLIB" ]; then
+    echo "no tabula rlib after a successful build; looked for $RLIB"
+    exit 1
+fi
 
 pass=0; fail=0
 for f in "$FIXTURES"/*.rs; do
