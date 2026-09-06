@@ -107,7 +107,23 @@ let
         touch $out
       '';
 
-  mkShell = name: extra: pkgs.mkShell {
+  # Where the Swift runtime actually is.
+  #
+  # `swiftc -print-target-info` reports the *module* search paths, and
+  # libdispatch.so is not in them: nixpkgs splits the toolchain across store
+  # paths, so the linker finds it via -L flags the wrapper injects while the
+  # loader knows nothing about it. Hence
+  #
+  #   error while loading shared libraries: libdispatch.so
+  #
+  # nix knows where every one of those packages is, so let nix say it rather
+  # than have the script guess. Both `lib` and `lib/swift/linux`, because the
+  # toolchain uses both.
+  swiftLibraryPath = lib.concatStringsSep ":" (
+    lib.concatMap (p: [ "${p}/lib" "${p}/lib/swift/linux" ]) swiftPkgs
+  );
+
+  mkShell = name: extra: env: pkgs.mkShell ({
     inherit name;
     packages = commonInputs ++ extra;
     JAVA_HOME = "${jdk}";
@@ -118,7 +134,7 @@ let
         echo "  note: no swift toolchain on ${system}; swift/ is skipped."
       ''}
     '';
-  };
+  } // env);
 
 in
 {
@@ -126,5 +142,6 @@ in
     self system pkgs lib has
     rustToolchain jdk swiftAvailable swiftChecked swiftPkgs
     rustInputs kotlinInputs commonInputs
+    swiftLibraryPath
     mkCheck mkShell;
 }

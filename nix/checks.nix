@@ -8,7 +8,8 @@
 ctx:
 
 let
-  inherit (ctx) lib has rustInputs kotlinInputs swiftPkgs swiftChecked mkCheck;
+  inherit (ctx) lib has rustInputs kotlinInputs swiftPkgs swiftChecked
+    swiftLibraryPath mkCheck;
   verify = name: inputs: mkCheck name inputs "./tools/verify ${name}";
 in
 {
@@ -48,5 +49,12 @@ in
 // lib.optionalAttrs (has.swift && swiftChecked) {
   # Darwin only. See the note on `swiftChecked` in context.nix: on Linux this
   # is `nix develop .#swift` followed by `./tools/verify swift`.
-  swift = verify "swift" swiftPkgs;
+  #
+  # The runtime path is exported here rather than left to the script, for the
+  # same reason as the dev shell: nix knows where the libraries are and the
+  # script would be guessing.
+  swift = mkCheck "swift" swiftPkgs ''
+    export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    ./tools/verify swift
+  '';
 }

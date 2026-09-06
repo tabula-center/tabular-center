@@ -1,26 +1,36 @@
 // swift-tools-version: 5.7
 //
-// 5.7, not the latest. nixpkgs 25.05 ships Swift 5.8, and a tools-version
-// above the toolchain is a hard refusal rather than a warning. Nothing here
-// needs anything newer: conditional conformance is 4.2, async closures are
-// 5.5. Raise it when TabulaMacros lands, since macros genuinely need 5.9 --
-// and that will need a newer toolchain than the pinned nixpkgs provides.
+// 5.7, not the latest. Nothing in the core needs newer — conditional
+// conformance is 4.2, async closures are 5.5 — and a low tools-version works
+// on any toolchain above it. Raise it when TabulaMacros lands; macros need 5.9.
 import PackageDescription
 
-// Three products, matching RELEASING.md. `Tabula` is the runtime and has no
-// dependencies at all; `TabulaMacros` (the generator) and `TabulaTesting` (the
-// fixture harness) are separate so a machine in production carries neither.
+// Products match RELEASING.md. `Tabula` is the runtime and has no dependencies
+// at all; `TabulaMacros` (the generator) and `TabulaTesting` (the fixture
+// harness) will be separate so a machine in production carries neither.
 //
-// TabulaMacros is not here yet: it needs swift-syntax, which is a build-time
-// dependency, and adding it before the core compiles would make a first
-// failure ambiguous between the two.
+// ## Why the checks are an executable and not a test target
+//
+// nixpkgs' Swift does not ship XCTest:
+//
+//     error: no such module 'XCTest'
+//
+// Rather than depend on a framework the toolchain may not have, the checks are
+// a plain executable with a thirty-line assertion harness — exactly what the
+// Kotlin side does, and for the same reason: a test framework that has to be
+// resolved is a test framework that can stop the tests from running at all.
+//
+// The cost is no `swift test` integration and no per-test isolation. Worth it
+// for a library whose whole point is that its guarantees are checkable
+// anywhere.
 let package = Package(
     name: "Tabula",
     products: [
-        .library(name: "Tabula", targets: ["Tabula"])
+        .library(name: "Tabula", targets: ["Tabula"]),
+        .executable(name: "tabula-check", targets: ["TabulaCheck"]),
     ],
     targets: [
         .target(name: "Tabula"),
-        .testTarget(name: "TabulaTests", dependencies: ["Tabula"]),
+        .executableTarget(name: "TabulaCheck", dependencies: ["Tabula"]),
     ]
 )

@@ -272,6 +272,7 @@ step_kotlin_examples() {
 # here -- nixpkgs ships a Swift toolchain for Linux, so `nix develop .#swift`
 # is enough.
 SWIFT="${SWIFT:-swift}"
+SWIFTC="${SWIFTC:-swiftc}"
 
 swift_available() { command -v "$SWIFT" >/dev/null 2>&1; }
 
@@ -295,7 +296,48 @@ step_swift() {
     mkdir -p "$HOME"
 
     local out rc
-    out="$( (cd swift && "$SWIFT" test \
+    # The built binary links against libdispatch and friends, and nothing puts
+    # the Swift runtime where the loader will find it:
+    #
+    #   error while loading shared libraries: libdispatch.so
+    #
+    # nix supplies LD_LIBRARY_PATH -- it knows where every package in the
+    # toolchain is, and the script would be guessing. `swiftc
+    # -print-target-info` is appended as a fallback for a non-nix toolchain,
+    # but it reports MODULE search paths and on nixpkgs does not contain
+    # libdispatch at all, which is why it was not enough on its own.
+    local swiftlib
+    swiftlib="$("$SWIFTC" -print-target-info 2>/dev/null \
+        | jq -r '.paths.runtimeLibraryPaths[0] // empty' 2>/dev/null)"
+    if [ -n "$swiftlib" ] && [ -d "$swiftlib" ]; then
+        export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$swiftlib"
+    fi
+
+    # Say up front whether the runtime is actually reachable. A missing shared
+    # library is otherwise reported by the loader, after a successful build,
+    # in a message that looks like the build failed.
+    local found=""
+    local dir
+    IFS=':' read -ra __dirs <<< "${LD_LIBRARY_PATH:-}"
+    for dir in "${__dirs[@]}"; do
+        [ -n "$dir" ] && [ -e "$dir/libdispatch.so" ] && { found="$dir"; break; }
+    done
+    if [ -n "$found" ]; then
+        echo "note: swift runtime at $found"
+    else
+        echo "note: libdispatch.so is not on LD_LIBRARY_PATH."
+        echo "      Inside 'nix develop .#swift' it is set for you; outside,"
+        echo "      point LD_LIBRARY_PATH at your toolchain's lib directory."
+    fi
+
+    # `swift run`, not `swift test`: nixpkgs' Swift does not ship XCTest, so
+    # the checks are a plain executable with their own assertion harness.
+    #
+    # Release, not debug: emitting debug info failed with
+    # `emit-module command failed` on the same missing-glibc warning that has
+    # dogged this toolchain, and release skips the AST-wrapping step that
+    # needs it. The checks do not care about debug info.
+    out="$( (cd swift && "$SWIFT" run -c release tabula-check \
         --scratch-path "$scratch/build" \
         --cache-path "$scratch/cache") 2>&1 )"
     rc=$?
@@ -309,6 +351,13 @@ step_swift() {
         echo "  This is a target-triple mismatch, not a missing module."
         echo "  See the note on swiftPkgs in nix/context.nix, and ARCHITECTURE"
         echo "  section 13 on nixpkgs' Linux Swift being best-effort."
+    fi
+    if printf '%s' "$out" | grep -q "cannot open shared object file"; then
+        echo
+        echo "  The build succeeded; only the loader failed. See the note"
+        echo "  above: if libdispatch.so was not found, LD_LIBRARY_PATH is the"
+        echo "  thing to fix, and inside 'nix develop .#swift' it is set for"
+        echo "  you by nix/context.nix."
     fi
     return "$rc"
 }

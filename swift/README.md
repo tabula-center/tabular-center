@@ -13,9 +13,52 @@ nix develop .#swift
 `tools/verify swift` skips with a note when `swift` is absent, rather than
 reporting a green that means nothing.
 
-**The Swift check runs in `nix flake check` on Darwin only.** That is a retreat,
-not a preference. Four rounds of nixpkgs packaging on Linux never reached a
-compile of the library:
+### The library compiles
+
+Round five got there: all six `Sources/Tabula` files build under Swift 5.10.1.
+The design survives three languages.
+
+Two things had to change to get the *checks* running alongside it, and both are
+toolchain accommodations rather than design changes:
+
+- **No XCTest.** nixpkgs' Swift does not ship it (`no such module 'XCTest'`),
+  so the checks are a plain executable with a thirty-line assertion harness —
+  exactly what the Kotlin side does about JUnit, for the same reason: a test
+  framework that has to be resolved is one that can stop the tests running at
+  all. The cost is no `swift test` integration and no per-test isolation.
+- **Release, not debug.** Emitting debug info failed with `emit-module command
+  failed` on the same missing-glibc warning; release skips the AST-wrapping
+  step that needs it, and the checks do not care about debug info.
+
+`main.swift` also uses `fatalError` rather than `exit` on failure: `exit` lives
+in Glibc, and importing a C module is precisely what keeps breaking here.
+
+- **The runtime needs to be on the loader path.** The binary links against
+  libdispatch and nothing puts the Swift runtime where the loader will find it:
+
+  ```
+  error while loading shared libraries: libdispatch.so
+  ```
+
+  **nix supplies `LD_LIBRARY_PATH`** — `swiftLibraryPath` in
+  `nix/context.nix`, exported by the `swift` dev shell and the Darwin check.
+  nix knows where every package in the toolchain is; the script would be
+  guessing.
+
+  `swiftc -print-target-info` is appended as a fallback for a non-nix
+  toolchain, but it reports *module* search paths and on nixpkgs does not
+  contain libdispatch at all — which is why it was not enough on its own.
+
+  Outside `nix develop .#swift`, point `LD_LIBRARY_PATH` at your toolchain's
+  lib directory. `tools/verify swift` checks for `libdispatch.so` up front and
+  says which case you are in, because a missing shared library is otherwise
+  reported after a successful build in a message that reads like a build
+  failure.
+
+### Why the check is Darwin-only in `nix flake check`
+
+A retreat, not a preference. Four rounds of nixpkgs packaging on Linux never
+reached a compile of the library:
 
 | | error | cause |
 |---|---|---|
@@ -39,9 +82,9 @@ The likely reason, and my mistake: round 3 put `binutils` from the pinned
 nixpkgs next to `swift` from unstable. **Two nixpkgs generations disagree about
 the host triple.** The whole Swift toolchain now comes from one of them.
 
-That may fix it. But `nix flake check` should not fail on a dependency's
-packaging while we find out, so on Linux Swift is opt-in. If it works, flipping
-`swiftChecked` in `nix/context.nix` back is one line.
+It did fix it — the library compiled on the next run. `nix flake check` stays
+Darwin-only until the *checks* have gone green on Linux too; flipping
+`swiftChecked` in `nix/context.nix` is one line once they have.
 
 ## Which shape Swift takes
 

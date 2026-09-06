@@ -35,7 +35,7 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 2 `transition_matrix!` | **done** |
 | 3 The spec | **done** |
 | 4 Kotlin core + KSP | **M2 PASSED**; core done, processor next |
-| 5 Swift | core + reference written, **unverified** — see the toolchain note |
+| 5 Swift | **core compiles**; checks converted off XCTest, awaiting a run |
 | 6 Composition | **done (Rust and Kotlin)** |
 | 7 Effects surface | **done (Rust half)** |
 | 8 Introspection & tooling | **done (Rust half)** |
@@ -548,7 +548,9 @@ Three rounds of nixpkgs packaging, each revealing the next missing piece:
    missing module; is a triple mismatch.
 3. `toolchain is invalid: could not find ar` — SwiftPM needs `binutils`.
 
-None of it is our code, and none has reached a compile of the library yet.
+None of it was our code. Round five reached — and passed — a compile of the
+library; the remaining work was replacing XCTest, which nixpkgs' Swift does not
+ship, with the same dependency-free harness the Kotlin side uses.
 Swift now comes from its own flake input on `nixos-unstable`, which also lifts
 the 5.8 ceiling that `TabulaMacros` would have hit anyway.
 
