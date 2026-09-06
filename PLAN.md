@@ -588,6 +588,105 @@ Findings now flow both ways, which is the return on implementing twice:
   `GO!(Idle, Effect::StopClock)` both compile. The blanket `impl<T> From<T> for T`
   makes the qualified spelling keep working for free.
 
+## Backlog — `TabulaMacros`, and the swift-syntax problem
+
+The Swift generator's logic is done and testable (`Sources/TabulaCodegen`,
+13 diagnostics plus a golden diff). What is left is the macro that parses syntax
+into a `RawMachine` — and one decision that has to come first.
+
+**A Swift macro implementation must link swift-syntax, which is a remote
+package, and `nix flake check` builds with no network.** Adding it naively takes
+down every Swift check, not just the macro's. Options, in the order I would try
+them:
+
+1. **Vendor swift-syntax for the sandbox** (`swiftpm2nix` or a fetched fixed
+   output). Correct, and the most work.
+2. **Keep the macro in a separate SwiftPM package** that `nix flake check` does
+   not build, verified only in the dev shell. Cheap, and honest so long as the
+   skip is visible.
+3. **Give up on the macro** and have users write the dispatcher by hand from
+   `ReferenceTimer.swift`. Not absurd — the guarantee comes from the required
+   members, not from who typed them — but it gives up the thing that makes the
+   matrix readable.
+
+Also needs tools-version 5.9; the pinned toolchain is 5.10.1, so that part is a
+one-line change.
+
+## Backlog — `tabula-fmt`, a formatter for matrix files
+
+**The problem.** A matrix is only readable while its columns line up, and every
+language formatter wants to destroy that. We already work around it: the
+`.editorconfig` disables three ktlint rules for annotated declarations, and the
+Rust matrices survive only because rustfmt leaves macro invocation bodies alone
+when it cannot parse them — which is luck, not a guarantee.
+
+**The proposal.** Matrices move into `*.tb.rs`, `*.tb.kt`, `*.tb.swift`. The
+language formatter is told to skip those; a separate tool, `tabula-fmt`, formats
+them and only them, keeping the grid aligned. Written in Rust, published on its
+own cadence — a formatting change should not force a library version bump, and a
+formatter that ships with the library is a formatter nobody upgrades.
+
+**What has to be true for it to work:**
+
+- **The two formatters must never both own a file.** This is the classic
+  formatter fight, and the extension convention exists to prevent it. The check
+  should assert it rather than assume: running the language formatter on a
+  `.tb.*` file must be a no-op, and `tabula-fmt` must refuse anything else.
+  rustfmt has `ignore` in `rustfmt.toml`, ktlint reads `.editorconfig`, and
+  swift-format takes an exclude list.
+- **`tabula-fmt` must not touch the non-matrix parts of a file.** It should
+  reformat inside the matrix declaration and leave every other byte identical,
+  so it can be run on a file that also holds ordinary code. A formatter that
+  rewrites what it does not understand is worse than none.
+- **It must refuse what it cannot parse**, loudly, rather than emitting
+  something plausible. Same rule as the generators.
+
+**The known friction, in order:**
+
+1. **Rust module resolution.** `mod timer;` looks for `timer.rs`, so a file
+   named `timer.tb.rs` needs `#[path = "timer.tb.rs"] mod timer;`. That is a
+   real cost imposed on every user, and it is the strongest argument against the
+   naming scheme. Worth checking whether `#[rustfmt::skip]` on the invocation is
+   enough on its own before accepting it.
+2. **Kotlin and Swift are fine.** kotlinc compiles any `.kt`; SwiftPM compiles
+   every `.swift` under `Sources`. Neither cares about the infix.
+3. **IDE support.** Editors key syntax highlighting off the final extension, so
+   `.tb.rs` should highlight as Rust — but format-on-save will run the wrong
+   formatter unless configured, which is exactly the fight the convention is
+   meant to avoid.
+4. **Three grammars, one tool.** The matrix syntax differs per language
+   (`GO!(..)` vs `CellSpec(Kind.GO, ..)` vs `.go(..)`), so `tabula-fmt` needs a
+   parser per language even though the alignment logic is shared. Scope it to
+   the matrix block only; anything more is a language formatter and that is not
+   a project worth starting.
+
+**Is the alignment actually at risk? Measured, not assumed:**
+
+| | result |
+|---|---|
+| `rustfmt` on `timer_matrix.rs` | unchanged |
+| `rustfmt` on `scale.rs` (8×12, 96 cells) | unchanged |
+
+rustfmt leaves macro invocation bodies alone when it cannot parse them, and a
+matrix is not parseable Rust. So **Rust is already safe, and guarded**:
+`tools/verify fmt` runs `cargo fmt --check` over the whole tree, so if a future
+rustfmt starts reformatting matrices, CI says so.
+
+That changes the priority. The unguarded cases are:
+
+- **Kotlin.** ktlint is not in `nix flake check` at all — only the
+  `.editorconfig` exemptions, which nothing verifies. A ktlint run in CI would
+  either confirm the exemptions work or show that they do not, and costs an
+  afternoon rather than a formatter.
+- **Swift.** `swift-format` is in the dev shell and never run. Same question,
+  same cheap answer.
+
+**So the first task is not the formatter.** Add ktlint and swift-format checks
+and see whether they actually break the matrices. If they do not, `tabula-fmt`
+is a solution looking for a problem and the `.tb.*` convention costs users a
+`#[path]` attribute for nothing. If they do, this entry describes what to
+build.
+
 ## Explicitly deferred
 
 - **Hierarchy / `INHERIT` cells.** The obvious answer to N×M explosion, and it

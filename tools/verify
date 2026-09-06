@@ -11,7 +11,7 @@
 # Steps:  version fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
 #         kotlin-examples swift swift-compile-fail swift-conformance
-#         swift-examples
+#         swift-examples swift-codegen
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
@@ -473,6 +473,29 @@ step_swift_examples() {
     return "$rc"
 }
 
+step_swift_codegen() {
+    if ! swift_available; then
+        echo "note: $SWIFT not found; skipping"
+        return 0
+    fi
+    require_dir swift || return 1
+
+    local scratch out rc
+    scratch="$(mktemp -d)"
+    swift_home "$scratch"
+
+    # `--bless` is forwarded, so `./tools/verify swift-codegen -- --bless`
+    # accepts new output after an intended change. Flags before the executable
+    # name are SwiftPM's; arguments after it are the program's.
+    # shellcheck disable=SC2046
+    out="$( (cd swift && "$SWIFT" run -c release $(swift_paths "$scratch") \
+        tabula-codegen-check codegen-golden "$@") 2>&1 )"
+    rc=$?
+    printf '%s\n' "$out"
+    rm -rf "$scratch"
+    return "$rc"
+}
+
 step_swift_conformance() {
     if ! swift_available; then
         echo "note: $SWIFT not found; skipping"
@@ -647,7 +670,8 @@ steps=("$@")
 [ ${#steps[@]} -eq 0 ] && \
     steps=(version fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
-           kotlin-examples swift swift-compile-fail swift-conformance swift-examples)
+           kotlin-examples swift swift-compile-fail swift-conformance swift-examples \
+           swift-codegen)
 
 for s in "${steps[@]}"; do
     case "$s" in
@@ -668,6 +692,7 @@ for s in "${steps[@]}"; do
         swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
         swift-conformance)   run swift-conformance   step_swift_conformance ;;
         swift-examples)      run swift-examples      step_swift_examples ;;
+        swift-codegen)       run swift-codegen       step_swift_codegen ;;
         *) echo "unknown step: $s"; exit 2 ;;
     esac
 done

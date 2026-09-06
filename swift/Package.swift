@@ -30,6 +30,7 @@ let package = Package(
         .library(name: "TabulaTesting", targets: ["TabulaTesting"]),
         .executable(name: "tabula-check", targets: ["TabulaCheck"]),
         .executable(name: "tabula-conformance", targets: ["TabulaConformance"]),
+        .executable(name: "tabula-codegen-check", targets: ["TabulaCodegenCheck"]),
     ],
     targets: [
         .target(name: "Tabula"),
@@ -37,6 +38,14 @@ let package = Package(
         // library should not put the whole of Foundation on a consumer's link
         // line in order to trim a string.
         .target(name: "TabulaTesting", dependencies: ["Tabula"]),
+        // The generator's logic, with NO swift-syntax and no network. A Swift
+        // macro implementation must link swift-syntax, which is a remote
+        // package; `nix flake check` builds offline, so putting it in this
+        // package would break every Swift check rather than only the macro's.
+        // The macro, when it lands, parses syntax into a RawMachine and calls
+        // buildDesc + emit from here.
+        .target(name: "TabulaCodegen"),
+        .executableTarget(name: "TabulaCodegenCheck", dependencies: ["TabulaCodegen"]),
         .executableTarget(name: "TabulaCheck", dependencies: ["Tabula"]),
         .executableTarget(
             name: "TabulaConformance",

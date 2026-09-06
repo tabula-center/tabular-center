@@ -247,8 +247,27 @@ Two things the first run taught, both about the harness rather than the design:
   "2 fixture(s) failed" with every explanatory line swallowed. Both executables
   use `exit(1)` now, which flushes stdio on the way out.
 
-Not yet: `TabulaMacros` (needs swift-syntax and 5.9), the composition
-reference, and the four examples.
+### The generator, split so its logic can be verified
+
+`Sources/TabulaCodegen` turns a `MachineDesc` into Swift source: validation with
+every declaration diagnostic, plus the emitter. It has **no swift-syntax
+dependency and no network**.
+
+That split is not stylistic. A Swift macro implementation must link
+swift-syntax, which is a *remote package*, and `nix flake check` builds
+offline — so putting it in this package would break every Swift check rather
+than only the macro's. The same reasoning produced the Kotlin split, where KSP
+is the piece that needs Maven.
+
+```sh
+./tools/verify swift-codegen                # 13 diagnostics + a golden diff
+./tools/verify swift-codegen -- --bless     # accept new emitted source
+```
+
+**`TabulaMacros` is not written yet**, and swift-syntax has to be solved first:
+either vendored for the sandbox, or the macro target excluded from
+`nix flake check`. Worth deciding deliberately rather than discovering when the
+checks go red — see `PLAN.md`.
 
 ## Two drivers, one per color
 
