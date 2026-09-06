@@ -51,7 +51,7 @@ same way adding a state breaks every matrix.
 | 2 | `transition_matrix!` | done |
 | 3 | Cross-language conformance spec | done |
 | 4 | Kotlin core + KSP | **M2 passed**; core done, processor next |
-| 5 | Swift core + macro | **core compiles**; checks awaiting a run |
+| 5 | Swift core + macro | core, reference, and compile-fail passing |
 | 6 | Composition | done (Rust + Kotlin) |
 | 7 | Effects surface | done (Rust) |
 | 8 | Introspection, lints, golden snapshots | done (Rust) |

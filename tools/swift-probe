@@ -1,0 +1,15 @@
+# A standalone probe: what does this toolchain actually expose, and where is
+# libdispatch.so? Run inside `nix develop .#swift` if the check still fails.
+set -u
+echo "== swiftc =="; command -v swiftc; swiftc --version 2>&1 | head -1
+echo; echo "== print-target-info paths =="
+swiftc -print-target-info 2>/dev/null | jq '.paths' 2>/dev/null || echo "(no jq output)"
+echo; echo "== LD_LIBRARY_PATH entries =="
+IFS=':' read -ra d <<< "${LD_LIBRARY_PATH:-}"
+for x in "${d[@]}"; do [ -n "$x" ] && printf '%s  %s\n' "$([ -e "$x/libdispatch.so" ] && echo HIT || echo '  -')" "$x"; done
+echo; echo "== libdispatch.so anywhere near the toolchain =="
+root="$(dirname "$(dirname "$(readlink -f "$(command -v swiftc)")")")"
+echo "toolchain root: $root"
+find "$root" -name 'libdispatch*' 2>/dev/null | head -5
+echo; echo "== what the binary wants =="
+ldd swift/.build/*/release/tabula-check 2>/dev/null | grep -i 'not found' | head -5

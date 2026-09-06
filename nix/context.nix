@@ -43,18 +43,18 @@ let
   # best-effort. See ARCHITECTURE.md section 13.
   swiftAvailable = stdenv.isDarwin || builtins.hasAttr "swift" swiftPkgsSet;
 
-  # Whether `nix flake check` runs the Swift check.
+  # Whether `nix flake check` runs the Swift checks.
   #
-  # Darwin only, and that is a retreat rather than a preference. Four rounds of
-  # nixpkgs packaging on Linux -- NIX_CC, a triple mismatch, a missing `ar`, and
-  # `cannot load underlying module for Dispatch` -- never reached a compile of
-  # the library. None of it was our code.
+  # Back on for Linux. It was Darwin-only for four rounds while nixpkgs'
+  # packaging was worked out -- NIX_CC, a target-triple mismatch, a missing
+  # `ar`, and finally libdispatch not being on the loader path because the
+  # corelibs are separate derivations from the `swift` wrapper. None of it was
+  # our code, and `nix flake check` should not fail on a dependency's
+  # packaging while that is being untangled.
   #
-  # `nix flake check` should not fail on a dependency's packaging, so on Linux
-  # Swift moves to `nix develop .#swift` + `./tools/verify swift`, which is one
-  # command and reports honestly. If someone gets nixpkgs' Linux Swift working,
-  # flipping this back is a one-line change.
-  swiftChecked = stdenv.isDarwin;
+  # It is untangled: the Swift checks pass on Linux. See swiftCorelibs above
+  # for the piece that was missing.
+  swiftChecked = swiftAvailable;
 
   # Swift's setup-hook reads NIX_CC and dies with `NIX_CC: unbound variable`
   # without it. The obvious fix -- putting `stdenv.cc` in the inputs -- is
@@ -74,8 +74,48 @@ let
   # triple, and swiftc then reports `glibc not found for x86_64-pc-linux-gnu`
   # while its own modules are built for `x86_64-unknown-linux-gnu`. Every Swift
   # failure so far has carried that warning; it was the cause, not noise.
+  # The corelibs, which are separate derivations from the `swift` wrapper.
+  #
+  # `${swiftPkgsSet.swift}/lib/swift/linux` does not exist: the wrapper and the
+  # runtime live in different store paths, which is why a library path built
+  # only from `swift` still had no libdispatch.so in it. Named with `or null`
+  # so the set can differ between nixpkgs revisions without breaking eval.
+  #
+  # XCTest is in this list on purpose: if it turns out to be present, the
+  # checks can go back to being a real test target.
+  swiftCorelibs = lib.optionals (builtins.hasAttr "swiftPackages" swiftPkgsSet) (
+    lib.filter (x: x != null) (
+      map (n: swiftPkgsSet.swiftPackages.${n} or null) [
+        "Dispatch"
+        "Foundation"
+        "FoundationNetworking"
+        "XCTest"
+        "swift-corelibs-libdispatch"
+      ]
+    )
+  );
+
+  # Packages whose LIBRARIES are needed but whose `bin` must stay off PATH.
+  #
+  # `swift-unwrapped` is the compiler without nix's wrapper. Putting it in the
+  # inputs shadowed `swift-wrapper/bin/swiftc`, and the unwrapped compiler does
+  # not know nix's target triple, so it reported
+  #
+  #   could not find module 'Swift' for target 'x86_64-pc-linux-gnu';
+  #   found: x86_64-unknown-linux-gnu
+  #
+  # -- the same triple mismatch as round 2, caused the same way: by adding a
+  # package to fix a library path and changing which compiler runs. Its `lib`
+  # output is still wanted, so it contributes to swiftLibraryPath only.
+  swiftLibOnly = lib.optionals (builtins.hasAttr "swiftPackages" swiftPkgsSet) (
+    lib.filter (x: x != null) (
+      map (n: swiftPkgsSet.swiftPackages.${n} or null) [ "swift-unwrapped" ]
+    )
+  );
+
   swiftPkgs = lib.optionals swiftAvailable (
     [ swiftPkgsSet.swift swiftPkgsSet.binutils swiftPkgsSet.stdenv.cc ]
+    ++ swiftCorelibs
     ++ lib.optionals (builtins.hasAttr "swiftpm" swiftPkgsSet) [ swiftPkgsSet.swiftpm ]
     ++ lib.optionals (builtins.hasAttr "swift-format" swiftPkgsSet) [ swiftPkgsSet.swift-format ]
   );
@@ -120,7 +160,7 @@ let
   # than have the script guess. Both `lib` and `lib/swift/linux`, because the
   # toolchain uses both.
   swiftLibraryPath = lib.concatStringsSep ":" (
-    lib.concatMap (p: [ "${p}/lib" "${p}/lib/swift/linux" ]) swiftPkgs
+    lib.concatMap (p: [ "${p}/lib" "${p}/lib/swift/linux" ]) (swiftPkgs ++ swiftLibOnly)
   );
 
   mkShell = name: extra: env: pkgs.mkShell ({

@@ -1,9 +1,14 @@
 # tabula — Swift
 
-## Status: unverified, and not in `nix flake check` on Linux
+## Status: passing
 
-`Sources/Tabula` and `Tests/TabulaTests` have never been compiled. Everything
-here is written from the Rust and Kotlin implementations, which are verified.
+40 checks green on Linux under Swift 5.10.1, and back in `nix flake check`.
+
+Three predicted failures did not happen: `Step`'s `Equatable` synthesis on a
+generic enum with labelled associated values, tuple pattern matching on
+`(S, A)` in the dispatcher, and `Assert.eq` on arrays of enums with associated
+values all worked first time. The eight rounds it took were entirely nixpkgs
+packaging; not one was a mistake in the Swift.
 
 ```sh
 nix develop .#swift
@@ -21,11 +26,27 @@ The design survives three languages.
 Two things had to change to get the *checks* running alongside it, and both are
 toolchain accommodations rather than design changes:
 
-- **No XCTest.** nixpkgs' Swift does not ship it (`no such module 'XCTest'`),
-  so the checks are a plain executable with a thirty-line assertion harness —
-  exactly what the Kotlin side does about JUnit, for the same reason: a test
-  framework that has to be resolved is one that can stop the tests running at
-  all. The cost is no `swift test` integration and no per-test isolation.
+- **No XCTest.** The checks are a plain executable with a thirty-line
+  assertion harness — exactly what the Kotlin side does about JUnit, for the
+  same reason: a test framework that has to be resolved is one that can stop
+  the tests running at all. The cost is no `swift test` integration and no
+  per-test isolation.
+
+  **XCTest turned out to be available after all.** `swift-corelibs-xctest` is
+  in nixpkgs; the original `no such module 'XCTest'` was because it was not in
+  the inputs, and `swiftCorelibs` now names it. So this is a live choice rather
+  than a constraint, and the harness stays:
+
+  - It works, and it is the same shape as the Kotlin side, which makes the
+    three implementations read alike.
+  - It has no dependency to resolve, which matters for a library whose whole
+    claim is that its guarantees are checkable anywhere.
+  - Switching back would cost a round and buy no new guarantee — the four
+    `compile_fail/` fixtures are what prove the design, and they do not use a
+    test framework either.
+
+  If per-test isolation or `swift test` integration becomes worth it, XCTest is
+  one `Package.swift` change away.
 - **Release, not debug.** Emitting debug info failed with `emit-module command
   failed` on the same missing-glibc warning; release skips the AST-wrapping
   step that needs it, and the checks do not care about debug info.
@@ -49,16 +70,35 @@ in Glibc, and importing a C module is precisely what keeps breaking here.
   toolchain, but it reports *module* search paths and on nixpkgs does not
   contain libdispatch at all — which is why it was not enough on its own.
 
+  The corelibs — Dispatch, Foundation, XCTest — are **separate derivations**
+  from the `swift` wrapper, so `${swift}/lib/swift/linux` does not exist.
+
+  `swift-unwrapped` is a trap here. Its `lib` output is wanted, but putting the
+  package in the inputs shadows `swift-wrapper/bin/swiftc`, and the unwrapped
+  compiler does not know nix's target triple. It is in `swiftLibOnly`, which
+  contributes to the library path and never to PATH. `tools/verify swift` now
+  prints which `swiftc` it is using, because the two are indistinguishable from
+  the version string. They
+  are named explicitly in `swiftCorelibs` (`nix/context.nix`), guarded with
+  `or null` so the set can differ between nixpkgs revisions without breaking
+  eval.
+
+  If it still is not found, `tools/swift-probe` prints what the toolchain
+  advertises, which `LD_LIBRARY_PATH` entries actually contain
+  `libdispatch.so`, and where it is under the toolchain root. That output is
+  worth more than another round of guessing.
+
   Outside `nix develop .#swift`, point `LD_LIBRARY_PATH` at your toolchain's
   lib directory. `tools/verify swift` checks for `libdispatch.so` up front and
   says which case you are in, because a missing shared library is otherwise
   reported after a successful build in a message that reads like a build
   failure.
 
-### Why the check is Darwin-only in `nix flake check`
+### The eight rounds, for the next person
 
-A retreat, not a preference. Four rounds of nixpkgs packaging on Linux never
-reached a compile of the library:
+The Swift check was Darwin-only for four of them. `nix flake check` should not
+fail on a dependency's packaging while it is being untangled — and it was
+untangled, so it is back on for Linux.
 
 | | error | cause |
 |---|---|---|
@@ -66,6 +106,11 @@ reached a compile of the library:
 | 2 | `could not find module '_Concurrency'` | caused by fixing (1) with `stdenv.cc`; a **triple mismatch**, not a missing module |
 | 3 | `toolchain is invalid: could not find ar` | SwiftPM needs `binutils` |
 | 4 | `cannot load underlying module for 'Dispatch'` | the triple again |
+| 5 | *the library compiled* | — |
+| 6 | `no such module 'XCTest'` | nixpkgs' Swift does not ship it |
+| 7 | `emit-module command failed` | debug-info emission; build release |
+| 8 | `libdispatch.so: cannot open shared object file` | the corelibs are **separate derivations** from the `swift` wrapper |
+| 9 | `could not find module 'Swift' for target 'x86_64-pc-linux-gnu'` | **round 2 again** — `swift-unwrapped` in the inputs shadowed `swift-wrapper/bin/swiftc`, and the unwrapped compiler does not know nix's target triple |
 
 Every one carried the same warning:
 
@@ -82,9 +127,12 @@ The likely reason, and my mistake: round 3 put `binutils` from the pinned
 nixpkgs next to `swift` from unstable. **Two nixpkgs generations disagree about
 the host triple.** The whole Swift toolchain now comes from one of them.
 
-It did fix it — the library compiled on the next run. `nix flake check` stays
-Darwin-only until the *checks* have gone green on Linux too; flipping
-`swiftChecked` in `nix/context.nix` is one line once they have.
+It did fix it — the library compiled on the next run, and rounds 6 to 8 were
+about running the checks rather than building the library.
+
+The lesson worth keeping is round 8's: I spent three rounds guessing at a store
+layout I could not see. `tools/swift-probe` answers it in one run, and should
+be the first thing tried next time.
 
 ## Which shape Swift takes
 
@@ -111,12 +159,28 @@ would cap a machine at one child.
 | | |
 |---|---|
 | `Sources/Tabula` | `Step`, `Cell`, `Table`, `Export`, `Lint`, `Driver`, `AsyncDriver` |
-| `Tests/TabulaTests/ReferenceTimer.swift` | the macro's specification, hand-written |
-| `Tests/TabulaTests/ReferenceTimerTests.swift` | 19 tests, the same assertions as the other two languages |
+| `Sources/TabulaCheck/ReferenceTimer.swift` | the macro's specification, hand-written |
+| `Sources/TabulaCheck/main.swift` | 40 checks, the same assertions as the other two languages |
+| `compile_fail/` | one fixture per guarantee |
 
-Not yet: `TabulaMacros` (needs swift-syntax), `TabulaTesting` (the conformance
-harness), and the four examples. Deliberately — a first failure should not be
-ambiguous between the core and a macro plugin.
+### What `compile_fail/` proves
+
+The library's whole claim is that an incomplete machine does not compile.
+Swift now has the evidence, four fixtures, checked by
+`./tools/verify swift-compile-fail`:
+
+| fixture | proves |
+|---|---|
+| `missing_cell` | omitting a `HANDLE` cell fails — `does not conform to protocol` |
+| `missing_effect_handler` | the same for the effect surface |
+| `new_state_breaks_dispatcher` | adding a state breaks the generated `switch` — Swift's own exhaustiveness check, the free second guarantee |
+| `child_hole_breaks_parent` | **the composition property**: a type implementing every parent cell still fails, because `protocol SessionCells: AuthCells` |
+
+`swiftc -typecheck` against the built module, not `swift build`: the fixtures
+must not be part of a target, or the package itself would stop building.
+
+Not yet: `TabulaMacros` (needs swift-syntax and 5.9), `TabulaTesting` (the
+conformance harness), and the four examples.
 
 ## Two drivers, one per color
 

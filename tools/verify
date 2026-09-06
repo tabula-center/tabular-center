@@ -10,7 +10,7 @@
 # Usage:  tools/verify [step ...]      (default: all)
 # Steps:  version fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
-#         kotlin-examples swift
+#         kotlin-examples swift swift-compile-fail
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
@@ -276,6 +276,29 @@ SWIFTC="${SWIFTC:-swiftc}"
 
 swift_available() { command -v "$SWIFT" >/dev/null 2>&1; }
 
+# SwiftPM wants a writable HOME for its caches and fails outright without one
+# in a sandbox. Shared by both swift steps: `swift-compile-fail` originally had
+# its own setup, lacked this, and reported the resulting silent build failure
+# as "could not locate the built Tabula module" -- a message about the symptom
+# two steps downstream of the cause.
+swift_home() {
+    local scratch="$1"
+    export HOME="${HOME:-$scratch/home}"
+    [ -w "$HOME" ] || export HOME="$scratch/home"
+    mkdir -p "$HOME"
+}
+
+# SwiftPM's per-user directories, which it locates from the *passwd* entry
+# rather than $HOME -- in a nix sandbox that is /var/empty, and it warns twice
+# per invocation about not being able to write there. These flags point it
+# somewhere writable instead. Two warnings in every log is how warnings stop
+# being read.
+swift_paths() {
+    local scratch="$1"
+    printf '%s' "--scratch-path $scratch/build --cache-path $scratch/cache \
+--config-path $scratch/config --security-path $scratch/security"
+}
+
 step_swift() {
     if ! swift_available; then
         echo "note: $SWIFT not found; skipping (nix develop .#swift provides it)"
@@ -284,6 +307,10 @@ step_swift() {
     # Report the version. nixpkgs pins an older Swift than swift.org ships, and
     # a tools-version above the toolchain is a hard refusal -- worth seeing in
     # the log before reading a wall of compiler errors.
+    # Which swiftc, not just which version. `swift-unwrapped` shadowing
+    # `swift-wrapper` on PATH cost a round, and the two are indistinguishable
+    # from the version string alone.
+    echo "note: $(command -v "$SWIFTC")"
     "$SWIFT" --version 2>&1 | head -1 | sed 's/^/note: /'
 
     # SwiftPM wants a writable HOME for its caches and warns twice per run
@@ -291,9 +318,7 @@ step_swift() {
     # than letting two warnings sit in every log until they are ignored.
     local scratch
     scratch="$(mktemp -d)"
-    export HOME="${HOME:-$scratch/home}"
-    [ -w "$HOME" ] || export HOME="$scratch/home"
-    mkdir -p "$HOME"
+    swift_home "$scratch"
 
     local out rc
     # The built binary links against libdispatch and friends, and nothing puts
@@ -306,12 +331,20 @@ step_swift() {
     # -print-target-info` is appended as a fallback for a non-nix toolchain,
     # but it reports MODULE search paths and on nixpkgs does not contain
     # libdispatch at all, which is why it was not enough on its own.
-    local swiftlib
-    swiftlib="$("$SWIFTC" -print-target-info 2>/dev/null \
-        | jq -r '.paths.runtimeLibraryPaths[0] // empty' 2>/dev/null)"
-    if [ -n "$swiftlib" ] && [ -d "$swiftlib" ]; then
-        export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$swiftlib"
-    fi
+    # ALL of the paths print-target-info reports, not just the first. The
+    # runtime is spread across several directories and libdispatch is not
+    # necessarily in the one that happens to come first.
+    local info extra
+    info="$("$SWIFTC" -print-target-info 2>/dev/null || true)"
+    extra="$(printf '%s' "$info" | jq -r '
+        [ (.paths.runtimeLibraryPaths // [])[],
+          (.paths.runtimeLibraryImportPaths // [])[],
+          (.paths.runtimeResourcePath // empty) ] | .[]' 2>/dev/null || true)"
+    local d
+    while IFS= read -r d; do
+        [ -n "$d" ] && [ -d "$d" ] && \
+            export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$d"
+    done <<< "$extra"
 
     # Say up front whether the runtime is actually reachable. A missing shared
     # library is otherwise reported by the loader, after a successful build,
@@ -322,12 +355,30 @@ step_swift() {
     for dir in "${__dirs[@]}"; do
         [ -n "$dir" ] && [ -e "$dir/libdispatch.so" ] && { found="$dir"; break; }
     done
+    # Last resort: the corelibs are somewhere under the toolchain's resource
+    # path even when no advertised directory lists them. Searching beats
+    # failing with a message that only says what is missing.
+    if [ -z "$found" ]; then
+        local resource hit
+        resource="$(printf '%s' "$info" | jq -r '.paths.runtimeResourcePath // empty' 2>/dev/null || true)"
+        for dir in "$resource" "${resource%/*}" "${resource%/*/*}"; do
+            [ -n "$dir" ] && [ -d "$dir" ] || continue
+            hit="$(find "$dir" -maxdepth 4 -name libdispatch.so -print -quit 2>/dev/null || true)"
+            if [ -n "$hit" ]; then
+                found="$(dirname "$hit")"
+                export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$found"
+                break
+            fi
+        done
+    fi
+
     if [ -n "$found" ]; then
         echo "note: swift runtime at $found"
     else
-        echo "note: libdispatch.so is not on LD_LIBRARY_PATH."
-        echo "      Inside 'nix develop .#swift' it is set for you; outside,"
-        echo "      point LD_LIBRARY_PATH at your toolchain's lib directory."
+        echo "note: libdispatch.so is not on LD_LIBRARY_PATH, and was not found"
+        echo "      under the toolchain's resource path either. On nixpkgs the"
+        echo "      corelibs are separate derivations from the swift wrapper;"
+        echo "      see swiftCorelibs in nix/context.nix."
     fi
 
     # `swift run`, not `swift test`: nixpkgs' Swift does not ship XCTest, so
@@ -337,9 +388,8 @@ step_swift() {
     # `emit-module command failed` on the same missing-glibc warning that has
     # dogged this toolchain, and release skips the AST-wrapping step that
     # needs it. The checks do not care about debug info.
-    out="$( (cd swift && "$SWIFT" run -c release tabula-check \
-        --scratch-path "$scratch/build" \
-        --cache-path "$scratch/cache") 2>&1 )"
+    # shellcheck disable=SC2046  # word splitting is what swift_paths is for
+    out="$( (cd swift && "$SWIFT" run -c release tabula-check $(swift_paths "$scratch")) 2>&1 )"
     rc=$?
     printf '%s\n' "$out"
     rm -rf "$scratch"
@@ -360,6 +410,70 @@ step_swift() {
         echo "  you by nix/context.nix."
     fi
     return "$rc"
+}
+
+# Every diagnostic and every guarantee gets a fixture that must FAIL to
+# compile. Swift's counterpart of tools/compile-fail and the Kotlin step.
+#
+# `swiftc -typecheck` against the built module rather than `swift build`: the
+# fixtures must not be part of a target, or the package itself would stop
+# building.
+step_swift_compile_fail() {
+    if ! swift_available; then
+        echo "note: $SWIFT not found; skipping"
+        return 0
+    fi
+
+    local scratch
+    scratch="$(mktemp -d)"
+    swift_home "$scratch"
+
+    # Build, and show the output if it fails. Discarding it meant a build
+    # failure surfaced as a missing module, which is the wrong problem two
+    # steps later.
+    local build
+    # shellcheck disable=SC2046
+    build="$( (cd swift && "$SWIFT" build -c release $(swift_paths "$scratch")) 2>&1 )" || {
+        echo "the package failed to build:"
+        printf '%s\n' "$build" | tail -20
+        rm -rf "$scratch"
+        return 1
+    }
+
+    # `--show-bin-path` rather than searching for a .swiftmodule: SwiftPM knows
+    # where it put things, and the layout under the scratch path differs
+    # between versions.
+    local bin modules
+    # shellcheck disable=SC2046
+    bin="$( (cd swift && "$SWIFT" build -c release $(swift_paths "$scratch") \
+        --show-bin-path) 2>/dev/null )"
+    modules="$bin/Modules"
+    [ -d "$modules" ] || modules="$bin"
+    if [ ! -d "$modules" ]; then
+        echo "could not locate the built module directory (bin path: ${bin:-none})"
+        rm -rf "$scratch"
+        return 1
+    fi
+
+    local bad=0 f exp err
+    for f in swift/compile_fail/*.swift; do
+        exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
+        err="$("$SWIFTC" -typecheck -I "$modules" "$f" 2>&1 || true)"
+        if [ -z "$err" ]; then
+            echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
+            bad=1
+        elif printf '%s' "$err" | grep -qF -- "$exp"; then
+            echo "ok   $(basename "$f")"
+        else
+            echo "FAIL $(basename "$f")"
+            echo "     expected: $exp"
+            printf '%s\n' "$err" | grep -E "error:" | head -3 | sed 's/^/       /'
+            bad=1
+        fi
+    done
+
+    rm -rf "$scratch"
+    return "$bad"
 }
 
 step_kotlin_codegen() {
@@ -457,7 +571,7 @@ steps=("$@")
 [ ${#steps[@]} -eq 0 ] && \
     steps=(version fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
-           kotlin-examples swift)
+           kotlin-examples swift swift-compile-fail)
 
 for s in "${steps[@]}"; do
     case "$s" in
@@ -475,6 +589,7 @@ for s in "${steps[@]}"; do
         kotlin-codegen)      run kotlin-codegen      step_kotlin_codegen ;;
         kotlin-examples)     run kotlin-examples     step_kotlin_examples ;;
         swift)               run swift               step_swift ;;
+        swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
         *) echo "unknown step: $s"; exit 2 ;;
     esac
 done
