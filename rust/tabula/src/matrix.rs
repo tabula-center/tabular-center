@@ -106,9 +106,13 @@
 /// | `GO!(target)` / `GO!(target, eff, ...)` | no | unconditional transition |
 /// | `EMIT!(eff, ...)` | no | stay, emitting effects |
 /// | `HANDLE` | **yes** | developer writes the body |
+/// | `DELEGATE!(child_module)` | **yes** | run the child machine and fold the result back |
 /// | `UNREACHABLE` | no | asserted impossible; compiles to a trap |
 ///
-/// | `DELEGATE!(child_module)` | **yes** | run the child machine and fold the result back |
+/// `EMIT!()` with no effects is rejected (`tabula::empty-emit`). It would mean
+/// "handled, no transition, nothing emitted", which is `IGNORE` if the action
+/// does not apply here and `HANDLE` if it does — and accepting it would make
+/// those two indistinguishable in the table.
 ///
 /// # Large machines need a raised recursion limit
 ///
@@ -614,6 +618,34 @@ macro_rules! transition_matrix {
             cur_actions=[$($carest)*] cur_cells=[$($crest)*]
             rows=[$($rest)*]
         );
+    };
+
+    // ---- EMIT!() with no effects (tabula::empty-emit) ----
+    //
+    // Must precede the general EMIT arm below: `$($g:tt)*` matches zero
+    // tokens, so it would otherwise swallow this and the cell would expand to
+    // `Step::stay()` with an empty effect list.
+    //
+    // That is what it did until now, which is why Kotlin and Swift rejected
+    // `EMIT()` and Rust quietly accepted it -- a divergence the conformance
+    // suite structurally cannot catch, since no fixture would ever write a
+    // cell the spec forbids.
+    //
+    // `$(,)?` rather than a bare `()`, so `EMIT!(,)` is caught too. It parses
+    // as an empty effect list for the same reason and means the same thing.
+    (@bound_row
+        m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
+        states=[$($sv:ident)*] actions=[$($av:ident)*] rows_all=[$($ra:tt)*]
+        acc=[$($acc:tt)*] st=$st:ident
+        cur_actions=[$ca:ident $($carest:ident)*] cur_cells=[EMIT ! ($(,)?) $($crest:tt)*]
+        rows=[$($rest:tt)*]
+    ) => {
+        ::core::compile_error!(::core::concat!(
+            "tabula::empty-emit: cell (", ::core::stringify!($st), ", ",
+            ::core::stringify!($ca),
+            ") uses EMIT with no effects. Use IGNORE if the action is not \
+             applicable in this state, or HANDLE if it is handled deliberately."
+        ));
     };
 
     (@bound_row

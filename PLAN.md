@@ -34,15 +34,24 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 1 Rust core, no macro | **done** |
 | 2 `transition_matrix!` | **done** |
 | 3 The spec | **done** |
-| 4 Kotlin core + KSP | **M2 PASSED**; core done, processor next |
-| 5 Swift | core, reference, compile-fail, testing, conformance, **examples**; macros to come |
-| 6 Composition | **done (Rust and Kotlin)** |
+| 4 Kotlin core + KSP | **M2 PASSED**; core, codegen, conformance done. KSP adapter written, never run |
+| 5 Swift | core, reference, compile-fail, testing, conformance, examples, **codegen**; macros to come |
+| 6 Composition | **done (all three)** |
 | 7 Effects surface | **done (Rust half)** |
 | 8 Introspection & tooling | **done (Rust half)** |
 | 9 Runtime / drivers | **done (Rust half)** |
 
-68 tests, 7 compile-fail fixtures, 4 conformance fixtures (28 trace steps),
-4 golden matrix snapshots.
+84 Rust tests; 18 compile-fail fixtures (9 Rust, 4 Kotlin, 1 Kotlin-codegen,
+4 Swift); 4 conformance fixtures (28 trace steps); 4 golden `.grid` and
+4 golden `.lint` snapshots.
+
+These counts are checked against the tree, not remembered. Regenerate with:
+
+```
+grep -rho '#\[test\]' rust/ | wc -l
+ls rust/tabula/tests/compile_fail/*.rs | grep -vc _prelude
+grep -h '=>' spec/conformance/traces/*.trace | wc -l
+```
 
 ### Phase 7: the grammar change, made
 
@@ -151,6 +160,11 @@ the hand-written version.
 - [x] Payload-free fast path: `[[Cell; M]; N]` + index dispatch
 - [x] Color splatting: `async` / `unsafe` / `const` / `extern`, with `$(.await)?`
       at call sites
+- [x] `EMIT!()` rejected as `tabula::empty-emit`. Found by the audit, not by
+      the conformance suite, which cannot find this class of bug: it compares
+      behaviour, and no fixture writes a cell the spec forbids. Kotlin and
+      Swift had rejected it since their generators were written; Rust expanded
+      it to `Step::stay()`.
 - [x] Compile-fail suite: every diagnostic has a fixture. **Not `trybuild`** —
       it would be the crate's only dev-dependency. `tools/compile-fail` is 40
       lines of bash driving `rustc` directly and reading a `//~ EXPECT:` line
@@ -179,8 +193,13 @@ someone who did not write the macro.
 **Exit criterion:** `spec/` is complete enough that a second implementation
 could be written from it without reading the Rust source.
 
-- [ ] `spec/cells.md` — normative semantics of all six cell kinds, including
-      the `IGNORE` vs `stay([])` distinction and `UNREACHABLE` trap behaviour
+- [x] `spec/cells.md` — normative semantics of all six cell kinds, including
+      the `IGNORE` vs `stay([])` distinction and `UNREACHABLE` trap behaviour.
+      Written last, from three working implementations rather than from the
+      design, which is why it can state the trap message and the two
+      serialised effect-list spellings as normative facts instead of
+      intentions. `EXPAND` is documented there as a *row* directive and
+      explicitly not a cell kind — it never reaches `TABLE`.
 - [x] `spec/diagnostics.md` — error codes and message text, normative across
       languages. Now includes `tabula::missing-row` / `tabula::extra-row`
       (not anticipated) and records that the *missing-implementation* error is
@@ -189,9 +208,14 @@ could be written from it without reading the Rust source.
 
 - [x] Fixtures: `timer` (payload states, HANDLE, GO with effects),
       `toggle` (payload-free, and the only coverage for EMIT and UNREACHABLE)
-- [ ] Fixtures deferred to their own phases: `nested-delegate` (6),
-      `effects-never` (7), `payload-hoist` (8)
-- [ ] Trace format: `(state, action) → (state, effects)` sequences
+- [x] Fixture deferred to its own phase, and landed there: `nested-delegate`
+      (Phase 6), with `retry` alongside it as the child in its own right
+- [ ] Fixtures still outstanding: `effects-never` (7), `payload-hoist` (8).
+      `payload-hoist` needs payload metadata in all three languages before it
+      can be shared — Rust has `PAYLOADS`, the other two fixtures do not
+      declare it, which is why no current fixture triggers the lint
+- [x] Trace format: `(state, action) → (state, effects)` sequences, specified
+      in `spec/conformance/README.md` and parsed by all three harnesses
 - [x] Rust harness passing all fixtures, plus `table-diff`. Verified against
       three classes of deliberately introduced drift: a wrong cell kind, a
       `stay`/`ignored` confusion, and a wrong effect. **Table checking is not
@@ -222,16 +246,21 @@ the build with a comprehensible message; the developer's source file contains no
 `when`.
 
 **4a. Core (KMP, commonMain, zero runtime deps)**
-- [ ] `Step<S, F>`, `Cell`
-- [ ] Blocking driver + mailbox
-- [ ] Suspend driver taking `suspend () -> A` (stdlib `suspend` only, **no**
-      `kotlinx.coroutines` dependency — verify with a dependency report check in CI)
+- [x] `Step<S, F>`, `Cell`
+- [x] Blocking driver + mailbox
+- [x] Suspend driver taking `suspend () -> A` (stdlib `suspend` only, **no**
+      `kotlinx.coroutines` dependency). Enforced by construction rather than by
+      a dependency report: with no build system there is no classpath but the
+      stdlib. The report check is wired up but gated on `has.kotlinGradle`, so
+      it stays dormant until Gradle can resolve.
 
 **4b. Annotations**
-- [ ] `@Machine`, `@Row`, cell markers (`HANDLE`, `IGNORE`, `GO`, `EMIT`,
+- [x] `@Machine`, `@Row`, cell markers (`HANDLE`, `IGNORE`, `GO`, `EMIT`,
       `DELEGATE`, `UNREACHABLE`, `EXPAND`)
-- [ ] Nested-annotation shape that survives Kotlin's array-of-annotation limits
-      — **spike this first**, it is the main unknown in Kotlin
+- [x] Nested-annotation shape that survives Kotlin's array-of-annotation limits.
+      Spiked first, as planned, and it held: `@Row(S.Idle::class, [CellSpec(...)])`
+      compiles with `KClass` cells. The `.tabula`-file fallback was not needed
+      and is not carried.
 
 **4c. Code generator** — split so the risky half can be verified without KSP
 
@@ -296,11 +325,20 @@ end of 4b — do not carry both.
 
 ## Phase 5 — Swift core + macro
 
-**Exit criterion:** parity with Kotlin on the conformance suite.
+**Exit criterion:** parity with Kotlin on the conformance suite. **Met** — all
+four fixtures pass, with the same golden `.grid` and `.lint` files.
 
-- [ ] `Step`, `Cell`; `Store`, `actor AsyncStore`, `@MainActor @Observable ObservableStore`
+- [x] `Step`, `Cell`, `Table`, `Export`, `Lint`, `Driver`, testing harness
+- [x] Reference machine and compile-fail suite, the counterparts of
+      `reference_timer.rs` and `kotlin/compile_fail/`
+- [x] `Sources/TabulaCodegen`: the same `MachineDesc -> String` split Kotlin
+      took, with a golden diff and 13 declaration diagnostics. Split for the
+      same reason and it paid the same way — the generator's logic is testable
+      without the macro that does not exist yet.
+- [ ] `Store`, `actor AsyncStore`, `@MainActor @Observable ObservableStore`
 - [ ] `@Machine` attached macro (SwiftSyntax, **build-time only** — assert with
-      a linked-binary check in CI)
+      a linked-binary check in CI). Blocked on the swift-syntax packaging
+      decision; see the backlog entry below.
 - [ ] Synthesize payload-free `Tag` enums for table indexing
 - [ ] Validate `matrix` literal shape at expansion; row-arity diagnostics at
       correct source positions

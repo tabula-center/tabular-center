@@ -4,9 +4,17 @@ Normative across all three implementations. The three code generators will
 drift unless something pins them, and error messages are the part developers
 actually read.
 
-Every code below has a fixture under the implementation's compile-fail suite
-(`rust/tabula/tests/compile_fail/`, later KSP compile-testing and
-swift-macro-testing). A diagnostic without a fixture is not shipped.
+Every code below has a fixture under the implementation's compile-fail suite:
+`rust/tabula/tests/compile_fail/`, `kotlin/compile_fail/`,
+`kotlin/codegen/compile_fail/`, and `swift/compile_fail/`. A diagnostic without
+a fixture is not shipped.
+
+All three suites are driven by `tools/verify`, reading a `//~ EXPECT:` line
+from each fixture — not by `trybuild`, KSP compile-testing, or
+swift-macro-testing. Each of those would have been the project's only
+dependency in its language, to do something a few lines of bash already does.
+
+Cell semantics are specified separately, in `cells.md`.
 
 ## Format
 
@@ -37,7 +45,8 @@ Expected columns: Start Tick Cancel
 Names the *first* offending column rather than counting, because "expected 3,
 found 2" makes the developer count columns by hand.
 
-**Status:** implemented (Rust).
+**Status:** implemented in all three (Rust `matrix.rs`, Kotlin `codegen/Raw.kt`,
+Swift `TabulaCodegen/Raw.swift`).
 
 ---
 
@@ -57,7 +66,7 @@ errors abort before const evaluation, so a const check never gets to speak.
 Whichever mechanism a language uses, this diagnostic has to win the race
 against the incidental one.
 
-**Status:** implemented (Rust).
+**Status:** implemented in all three.
 
 ---
 
@@ -73,7 +82,9 @@ IGNORE, HANDLE, UNREACHABLE, GO!(..), EMIT!(..).
 Names row *and* column. In a 8x12 matrix, "unknown cell `MAYBE`" is not enough
 to find it.
 
-**Status:** implemented (Rust). `DELEGATE!` joins the accepted list in Phase 6.
+**Status:** implemented in all three. `DELEGATE!` joined the accepted list in
+Phase 6, so the Rust message now reads
+`IGNORE, HANDLE, UNREACHABLE, GO!(..), EMIT!(..), DELEGATE!(..)`.
 
 ---
 
@@ -104,7 +115,9 @@ tabula::go-target: cell (Done, Start) uses GO to `Running`, which requires
 Without this rule `GO` quietly becomes the lazy option and developers stuff
 zero values into payloads to avoid writing a cell.
 
-**Status:** implemented (Rust, by construction).
+**Status:** implemented in all three — Rust by construction, Kotlin and Swift
+as the explicit form, since neither generator can put the target expression
+somewhere the runtime bindings are out of scope.
 
 ---
 
@@ -151,6 +164,47 @@ Rows are identified by **position**, so an out-of-order row is reported as
 `missing-row` rather than accepted as a reordering: it is a row for the wrong
 state, not the right row in the wrong place.
 
+**Rust emits five of these, and the four it omits are conformant.**
+`unknown-state`, `unknown-effect`, `unknown-child`, and `go-target` are all
+name resolution in Rust: the macro splices the identifier into an expression
+and `rustc` rejects it, naming the same thing our message would have. Emitting
+our own on top would mean intercepting a better error to replace it with a
+worse one.
+
+`empty-emit` is different, and was a real gap rather than a delegation. Nothing
+resolves `EMIT!()` — it parses as an empty effect list and expands to
+`Step::stay()`, so Rust silently accepted a cell the spec forbids while Kotlin
+and Swift rejected it. The conformance suite is structurally unable to catch
+that: it compares behaviour, and no fixture writes a forbidden cell.
+
+| Code | Rust | Kotlin | Swift |
+|---|---|---|---|
+| `row-arity` | yes | yes | yes |
+| `missing-row` / `extra-row` | yes | yes | yes |
+| `unknown-cell` | yes | yes | yes |
+| `unknown-state` | by rustc | yes | yes |
+| `unknown-effect` | by rustc | yes | yes |
+| `unknown-child` | by rustc | yes | yes |
+| `go-target` | by construction | yes | yes |
+| `empty-emit` | yes | yes | yes |
+
+### `tabula::empty-emit`
+
+```
+tabula::empty-emit: cell (Off, Poke) uses EMIT with no effects. Use IGNORE if
+the action is not applicable in this state, or HANDLE if it is handled
+deliberately.
+```
+
+Names both remedies, because which one is right depends on something the
+generator cannot know: whether the developer means the pair is meaningless or
+means it is handled. Both are one word.
+
+In Rust the check must be a muncher arm placed *before* the general `EMIT!`
+arm — `$($g:tt)*` matches zero tokens, so the general arm would otherwise
+swallow it. Another instance of the rule in `ARCHITECTURE.md` §11.1: the useful
+diagnostic has to be emitted earlier than the incidental one.
+
 ## `tabula::color-mismatch` (Phase 6)
 
 ```
@@ -192,7 +246,12 @@ Two rules govern the set, learned by writing it:
 terminal state and a forgotten row are indistinguishable from the matrix, and
 one line of output is a fair price for catching the second.
 
-**Status:** implemented (Rust).
+**Status:** implemented in all three, and *checked* across all three: the lint
+output is a golden file (`spec/conformance/<name>.lint`) that Rust blesses and
+the other two only read. Until that existed the three implementations printed
+their warnings side by side with nothing asserting they agreed, and the lints
+hold the most per-language logic in the project — the 70% and 25% thresholds,
+the `dead-row` subsumption, the fully-static gate on reachability.
 
 ---
 
@@ -216,4 +275,8 @@ The field list is metadata about the states, so it is emitted as a separate
 A generator that cannot resolve a field's type degrades this one lint rather
 than the machine.
 
-**Status:** implemented (Rust and Kotlin).
+**Status:** implemented in all three. Not yet *checked* across all three: no
+conformance fixture triggers it, because only Rust's fixture machines declare
+`PAYLOADS`. A fixture that did would need payload metadata in every language,
+which is why `payload-hoist` is still listed as an outstanding fixture in
+`PLAN.md` rather than treated as covered.

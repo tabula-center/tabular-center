@@ -786,64 +786,90 @@ are all just tokens the macro splices, which is exactly the prototype scheme.
 
 ```
 tabula/
-├── flake.nix                    # dev shells + checks for all three toolchains
+├── flake.nix                    # a table of contents; the substance is in nix/
 ├── flake.lock
+├── nix/
+│   ├── context.nix              # toolchains, per-system
+│   ├── shells.nix               # devShells
+│   ├── checks.nix               # nix flake check — every entry calls tools/verify
+│   ├── apps.nix                 # nix run .#conformance, .#table-diff, .#verify
+│   └── publish.nix              # release + publish, allowed to touch the network
+├── justfile                     # thin aliases over tools/verify
+├── VERSION                      # single source of truth; every manifest derives
 ├── ARCHITECTURE.md              # this file
 ├── PLAN.md
-├── README.md
+├── README.md  CONTRIBUTING.md  RELEASING.md
 │
 ├── spec/
 │   ├── cells.md                 # normative semantics of the six cell kinds
 │   ├── diagnostics.md           # normative error codes + message text
 │   └── conformance/
-│       ├── schema.json          # machine-description format
-│       ├── timer.json           # ── shared fixtures ──
-│       ├── retry.json
-│       ├── nested-delegate.json
-│       ├── payload-hoist.json
-│       └── traces/              # (state, action) → expected (state, effects)
-│           ├── timer.trace
-│           └── ...
+│       ├── README.md            # the .tbl and .trace formats
+│       ├── timer.tbl            # ── shared fixtures ──
+│       ├── toggle.tbl
+│       ├── retry.tbl
+│       ├── nested-delegate.tbl
+│       ├── <name>.grid          # golden matrix; Rust blesses, others read
+│       ├── <name>.lint          # golden lint output; same rule
+│       └── traces/<name>.trace  # (state, action) → expected (state, effects)
 │
 ├── rust/
 │   ├── Cargo.toml               # workspace
 │   ├── tabula/                  # core + macro_rules! (single crate, no deps)
-│   │   ├── src/lib.rs
-│   │   ├── src/step.rs
-│   │   ├── src/cell.rs
-│   │   ├── src/matrix.rs        # transition_matrix! macro
-│   │   ├── src/compose.rs
-│   │   ├── src/driver.rs
-│   │   └── src/export.rs
+│   │   ├── src/{lib,step,cell,table,matrix,machine,delegate,driver}.rs
+│   │   ├── src/{export,lint}.rs     # alloc-gated
 │   │   └── tests/
 │   │       ├── reference_timer.rs   # hand-written; the macro's specification
 │   │       ├── timer_matrix.rs      # same machine via the macro; parity tests
+│   │       ├── scale.rs             # the measured 8×12 machine
 │   │       └── compile_fail/        # one fixture per diagnostic
-│   ├── tabula-conformance/      # runs spec/conformance against the Rust impl
-│   └── examples/
+│   └── tabula-conformance/      # runs spec/conformance; hosts bin/table-diff
 │
-├── kotlin/
-│   ├── settings.gradle.kts
-│   ├── build.gradle.kts
-│   ├── gradle/libs.versions.toml
-│   ├── tabula-core/             # KMP, zero runtime deps: Step, Cell, drivers
-│   ├── tabula-annotations/      # @Machine, @Row, cell markers
-│   ├── tabula-ksp/              # JVM processor
-│   ├── tabula-conformance/
-│   └── examples/
+├── kotlin/                      # built by kotlinc directly — no Gradle, no Maven
+│   ├── core/dev/tabula/         # Step, Cell, Table, Export, Lint, Driver
+│   ├── annotations/dev/tabula/  # @Machine, @Row, cell markers
+│   ├── testing/dev/tabula/testing/
+│   ├── codegen/                 # MachineDesc -> String, + golden/ and compile_fail/
+│   ├── ksp/                     # JVM processor — written, never run
+│   ├── test/                    # reference machine + harness
+│   ├── conformance/
+│   └── compile_fail/
 │
 ├── swift/
 │   ├── Package.swift
-│   ├── Sources/Tabula/          # core: Step, Cell, stores
-│   ├── Sources/TabulaMacros/    # SwiftSyntax, build-time only
-│   ├── Tests/TabulaConformance/
-│   └── Examples/
+│   ├── Sources/Tabula/          # core: Step, Cell, Table, Export, Lint, Driver
+│   ├── Sources/TabulaCodegen/   # the emitter; no SwiftSyntax, so it builds offline
+│   ├── Sources/TabulaCheck/     # reference machine + harness (no XCTest available)
+│   ├── Sources/TabulaConformance/
+│   └── compile_fail/
+│
+├── examples/                    # outside every workspace, on purpose: the only
+│   ├── rust/                    #   place the public API is used from outside
+│   ├── kotlin/
+│   └── swift-examples/
 │
 └── tools/
+    ├── verify                   # the single definition of green
     ├── compile-fail             # diagnostic fixtures; bash, not trybuild
-    ├── conformance-runner       # drives all three against spec/conformance
-    └── table-diff               # renders golden matrix diffs in review
+    └── swift-probe              # toolchain triage for the Linux Swift path
 ```
+
+Three things about this layout are decisions rather than accidents.
+
+**`tools/verify` is the only definition of green.** `nix flake check` runs its
+steps in a sandbox and CI runs the flake, so all three paths execute the same
+commands. A new check goes in `tools/verify`, never directly into the workflow.
+
+**Kotlin has no build system.** Gradle needs Maven Central for the stdlib and
+the sandbox cannot reach it, so `kotlinc` is driven directly. That is not a
+workaround to be tidied up later: compiling each artifact against only its
+declared classpath is what enforces the zero-runtime-dependency rule by
+construction rather than by a dependency report.
+
+**Examples sit outside every workspace.** They depend on the library by path,
+the way a user would. That is the only place the public API is exercised from
+outside, and it is where `Driver::run` was found not to compile for any
+realistic caller.
 
 ### Why a shared `spec/`
 
@@ -873,14 +899,28 @@ nix flake check          # fmt + lint + test, all three + conformance
 nix run .#conformance    # cross-language conformance runner
 ```
 
-Swift on Linux is marked best-effort, and that is not a formality. nixpkgs 25.05
-ships Swift 5.8 — below the 5.9 that macros require — and its SwiftPM is
-sensitive to how the C toolchain is supplied: adding `stdenv.cc` to satisfy the
-setup-hook changes swiftc's default target triple and breaks the stdlib lookup.
-The Darwin path is primary for Swift; CI runs Swift on macOS runners and
+Swift on Linux is marked best-effort, and that is not a formality. The pinned
+nixpkgs 25.05 ships Swift 5.8 — below the 5.9 that macros require — and its
+SwiftPM is sensitive to how the C toolchain is supplied: adding `stdenv.cc` to
+satisfy the setup-hook changes swiftc's default target triple and breaks the
+stdlib lookup.
+
+**Swift therefore comes from a second flake input**, `nixpkgs-swift`, pinned to
+`nixos-unstable`. One input for all three toolchains would have meant dragging
+Rust and Kotlin — which are working and pinned deliberately — onto unstable to
+solve a problem neither of them has. The second input lifts the 5.8 ceiling
+that `TabulaMacros` would have hit anyway.
+
+`nix flake check` gates the Swift checks on `swiftChecked`, which is Darwin
+only. On Linux the same steps are available through `nix develop .#swift`
+followed by `./tools/verify swift`. The rule behind that: `nix flake check`
+should not fail on a packaging problem in a dependency we do not control. The
+Darwin path is primary for Swift; CI runs Swift on macOS runners and
 Rust/Kotlin everywhere.
 
-See `flake.nix` at the repository root for the implementation.
+`flake.nix` itself is a table of contents. Toolchains, shells, checks, apps,
+and publication live in `nix/`, because a flake that grows past a screen stops
+being read and starts being copied.
 
 ---
 
