@@ -14,29 +14,17 @@ use alloc::vec::Vec;
 use crate::cell::Cell;
 use crate::table::Table;
 
-/// One statically-known edge of the machine.
+/// One drawable edge of the machine.
 struct Edge {
     from: &'static str,
     to: &'static str,
-    action: &'static str,
-    effects: &'static [&'static str],
-}
-
-fn static_edges<const N: usize, const M: usize>(t: &Table<N, M>) -> Vec<Edge> {
-    let mut out = Vec::new();
-    for (i, row) in t.cells.iter().enumerate() {
-        for (j, cell) in row.iter().enumerate() {
-            if let Cell::Go { target, effects } = cell {
-                out.push(Edge {
-                    from: t.states[i],
-                    to: target,
-                    action: t.actions[j],
-                    effects,
-                });
-            }
-        }
-    }
-    out
+    label: String,
+    /// Whether the generator resolved the target.
+    ///
+    /// A dynamic edge is a self-loop annotated with what will run, not a
+    /// guess at where it goes. Only DOT renders the distinction, but every
+    /// format needs it available.
+    is_static: bool,
 }
 
 fn label(action: &str, effects: &[&str]) -> String {
@@ -47,45 +35,72 @@ fn label(action: &str, effects: &[&str]) -> String {
     }
 }
 
+/// Every drawable edge, in row-major matrix order.
+///
+/// One walk feeding all three diagram formats, so a machine renders in the
+/// same order whichever you ask for and a new format cannot invent its own.
+///
+/// It is one walk for a second reason. Mermaid used to be rendered here in two
+/// passes -- every `GO` edge, then every self-loop -- while Kotlin and Swift
+/// interleaved them in cell order. Same edge set, different line order, in
+/// three implementations that are supposed to agree. Nothing caught it because
+/// nothing compares diagram output; `.grid` and `.lint` have goldens and the
+/// diagrams do not. Row-major is the order the matrix is read in, so that is
+/// the one all three now use.
+///
+/// `IGNORE` and `UNREACHABLE` draw nothing. Neither is a transition: one says
+/// the action does not apply, the other says the pair cannot occur.
+fn edges<const N: usize, const M: usize>(t: &Table<N, M>) -> Vec<Edge> {
+    let mut out = Vec::new();
+    for (i, row) in t.cells.iter().enumerate() {
+        let from = t.states[i];
+        for (j, cell) in row.iter().enumerate() {
+            let action = t.actions[j];
+            match cell {
+                Cell::Go { target, effects } => out.push(Edge {
+                    from,
+                    to: target,
+                    label: label(action, effects),
+                    is_static: true,
+                }),
+                Cell::Emit { effects } => out.push(Edge {
+                    from,
+                    to: from,
+                    label: label(action, effects),
+                    is_static: true,
+                }),
+                Cell::Handle => out.push(Edge {
+                    from,
+                    to: from,
+                    label: format!("{action} / ?handle"),
+                    is_static: false,
+                }),
+                Cell::Delegate { child } => out.push(Edge {
+                    from,
+                    to: from,
+                    label: format!("{action} / >{child}"),
+                    is_static: false,
+                }),
+                Cell::Ignore | Cell::Unreachable => {}
+            }
+        }
+    }
+    out
+}
+
 /// Render as a Mermaid `stateDiagram-v2`.
 ///
-/// Only statically-known transitions become edges. Cells that dispatch into
-/// developer code (`HANDLE`, `DELEGATE`) are rendered as self-loops annotated
-/// with the member name, because the target is not knowable at build time.
-/// Pretending otherwise would produce a diagram that quietly lies.
+/// Only statically-known transitions become real edges. Cells that dispatch
+/// into developer code (`HANDLE`, `DELEGATE`) are rendered as self-loops
+/// annotated with what will run, because the target is not knowable at build
+/// time. Pretending otherwise would produce a diagram that quietly lies.
 pub fn to_mermaid<const N: usize, const M: usize>(t: &Table<N, M>) -> String {
     let mut s = String::from("stateDiagram-v2\n");
     if let Some(initial) = t.initial {
         s.push_str(&format!("    [*] --> {initial}\n"));
     }
-    for e in static_edges(t) {
-        s.push_str(&format!(
-            "    {} --> {}: {}\n",
-            e.from,
-            e.to,
-            label(e.action, e.effects)
-        ));
-    }
-    for (i, row) in t.cells.iter().enumerate() {
-        for (j, cell) in row.iter().enumerate() {
-            match cell {
-                Cell::Handle => s.push_str(&format!(
-                    "    {} --> {}: {} / ?handle\n",
-                    t.states[i], t.states[i], t.actions[j]
-                )),
-                Cell::Delegate { child, .. } => s.push_str(&format!(
-                    "    {} --> {}: {} / >{}\n",
-                    t.states[i], t.states[i], t.actions[j], child
-                )),
-                Cell::Emit { effects } => s.push_str(&format!(
-                    "    {} --> {}: {}\n",
-                    t.states[i],
-                    t.states[i],
-                    label(t.actions[j], effects)
-                )),
-                _ => {}
-            }
-        }
+    for e in edges(t) {
+        s.push_str(&format!("    {} --> {}: {}\n", e.from, e.to, e.label));
     }
     s
 }
@@ -98,25 +113,35 @@ pub fn to_dot<const N: usize, const M: usize>(t: &Table<N, M>) -> String {
         s.push_str("    __start [shape=point];\n");
         s.push_str(&format!("    __start -> {initial};\n"));
     }
-    for e in static_edges(t) {
+    for e in edges(t) {
+        let style = if e.is_static { "" } else { ", style=dashed" };
         s.push_str(&format!(
-            "    {} -> {} [label=\"{}\"];\n",
-            e.from,
-            e.to,
-            label(e.action, e.effects)
+            "    {} -> {} [label=\"{}\"{}];\n",
+            e.from, e.to, e.label, style
         ));
     }
-    for (i, row) in t.cells.iter().enumerate() {
-        for (j, cell) in row.iter().enumerate() {
-            if matches!(cell, Cell::Handle) {
-                s.push_str(&format!(
-                    "    {} -> {} [label=\"{} / ?handle\", style=dashed];\n",
-                    t.states[i], t.states[i], t.actions[j]
-                ));
-            }
-        }
-    }
     s.push_str("}\n");
+    s
+}
+
+/// Render as a PlantUML state diagram.
+///
+/// The third format, and the last of the three ARCHITECTURE section 10
+/// promises. It costs a dozen lines because it is the same walk as the other
+/// two with a different separator -- which is the argument for having built
+/// `edges` first rather than writing a third independent renderer.
+///
+/// `hide empty description` suppresses the empty compartment PlantUML draws
+/// under every state that has no description, which is all of them here.
+pub fn to_plantuml<const N: usize, const M: usize>(t: &Table<N, M>) -> String {
+    let mut s = String::from("@startuml\nhide empty description\n");
+    if let Some(initial) = t.initial {
+        s.push_str(&format!("[*] --> {initial}\n"));
+    }
+    for e in edges(t) {
+        s.push_str(&format!("{} --> {} : {}\n", e.from, e.to, e.label));
+    }
+    s.push_str("@enduml\n");
     s
 }
 
@@ -267,6 +292,74 @@ mod tests {
         let d = to_dot(&T);
         assert!(d.starts_with("digraph Toggle {"));
         assert!(d.trim_end().ends_with('}'));
+    }
+
+    #[test]
+    fn dot_marks_dynamic_edges_dashed_and_static_edges_solid() {
+        let d = to_dot(&T);
+        assert!(
+            d.contains(r#"On -> On [label="Poke / ?handle", style=dashed];"#),
+            "{d}"
+        );
+        assert!(d.contains(r#"Off -> On [label="Flip / Light"];"#), "{d}");
+    }
+
+    #[test]
+    fn plantuml_is_well_formed() {
+        let p = to_plantuml(&T);
+        assert!(p.starts_with("@startuml\n"));
+        assert!(p.trim_end().ends_with("@enduml"));
+        assert!(p.contains("[*] --> Off"));
+        assert!(p.contains("Off --> On : Flip / Light"));
+    }
+
+    #[test]
+    fn plantuml_draws_handle_cells_as_self_loops_too() {
+        // Same rule as mermaid and dot: the target of a HANDLE cell is not
+        // knowable at build time, so annotate a self-loop rather than invent
+        // an edge.
+        assert!(to_plantuml(&T).contains("On --> On : Poke / ?handle"));
+    }
+
+    #[test]
+    fn every_format_draws_the_same_edges_in_the_same_order() {
+        // The three renderers share one walk, so this is close to a tautology
+        // today. It is here because it was not always true: mermaid used to
+        // emit every GO edge before every self-loop while Kotlin and Swift
+        // interleaved them in cell order, and nothing compared diagram output
+        // so nothing failed. Independent renderers drift; this fails if one
+        // grows its own walk again.
+        let pairs = |s: &str, sep: &str| -> Vec<String> {
+            s.lines()
+                .filter(|l| l.contains("-->") && !l.contains("[*]"))
+                .map(|l| l.trim().replace(sep, "|"))
+                .collect()
+        };
+        let m = pairs(&to_mermaid(&T), ": ");
+        let p = pairs(&to_plantuml(&T), " : ");
+        assert_eq!(m, p);
+        let want = [
+            "Off --> On|Flip / Light",
+            "On --> Off|Flip",
+            "On --> On|Poke / ?handle",
+        ];
+        assert_eq!(m, want);
+    }
+
+    #[test]
+    fn ignore_and_unreachable_draw_nothing() {
+        const U: Table<1, 2> = Table {
+            machine: "U",
+            states: ["A"],
+            actions: ["X", "Y"],
+            initial: Some("A"),
+            cells: [[Cell::Ignore, Cell::Unreachable]],
+        };
+        // Only the initial-state marker survives.
+        assert_eq!(
+            to_mermaid(&U).lines().filter(|l| l.contains("-->")).count(),
+            1
+        );
     }
 
     #[test]

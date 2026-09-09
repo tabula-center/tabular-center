@@ -49,28 +49,87 @@ object Export {
     /**
      * Mermaid `stateDiagram-v2`.
      *
-     * Only statically-known transitions become edges. `HANDLE` and `DELEGATE`
-     * cells are drawn as annotated self-loops, because their target is not
-     * knowable at build time and a diagram that pretends otherwise lies.
+     * Only statically-known transitions become real edges. `HANDLE` and
+     * `DELEGATE` cells are drawn as annotated self-loops, because their target
+     * is not knowable at build time and a diagram that pretends otherwise lies.
      */
     fun toMermaid(t: Table): String {
         val sb = StringBuilder("stateDiagram-v2\n")
         t.initial?.let { sb.append("    [*] --> $it\n") }
-        fun label(action: String, effects: List<String>) =
-            if (effects.isEmpty()) action else "$action / ${effects.joinToString(", ")}"
+        for (e in edges(t)) sb.append("    ${e.from} --> ${e.to}: ${e.label}\n")
+        return sb.toString()
+    }
 
+    /** Graphviz DOT. Dynamic edges are dashed; static ones are solid. */
+    fun toDot(t: Table): String {
+        val sb = StringBuilder("digraph ${t.machine} {\n    rankdir=LR;\n")
+        sb.append("    node [shape=box, style=rounded];\n")
+        t.initial?.let {
+            sb.append("    __start [shape=point];\n")
+            sb.append("    __start -> $it;\n")
+        }
+        for (e in edges(t)) {
+            val style = if (e.isStatic) "" else ", style=dashed"
+            sb.append("    ${e.from} -> ${e.to} [label=\"${e.label}\"$style];\n")
+        }
+        sb.append("}\n")
+        return sb.toString()
+    }
+
+    /**
+     * PlantUML state diagram.
+     *
+     * `hide empty description` suppresses the empty compartment PlantUML draws
+     * under every state without a description, which is all of them here.
+     */
+    fun toPlantuml(t: Table): String {
+        val sb = StringBuilder("@startuml\nhide empty description\n")
+        t.initial?.let { sb.append("[*] --> $it\n") }
+        for (e in edges(t)) sb.append("${e.from} --> ${e.to} : ${e.label}\n")
+        sb.append("@enduml\n")
+        return sb.toString()
+    }
+
+    /** One drawable edge. [isStatic] is false when the target is not knowable. */
+    private data class Edge(
+        val from: String,
+        val to: String,
+        val label: String,
+        val isStatic: Boolean,
+    )
+
+    private fun label(action: String, effects: List<String>): String =
+        if (effects.isEmpty()) action else "$action / ${effects.joinToString(", ")}"
+
+    /**
+     * Every drawable edge, in row-major matrix order.
+     *
+     * One walk feeding all three formats, so a machine renders in the same
+     * order whichever you ask for. Row-major because that is the order the
+     * matrix is read in — and because Rust rendered mermaid in two passes for
+     * a while, every `GO` edge before every self-loop, which produced the same
+     * edge set in a different order from this. Nothing compared diagram
+     * output, so nothing said so.
+     *
+     * `IGNORE` and `UNREACHABLE` draw nothing. Neither is a transition: one
+     * says the action does not apply, the other says the pair cannot occur.
+     */
+    private fun edges(t: Table): List<Edge> {
+        val out = mutableListOf<Edge>()
         t.cells.forEachIndexed { i, row ->
+            val from = t.states[i]
             row.forEachIndexed { j, cell ->
-                val from = t.states[i]
+                val action = t.actions[j]
                 when (cell) {
-                    is Cell.Go -> sb.append("    $from --> ${cell.target}: ${label(t.actions[j], cell.effects)}\n")
-                    is Cell.Emit -> sb.append("    $from --> $from: ${label(t.actions[j], cell.effects)}\n")
-                    is Cell.Handle -> sb.append("    $from --> $from: ${t.actions[j]} / ?handle\n")
-                    is Cell.Delegate -> sb.append("    $from --> $from: ${t.actions[j]} / >${cell.child}\n")
-                    else -> {}
+                    is Cell.Go ->
+                        out.add(Edge(from, cell.target, label(action, cell.effects), true))
+                    is Cell.Emit -> out.add(Edge(from, from, label(action, cell.effects), true))
+                    is Cell.Handle -> out.add(Edge(from, from, "$action / ?handle", false))
+                    is Cell.Delegate -> out.add(Edge(from, from, "$action / >${cell.child}", false))
+                    is Cell.Ignore, is Cell.Unreachable -> {}
                 }
             }
         }
-        return sb.toString()
+        return out
     }
 }

@@ -99,6 +99,53 @@ func tableAndLints() {
     // A HANDLE cell's target is not knowable at build time, so it is a
     // self-loop rather than an invented edge.
     Assert.ok(mermaid.contains("Idle --> Idle: Start / ?handle"), "HANDLE cells are self-loops")
+
+    let dot = Export.toDot(TIMER_TABLE)
+    Assert.ok(dot.hasPrefix("digraph Timer {"), "dot names the machine")
+    Assert.ok(
+        dot.contains(#"Idle -> Idle [label="Start / ?handle", style=dashed];"#),
+        "dot dashes dynamic edges"
+    )
+    Assert.ok(
+        dot.contains(#"Running -> Idle [label="Cancel / StopClock"];"#),
+        "dot leaves static edges solid"
+    )
+
+    let puml = Export.toPlantuml(TIMER_TABLE)
+    Assert.ok(puml.hasPrefix("@startuml\n"), "plantuml opens")
+    Assert.ok(puml.hasSuffix("@enduml\n"), "plantuml closes")
+    Assert.ok(puml.contains("[*] --> Idle"), "plantuml marks the initial state")
+    Assert.ok(
+        puml.contains("Running --> Idle : Cancel / StopClock"),
+        "plantuml draws static transitions"
+    )
+
+    // The three formats share one walk, so they must list the same edges in
+    // the same order. They did not always: mermaid was rendered in two passes
+    // for a while, every GO edge before every self-loop, while Kotlin
+    // interleaved them in cell order. Nothing compares diagram output across
+    // languages, so nothing failed.
+    //
+    // Tokenised rather than string-replaced because this target imports no
+    // Foundation -- no trimmingCharacters, no replacingOccurrences. Splitting
+    // on spaces drops the indentation for free, which is the only reason the
+    // two formats needed normalising at all.
+    func edgeOrder(_ s: String) -> [String] {
+        s.split(separator: "\n").compactMap { raw -> String? in
+            let parts = raw.split(separator: " ").map(String.init)
+            guard parts.count >= 3, parts[1] == "-->", parts[0] != "[*]" else { return nil }
+            // mermaid writes `To: label`, plantuml writes `To : label`.
+            var to = parts[2]
+            if to.hasSuffix(":") { to.removeLast() }
+            var rest = parts.dropFirst(3).joined(separator: " ")
+            if rest.hasPrefix(": ") { rest = String(rest.dropFirst(2)) }
+            return "\(parts[0])->\(to)|\(rest)"
+        }
+    }
+    Assert.eq(
+        edgeOrder(mermaid), edgeOrder(puml),
+        "mermaid and plantuml agree on edge order"
+    )
 }
 
 func lintRules() {

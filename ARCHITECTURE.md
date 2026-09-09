@@ -503,7 +503,13 @@ retained-mode UI, and it keeps `@Composable` out of the transition path.
 Because the matrix exists as inert data (`TABLE`), these come free:
 
 - **Mermaid / DOT / PlantUML export** — a pure function of `TABLE`, usable at
-  build time or runtime.
+  build time or runtime. All three formats render from **one edge walk per
+  language**, in row-major matrix order, so a machine draws the same way
+  whichever format you ask for. That is not tidiness: the three renderers were
+  independent once, and Rust's mermaid ordered its edges differently from
+  Kotlin's and Swift's for as long as nobody looked. `IGNORE` and `UNREACHABLE`
+  draw nothing; `HANDLE` and `DELEGATE` draw annotated self-loops rather than
+  invented edges, because their target is not knowable at build time.
 - **Reachability check** — generated test asserting every state is reachable
   from the initial state and every `HANDLE` cell is reachable. Emits a warning,
   not an error, since unreachable-by-construction cells are legitimate during

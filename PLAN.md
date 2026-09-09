@@ -422,7 +422,12 @@ color-mismatch is a build error in all three.
 - [x] Golden matrix snapshots (`<name>.grid`, `--bless` to accept). A PR that
       changes behaviour now shows a **table** diff, which is the artifact worth
       reviewing.
-- [ ] PlantUML export
+- [x] PlantUML export — and, getting there, **DOT and PlantUML in Kotlin and
+      Swift**, which had only grid and mermaid. Export parity was broken in
+      both directions and nothing said so.
+- [x] All three diagram formats share one edge walk, per language. Writing the
+      third renderer is what surfaced the finding below; three independent
+      walks would have made it three ways to drift instead of one.
 - [x] Payload-hoist warning, in both languages. The field list is emitted as a
       separate `PAYLOADS` const rather than added to `Table`: the table is the
       matrix, this is metadata about the states, and keeping them apart meant
@@ -430,6 +435,25 @@ color-mismatch is a build error in all three.
 
 Ship export early if you want adopters. It is the most demoable feature and
 falls out of `TABLE` almost for free.
+
+### Findings from Phase 8's PlantUML patch
+
+- **Mermaid output had already diverged, and no check could see it.** Rust
+  emitted every `GO` edge and *then* every self-loop; Kotlin and Swift
+  interleaved them in cell order. Same edge set, different line order, three
+  implementations that are supposed to agree. `.grid` and `.lint` have golden
+  files and the diagrams do not, so nothing compared them. Unified on
+  row-major — the order the matrix is read in — before adding a third format
+  on top of the disagreement.
+- **The general lesson is about what conformance covers, not about mermaid.**
+  Two gaps have now been found in two patches, and both sit in the same blind
+  spot: `empty-emit` was behaviour no fixture exercises, this was output no
+  golden compares. The suite is good at what it checks. The next question
+  worth asking is what *else* is uncompared — the coverage report is the
+  obvious remaining answer.
+- **A golden `.puml` is the fix, and it needs one `--bless` run.** Deferred to
+  its own patch rather than committing hand-computed files: the whole value of
+  a golden is that a machine wrote it.
 
 ---
 

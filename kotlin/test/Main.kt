@@ -54,7 +54,7 @@ private fun tableAndLints() {
         "no-static-entry is silent on a machine with HANDLE cells")
 }
 
-private fun gridMatchesRust() {
+private fun exportRenderers() {
     // The golden .grid files in spec/conformance are shared between languages,
     // so the two renderers must agree byte for byte.
     val expected = """
@@ -68,6 +68,51 @@ private fun gridMatchesRust() {
     Assert.ok(grid.contains("GO(Idle, StopClock)"), "grid renders GO with effects")
     Assert.ok(grid.contains("HANDLE"), "grid renders HANDLE")
     if (false) println(expected)
+
+    val mermaid = Export.toMermaid(TimerMachine.TABLE)
+    Assert.ok(mermaid.contains("[*] --> Idle"), "mermaid marks the initial state")
+    Assert.ok(
+        mermaid.contains("Running --> Idle: Cancel / StopClock"),
+        "mermaid draws static transitions",
+    )
+    // A HANDLE cell's target is not knowable at build time, so it is a
+    // self-loop rather than an invented edge.
+    Assert.ok(mermaid.contains("Idle --> Idle: Start / ?handle"), "HANDLE cells are self-loops")
+
+    val dot = Export.toDot(TimerMachine.TABLE)
+    Assert.ok(dot.startsWith("digraph Timer {"), "dot names the machine")
+    Assert.ok(
+        dot.contains("""Idle -> Idle [label="Start / ?handle", style=dashed];"""),
+        "dot dashes dynamic edges",
+    )
+    Assert.ok(
+        dot.contains("""Running -> Idle [label="Cancel / StopClock"];"""),
+        "dot leaves static edges solid",
+    )
+
+    val puml = Export.toPlantuml(TimerMachine.TABLE)
+    Assert.ok(puml.startsWith("@startuml\n"), "plantuml opens")
+    Assert.ok(puml.endsWith("@enduml\n"), "plantuml closes")
+    Assert.ok(puml.contains("[*] --> Idle"), "plantuml marks the initial state")
+    Assert.ok(
+        puml.contains("Running --> Idle : Cancel / StopClock"),
+        "plantuml draws static transitions",
+    )
+
+    // The three formats share one walk, so they must list the same edges in
+    // the same order. Rust rendered mermaid in two passes for a while — every
+    // GO edge, then every self-loop — while this side interleaved them in cell
+    // order. Same edge set, different line order, and nothing compares diagram
+    // output so nothing failed.
+    fun edgeOrder(s: String): List<String> = s.lines().mapNotNull { raw ->
+        val parts = raw.trim().split(" ").filter { it.isNotEmpty() }
+        if (parts.size < 3 || parts[1] != "-->" || parts[0] == "[*]") return@mapNotNull null
+        // mermaid writes `To: label`, plantuml writes `To : label`.
+        val to = parts[2].removeSuffix(":")
+        val rest = parts.drop(3).joinToString(" ").removePrefix(": ")
+        "${parts[0]}->$to|$rest"
+    }
+    Assert.eq(edgeOrder(mermaid), edgeOrder(puml), "mermaid and plantuml agree on edge order")
 }
 
 private fun drivers() {
@@ -162,7 +207,7 @@ fun main() {
     }
     composition()
     tableAndLints()
-    gridMatchesRust()
+    exportRenderers()
     drivers()
     val failures = Assert.report("kotlin reference")
     if (failures > 0) kotlin.system.exitProcess(1)
