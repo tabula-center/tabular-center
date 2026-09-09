@@ -216,6 +216,9 @@ for adapter in adapters {
     // dead-row/no-static-exit subsumption, the fully-static gate on
     // reachability -- and nothing compared them across languages until now.
     errs += checkGolden(adapter.name, "lint", report(adapter.table))
+    // The diagram. Three renderers agreeing on edge ORDER, not just on the
+    // edge set -- which is the thing that had already drifted.
+    errs += checkGolden(adapter.name, "puml", Export.toPlantuml(adapter.table))
 
     var traces: [Trace] = []
     do {

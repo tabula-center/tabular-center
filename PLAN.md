@@ -42,8 +42,8 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 9 Runtime / drivers | **done (Rust half)** |
 
 84 Rust tests; 18 compile-fail fixtures (9 Rust, 4 Kotlin, 1 Kotlin-codegen,
-4 Swift); 4 conformance fixtures (28 trace steps); 4 golden `.grid` and
-4 golden `.lint` snapshots.
+4 Swift); 4 conformance fixtures (28 trace steps); 4 golden `.grid`, 4 `.lint`
+and 4 `.puml` snapshots.
 
 These counts are checked against the tree, not remembered. Regenerate with:
 
@@ -451,9 +451,10 @@ falls out of `TABLE` almost for free.
   golden compares. The suite is good at what it checks. The next question
   worth asking is what *else* is uncompared — the coverage report is the
   obvious remaining answer.
-- **A golden `.puml` is the fix, and it needs one `--bless` run.** Deferred to
-  its own patch rather than committing hand-computed files: the whole value of
-  a golden is that a machine wrote it.
+- **A golden `.puml` is the fix.** Landed: `<name>.puml` joins `<name>.grid`
+  and `<name>.lint`, written by Rust and read by the other two. One diagram
+  format is enough — all three come off the same walk, so pinning one pins the
+  order.
 
 ---
 

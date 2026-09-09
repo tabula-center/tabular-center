@@ -107,6 +107,10 @@ impl Adapter for TimerAdapter {
         tabula::lint::report_with_payloads(&TABLE, PAYLOADS)
     }
 
+    fn plantuml(&self) -> String {
+        tabula::export::to_plantuml(&TABLE)
+    }
+
     fn replay(&self, trace: &Trace) -> Result<Vec<Observed>, String> {
         let mut ctx = Ctx {
             limit: trace.ctx.get("limit").copied().unwrap_or(0) as u32,

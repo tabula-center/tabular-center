@@ -42,6 +42,20 @@ pub trait Adapter {
     /// Lint findings for the generated `TABLE`, one per line.
     fn lint(&self) -> String;
 
+    /// The generated `TABLE` rendered as a PlantUML state diagram.
+    ///
+    /// Snapshotted for the same reason the grid is, and for one more: until
+    /// this existed nothing compared a line of diagram output across the three
+    /// implementations, and they had already drifted. Rust emitted every `GO`
+    /// edge before every self-loop while Kotlin and Swift interleaved them in
+    /// cell order.
+    ///
+    /// PlantUML rather than mermaid because it renders every cell kind the
+    /// other two formats do -- one walk feeds all three -- and its `A --> B :
+    /// label` line is the easiest of them to read in a diff. One golden per
+    /// fixture is enough to pin the walk they share.
+    fn plantuml(&self) -> String;
+
     /// Replay one trace, returning one `Observed` per step.
     ///
     /// Returns `Err` when the trace names an action or state the adapter does

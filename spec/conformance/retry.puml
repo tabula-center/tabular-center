@@ -1,0 +1,8 @@
+@startuml
+hide empty description
+[*] --> Ready
+Ready --> Ready : Attempt / ?handle
+Ready --> Exhausted : Abort
+Waiting --> Waiting : Elapsed / ?handle
+Waiting --> Exhausted : Abort
+@enduml

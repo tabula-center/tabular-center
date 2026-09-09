@@ -102,6 +102,11 @@ fn main() -> ExitCode {
         // reachability. Nothing compared them across languages until now, so a
         // rule could drift in one and nobody would know.
         errs.extend(check_golden(&root, name, "lint", &adapter.lint(), bless));
+        // The diagram, for the same reason -- and because until this existed
+        // nothing compared diagram output across the three implementations,
+        // which had already drifted on edge ordering.
+        let puml = adapter.plantuml();
+        errs.extend(check_golden(&root, name, "puml", &puml, bless));
         tables += 1;
 
         for t in &traces {

@@ -88,8 +88,8 @@ trace reaches-done
 
 ## What the goldens prove
 
-`<name>.grid` and `<name>.lint` are written by the Rust harness (`--bless`) and
-**read** by every other implementation. Neither Kotlin nor Swift blesses: a
+`<name>.grid`, `<name>.lint` and `<name>.puml` are written by the Rust harness
+(`--bless`) and **read** by every other implementation. Neither Kotlin nor Swift blesses: a
 renderer or a lint that drifts by a single space fails there rather than quietly
 rewriting the shared file.
 
@@ -109,9 +109,32 @@ means the padding rules, the right-trimming, and the cell text for all six
 kinds match across three languages — and those are exactly the details that rot
 silently.
 
+The `.puml` golden is the newest, and it exists because of a drift it would
+have caught. Diagram output was uncompared for three phases, and in that time
+Rust's mermaid renderer came to emit every `GO` edge before every self-loop
+while Kotlin and Swift interleaved them in cell order — the same edge set in a
+different order, in three implementations that are supposed to agree. All three
+now render mermaid, DOT and PlantUML from one row-major edge walk, and this
+golden pins it.
+
+PlantUML rather than mermaid, and only one diagram format: all three come off
+the same walk, so pinning any one of them pins the order, and PlantUML's
+`A --> B : label` is the easiest of the three to read in a review diff. A
+second diagram golden would cost a file per fixture and prove the same thing.
+
+The general lesson is worth stating, because it has now cost two bugs. This
+suite compares behaviour and committed output, and it is good at both. Neither
+of the last two defects lived in either place: `tabula::empty-emit` was
+behaviour no fixture exercises, and the mermaid ordering was output no golden
+compares. When looking for the next one, ask what is *uncompared* rather than
+what is unchecked.
+
 ## Adding a fixture
 
-1. Write `<name>.tbl` and `traces/<name>.trace`.
+1. Write `<name>.tbl` and `traces/<name>.trace`. Run the Rust harness with
+   `--bless` to create `<name>.grid`, `<name>.lint` and `<name>.puml`; never
+   write those by hand, since the whole value of a golden is that a machine
+   wrote it.
 2. Add an adapter in each language mapping action names and payload fields to
    real values. The adapter is the only per-fixture code; everything else is
    shared.

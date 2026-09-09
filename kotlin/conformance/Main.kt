@@ -47,6 +47,9 @@ fun main(args: Array<String>) {
         // the dead-row/no-static-exit subsumption, the fully-static gate on
         // reachability -- and nothing compared them across languages until now.
         errs += checkGolden(root, name, "lint", report(adapter.table))
+        // The diagram. Two renderers agreeing on edge ORDER, not just on the
+        // edge set -- which is the thing that had already drifted.
+        errs += checkGolden(root, name, "puml", Export.toPlantuml(adapter.table))
 
         for (t in traces) {
             steps += t.steps.size

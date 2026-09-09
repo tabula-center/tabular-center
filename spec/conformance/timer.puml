@@ -1,0 +1,8 @@
+@startuml
+hide empty description
+[*] --> Idle
+Idle --> Idle : Start / ?handle
+Running --> Running : Tick / ?handle
+Running --> Idle : Cancel / StopClock
+Done --> Running : Start / StartClock
+@enduml
