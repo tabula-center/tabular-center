@@ -3,6 +3,7 @@ package conformance
 import composition.Impl
 import composition.job
 import composition.retry
+import dev.tabula.Payloads
 import dev.tabula.Step
 import dev.tabula.testing.Expect
 import dev.tabula.testing.Spec
@@ -20,6 +21,7 @@ import dev.tabula.testing.Trace
  */
 
 object RetryAdapter : Adapter {
+    override val payloads: Payloads = listOf(Triple("Waiting", "attempt", "Long"))
     override val name = "retry"
     override val table = retry.TABLE
 
@@ -65,6 +67,10 @@ object RetryAdapter : Adapter {
 }
 
 object JobAdapter : Adapter {
+    // `Retrying` holds the child's state, not a scalar. Nothing to hoist and
+    // nothing the lint compares, so the list is empty rather than guessing a
+    // spelling for a nested machine.
+    override val payloads: Payloads = emptyList()
     override val name = "nested-delegate"
     override val table = job.TABLE
 

@@ -216,10 +216,15 @@ could be written from it without reading the Rust source.
       because an empty one is `tabula::empty-emit`. It also pins the
       reachability gate — `Open` is reached only from a `HANDLE` cell, so the
       coverage report must stay silent about its missing static entry
-- [ ] Fixture still outstanding: `payload-hoist` (8). It needs payload metadata
-      in all three languages before it can be shared — Rust has `PAYLOADS`, the
-      other two do not declare it, which is why no current fixture triggers the
-      lint
+- [ ] Fixture still outstanding: `payload-hoist`, and the reason is **not** the
+      one recorded here before. Every implementation already has both the lint
+      and a `Payloads` type; the adapters now supply them. The blocker is that
+      the lint prints the field's *type*, which each language spells itself —
+      `u32`, `Long`, `Int` for one field — so a shared byte-for-byte `.lint`
+      golden is impossible. Picking a type the three spell alike does not work
+      either: `String` is the only candidate, and generated state enums derive
+      `Copy`, so a Rust machine cannot hold one. `spec/diagnostics.md` lists
+      the three ways out and why none is obviously right
 - [x] Trace format: `(state, action) → (state, effects)` sequences, specified
       in `spec/conformance/README.md` and parsed by all three harnesses
 - [x] Rust harness passing all fixtures, plus `table-diff`. Verified against

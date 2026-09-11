@@ -29,12 +29,29 @@ struct Observed {
 protocol Adapter {
     var name: String { get }
     var table: Table { get }
+
+    /// Payload fields, as `(state, field, type)`.
+    ///
+    /// Separate from `table` because only `tabula::payload-hoist` needs it.
+    /// Rust has passed its `PAYLOADS` to the lint since the lint existed; this
+    /// side took the empty default, so the two agreed only because no fixture
+    /// had a field repeated often enough to fire.
+    ///
+    /// `type` is spelled in the implementation's own language. See
+    /// `spec/diagnostics.md`.
+    var payloads: Payloads { get }
+
     func replay(_ trace: Trace) throws -> [Observed]
+}
+
+extension Adapter {
+    var payloads: Payloads { [] }
 }
 
 struct TimerAdapter: Adapter {
     let name = "timer"
     let table = TIMER_TABLE
+    let payloads: Payloads = [(state: "Running", field: "since", type: "Int")]
 
     func replay(_ trace: Trace) throws -> [Observed] {
         let ctx = TimerCtx(limit: trace.ctx["limit"] ?? 0)
@@ -257,7 +274,7 @@ for adapter in adapters {
     // The lints carry the most per-language logic there is -- thresholds, the
     // dead-row/no-static-exit subsumption, the fully-static gate on
     // reachability -- and nothing compared them across languages until now.
-    errs += checkGolden(adapter.name, "lint", report(adapter.table))
+    errs += checkGolden(adapter.name, "lint", report(adapter.table, payloads: adapter.payloads))
     // The diagram. Three renderers agreeing on edge ORDER, not just on the
     // edge set -- which is the thing that had already drifted.
     errs += checkGolden(adapter.name, "puml", Export.toPlantuml(adapter.table))
@@ -296,7 +313,7 @@ for adapter in adapters {
         print(
             "ok   \(adapter.name)  (\(spec.states.count) states x \(spec.actions.count) "
                 + "actions, \(traces.count) traces)")
-        let warnings = report(adapter.table)
+        let warnings = report(adapter.table, payloads: adapter.payloads)
         for line in warnings.split(separator: "\n") where !line.isEmpty {
             print("       \(line)")
         }

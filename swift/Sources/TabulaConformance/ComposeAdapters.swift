@@ -10,6 +10,7 @@ import TabulaTesting
 struct RetryAdapter: Adapter {
     let name = "retry"
     let table = RETRY_TABLE
+    let payloads: Payloads = [(state: "Waiting", field: "attempt", type: "Int")]
 
     /// See `TimerAdapter.effectName` — Swift cases are lowerCamel, the fixtures
     /// are UpperCamel.
@@ -75,6 +76,10 @@ struct RetryAdapter: Adapter {
 struct JobAdapter: Adapter {
     let name = "nested-delegate"
     let table = JOB_TABLE
+    // `retrying` holds the child's state, not a scalar. Nothing to hoist and
+    // nothing the lint compares, so the list is empty rather than guessing a
+    // spelling for a nested machine.
+    let payloads: Payloads = []
 
     static func effectName(_ f: JobF) -> String {
         switch f {

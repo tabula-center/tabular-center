@@ -275,8 +275,33 @@ The field list is metadata about the states, so it is emitted as a separate
 A generator that cannot resolve a field's type degrades this one lint rather
 than the machine.
 
-**Status:** implemented in all three. Not yet *checked* across all three: no
-conformance fixture triggers it, because only Rust's fixture machines declare
-`PAYLOADS`. A fixture that did would need payload metadata in every language,
-which is why `payload-hoist` is still listed as an outstanding fixture in
-`PLAN.md` rather than treated as covered.
+**Status:** implemented in all three, and all three adapters now supply their
+payloads. It remains the one lint with **no shared fixture**, and the reason is
+in the message rather than in the metadata.
+
+**The type name is spelled by the implementation's own language.** The same
+field is `since: u32` in Rust, `since: Long` in Kotlin and `since: Int` in
+Swift. A golden `.lint` file is compared byte for byte by all three, so a
+fixture that fires this lint cannot have one.
+
+Picking a type the three spell identically does not rescue it. `String` is the
+obvious candidate — and generated state enums derive `Copy`, so a Rust machine
+cannot hold a `String` payload at all. No type is both spelled the same in all
+three *and* `Copy` in Rust, so the constraint is not a naming inconvenience; it
+has no solution at the fixture level.
+
+Three ways out, none of them free, and the choice is deliberately still open:
+
+1. **Drop the type from the message.** Cheapest, and it loses the thing the
+   type is there for: the lint already compares name *and* type, precisely so
+   that `count: u32` and `count: String` are treated as two ideas sharing a
+   word. Two findings that both say `` `count` `` would be worse output than
+   one that says `` `count: u32` ``.
+2. **Canonicalise type names** into a spec vocabulary (`int`, `string`, `bool`)
+   that each generator maps onto. Correct, and it is a new normative table in
+   this file plus a mapping in three generators, for one lint.
+3. **Let the lint golden be per-language** for this fixture alone. Narrow, and
+   it puts a hole in the property that makes the goldens worth having.
+
+Until one is chosen, the lint is verified by unit tests inside each
+implementation, which do not have the cross-language problem.

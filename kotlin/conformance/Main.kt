@@ -46,7 +46,7 @@ fun main(args: Array<String>) {
         // The lints carry the most per-language logic there is -- thresholds,
         // the dead-row/no-static-exit subsumption, the fully-static gate on
         // reachability -- and nothing compared them across languages until now.
-        errs += checkGolden(root, name, "lint", report(adapter.table))
+        errs += checkGolden(root, name, "lint", report(adapter.table, adapter.payloads))
         // The diagram. Two renderers agreeing on edge ORDER, not just on the
         // edge set -- which is the thing that had already drifted.
         errs += checkGolden(root, name, "puml", Export.toPlantuml(adapter.table))
@@ -76,7 +76,9 @@ fun main(args: Array<String>) {
         if (errs.isEmpty()) {
             println("ok   $name  (${spec.states.size} states x ${spec.actions.size} actions, ${traces.size} traces)")
             // Lints are advisory and indented, never counted as failures.
-            report(adapter.table).lines().filter { it.isNotBlank() }.forEach { println("       $it") }
+            report(adapter.table, adapter.payloads).lines()
+                .filter { it.isNotBlank() }
+                .forEach { println("       $it") }
         } else {
             println("FAIL $name")
             errs.forEach { println("       $it") }

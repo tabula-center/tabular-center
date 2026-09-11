@@ -19,6 +19,20 @@ interface Adapter {
     /** The generated table. */
     val table: Table
 
+    /**
+     * Payload fields, as `(state, field, type)`.
+     *
+     * Separate from [table] because only the lints need it, and only
+     * `tabula::payload-hoist` among those. Rust has passed its `PAYLOADS` to
+     * the lint since the lint existed; this side was calling `report(table)`
+     * and taking the empty default, so the two agreed only because no fixture
+     * had a field repeated often enough to fire.
+     *
+     * `type` is spelled in the implementation's own language. See
+     * `spec/diagnostics.md`.
+     */
+    val payloads: Payloads get() = emptyList()
+
     /** Replay one trace, one [Observed] per step. */
     fun replay(trace: Trace): List<Observed>
 }
@@ -96,6 +110,7 @@ object timer {
 
 object TimerAdapter : Adapter {
     override val name = "timer"
+    override val payloads: Payloads = listOf(Triple("Running", "since", "Long"))
     override val table = timer.Machine.TABLE
 
     override fun replay(trace: Trace): List<Observed> {
