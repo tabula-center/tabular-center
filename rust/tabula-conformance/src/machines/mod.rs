@@ -56,6 +56,15 @@ pub trait Adapter {
     /// fixture is enough to pin the walk they share.
     fn plantuml(&self) -> String;
 
+    /// The build-time coverage report for the generated `TABLE`.
+    ///
+    /// The last uncompared output. It was Rust-only and had no golden, and in
+    /// that state it drifted from the lint on two rules -- warning on a single
+    /// deliberate `UNREACHABLE`, and reporting reachability on matrices where
+    /// it is only an approximation. Both are now the lint's rules, and this
+    /// snapshot is what keeps them the lint's rules.
+    fn coverage_report(&self) -> String;
+
     /// Replay one trace, returning one `Observed` per step.
     ///
     /// Returns `Err` when the trace names an action or state the adapter does

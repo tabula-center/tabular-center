@@ -12,6 +12,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 
 use crate::cell::Cell;
+use crate::lint::{IGNORE_HEAVY_PERCENT, UNREACHABLE_HEAVY_PERCENT};
 use crate::table::Table;
 
 /// One drawable edge of the machine.
@@ -226,22 +227,40 @@ pub fn to_coverage_report<const N: usize, const M: usize>(t: &Table<N, M>) -> St
         "  ignore {} | go {} | emit {} | handle {} | delegate {} | unreachable {}\n",
         c.ignore, c.go, c.emit, c.handle, c.delegate, c.unreachable
     ));
-    if c.ignore_percent() >= 70 {
+    // The thresholds are the lint's, imported rather than repeated. This
+    // report and `lint::report` are two views of one matrix and must not
+    // disagree about what is worth warning about -- and they did, for as long
+    // as the report had no golden and no second implementation to answer to.
+    if c.ignore_percent() >= IGNORE_HEAVY_PERCENT {
         s.push_str(&format!(
             "  warning: {}% of cells are IGNORE; consider splitting this machine\n",
             c.ignore_percent()
         ));
     }
-    if c.unreachable > 0 {
+    // Was `c.unreachable > 0`, which fired on a single deliberate assertion --
+    // the exact case `spec/cells.md` says must stay silent, and the case the
+    // toggle fixture exists to document. `tabula::unreachable-heavy` had the
+    // rule right; this had a copy of it that drifted.
+    let unreachable_percent = if c.total() == 0 {
+        0
+    } else {
+        c.unreachable * 100 / c.total()
+    };
+    if unreachable_percent >= UNREACHABLE_HEAVY_PERCENT {
         s.push_str(&format!(
             "  warning: {} UNREACHABLE cell(s); usually a modelling error\n",
             c.unreachable
         ));
     }
-    for state in t.statically_unreached() {
-        s.push_str(&format!(
-            "  warning: `{state}` has no static incoming transition\n"
-        ));
+    // Gated on is_fully_static for the same reason the lint gates it: with any
+    // dynamic cell present, `statically_unreached` is an approximation, and a
+    // state reached only from a HANDLE cell is legitimately absent from it.
+    if t.is_fully_static() {
+        for state in t.statically_unreached() {
+            s.push_str(&format!(
+                "  warning: `{state}` has no static incoming transition\n"
+            ));
+        }
     }
     s
 }
@@ -383,5 +402,53 @@ mod tests {
         let r = to_coverage_report(&T);
         assert!(r.contains("4 cells (2x2), 1 required members"));
         assert!(!r.contains("UNREACHABLE cell"));
+    }
+
+    #[test]
+    fn report_stays_silent_on_one_deliberate_unreachable() {
+        // The same rule as `tabula::unreachable-heavy`, and the same rule
+        // `spec/cells.md` states: one or two deliberate assertions are what
+        // the kind is for. The report used to warn on any UNREACHABLE at all,
+        // which contradicted both.
+        const U: Table<2, 4> = Table {
+            machine: "U",
+            states: ["A", "B"],
+            actions: ["W", "X", "Y", "Z"],
+            initial: Some("A"),
+            cells: [
+                [
+                    Cell::Go {
+                        target: "B",
+                        effects: &[],
+                    },
+                    Cell::Ignore,
+                    Cell::Ignore,
+                    Cell::Unreachable,
+                ],
+                [
+                    Cell::Go {
+                        target: "A",
+                        effects: &[],
+                    },
+                    Cell::Ignore,
+                    Cell::Ignore,
+                    Cell::Ignore,
+                ],
+            ],
+        };
+        // 1 of 8 cells is 12%, under the 25% threshold.
+        assert!(!to_coverage_report(&U).contains("UNREACHABLE cell"));
+    }
+
+    #[test]
+    fn report_does_not_claim_unreachability_when_cells_dispatch_dynamically() {
+        // T's Off state is reached only via `GO(Off)`, so it is fine; the
+        // point is the gate itself. With a HANDLE cell present the matrix is
+        // not fully static, so reachability is an approximation and the
+        // report must not present it as a result. The lint has always gated
+        // this; the report did not.
+        assert!(!T.is_fully_static());
+        let r = to_coverage_report(&T);
+        assert!(!r.contains("no static incoming transition"));
     }
 }

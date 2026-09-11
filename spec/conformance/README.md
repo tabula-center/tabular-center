@@ -88,10 +88,10 @@ trace reaches-done
 
 ## What the goldens prove
 
-`<name>.grid`, `<name>.lint` and `<name>.puml` are written by the Rust harness
-(`--bless`) and **read** by every other implementation. Neither Kotlin nor Swift blesses: a
-renderer or a lint that drifts by a single space fails there rather than quietly
-rewriting the shared file.
+`<name>.grid`, `<name>.lint`, `<name>.puml` and `<name>.cov` are written by the
+Rust harness (`--bless`) and **read** by every other implementation. Neither
+Kotlin nor Swift blesses: a renderer or a lint that drifts by a single space
+fails there rather than quietly rewriting the shared file.
 
 The lint golden matters more than it looks. The lints hold the most
 per-language logic in the project — the 70% and 25% thresholds, `dead-row`
@@ -122,19 +122,44 @@ the same walk, so pinning any one of them pins the order, and PlantUML's
 `A --> B : label` is the easiest of the three to read in a review diff. A
 second diagram golden would cost a file per fixture and prove the same thing.
 
-The general lesson is worth stating, because it has now cost two bugs. This
-suite compares behaviour and committed output, and it is good at both. Neither
-of the last two defects lived in either place: `tabula::empty-emit` was
-behaviour no fixture exercises, and the mermaid ordering was output no golden
-compares. When looking for the next one, ask what is *uncompared* rather than
-what is unchecked.
+`<name>.cov` is the coverage report, and it was added by following the lesson
+below rather than by finding a bug first. It was the last output that was
+rendered in only one language and compared by nothing — and it had drifted from
+the lint on two rules: it warned on a *single* deliberate `UNREACHABLE`, which
+`spec/cells.md` and `tabula::unreachable-heavy` both say must stay silent, and
+it reported statically-unreachable states without the fully-static gate, so a
+state reached only from a `HANDLE` cell was announced as unreachable. Both
+copies of those rules now come from the lint's constants.
+
+Two of these four goldens would look different before that fix: `toggle.cov`
+carried the spurious `UNREACHABLE` warning that the fixture's own comment
+argues against, and `timer.cov` announced `Done` as having no incoming
+transition when a `HANDLE` cell leads there.
+
+The general lesson is worth stating, because it has now found three defects.
+This suite compares behaviour and committed output, and it is good at both.
+None of the three lived in either place: `tabula::empty-emit` was behaviour no
+fixture exercises, the mermaid ordering was output no golden compares, and the
+coverage report was output only one language produced. When looking for the
+next one, ask what is *uncompared* rather than what is unchecked.
+
+By that test, the diagram and report renderers are now covered. What is left
+uncompared is the **generated source** — deliberately, since Rust names cells
+by trait bound and the other two by identifier, so there is nothing to compare.
+The compile-fail suites are the substitute, and they are per-language.
+
+`tools/verify` checks that every `<name>.tbl` has all four siblings before it
+runs any harness. That guard exists because the harness's own "no golden X; run
+with --bless" is the wrong advice in the common case: the file usually does
+exist and is merely untracked, so nix left it out of the build, and blessing
+would have regenerated files already sitting in the tree.
 
 ## Adding a fixture
 
 1. Write `<name>.tbl` and `traces/<name>.trace`. Run the Rust harness with
-   `--bless` to create `<name>.grid`, `<name>.lint` and `<name>.puml`; never
-   write those by hand, since the whole value of a golden is that a machine
-   wrote it.
+   `--bless` to create `<name>.grid`, `<name>.lint`, `<name>.puml` and
+   `<name>.cov`; never write those by hand, since the whole value of a golden
+   is that a machine wrote it.
 2. Add an adapter in each language mapping action names and payload fields to
    real values. The adapter is the only per-fixture code; everything else is
    shared.

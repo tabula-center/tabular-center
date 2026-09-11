@@ -111,6 +111,10 @@ impl Adapter for TimerAdapter {
         tabula::export::to_plantuml(&TABLE)
     }
 
+    fn coverage_report(&self) -> String {
+        tabula::export::to_coverage_report(&TABLE)
+    }
+
     fn replay(&self, trace: &Trace) -> Result<Vec<Observed>, String> {
         let mut ctx = Ctx {
             limit: trace.ctx.get("limit").copied().unwrap_or(0) as u32,

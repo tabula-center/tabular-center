@@ -41,6 +41,46 @@ require_dir() {
     return 1
 }
 
+# The same trap as require_dir, one level down.
+#
+# require_dir catches a whole new directory going missing. It does not catch a
+# new *file* landing in a directory that already exists -- which is what a new
+# golden is. That cost a nix-build round trip: the harness reported "no golden
+# cov, run with --bless" for all four fixtures while the four files sat in the
+# working tree, untracked, and therefore absent from the source nix copied in.
+#
+# "run --bless" is the wrong advice in that situation and blessing would have
+# regenerated files that already existed. Check the set up front instead, and
+# say the thing that is actually true.
+#
+# It earns its keep twice: it also catches adding a .tbl fixture and forgetting
+# to bless it, which produces the same misleading message.
+GOLDEN_EXTS="grid lint puml cov"
+
+require_goldens() {
+    local missing="" tbl name ext
+    for tbl in spec/conformance/*.tbl; do
+        [ -e "$tbl" ] || continue
+        name="${tbl%.tbl}"
+        for ext in $GOLDEN_EXTS; do
+            [ -f "$name.$ext" ] || missing="$missing $name.$ext"
+        done
+    done
+    [ -z "$missing" ] && return 0
+
+    echo "missing golden file(s):"
+    for f in $missing; do echo "  $f"; done
+    echo
+    echo "  If these exist in your working tree, they are probably untracked:"
+    echo "  nix excludes untracked files from a dirty tree, so a patch applied"
+    echo "  with 'git apply' leaves new files out of the build. Commit them, or"
+    echo "  'git add -A', or apply patches with 'git am'."
+    echo
+    echo "  If they genuinely do not exist, the fixture has never been blessed:"
+    echo "  cd rust && cargo run -p tabula-conformance -- --bless"
+    return 1
+}
+
 run() {
     local name="$1"; shift
     printf '\n\033[1m== %s ==\033[0m\n' "$name"
@@ -162,7 +202,10 @@ step_no_std() {
 
 step_compile_fail() { ./tools/compile-fail; }
 
-step_conformance() { (cd rust && cargo run -q -p tabula-conformance $CARGO_FLAGS); }
+step_conformance() {
+    require_goldens || return 1
+    (cd rust && cargo run -q -p tabula-conformance $CARGO_FLAGS)
+}
 
 # Kotlin builds with `kotlinc` directly -- no Gradle, no Maven.
 #
@@ -235,6 +278,7 @@ step_kotlin_conformance() {
         echo "note: $KOTLINC not found; skipping"
         return 0
     fi
+    require_goldens || return 1
     local out
     out="$(mktemp -d)"
     (
@@ -502,6 +546,7 @@ step_swift_conformance() {
         echo "note: $SWIFT not found; skipping"
         return 0
     fi
+    require_goldens || return 1
     local scratch
     scratch="$(mktemp -d)"
     swift_home "$scratch"

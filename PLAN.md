@@ -42,8 +42,8 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 9 Runtime / drivers | **done (Rust half)** |
 
 84 Rust tests; 18 compile-fail fixtures (9 Rust, 4 Kotlin, 1 Kotlin-codegen,
-4 Swift); 4 conformance fixtures (28 trace steps); 4 golden `.grid`, 4 `.lint`
-and 4 `.puml` snapshots.
+4 Swift); 4 conformance fixtures (28 trace steps); 4 golden `.grid`, 4 `.lint`,
+4 `.puml` and 4 `.cov` snapshots.
 
 These counts are checked against the tree, not remembered. Regenerate with:
 
@@ -418,7 +418,12 @@ color-mismatch is a build error in all three.
 - [x] `lint` module: six findings, all warnings. Two rules learned writing it —
       a lint that fires on healthy machines gets turned off, and two warnings
       for one problem is noise. See `spec/diagnostics.md`.
-- [x] Coverage report by cell kind
+- [x] Coverage report by cell kind. Now in all three languages with a `.cov`
+      golden. It was the last output rendered in one language and compared by
+      nothing, and in that state it had drifted from the lint on two rules:
+      warning on a single deliberate `UNREACHABLE`, and reporting reachability
+      without the fully-static gate. Both thresholds now come from the lint's
+      constants rather than from a copy of them.
 - [x] Golden matrix snapshots (`<name>.grid`, `--bless` to accept). A PR that
       changes behaviour now shows a **table** diff, which is the artifact worth
       reviewing.

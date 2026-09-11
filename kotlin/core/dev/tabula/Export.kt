@@ -90,6 +90,43 @@ object Export {
         return sb.toString()
     }
 
+    /**
+     * The build-time coverage report.
+     *
+     * Thresholds are the lint's, imported rather than repeated: this and
+     * [report] are two views of one matrix and must not disagree about what is
+     * worth warning about.
+     */
+    fun toCoverageReport(t: Table): String {
+        val c = t.coverage()
+        val sb = StringBuilder(
+            "${t.machine}: ${c.total} cells (${t.states.size}x${t.actions.size}), " +
+                "${c.requiredMembers} required members\n",
+        )
+        sb.append(
+            "  ignore ${c.ignore} | go ${c.go} | emit ${c.emit} | " +
+                "handle ${c.handle} | delegate ${c.delegate} | unreachable ${c.unreachable}\n",
+        )
+        if (c.ignorePercent >= IGNORE_HEAVY_PERCENT) {
+            sb.append(
+                "  warning: ${c.ignorePercent}% of cells are IGNORE; " +
+                    "consider splitting this machine\n",
+            )
+        }
+        // One or two deliberate UNREACHABLE cells stay silent. See spec/cells.md.
+        if (c.unreachablePercent >= UNREACHABLE_HEAVY_PERCENT) {
+            sb.append("  warning: ${c.unreachable} UNREACHABLE cell(s); usually a modelling error\n")
+        }
+        // With any dynamic cell present, staticallyUnreached is an
+        // approximation, so the report must not present it as a result.
+        if (t.isFullyStatic()) {
+            for (state in t.staticallyUnreached()) {
+                sb.append("  warning: `$state` has no static incoming transition\n")
+            }
+        }
+        return sb.toString()
+    }
+
     /** One drawable edge. [isStatic] is false when the target is not knowable. */
     private data class Edge(
         val from: String,

@@ -78,6 +78,10 @@ impl Adapter for ToggleAdapter {
         tabula::export::to_plantuml(&TABLE)
     }
 
+    fn coverage_report(&self) -> String {
+        tabula::export::to_coverage_report(&TABLE)
+    }
+
     fn replay(&self, trace: &Trace) -> Result<Vec<Observed>, String> {
         let mut ctx = Ctx;
         let mut cells = Impl;

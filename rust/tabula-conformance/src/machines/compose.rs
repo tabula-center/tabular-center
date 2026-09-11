@@ -206,6 +206,10 @@ impl Adapter for RetryAdapter {
         tabula::export::to_plantuml(&retry::TABLE)
     }
 
+    fn coverage_report(&self) -> String {
+        tabula::export::to_coverage_report(&retry::TABLE)
+    }
+
     fn replay(&self, trace: &Trace) -> Result<Vec<Observed>, String> {
         let mut ctx = retry::Ctx {
             max_attempts: trace.ctx.get("max_attempts").copied().unwrap_or(1) as u32,
@@ -269,6 +273,10 @@ impl Adapter for JobAdapter {
 
     fn plantuml(&self) -> String {
         tabula::export::to_plantuml(&job::TABLE)
+    }
+
+    fn coverage_report(&self) -> String {
+        tabula::export::to_coverage_report(&job::TABLE)
     }
 
     fn replay(&self, trace: &Trace) -> Result<Vec<Observed>, String> {

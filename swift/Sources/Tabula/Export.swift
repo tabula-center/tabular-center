@@ -89,6 +89,35 @@ public enum Export {
         return out
     }
 
+    /// The build-time coverage report.
+    ///
+    /// Thresholds are the lint's, referenced rather than repeated: this and
+    /// `report` are two views of one matrix and must not disagree about what
+    /// is worth warning about.
+    public static func toCoverageReport(_ t: Table) -> String {
+        let c = t.coverage()
+        var out = "\(t.machine): \(c.total) cells "
+        out += "(\(t.states.count)x\(t.actions.count)), \(c.requiredMembers) required members\n"
+        out += "  ignore \(c.ignore) | go \(c.go) | emit \(c.emit) | "
+        out += "handle \(c.handle) | delegate \(c.delegate) | unreachable \(c.unreachable)\n"
+        if c.ignorePercent >= ignoreHeavyPercent {
+            out += "  warning: \(c.ignorePercent)% of cells are IGNORE; "
+            out += "consider splitting this machine\n"
+        }
+        // One or two deliberate `unreachable` cells stay silent. See spec/cells.md.
+        if c.unreachablePercent >= unreachableHeavyPercent {
+            out += "  warning: \(c.unreachable) UNREACHABLE cell(s); usually a modelling error\n"
+        }
+        // With any dynamic cell present, staticallyUnreached is an
+        // approximation, so the report must not present it as a result.
+        if t.isFullyStatic() {
+            for state in t.staticallyUnreached() {
+                out += "  warning: `\(state)` has no static incoming transition\n"
+            }
+        }
+        return out
+    }
+
     /// One drawable edge. `isStatic` is false when the target is not knowable.
     private struct Edge {
         let from: String

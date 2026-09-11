@@ -50,6 +50,7 @@ fun main(args: Array<String>) {
         // The diagram. Two renderers agreeing on edge ORDER, not just on the
         // edge set -- which is the thing that had already drifted.
         errs += checkGolden(root, name, "puml", Export.toPlantuml(adapter.table))
+        errs += checkGolden(root, name, "cov", Export.toCoverageReport(adapter.table))
 
         for (t in traces) {
             steps += t.steps.size
