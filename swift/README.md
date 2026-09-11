@@ -158,7 +158,7 @@ would cap a machine at one child.
 
 | | |
 |---|---|
-| `Sources/Tabula` | `Step`, `Cell`, `Table`, `Export`, `Lint`, `Driver`, `AsyncDriver` |
+| `Sources/Tabula` | `Step`, `Cell`, `Table`, `Export`, `Lint`, `Driver`, `AsyncDriver`, `Store`, `AsyncStore` |
 | `Sources/TabulaCheck/ReferenceTimer.swift` | the macro's specification, hand-written |
 | `Sources/TabulaCheck/main.swift` | 40 checks, the same assertions as the other two languages |
 | `compile_fail/` | one fixture per guarantee |
@@ -274,6 +274,18 @@ checks go red — see `PLAN.md`.
 `Driver` and `AsyncDriver` are the same loop written twice. Swift has no
 `reasync`, so an `async` caller needs its own type rather than a generic
 parameter — the same one-file-per-color shape as Kotlin's `SuspendDriver`.
+
+Written twice and, until Phase 5's store work, run once: `AsyncDriver` had no
+check of any kind. `TabulaCheck` now drives both and asserts they report
+identical `Progress` for identical input, which is the property duplication
+actually threatens — not that the async one is broken, but that the two quietly
+stop being the same loop.
+
+`Store` and `AsyncStore` sit on top. The difference is only that they bind
+`step` and `perform` once at construction instead of taking them per call: a
+driver is generic over machines and should own none of them, while a caller has
+exactly one and should not get to pass the wrong pair at one call site out of
+twenty.
 
 The closures capture rather than taking a shared environment, unlike Rust's
 driver. That is not an oversight: Rust needs the parameter because two closures

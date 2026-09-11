@@ -247,6 +247,121 @@ func drivers() {
     }
 }
 
+// MARK: - Stores
+
+func stores() {
+    // A Store is a Driver with its two closures bound once. The behaviour it
+    // inherits is not re-checked here; what is checked is that binding them
+    // once really does mean the same loop runs.
+    let ctx = Ctx(limit: 1)
+    let cells = Timer()
+    var seen: [F] = []
+    let store = Store<S, A, F>(
+        initial: .idle,
+        step: { s, a in step(cells, ctx, s, a) },
+        perform: { f in
+            seen.append(f)
+            if case .startClock = f { return .tick(now: 99) }
+            return nil
+        }
+    )
+
+    do {
+        let p = try store.send(.start)
+        Assert.eq(p.steps, 2, "store: the start, then the queued tick")
+        Assert.eq(p.followUps, 1, "store: one follow-up, through the mailbox")
+        Assert.eq(store.state, .done, "store: the queued tick was stepped")
+        Assert.eq(seen.count, 2, "store: both effects reached the handler")
+    } catch {
+        Assert.ok(false, "store threw: \(error)")
+    }
+
+    // enqueue-then-drain is not send-twice. Both actions are in the mailbox
+    // before either is stepped, so the first one's follow-up lands behind the
+    // second -- which is what FIFO means and what a caller batching input
+    // depends on.
+    let d = Store<S, A, F>(
+        initial: .idle,
+        step: { s, a in step(Timer(), Ctx(limit: 100), s, a) },
+        perform: { _ in nil }
+    )
+    do {
+        try d.enqueue(.start)
+        try d.enqueue(.tick(now: 1))
+        Assert.eq(d.pending, 2, "store: enqueue does not drain")
+        let p = try d.drain()
+        Assert.eq(p.steps, 2, "store: drain steps everything queued")
+        Assert.eq(d.pending, 0, "store: drain empties the mailbox")
+    } catch {
+        Assert.ok(false, "store threw: \(error)")
+    }
+
+    let small = Store<S, A, F>(
+        initial: .idle, capacity: 1,
+        step: { s, a in step(Timer(), Ctx(limit: 1), s, a) },
+        perform: { _ in nil }
+    )
+    Assert.throwsError("store: overflow names its capacity rather than growing") {
+        try small.enqueue(.start)
+        try small.enqueue(.start)
+    }
+}
+
+/// The async half.
+///
+/// `AsyncDriver` had no check at all before this: sixty lines of duplicated
+/// loop, documented in `swift/README.md`, exercised by nothing. Duplicated
+/// code that nothing runs is the pair most likely to drift, and it is the same
+/// blind spot the conformance goldens kept turning up -- something that exists
+/// in one place and is compared against nothing.
+func asyncStores() async {
+    let cells = Timer()
+    let ctx = Ctx(limit: 1)
+    let store = AsyncStore<S, A, F>(
+        initial: .idle,
+        step: { s, a in step(cells, ctx, s, a) },
+        perform: { f in
+            if case .startClock = f { return .tick(now: 99) }
+            return nil
+        }
+    )
+
+    do {
+        let p = try await store.send(.start)
+        Assert.eq(p.steps, 2, "async store: the start, then the queued tick")
+        Assert.eq(p.followUps, 1, "async store: one follow-up, through the mailbox")
+        let state = await store.state
+        Assert.eq(state, .done, "async store: the queued tick was stepped")
+    } catch {
+        Assert.ok(false, "async store threw: \(error)")
+    }
+
+    // The colored loop must agree with the colorless one, since it is the same
+    // loop written twice. Same machine, same input, same Progress.
+    let sync = Store<S, A, F>(
+        initial: .idle,
+        step: { s, a in step(Timer(), Ctx(limit: 1), s, a) },
+        perform: { f in
+            if case .startClock = f { return .tick(now: 99) }
+            return nil
+        }
+    )
+    do {
+        let a = try sync.send(.start)
+        let b = try await AsyncStore<S, A, F>(
+            initial: .idle,
+            step: { s, x in step(Timer(), Ctx(limit: 1), s, x) },
+            perform: { f in
+                if case .startClock = f { return .tick(now: 99) }
+                return nil
+            }
+        ).send(.start)
+        Assert.eq(a, b, "the two colors of the loop report the same progress")
+    } catch {
+        Assert.ok(false, "store threw: \(error)")
+    }
+}
+
 // MARK: - Entry point
 
 transitions()
@@ -254,6 +369,8 @@ effectSurface()
 tableAndLints()
 lintRules()
 drivers()
+stores()
+await asyncStores()
 
 let failures = Assert.report("swift reference")
 if failures > 0 {

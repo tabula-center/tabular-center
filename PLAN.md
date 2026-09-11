@@ -346,7 +346,20 @@ four fixtures pass, with the same golden `.grid` and `.lint` files.
       took, with a golden diff and 13 declaration diagnostics. Split for the
       same reason and it paid the same way — the generator's logic is testable
       without the macro that does not exist yet.
-- [ ] `Store`, `actor AsyncStore`, `@MainActor @Observable ObservableStore`
+- [x] `Store` and `actor AsyncStore`. A `Driver` takes its two closures on
+      every call, which is right for a driver and wrong for a caller who has
+      exactly one machine; a `Store` binds them once. `AsyncStore` is an actor
+      rather than a lock, because serialized access to one piece of mutable
+      state is exactly what an actor is
+- [ ] `@MainActor @Observable ObservableStore`. Held deliberately: `@Observable`
+      is macOS 14 / Swift 5.9, and `Package.swift` declares tools-version 5.7
+      with no `platforms:` on purpose. Raising the floor is a decision to make
+      once, with `TabulaMacros` — which needs 5.9 too — rather than ahead of it.
+      `Store` is what it would wrap, so nothing has to change when it lands
+- [x] First coverage for `AsyncDriver`, which had none. Sixty lines of
+      duplicated loop, documented in `swift/README.md`, run by nothing. The
+      check asserts the two colors report identical `Progress` for identical
+      input, since that is the property duplication threatens
 - [ ] `@Machine` attached macro (SwiftSyntax, **build-time only** — assert with
       a linked-binary check in CI). Blocked on the swift-syntax packaging
       decision; see the backlog entry below.
