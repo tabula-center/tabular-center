@@ -264,6 +264,11 @@ the build with a comprehensible message; the developer's source file contains no
       a dependency report: with no build system there is no classpath but the
       stdlib. The report check is wired up but gated on `has.kotlinGradle`, so
       it stays dormant until Gradle can resolve.
+- [x] `SuspendDriver` exercised. It was not, until after Swift's `AsyncDriver`
+      turned out to have the same gap — the blocking driver had checks from the
+      day it was written and its twin had none. Both sides now assert the two
+      colors report identical `Progress` for identical input, which is the
+      property the duplication actually threatens.
 
 **4b. Annotations**
 - [x] `@Machine`, `@Row`, cell markers (`HANDLE`, `IGNORE`, `GO`, `EMIT`,

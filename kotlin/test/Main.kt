@@ -137,6 +137,84 @@ private fun drivers() {
     }
 }
 
+/**
+ * The suspending driver, which had no check at all until now.
+ *
+ * [Driver] has been exercised since it was written; [SuspendDriver] is the
+ * same loop in the other color and was run by nothing — the same gap Swift's
+ * `AsyncDriver` had. Duplicated code that nothing runs is the pair most likely
+ * to drift apart.
+ *
+ * The reference machine's `step` is suspending, so this is the driver it
+ * actually wants: no [blockingStep] bridge appears anywhere below.
+ */
+private suspend fun suspendDrivers() {
+    val m = Timer()
+    val c = ctx(1)
+    val sd = SuspendDriver<S, A, F>(S.Idle)
+    val seen = mutableListOf<F>()
+
+    // A follow-up action returned from an effect handler: queued, never
+    // recursed. StartClock yields a Tick, and with limit 1 that Tick finishes
+    // the machine — so one dispatch drives two steps.
+    val p = sd.dispatch(
+        A.Start,
+        step = { s, a -> m.step(c, s, a) },
+        perform = { f ->
+            seen.add(f)
+            if (f is F.StartClock) A.Tick(99) else null
+        },
+    )
+    Assert.eq(p.steps, 2, "suspend driver: the start, then the queued tick")
+    Assert.eq(p.followUps, 1, "suspend driver: one follow-up, through the mailbox")
+    Assert.eq(p.transitions, 2, "suspend driver: both steps transitioned")
+    Assert.eq(sd.state, S.Done, "suspend driver: the queued tick was stepped")
+    Assert.eq(seen.size, 2, "suspend driver: both effects reached the handler")
+
+    // The outcome is applied before effects run, so a handler inspecting the
+    // driver sees where the machine has gone, not where it was.
+    val observed = mutableListOf<S>()
+    val d2 = SuspendDriver<S, A, F>(S.Idle)
+    d2.dispatch(
+        A.Start,
+        step = { s, a -> m.step(ctx(100), s, a) },
+        perform = { _ -> observed.add(d2.state); null },
+    )
+    Assert.eq(observed, listOf<S>(S.Running(0)), "suspend driver: outcome applied before effects")
+
+    // Re-entering is refused rather than silently nested. Checked for the
+    // specific error, not merely for a throw: QueueFull would also throw
+    // DriverException and would mean something else entirely.
+    var refused: DriverError? = null
+    val d3 = SuspendDriver<S, A, F>(S.Idle)
+    try {
+        d3.dispatch(
+            A.Start,
+            step = { s, a -> m.step(ctx(100), s, a) },
+            perform = { _ ->
+                d3.run(step = { s, a -> m.step(ctx(100), s, a) }, perform = { null })
+                null
+            },
+        )
+    } catch (e: DriverException) {
+        refused = e.error
+    }
+    Assert.eq(refused, DriverError.Reentered, "suspend driver: re-entry is refused")
+
+    // The two colors are the same loop written twice, so the same machine and
+    // the same input must produce the same Progress. This is the property the
+    // duplication threatens; nothing asserted it before.
+    val blocking = Driver<S, A, F>(S.Idle)
+    val cb = ctx(1)
+    val pb = blocking.dispatch(
+        A.Start,
+        step = { s, a -> blockingStep(m, cb, s, a) },
+        perform = { f -> if (f is F.StartClock) A.Tick(99) else null },
+    )
+    Assert.eq(pb, p, "the two colors of the loop report the same progress")
+    Assert.eq(blocking.state, sd.state, "the two colors of the loop end in the same state")
+}
+
 // The reference machine's `step` is suspending, so the blocking driver needs a
 // bridge. That awkwardness IS the finding: Kotlin cannot abstract over color,
 // so a suspending machine wants SuspendDriver and this bridge should not exist
@@ -204,6 +282,7 @@ fun main() {
     runSuspend {
         transitions()
         effectSurface()
+        suspendDrivers()
     }
     composition()
     tableAndLints()

@@ -56,6 +56,15 @@ than by a dependency report. `SuspendDriver` needs only the `suspend` keyword �
 no `kotlinx.coroutines` — and `test/RunSuspend.kt` proves it by driving a
 suspending machine with `kotlin.coroutines` intrinsics alone.
 
+That proved it *compiles* without coroutines, which is not the same as running
+it. `SuspendDriver` had no check of its own until Swift's `AsyncDriver` turned
+out to have the identical gap: in both languages the blocking driver was
+exercised from the day it was written and its colored twin was exercised by
+nothing. `test/Main.kt` now drives both over the same machine with the same
+input and asserts identical `Progress`, which is the property two hand-copied
+loops actually threaten — not that one is broken, but that they quietly stop
+being the same loop.
+
 ## The generator, split in two
 
 KSP is a Maven artifact and this environment cannot reach Maven. Rather than
