@@ -9,6 +9,7 @@
 //! passed.
 
 pub mod compose;
+pub mod effects_never;
 pub mod timer;
 pub mod toggle;
 
@@ -80,5 +81,6 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
         Box::new(toggle::ToggleAdapter),
         Box::new(compose::RetryAdapter),
         Box::new(compose::JobAdapter),
+        Box::new(effects_never::EffectsNeverAdapter),
     ]
 }

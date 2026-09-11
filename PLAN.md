@@ -42,8 +42,8 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 9 Runtime / drivers | **done (Rust half)** |
 
 84 Rust tests; 18 compile-fail fixtures (9 Rust, 4 Kotlin, 1 Kotlin-codegen,
-4 Swift); 4 conformance fixtures (28 trace steps); 4 golden `.grid`, 4 `.lint`,
-4 `.puml` and 4 `.cov` snapshots.
+4 Swift); 5 conformance fixtures (34 trace steps); 5 golden `.grid`, 5 `.lint`,
+5 `.puml` and 5 `.cov` snapshots.
 
 These counts are checked against the tree, not remembered. Regenerate with:
 
@@ -210,10 +210,16 @@ could be written from it without reading the Rust source.
       `toggle` (payload-free, and the only coverage for EMIT and UNREACHABLE)
 - [x] Fixture deferred to its own phase, and landed there: `nested-delegate`
       (Phase 6), with `retry` alongside it as the child in its own right
-- [ ] Fixtures still outstanding: `effects-never` (7), `payload-hoist` (8).
-      `payload-hoist` needs payload metadata in all three languages before it
-      can be shared — Rust has `PAYLOADS`, the other two fixtures do not
-      declare it, which is why no current fixture triggers the lint
+- [x] `effects-never` (Phase 7's fixture), green in all three languages. A
+      machine with an uninhabited effect enum, which is interesting for what it
+      removes: with no effect to name, `EMIT` cannot be written in it at all,
+      because an empty one is `tabula::empty-emit`. It also pins the
+      reachability gate — `Open` is reached only from a `HANDLE` cell, so the
+      coverage report must stay silent about its missing static entry
+- [ ] Fixture still outstanding: `payload-hoist` (8). It needs payload metadata
+      in all three languages before it can be shared — Rust has `PAYLOADS`, the
+      other two do not declare it, which is why no current fixture triggers the
+      lint
 - [x] Trace format: `(state, action) → (state, effects)` sequences, specified
       in `spec/conformance/README.md` and parsed by all three harnesses
 - [x] Rust harness passing all fixtures, plus `table-diff`. Verified against
@@ -402,7 +408,9 @@ color-mismatch is a build error in all three.
       it knows the variants, and naming a hand-written enum left it nothing to
       iterate.
 - [x] `effects Effect { }` — an uninhabited enum, a machine with no effects.
-      Supported, not degraded.
+      Supported, not degraded. Now also a shared fixture, `effects-never`, so
+      the mode is exercised in all three languages rather than in one Rust
+      unit test.
 - [x] One required member per effect variant, narrowed payloads, returning an
       optional follow-up action
 - [x] Follow-up actions route through the mailbox, never re-entering `step`

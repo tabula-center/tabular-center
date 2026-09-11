@@ -1,0 +1,2 @@
+Gate: 6 cells (2x3), 2 required members
+  ignore 3 | go 1 | emit 0 | handle 2 | delegate 0 | unreachable 0

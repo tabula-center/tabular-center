@@ -1,0 +1,19 @@
+# A machine that declares no effects at all.
+#
+# `effects F { }` is an uninhabited enum. The interesting consequence is what
+# it removes: with no effect to name, `EMIT` cannot be written here at all,
+# because `EMIT()` is `tabula::empty-emit`. The whole vocabulary of this
+# machine is IGNORE, GO, HANDLE and UNREACHABLE.
+#
+# `Open` has no static incoming transition -- the only route there is the
+# HANDLE cell at (Locked, Unlock). That is legitimate, and it is why the
+# reachability warning is gated on a fully-static matrix. This fixture pins
+# the gate: if any implementation drops it, `effects-never.cov` fails.
+
+machine Gate
+initial Locked
+states  Locked Open
+actions Unlock Lock Push
+
+Locked | HANDLE | IGNORE      | IGNORE
+Open   | IGNORE | GO(Locked)  | HANDLE

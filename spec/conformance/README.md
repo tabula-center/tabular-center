@@ -131,7 +131,7 @@ it reported statically-unreachable states without the fully-static gate, so a
 state reached only from a `HANDLE` cell was announced as unreachable. Both
 copies of those rules now come from the lint's constants.
 
-Two of these four goldens would look different before that fix: `toggle.cov`
+Two of the goldens would look different before that fix: `toggle.cov`
 carried the spurious `UNREACHABLE` warning that the fixture's own comment
 argues against, and `timer.cov` announced `Done` as having no incoming
 transition when a `HANDLE` cell leads there.
@@ -153,6 +153,11 @@ runs any harness. That guard exists because the harness's own "no golden X; run
 with --bless" is the wrong advice in the common case: the file usually does
 exist and is merely untracked, so nix left it out of the build, and blessing
 would have regenerated files already sitting in the tree.
+
+`effects-never.cov` is the one that pins the gate deliberately rather than by
+accident: its `Open` state is reachable only through a `HANDLE` cell, so any
+implementation that drops the fully-static gate announces `Open` as unreachable
+and the golden fails.
 
 ## Adding a fixture
 

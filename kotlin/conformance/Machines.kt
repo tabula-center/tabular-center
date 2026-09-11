@@ -197,6 +197,112 @@ object toggle {
     }
 }
 
+/**
+ * A machine with an uninhabited effect enum.
+ *
+ * `sealed interface F` with no implementors is Kotlin's `effects F { }`. What
+ * makes it worth a fixture is what it removes: with no effect to name, `EMIT`
+ * cannot be written at all, because an empty one is `tabula::empty-emit`.
+ *
+ * `Open` is reached only from the `HANDLE` cell at `(Locked, Unlock)`, which
+ * is why the coverage report must stay silent about its lack of a static
+ * incoming transition.
+ */
+object effectsNever {
+    sealed interface S {
+        data object Locked : S
+        data object Open : S
+    }
+    sealed interface A {
+        data object Unlock : A
+        data object Lock : A
+        data object Push : A
+    }
+
+    /** No implementors: nothing can ever construct one. */
+    sealed interface F
+
+    object Ctx
+
+    abstract class Machine {
+        abstract fun onUnlock(ctx: Ctx, state: S.Locked, action: A.Unlock): Step<S, F>
+        abstract fun onPush(ctx: Ctx, state: S.Open, action: A.Push): Step<S, F>
+
+        fun step(ctx: Ctx, s: S, a: A): Step<S, F> = when (s) {
+            is S.Locked -> when (a) {
+                is A.Unlock -> onUnlock(ctx, s, a)
+                is A.Lock -> Step.Ignored
+                is A.Push -> Step.Ignored
+            }
+            is S.Open -> when (a) {
+                is A.Unlock -> Step.Ignored
+                is A.Lock -> Step.Go(S.Locked)
+                is A.Push -> onPush(ctx, s, a)
+            }
+        }
+
+        companion object {
+            val TABLE = Table(
+                machine = "Gate",
+                states = listOf("Locked", "Open"),
+                actions = listOf("Unlock", "Lock", "Push"),
+                initial = "Locked",
+                cells = listOf(
+                    listOf(Cell.Handle, Cell.Ignore, Cell.Ignore),
+                    listOf(Cell.Ignore, Cell.Go("Locked"), Cell.Handle),
+                ),
+            )
+        }
+    }
+
+    class Impl : Machine() {
+        // The only route into Open, and deliberately dynamic: a statically
+        // resolvable transition here would make the matrix fully static and
+        // defeat the reachability gate this fixture pins.
+        override fun onUnlock(ctx: Ctx, state: S.Locked, action: A.Unlock): Step<S, F> =
+            Step.Go(S.Open)
+
+        override fun onPush(ctx: Ctx, state: S.Open, action: A.Push): Step<S, F> = Step.Stay()
+    }
+}
+
+object EffectsNeverAdapter : Adapter {
+    override val name = "effects-never"
+    override val table = effectsNever.Machine.TABLE
+
+    override fun replay(trace: Trace): List<Observed> {
+        val m = effectsNever.Impl()
+        var state: effectsNever.S = when (trace.from) {
+            "Locked" -> effectsNever.S.Locked
+            "Open" -> effectsNever.S.Open
+            else -> error("effects-never: unknown state `${trace.from}`")
+        }
+        return trace.steps.map { st ->
+            val action = when (st.action) {
+                "Unlock" -> effectsNever.A.Unlock
+                "Lock" -> effectsNever.A.Lock
+                "Push" -> effectsNever.A.Push
+                else -> error("effects-never: unknown action `${st.action}`")
+            }
+            val step = m.step(effectsNever.Ctx, state, action)
+            // Always empty -- F has no implementors -- but mapped the same way
+            // as every other adapter, so the trace assertions test the real
+            // path rather than a short circuit.
+            val effects = step.effects.map { it.toString() }
+            val expect = when (step) {
+                is Step.Stay -> Expect.Stay
+                is Step.Ignored -> Expect.Ignored
+                is Step.Go -> {
+                    state = step.next
+                    val n = if (step.next is effectsNever.S.Locked) "Locked" else "Open"
+                    Expect.Go(n, emptyMap())
+                }
+            }
+            Observed(expect, effects)
+        }
+    }
+}
+
 object ToggleAdapter : Adapter {
     override val name = "toggle"
     override val table = toggle.Machine.TABLE
@@ -231,4 +337,5 @@ object ToggleAdapter : Adapter {
 }
 
 /** Every adapter that has landed. A fixture with none is reported as skipped. */
-val adapters: List<Adapter> = listOf(TimerAdapter, ToggleAdapter, RetryAdapter, JobAdapter)
+val adapters: List<Adapter> =
+    listOf(TimerAdapter, ToggleAdapter, RetryAdapter, JobAdapter, EffectsNeverAdapter)

@@ -107,3 +107,58 @@ let TOGGLE_TABLE = Table(
 struct ToggleImpl: ToggleCells {
     func onPoke(_ ctx: ToggleCtx) -> Step<ToggleS, ToggleF> { .stay(effects: []) }
 }
+
+// MARK: - effects-never
+
+/// A machine with an uninhabited effect enum.
+///
+/// A caseless enum is Swift's `effects F { }`: nothing can ever construct a
+/// `GateF`. What makes it worth a fixture is what it removes -- with no effect
+/// to name, `EMIT` cannot be written at all, because an empty one is
+/// `tabula::empty-emit`.
+///
+/// `Step` puts no constraint on its effect type, so no conformance is needed
+/// here and none is declared. An `Equatable` conformance would have to be
+/// written by hand as `switch lhs {}`, and it would be proving nothing.
+enum GateS: Equatable { case locked, open }
+enum GateA: Equatable { case unlock, lock, push }
+enum GateF {}
+
+struct GateCtx {}
+
+protocol GateCells {
+    func onUnlock(_ ctx: GateCtx) -> Step<GateS, GateF>
+    func onPush(_ ctx: GateCtx) -> Step<GateS, GateF>
+}
+
+func gateStep(
+    _ c: GateCells, _ ctx: GateCtx, _ s: GateS, _ a: GateA
+) -> Step<GateS, GateF> {
+    switch (s, a) {
+    case (.locked, .unlock): return c.onUnlock(ctx)
+    case (.locked, .lock): return .ignored
+    case (.locked, .push): return .ignored
+    case (.open, .unlock): return .ignored
+    case (.open, .lock): return .go(.locked, effects: [])
+    case (.open, .push): return c.onPush(ctx)
+    }
+}
+
+let GATE_TABLE = Table(
+    machine: "Gate",
+    states: ["Locked", "Open"],
+    actions: ["Unlock", "Lock", "Push"],
+    cells: [
+        [.handle, .ignore, .ignore],
+        [.ignore, .go(target: "Locked", effects: []), .handle],
+    ],
+    initial: "Locked"
+)
+
+struct GateImpl: GateCells {
+    /// The only route into `Open`, and deliberately dynamic: a statically
+    /// resolvable transition here would make the matrix fully static and
+    /// defeat the reachability gate this fixture pins.
+    func onUnlock(_ ctx: GateCtx) -> Step<GateS, GateF> { .go(.open, effects: []) }
+    func onPush(_ ctx: GateCtx) -> Step<GateS, GateF> { .stay(effects: []) }
+}

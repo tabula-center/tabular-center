@@ -148,10 +148,52 @@ struct ToggleAdapter: Adapter {
     }
 }
 
+struct EffectsNeverAdapter: Adapter {
+    let name = "effects-never"
+    let table = GATE_TABLE
+
+    func replay(_ trace: Trace) throws -> [Observed] {
+        let cells = GateImpl()
+        var state: GateS
+        switch trace.from {
+        case "Locked": state = .locked
+        case "Open": state = .open
+        default: throw SpecError("effects-never: unknown state `\(trace.from)`")
+        }
+
+        var out: [Observed] = []
+        for st in trace.steps {
+            let action: GateA
+            switch st.action {
+            case "Unlock": action = .unlock
+            case "Lock": action = .lock
+            case "Push": action = .push
+            default: throw SpecError("effects-never: unknown action `\(st.action)`")
+            }
+            let step = gateStep(cells, GateCtx(), state, action)
+            // Always empty -- GateF has no cases -- but mapped the same way as
+            // every other adapter, so the trace assertions test the real path.
+            // There is no effectName here because there is no effect to name.
+            let effects: [String] = step.effects.map { _ in "" }
+            let expect: Expect
+            switch step {
+            case .stay: expect = .stay
+            case .ignored: expect = .ignored
+            case let .go(next, _):
+                state = next
+                expect = .go(state: next == .locked ? "Locked" : "Open", fields: [:])
+            }
+            out.append(Observed(expect: expect, effects: effects))
+        }
+        return out
+    }
+}
+
 /// Every adapter that has landed. A fixture with none is reported as skipped,
 /// never as passed.
 let adapters: [Adapter] = [
     TimerAdapter(), ToggleAdapter(), RetryAdapter(), JobAdapter(),
+    EffectsNeverAdapter(),
 ]
 
 // MARK: - Runner

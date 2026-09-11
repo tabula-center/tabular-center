@@ -1,0 +1,19 @@
+trace unlock-push-lock
+  # A full lap. The HANDLE cell at (Locked, Unlock) is the only way into
+  # `Open`, so the trace also demonstrates the dynamic edge the coverage
+  # report must not report as missing.
+  from Locked
+  Unlock => go Open
+  Push   => stay
+  Lock   => go Locked
+  Push   => ignored
+
+trace nothing-is-ever-emitted
+  # Every step carries an empty effect list, asserted on both cell kinds that
+  # could carry effects in a machine that had any: a GO and a HANDLE.
+  #
+  # A trace step with no `!` asserts *no effects*, not "effects unchecked", so
+  # these lines fail against an implementation that invents one.
+  from Locked
+  Unlock => go Open
+  Lock   => go Locked
