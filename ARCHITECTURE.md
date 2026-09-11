@@ -815,8 +815,11 @@ tabula/
 │       ├── toggle.tbl
 │       ├── retry.tbl
 │       ├── nested-delegate.tbl
+│       ├── effects-never.tbl
 │       ├── <name>.grid          # golden matrix; Rust blesses, others read
 │       ├── <name>.lint          # golden lint output; same rule
+│       ├── <name>.puml          # golden diagram; same rule
+│       ├── <name>.cov           # golden coverage report; same rule
 │       └── traces/<name>.trace  # (state, action) → expected (state, effects)
 │
 ├── rust/
@@ -830,6 +833,8 @@ tabula/
 │   │       ├── scale.rs             # the measured 8×12 machine
 │   │       └── compile_fail/        # one fixture per diagnostic
 │   └── tabula-conformance/      # runs spec/conformance; hosts bin/table-diff
+│                                 #   (whose renderer is in the lib, so it is
+│                                 #   testable)
 │
 ├── kotlin/                      # built by kotlinc directly — no Gradle, no Maven
 │   ├── core/dev/tabula/         # Step, Cell, Table, Export, Lint, Driver
@@ -843,7 +848,8 @@ tabula/
 │
 ├── swift/
 │   ├── Package.swift
-│   ├── Sources/Tabula/          # core: Step, Cell, Table, Export, Lint, Driver
+│   ├── Sources/Tabula/          # core: Step, Cell, Table, Export, Lint,
+│   │                             #   Driver, AsyncDriver, Store, AsyncStore
 │   ├── Sources/TabulaCodegen/   # the emitter; no SwiftSyntax, so it builds offline
 │   ├── Sources/TabulaCheck/     # reference machine + harness (no XCTest available)
 │   ├── Sources/TabulaConformance/

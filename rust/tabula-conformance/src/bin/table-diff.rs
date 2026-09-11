@@ -8,6 +8,7 @@
 use std::process::ExitCode;
 
 use tabula_conformance::machines::all;
+use tabula_conformance::spec_grid;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -49,51 +50,4 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
-}
-
-/// Column-aligned grid, same shape as `tabula::export::to_grid`.
-fn spec_grid(s: &tabula_conformance::Spec) -> String {
-    let texts: Vec<Vec<String>> = s
-        .cells
-        .iter()
-        .map(|r| r.iter().map(|c| c.to_string()).collect())
-        .collect();
-
-    let label_w = s
-        .states
-        .iter()
-        .map(String::len)
-        .chain(std::iter::once(s.machine.len()))
-        .max()
-        .unwrap_or(0);
-
-    let col_w: Vec<usize> = (0..s.actions.len())
-        .map(|j| {
-            texts
-                .iter()
-                .map(|r| r[j].len())
-                .chain(std::iter::once(s.actions[j].len()))
-                .max()
-                .unwrap_or(0)
-        })
-        .collect();
-
-    // Right-trimmed, matching `tabula::export::to_grid`, so a spec grid and a
-    // generated grid diff cleanly against each other.
-    let mut out = String::new();
-    let mut line = format!("{:w$}", s.machine, w = label_w);
-    for (j, a) in s.actions.iter().enumerate() {
-        line.push_str(&format!("  {:w$}", a, w = col_w[j]));
-    }
-    out.push_str(line.trim_end());
-    out.push('\n');
-    for (i, st) in s.states.iter().enumerate() {
-        line = format!("{:w$}", st, w = label_w);
-        for (j, t) in texts[i].iter().enumerate() {
-            line.push_str(&format!("  {:w$}", t, w = col_w[j]));
-        }
-        out.push_str(line.trim_end());
-        out.push('\n');
-    }
-    out
 }

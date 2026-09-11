@@ -51,6 +51,35 @@ impl fmt::Display for CellSpec {
     }
 }
 
+impl CellSpec {
+    /// The cell as a `.grid` golden spells it.
+    ///
+    /// Not `Display`, which spells cells the way a `.tbl` fixture does. The
+    /// two formats join effect lists differently -- `GO(T, A, B)` authored by
+    /// hand, `GO(T, A+B)` generated -- which `spec/cells.md` records as
+    /// deliberate rather than as drift.
+    ///
+    /// `table-diff` needs this one. Its whole job is to put a fixture's grid
+    /// beside a generated grid so a reviewer can compare them, and it used
+    /// `Display`: for any cell with two effects the two grids would have
+    /// disagreed in both text and column width, in a tool whose only output is
+    /// the comparison. No fixture has such a cell yet, which is exactly why
+    /// nothing caught it.
+    pub fn grid_text(&self) -> String {
+        match self {
+            CellSpec::Ignore => String::from("IGNORE"),
+            CellSpec::Handle => String::from("HANDLE"),
+            CellSpec::Unreachable => String::from("UNREACHABLE"),
+            CellSpec::Go { target, effects } if effects.is_empty() => format!("GO({target})"),
+            CellSpec::Go { target, effects } => {
+                format!("GO({}, {})", target, effects.join("+"))
+            }
+            CellSpec::Emit { effects } => format!("EMIT({})", effects.join("+")),
+            CellSpec::Delegate { child } => format!("DELEGATE({child})"),
+        }
+    }
+}
+
 /// A parsed `.tbl` fixture.
 #[derive(Debug, Clone)]
 pub struct Spec {
@@ -345,6 +374,59 @@ pub fn parse_traces(src: &str, origin: &str) -> Result<Vec<Trace>, String> {
 }
 
 /// Load a fixture and its traces from `spec/conformance`.
+/// A fixture's cells, column-aligned exactly as `tabula::export::to_grid`
+/// renders a generated table.
+///
+/// Lived in `bin/table-diff.rs` until now, which meant it could not be tested:
+/// a binary's private functions are reachable from nothing. It is a hand-copy
+/// of `to_grid`'s layout -- the same padding, the same right-trimming -- and
+/// the whole point of the tool is that its output diffs cleanly against the
+/// real thing. A hand-copy that nothing compares to its original is the shape
+/// every finding in this project has taken.
+pub fn spec_grid(s: &Spec) -> String {
+    let texts: Vec<Vec<String>> = s
+        .cells
+        .iter()
+        .map(|r| r.iter().map(CellSpec::grid_text).collect())
+        .collect();
+
+    let label_w = s
+        .states
+        .iter()
+        .map(String::len)
+        .chain(std::iter::once(s.machine.len()))
+        .max()
+        .unwrap_or(0);
+
+    let col_w: Vec<usize> = (0..s.actions.len())
+        .map(|j| {
+            texts
+                .iter()
+                .map(|r| r[j].len())
+                .chain(std::iter::once(s.actions[j].len()))
+                .max()
+                .unwrap_or(0)
+        })
+        .collect();
+
+    let mut out = String::new();
+    let mut line = format!("{:w$}", s.machine, w = label_w);
+    for (j, a) in s.actions.iter().enumerate() {
+        line.push_str(&format!("  {:w$}", a, w = col_w[j]));
+    }
+    out.push_str(line.trim_end());
+    out.push('\n');
+    for (i, st) in s.states.iter().enumerate() {
+        line = format!("{:w$}", st, w = label_w);
+        for (j, t) in texts[i].iter().enumerate() {
+            line.push_str(&format!("  {:w$}", t, w = col_w[j]));
+        }
+        out.push_str(line.trim_end());
+        out.push('\n');
+    }
+    out
+}
+
 pub fn load(root: &Path, name: &str) -> Result<(Spec, Vec<Trace>), String> {
     let tbl = root.join(format!("{name}.tbl"));
     let trc = root.join("traces").join(format!("{name}.trace"));
@@ -441,6 +523,58 @@ pub fn check_table<const N: usize, const M: usize>(got: &Table<N, M>, want: &Spe
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn spec_grid_matches_the_generated_grid_for_every_fixture() {
+        // `table-diff` prints a fixture's grid so a reviewer can compare it
+        // with the generated one. If the two renderers disagree the tool
+        // produces exactly the misleading output it exists to prevent, and
+        // nothing checked them against each other: `spec_grid` lived in a
+        // binary, where a test cannot reach it.
+        //
+        // The `.grid` goldens are written by `to_grid`, so comparing against
+        // them compares the two renderers directly, on every fixture, for
+        // free.
+        let root =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../spec/conformance");
+        let mut checked = 0;
+        for entry in std::fs::read_dir(&root).expect("spec/conformance") {
+            let path = entry.expect("dir entry").path();
+            if path.extension().and_then(|e| e.to_str()) != Some("tbl") {
+                continue;
+            }
+            let name = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .expect("fixture name")
+                .to_string();
+            let (spec, _) = super::load(&root, &name).expect(&name);
+            let golden =
+                std::fs::read_to_string(root.join(format!("{name}.grid"))).expect("golden grid");
+            let got = super::spec_grid(&spec);
+            assert_eq!(got, golden, "spec_grid drifted for {name}");
+            checked += 1;
+        }
+        // Discovered rather than listed, so a new fixture is covered the
+        // moment it lands. The floor guards against the walk silently finding
+        // nothing.
+        assert!(checked >= 5, "expected every fixture, checked {checked}");
+    }
+
+    #[test]
+    fn the_two_spellings_of_a_cell_are_different_on_purpose() {
+        // `.tbl` is authored by hand and reads as a list; `.grid` is generated
+        // and has to stay narrow enough to keep columns aligned. Recorded as
+        // normative in spec/cells.md, and asserted here because the difference
+        // looks like a bug to anyone meeting it for the first time -- which is
+        // how `table-diff` came to use the wrong one.
+        let cell = super::CellSpec::Go {
+            target: "Idle".into(),
+            effects: vec!["A".into(), "B".into()],
+        };
+        assert_eq!(cell.to_string(), "GO(Idle, A, B)");
+        assert_eq!(cell.grid_text(), "GO(Idle, A+B)");
+    }
+
     use super::*;
 
     #[test]

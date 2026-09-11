@@ -41,7 +41,7 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 8 Introspection & tooling | **done (Rust half)** |
 | 9 Runtime / drivers | **done (Rust half)** |
 
-84 Rust tests; 18 compile-fail fixtures (9 Rust, 4 Kotlin, 1 Kotlin-codegen,
+93 Rust tests; 18 compile-fail fixtures (9 Rust, 4 Kotlin, 1 Kotlin-codegen,
 4 Swift); 5 conformance fixtures (34 trace steps); 5 golden `.grid`, 5 `.lint`,
 5 `.puml` and 5 `.cov` snapshots.
 
@@ -227,7 +227,15 @@ could be written from it without reading the Rust source.
       the three ways out and why none is obviously right
 - [x] Trace format: `(state, action) → (state, effects)` sequences, specified
       in `spec/conformance/README.md` and parsed by all three harnesses
-- [x] Rust harness passing all fixtures, plus `table-diff`. Verified against
+- [x] Rust harness passing all fixtures, plus `table-diff` — which was
+      compiled by `clippy --all-targets` and executed by nothing until the
+      audit went back through. Its `spec_grid` is a hand-copy of `to_grid`'s
+      layout and lived in a binary, where no test can reach it; it is now in
+      the library, asserted against the `.grid` goldens on every fixture, and
+      smoke-run by `tools/verify`. It had also been rendering effect lists in
+      the `.tbl` spelling, so a cell with two effects would have produced a
+      grid that disagreed with the generated one in both text and column
+      width, in the one tool whose entire output is that comparison. Verified against
       three classes of deliberately introduced drift: a wrong cell kind, a
       `stay`/`ignored` confusion, and a wrong effect. **Table checking is not
       redundant with trace replay** — several wrong tables produce right

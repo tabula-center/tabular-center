@@ -204,7 +204,19 @@ step_compile_fail() { ./tools/compile-fail; }
 
 step_conformance() {
     require_goldens || return 1
-    (cd rust && cargo run -q -p tabula-conformance $CARGO_FLAGS)
+    (cd rust && cargo run -q -p tabula-conformance $CARGO_FLAGS) || return 1
+    # Smoke-run table-diff. It is a documented tool with a `just` recipe and a
+    # `nix run` app, and until now nothing ever executed it -- `cargo clippy
+    # --all-targets` compiled it and stopped there. Its rendering is unit
+    # tested; this covers the argument handling and the exit codes, which are
+    # the rest of it.
+    (cd rust && cargo run -q -p tabula-conformance --bin table-diff $CARGO_FLAGS -- timer) \
+        >/dev/null || { echo "table-diff failed on a fixture that exists"; return 1; }
+    if (cd rust && cargo run -q -p tabula-conformance --bin table-diff $CARGO_FLAGS \
+        -- no-such-fixture) >/dev/null 2>&1; then
+        echo "table-diff exited 0 for a fixture that does not exist"
+        return 1
+    fi
 }
 
 # Kotlin builds with `kotlinc` directly -- no Gradle, no Maven.
