@@ -166,13 +166,13 @@ pub const UNREACHABLE_HEAVY_PERCENT: usize = 25;
 /// lint that fires on healthy machines is a lint people turn off.
 pub const PAYLOAD_HOIST_STATES: usize = 3;
 
-/// State payload fields, as `(state, field, type)` in declaration order.
+/// State payload fields. Re-exported; the alias lives in [`crate::table`].
 ///
-/// Emitted as a separate `PAYLOADS` const rather than folded into
-/// [`Table`](crate::Table): the table is the matrix, and this is metadata about
-/// the states. Keeping them apart also means adding this did not break every
-/// hand-written `Table` literal in the repository.
-pub type Payloads = [(&'static str, &'static str, &'static str)];
+/// It was declared here originally, which made every machine built without
+/// `alloc` fail to compile: the macro emits `PAYLOADS: &$crate::lint::Payloads`
+/// for every machine, and this module does not exist without the feature. See
+/// the note on the alias itself.
+pub use crate::table::Payloads;
 
 /// Map a Rust payload type name onto the spec vocabulary.
 ///

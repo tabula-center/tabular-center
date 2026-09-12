@@ -2,6 +2,25 @@
 
 use crate::cell::{Cell, CellKind};
 
+/// State payload fields, as `(state, field, type)` in declaration order.
+///
+/// Emitted as a separate `PAYLOADS` const rather than folded into [`Table`]:
+/// the table is the matrix, and this is metadata about the states. Keeping
+/// them apart also means adding it did not break every hand-written `Table`
+/// literal in the repository.
+///
+/// **Here rather than in `lint`, which is where it started.** `lint` is gated
+/// on `alloc`, and `transition_matrix!` emits `PAYLOADS: &$crate::lint::…` for
+/// every machine, so a machine built with `--no-default-features` failed to
+/// compile on a path nothing exercised: the library's own `no-std` check
+/// builds `-p tabula` without features, and a machine is a *consumer* of the
+/// macro. `examples/rust/01-traffic-light` is that consumer, and it found this
+/// on its first build.
+///
+/// The alias needs no allocation and never did; it was in `lint` because that
+/// is the only thing that reads it.
+pub type Payloads = [(&'static str, &'static str, &'static str)];
+
 /// A machine's transition matrix, emitted as a `const` by the generator.
 ///
 /// `N` states (rows) by `M` actions (columns). Row and column order match the

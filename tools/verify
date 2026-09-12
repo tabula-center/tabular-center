@@ -180,6 +180,14 @@ step_test() { (cd rust && cargo test --all-features $CARGO_FLAGS); }
 step_no_std() {
     # Phase 1 exit criterion: the core must build without std.
     #
+    # Scope worth knowing: this builds the *library* without features. It says
+    # nothing about what `transition_matrix!` emits, because no machine is
+    # compiled here -- and the macro emitted `$crate::lint::Payloads` for every
+    # machine while `lint` is gated on `alloc`, so no machine built without
+    # features for as long as PAYLOADS has existed. `step_examples` builds
+    # `examples/rust/01-traffic-light` alone for exactly that reason; a
+    # consumer of the macro is the only thing that can check the macro.
+    #
     # The fallback is only for a genuinely missing cross target. An earlier
     # version swallowed stderr and fell back on ANY failure, which reported a
     # stale-lockfile error as "target unavailable" and sent a real bug looking
@@ -365,10 +373,41 @@ step_kotlin_examples() {
         KCP="$(kotlin_cp "$out")"
         [ -d "$out/core" ] || { echo "core failed to compile"; exit 1; }
         cd ../examples/kotlin || exit 1
-        "$KOTLINC" -cp "$KCP" ./*.kt -include-runtime -d "$out/ex.jar" 2>&1 \
-            | grep -v "^info:" || true
-        [ -f "$out/ex.jar" ] || { echo "examples failed to compile"; exit 1; }
-        java -cp "$out/ex.jar:$KCP" examples.MainKt
+
+        # The harness once, shared by every example's tests.
+        "$KOTLINC" harness/Check.kt -d "$out/harness" 2>&1 | grep -v "^info:" || true
+        [ -d "$out/harness" ] || { echo "the example harness failed to compile"; exit 1; }
+
+        # Each example is compiled on its own, and its tests are compiled
+        # afterwards against its output rather than alongside it. That is what
+        # `tests/` buys in cargo and what a `mod tests` at the bottom of a file
+        # gives away: a test that compiles in the same unit can reach anything,
+        # so it never demonstrates that the example's public surface is usable.
+        #
+        # The fourth column is the classpath, and it is the configuration axis.
+        # 01 is built against `core` ALONE -- no annotations, no testing module
+        # -- because the minimum a machine needs is a claim worth checking, and
+        # a shared classpath checks it for nobody. The Rust half of this
+        # restructure found a real bug the same way.
+        ex() {
+            local dir="$1" main="$2" label="$3" cp="$4"
+            "$KOTLINC" -cp "$cp" "$dir"/src/*.kt -d "$out/$dir" 2>&1 \
+                | grep -v "^info:" || true
+            [ -d "$out/$dir" ] || { echo "$label failed to compile"; return 1; }
+            # The test unit is a jar with `-include-runtime`, which is where
+            # the Kotlin stdlib comes from. There is no KOTLIN_HOME to point
+            # `java` at here, and the previous single-jar build got the stdlib
+            # the same way without it being obvious.
+            "$KOTLINC" -cp "$cp:$out/$dir:$out/harness" "$dir"/test/*.kt \
+                -include-runtime -d "$out/$dir-test.jar" 2>&1 | grep -v "^info:" || true
+            [ -f "$out/$dir-test.jar" ] || { echo "$label tests failed to compile"; return 1; }
+            java -cp "$out/$dir-test.jar:$out/$dir:$out/harness:$cp" "$main" || return 1
+        }
+
+        ex 01-traffic-light TrafficLightTestKt "traffic-light" "$out/core" || exit 1
+        ex 02-timer         TimerTestKt        "timer"         "$KCP"       || exit 1
+        ex 03-retry         RetryTestKt        "retry"         "$KCP"       || exit 1
+        ex 04-login         LoginTestKt        "login"         "$KCP"       || exit 1
     )
     local rc=$?
     rm -rf "$out"

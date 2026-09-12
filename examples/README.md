@@ -42,6 +42,19 @@ One workspace rather than four detached packages, for one reason: a single
 `Cargo.lock`, which `tools/verify version` checks against `VERSION`. Four
 lockfiles would be four chances to forget.
 
+Kotlin has no build system, so "its own project" means its own `kotlinc`
+invocation: `<n>/src/` compiled alone, then `<n>/test/` compiled against that
+output rather than alongside it, then run. Compiling the tests as a separate
+unit is the point — a test in the same unit can reach anything, so it never
+demonstrates that the example's public surface is usable. The Rust half learned
+that the hard way when `login`'s test turned out to be reaching through a
+private alias.
+
+The configuration axis there is the **classpath**. `01-traffic-light` is built
+against `core` alone, with no annotations and no testing module, because the
+minimum a machine needs is a claim worth checking and a shared classpath checks
+it for nobody.
+
 ## Why these four
 
 They are chosen to cover the edges rather than to look impressive:

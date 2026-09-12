@@ -1017,7 +1017,7 @@ macro_rules! __tabula_payloads {
         ///
         /// Feeds `tabula::payload-hoist`, which asks whether a field repeated
         /// across states is really context in disguise. See rule R4.
-        pub const PAYLOADS: &$crate::lint::Payloads = &[$($acc)*];
+        pub const PAYLOADS: &$crate::table::Payloads = &[$($acc)*];
     };
 
     (@go acc=[$($acc:tt)*] rest=[, $($r:tt)*]) => {

@@ -1,5 +1,5 @@
-use timer::*;
 use tabula::Outcome;
+use timer::*;
 
 fn ctx(limit: u64) -> Ctx {
     Ctx {

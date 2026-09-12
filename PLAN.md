@@ -181,16 +181,27 @@ one crate share one set of features, one edition, one shape. Four projects do
 not, so the set can be graded from simple to awkward and each corner gets an
 owner.
 
-- [x] Rust: a workspace of four member crates. `traffic-light` is `#![no_std]`
+- [x] Rust: a workspace of four member crates. **It found a real bug on its
+      first build**, which is the argument for the whole restructure: the macro
+      emitted `PAYLOADS: &$crate::lint::Payloads` for every machine while
+      `lint` is gated on `alloc`, so *no machine had ever compiled with
+      `--no-default-features`*. The library's own `no-std` check builds
+      `-p tabula` without features and compiles no machine, so it could not see
+      it. A graded set of example projects is how a library gets a consumer for
+      each of its configurations.
+- [x] Rust: four member crates. `traffic-light` is `#![no_std]`
       on tabula with `default-features = false`; `timer` takes the defaults and
       uses export and lint; `retry` adds a **binary**, so the driver is watched
       and not only asserted on; `login` holds two machines. `tools/verify`
       builds `traffic-light` alone as well as with the workspace, because cargo
       unifies features across the members it builds and the `no_std` claim is
       otherwise never tested.
-- [ ] Kotlin: currently five files compiled together by `kotlinc`. Wants the
-      same split, and the configuration axis there is the driver — blocking
-      versus suspend — plus the codegen path.
+- [x] Kotlin: four projects, each `kotlinc`-compiled on its own, tests compiled
+      against the example's output rather than alongside it, and each run. The
+      configuration axis is the **classpath**: `01-traffic-light` builds against
+      `core` alone. A suspend-driver example is still missing — `03-retry` uses
+      the blocking driver — and that is the next Kotlin gap rather than part of
+      the restructure.
 - [ ] Swift: currently one SwiftPM target. Wants one package per example, and
       `ObservableStore` is the awkward corner: it is Darwin-only, so the
       example that uses it must be skipped rather than failed off Darwin.

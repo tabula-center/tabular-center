@@ -1,5 +1,5 @@
-use traffic_light::*;
 use tabula::Outcome;
+use traffic_light::*;
 
 #[test]
 fn a_full_cycle() {

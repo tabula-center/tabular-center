@@ -1,6 +1,15 @@
 use login::*;
 use tabula::Outcome;
 
+// `SessionCtx` is a private alias inside the crate -- `use session::Ctx as
+// SessionCtx`, written there so the lens impls read well. A `mod tests` at the
+// bottom of lib.rs saw it through `use super::*`; an integration test is a
+// separate crate and sees only what is public.
+//
+// Naming the real path is the better outcome anyway: a reader copying this
+// example gets `session::Ctx`, which is what their own code will say.
+use login::session::Ctx as SessionCtx;
+
 fn fresh() -> session::State {
     session::State::LoggedOut(session::LoggedOut {
         auth: auth::State::AwaitingCredentials(auth::AwaitingCredentials { attempts: 0 }),

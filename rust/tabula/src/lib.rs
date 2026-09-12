@@ -55,4 +55,4 @@ pub use delegate::{Delegate, Lens};
 pub use driver::{Driver, DriverError, Progress};
 pub use machine::{Handle, Machine, Perform};
 pub use step::{CapacityError, Effects, Outcome, Step, DEFAULT_EFFECT_CAPACITY};
-pub use table::{Coverage, Table};
+pub use table::{Coverage, Payloads, Table};
