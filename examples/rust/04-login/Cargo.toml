@@ -1,0 +1,11 @@
+[package]
+name = "login"
+description = "4. Composition: a session machine delegating to an auth machine"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+tabula = { path = "../../../rust/tabula" }

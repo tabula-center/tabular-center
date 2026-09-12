@@ -1,0 +1,14 @@
+[package]
+name = "retry"
+description = "3. The driver: effects producing follow-up actions through the mailbox"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# The only example with a binary. A driver is a loop that runs, and a loop that
+# is only ever unit-tested is a loop nobody has watched. `cargo run -p retry`
+# prints a trace.
+[dependencies]
+tabula = { path = "../../../rust/tabula" }

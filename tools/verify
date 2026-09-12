@@ -336,7 +336,19 @@ step_kotlin_conformance() {
 # public API is exercised from outside.
 step_examples() {
     require_dir examples/rust || return 1
-    (cd examples/rust && cargo test $CARGO_FLAGS)
+    # A workspace of four member crates now, not one crate of four modules.
+    # `cargo test` covers every member, including the tests/ directories the
+    # split moved them into.
+    (cd examples/rust && cargo test $CARGO_FLAGS) || return 1
+    # 01-traffic-light takes tabula with no features at all. Building it under
+    # the workspace does not prove that: cargo unifies features across members,
+    # so 02's `alloc` would be enabled for everyone. Built alone, it is the
+    # only place `--no-default-features` is checked through the macro rather
+    # than through the library's own surface.
+    (cd examples/rust && cargo test -p traffic-light $CARGO_FLAGS) || return 1
+    # And run the one example that has something to show. A driver is a loop;
+    # a loop nobody has watched is a loop nobody has watched.
+    (cd examples/rust && cargo run -q -p retry $CARGO_FLAGS) >/dev/null || return 1
 }
 
 step_kotlin_examples() {

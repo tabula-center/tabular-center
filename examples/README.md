@@ -13,6 +13,35 @@ Each is a working machine with tests, and each is written twice — once per
 language — because the second writing is a review of the first. Two findings
 that changed the design came out of exactly that (see `PLAN.md`).
 
+## Each one is a project, not a module
+
+They were four modules in a single crate per language. They are now four
+**projects**: own manifest, own dependency line on tabula, own `tests/`
+directory. An example is read as a template for a real project, and a real
+project does not keep its tests in a `mod tests` at the bottom of `lib.rs`.
+
+Splitting them also lets each cover a different **configuration**, which a
+single crate structurally cannot — one set of features, one edition, one shape
+for everybody:
+
+| | crate | configuration it covers |
+|---|---|---|
+| 1 | `traffic-light` | `#![no_std]`, tabula with `default-features = false` |
+| 2 | `timer` | default features: `TABLE`, export, lint |
+| 3 | `retry` | a **binary** as well as a library, so the driver is watched and not only asserted on |
+| 4 | `login` | two machines in one crate, parent and child |
+
+`tools/verify examples` builds `traffic-light` **on its own** as well as with
+the workspace. That is not belt and braces: cargo unifies features across the
+members it is building, so under the workspace `timer`'s `alloc` is enabled for
+everyone and the `no_std` claim is never tested. Alone, it is the only place
+`--no-default-features` is exercised through the macro rather than through the
+library's own surface.
+
+One workspace rather than four detached packages, for one reason: a single
+`Cargo.lock`, which `tools/verify version` checks against `VERSION`. Four
+lockfiles would be four chances to forget.
+
 ## Why these four
 
 They are chosen to cover the edges rather than to look impressive:

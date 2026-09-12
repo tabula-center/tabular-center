@@ -3,11 +3,32 @@
 version = 3
 
 [[package]]
+name = "login"
+version = "0.0.1"
+dependencies = [
+ "tabula",
+]
+
+[[package]]
+name = "retry"
+version = "0.0.1"
+dependencies = [
+ "tabula",
+]
+
+[[package]]
 name = "tabula"
 version = "0.1.0"
 
 [[package]]
-name = "tabula-examples"
+name = "timer"
+version = "0.0.1"
+dependencies = [
+ "tabula",
+]
+
+[[package]]
+name = "traffic-light"
 version = "0.0.1"
 dependencies = [
  "tabula",

@@ -169,7 +169,33 @@ empty-stderr for an exit status.
 - [ ] `TabulaMacros` — the floor is no longer what blocks it; the swift-syntax
       packaging question in the backlog is
 
-### 3. The KSP adapter has never run
+### 3. Examples are projects, not modules — in progress
+
+Each example is becoming a complete project: own manifest, own dependency line
+on tabula, tests in their own directory rather than a `mod tests` at the bottom
+of the implementation. An example is read as a template, and a template that
+puts its tests where a real project would not is teaching the wrong thing.
+
+The reason it is worth the churn is **configuration coverage**. Four modules in
+one crate share one set of features, one edition, one shape. Four projects do
+not, so the set can be graded from simple to awkward and each corner gets an
+owner.
+
+- [x] Rust: a workspace of four member crates. `traffic-light` is `#![no_std]`
+      on tabula with `default-features = false`; `timer` takes the defaults and
+      uses export and lint; `retry` adds a **binary**, so the driver is watched
+      and not only asserted on; `login` holds two machines. `tools/verify`
+      builds `traffic-light` alone as well as with the workspace, because cargo
+      unifies features across the members it builds and the `no_std` claim is
+      otherwise never tested.
+- [ ] Kotlin: currently five files compiled together by `kotlinc`. Wants the
+      same split, and the configuration axis there is the driver — blocking
+      versus suspend — plus the codegen path.
+- [ ] Swift: currently one SwiftPM target. Wants one package per example, and
+      `ObservableStore` is the awkward corner: it is Darwin-only, so the
+      example that uses it must be skipped rather than failed off Darwin.
+
+### 4. The KSP adapter has never run
 
 `kotlin/ksp/` is the only code in the repository that has never executed —
 there is no Gradle, and KSP is a Maven artifact this environment cannot reach.
