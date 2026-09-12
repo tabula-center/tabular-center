@@ -50,6 +50,12 @@ demonstrates that the example's public surface is usable. The Rust half learned
 that the hard way when `login`'s test turned out to be reaching through a
 private alias.
 
+Swift splits by SwiftPM *target*: one executable per example, each naming its
+own dependencies. The checks sit beside the implementation rather than in a
+separate module, which is weaker than the other two and deliberate — the
+example types are not `public`, and making them so would be a sweep across
+every example for the harness's benefit rather than a reader's.
+
 The configuration axis there is the **classpath**. `01-traffic-light` is built
 against `core` alone, with no annotations and no testing module, because the
 minimum a machine needs is a claim worth checking and a shared classpath checks

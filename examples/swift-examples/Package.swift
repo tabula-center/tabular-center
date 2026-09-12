@@ -20,15 +20,27 @@ import PackageDescription
 let package = Package(
     name: "TabulaExamples",
     products: [
-        .executable(name: "tabula-examples", targets: ["Examples"])
+        .executable(name: "traffic-light", targets: ["TrafficLight"]),
+        .executable(name: "timer", targets: ["Timer"]),
+        .executable(name: "retry", targets: ["Retry"]),
+        .executable(name: "login", targets: ["Login"]),
     ],
     dependencies: [
         .package(path: "../../swift")
     ],
     targets: [
+        // The assertion harness, as its own target, so every example depends
+        // on it explicitly rather than sharing a module by accident.
+        .target(name: "ExampleCheck"),
+
+        // One target per example. Each has its own dependency line, which is
+        // the configuration axis here: `TrafficLight` names `Tabula` and
+        // nothing else, and would stop building the day an example started
+        // needing more than the runtime.
+        //
         // `package: "swift"` is the DIRECTORY name of the path dependency, not
-        // the `name` in its manifest — SwiftPM identifies path dependencies by
-        // directory, and said so itself:
+        // the `name` in its manifest -- SwiftPM identifies path dependencies
+        // by directory, and said so itself:
         //
         //   unknown package 'Tabula' ... valid packages are: 'swift'
         //
@@ -36,8 +48,20 @@ let package = Package(
         // lookup matches the *package* name `Tabula` and resolves to this
         // package.
         .executableTarget(
-            name: "Examples",
-            dependencies: [.product(name: "Tabula", package: "swift")]
-        )
+            name: "TrafficLight",
+            dependencies: [.product(name: "Tabula", package: "swift"), "ExampleCheck"]
+        ),
+        .executableTarget(
+            name: "Timer",
+            dependencies: [.product(name: "Tabula", package: "swift"), "ExampleCheck"]
+        ),
+        .executableTarget(
+            name: "Retry",
+            dependencies: [.product(name: "Tabula", package: "swift"), "ExampleCheck"]
+        ),
+        .executableTarget(
+            name: "Login",
+            dependencies: [.product(name: "Tabula", package: "swift"), "ExampleCheck"]
+        ),
     ]
 )

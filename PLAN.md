@@ -202,9 +202,19 @@ owner.
       `core` alone. A suspend-driver example is still missing — `03-retry` uses
       the blocking driver — and that is the next Kotlin gap rather than part of
       the restructure.
-- [ ] Swift: currently one SwiftPM target. Wants one package per example, and
-      `ObservableStore` is the awkward corner: it is Darwin-only, so the
-      example that uses it must be skipped rather than failed off Darwin.
+- [x] Swift: one executable target per example, each with its own dependency
+      line, each built and run separately. **Weaker than the other two on
+      purpose**: the checks live beside the implementation rather than in a
+      separate module, because the example types are not `public` and making
+      them so would be a sweep across every example for the harness's benefit
+      rather than a reader's. Worth revisiting if the examples ever become a
+      published package.
+- [ ] Swift: an `ObservableStore` example. It is the awkward corner —
+      Darwin-only, so the example must be *skipped* rather than failed off
+      Darwin, which no example currently has to do.
+- [ ] No example uses the `TabulaTesting` product, and none uses Kotlin's
+      suspend driver. Both are shipped surfaces with no consumer, which is the
+      thing this restructure exists to notice.
 
 ### 4. The KSP adapter has never run
 

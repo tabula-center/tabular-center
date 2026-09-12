@@ -581,12 +581,18 @@ step_swift_examples() {
     scratch="$(mktemp -d)"
     swift_home "$scratch"
 
-    local out rc
-    # shellcheck disable=SC2046
-    out="$( (cd examples/swift-examples && "$SWIFT" run -c release $(swift_paths "$scratch") \
-        tabula-examples) 2>&1 )"
-    rc=$?
-    printf '%s\n' "$out"
+    # One executable per example now, each its own target with its own
+    # dependency line. Run separately so a failure names the example rather
+    # than the package.
+    local out rc=0 one ex
+    for ex in traffic-light timer retry login; do
+        # shellcheck disable=SC2046
+        out="$( (cd examples/swift-examples && "$SWIFT" run -c release \
+            $(swift_paths "$scratch") "$ex") 2>&1 )"
+        one=$?
+        printf '%s\n' "$out"
+        [ "$one" -eq 0 ] || rc=1
+    done
     rm -rf "$scratch"
     return "$rc"
 }
