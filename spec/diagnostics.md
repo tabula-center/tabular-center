@@ -14,6 +14,14 @@ from each fixture — not by `trybuild`, KSP compile-testing, or
 swift-macro-testing. Each of those would have been the project's only
 dependency in its language, to do something a few lines of bash already does.
 
+A fixture passes only if the compiler **refused** it *and* the refusal contains
+the expected text. Both halves are load-bearing, and the first was missing for
+a while: all four loops inferred "it compiled" from empty stderr, so a fixture
+that compiled with a warning fell through to the message match, and a warning
+containing the expected string would have reported it green. The suite is what
+makes "a diagnostic without a fixture is not shipped" mean anything, so it is
+worth being exact about what its green means.
+
 Cell semantics are specified separately, in `cells.md`.
 
 ## Format

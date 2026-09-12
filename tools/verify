@@ -200,6 +200,16 @@ step_no_std() {
     return "$rc"
 }
 
+# A compile-fail fixture passes only if the compiler REFUSED it.
+#
+# Every one of these loops used to infer that from empty stderr, which is not
+# the same thing. A fixture that compiles but emits a warning has non-empty
+# stderr, so it fell through to the message match -- and if the warning
+# happened to contain the EXPECT string, a fixture that compiled cleanly was
+# reported ok. Kotlin warns about unused parameters by default and the EXPECT
+# lines name members, so the two are not far apart.
+#
+# The exit status is the question being asked, so ask it.
 step_compile_fail() { ./tools/compile-fail; }
 
 step_conformance() {
@@ -611,11 +621,13 @@ step_swift_compile_fail() {
         return 1
     fi
 
-    local bad=0 f exp err
+    local bad=0 f exp err rc
     for f in swift/compile_fail/*.swift; do
         exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
-        err="$("$SWIFTC" -typecheck -I "$modules" "$f" 2>&1 || true)"
-        if [ -z "$err" ]; then
+        # No `|| true`: it discarded the one status that decides this. See the
+        # note above step_compile_fail.
+        err="$("$SWIFTC" -typecheck -I "$modules" "$f" 2>&1)"; rc=$?
+        if [ "$rc" -eq 0 ]; then
             echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
             bad=1
         elif printf '%s' "$err" | grep -qF -- "$exp"; then
@@ -728,8 +740,12 @@ step_kotlin_codegen() {
         local f exp err bad=0
         for f in codegen/compile_fail/*.kt; do
             exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
-            err="$("$KOTLINC" -cp "$KCP:$out/gen" "$f" -d "$out/x" 2>&1 | grep -v "^info:")"
-            if [ -z "$err" ]; then
+            # Status of kotlinc, not of the grep that filters its notes -- a
+            # pipeline reports the last command, and `grep -v` exits 1 when it
+            # filters everything away.
+            raw="$("$KOTLINC" -cp "$KCP:$out/gen" "$f" -d "$out/x" 2>&1)"; rc=$?
+            err="$(printf '%s\n' "$raw" | grep -v "^info:" || true)"
+            if [ "$rc" -eq 0 ]; then
                 echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
                 bad=1
             elif printf '%s' "$err" | grep -qF -- "$exp"; then
@@ -753,7 +769,7 @@ step_kotlin_compile_fail() {
         echo "note: $KOTLINC not found; skipping"
         return 0
     fi
-    local out bad f exp err
+    local out bad f exp err raw rc
     out="$(mktemp -d)"
     bad=0
 
@@ -764,8 +780,11 @@ step_kotlin_compile_fail() {
 
     for f in kotlin/compile_fail/*.kt; do
         exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
-        err="$("$KOTLINC" -cp "$KCP:$out/ref" "$f" -d "$out/x" 2>&1 | grep -v "^info:")"
-        if [ -z "$err" ]; then
+        # See the note above step_compile_fail: kotlinc's status, not the
+        # filtering grep's.
+        raw="$("$KOTLINC" -cp "$KCP:$out/ref" "$f" -d "$out/x" 2>&1)"; rc=$?
+        err="$(printf '%s\n' "$raw" | grep -v "^info:" || true)"
+        if [ "$rc" -eq 0 ]; then
             echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
             bad=1
         elif printf '%s' "$err" | grep -qF -- "$exp"; then

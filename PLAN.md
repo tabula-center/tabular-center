@@ -165,6 +165,12 @@ the hand-written version.
       behaviour, and no fixture writes a cell the spec forbids. Kotlin and
       Swift had rejected it since their generators were written; Rust expanded
       it to `Step::stay()`.
+- [x] A compile-fail fixture passes only if the compiler *refused* it. All four
+      loops used to infer that from empty stderr, which is a different
+      question: a fixture compiling with a warning fell through to the message
+      match, and a warning containing the expected text would have been
+      reported green. Kotlin warns about unused parameters by default and the
+      EXPECT lines name members, so the two were not far apart.
 - [x] Compile-fail suite: every diagnostic has a fixture. **Not `trybuild`** —
       it would be the crate's only dev-dependency. `tools/compile-fail` is 40
       lines of bash driving `rustc` directly and reading a `//~ EXPECT:` line
