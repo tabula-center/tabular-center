@@ -408,6 +408,10 @@ step_kotlin_examples() {
         ex 02-timer         TimerTestKt        "timer"         "$KCP"       || exit 1
         ex 03-retry         RetryTestKt        "retry"         "$KCP"       || exit 1
         ex 04-login         LoginTestKt        "login"         "$KCP"       || exit 1
+        # The suspending driver, built against `core` alone -- which is the
+        # zero-dependency claim demonstrated rather than asserted. If
+        # SuspendDriver needed kotlinx.coroutines, this line would fail.
+        ex 05-suspend       SuspendTestKt      "suspend"       "$out/core"  || exit 1
     )
     local rc=$?
     rm -rf "$out"

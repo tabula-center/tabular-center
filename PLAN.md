@@ -212,9 +212,12 @@ owner.
 - [ ] Swift: an `ObservableStore` example. It is the awkward corner —
       Darwin-only, so the example must be *skipped* rather than failed off
       Darwin, which no example currently has to do.
-- [ ] No example uses the `TabulaTesting` product, and none uses Kotlin's
-      suspend driver. Both are shipped surfaces with no consumer, which is the
-      thing this restructure exists to notice.
+- [x] Kotlin `05-suspend`: a machine whose `step` suspends, driven by
+      `SuspendDriver`. Built against `core` **alone**, which demonstrates the
+      zero-runtime-dependency rule instead of asserting it — if the suspending
+      driver needed `kotlinx.coroutines`, the example would not compile.
+- [ ] No example uses the `TabulaTesting` product. A shipped surface with no
+      consumer, which is the condition this restructure exists to notice.
 
 ### 4. The KSP adapter has never run
 
