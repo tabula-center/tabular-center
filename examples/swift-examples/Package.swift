@@ -25,6 +25,7 @@ let package = Package(
         .executable(name: "retry", targets: ["Retry"]),
         .executable(name: "login", targets: ["Login"]),
         .executable(name: "observable-counter", targets: ["ObservableCounter"]),
+        .executable(name: "spec-check", targets: ["SpecCheck"]),
     ],
     dependencies: [
         .package(path: "../../swift")
@@ -70,6 +71,17 @@ let package = Package(
         .executableTarget(
             name: "ObservableCounter",
             dependencies: [.product(name: "Tabula", package: "swift"), "ExampleCheck"]
+        ),
+        // The only target that names TabulaTesting. That product ships in the
+        // library's manifest and, until this example, nothing outside the
+        // library had ever imported it.
+        .executableTarget(
+            name: "SpecCheck",
+            dependencies: [
+                .product(name: "Tabula", package: "swift"),
+                .product(name: "TabulaTesting", package: "swift"),
+                "ExampleCheck",
+            ]
         ),
     ]
 )

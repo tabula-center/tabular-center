@@ -219,8 +219,12 @@ owner.
       `SuspendDriver`. Built against `core` **alone**, which demonstrates the
       zero-runtime-dependency rule instead of asserting it — if the suspending
       driver needed `kotlinx.coroutines`, the example would not compile.
-- [ ] No example uses the `TabulaTesting` product. A shipped surface with no
-      consumer, which is the condition this restructure exists to notice.
+- [x] Swift `SpecCheck`: the only example that imports `TabulaTesting`. It
+      parses a `.tbl` fixture written inline and diffs it against the machine's
+      `TABLE`, in both directions — matching, and then with one cell changed,
+      because a check that has never failed is a check nobody has tested. That
+      product had shipped in the manifest without a single consumer outside the
+      library.
 
 ### 4. The KSP adapter has never run
 
