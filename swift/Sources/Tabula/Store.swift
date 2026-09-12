@@ -113,21 +113,119 @@ public actor AsyncStore<S, A, F> {
     }
 }
 
-// MARK: - On the observable store
+// MARK: - The observable store
+
+// Apple platforms only, and that is the type's honest scope rather than a
+// concession. `ObservableStore` exists to be watched by SwiftUI, and SwiftUI
+// does not exist off Darwin, so a Linux build has nothing to observe it with.
 //
-// `@MainActor @Observable ObservableStore` is the third type Phase 5 lists and
-// it is deliberately not here.
+// Two weaker guards were tried first and each answered a question adjacent to
+// the one being asked:
 //
-// `@Observable` is macOS 14 / iOS 17 and needs Swift 5.9. This package declares
-// `swift-tools-version: 5.7` with no `platforms:` clause, which was a
-// considered choice — a low tools-version builds on any toolchain above it, and
-// nothing in the core needs newer. Adding an observable store means either
-// raising the floor for every consumer of a library that does not otherwise
-// need it, or carrying `#if canImport(Observation)` plus `@available`
-// annotations around a type that is then absent on exactly the toolchains the
-// CI sandbox is most likely to have.
+//   - `#if canImport(Observation)` asks whether the module is present. It is
+//     present on the pinned Linux toolchain, and `@Observable` still fails to
+//     resolve, because a module says nothing about whether macro plugins load.
+//   - Removing the macro got it compiling and linking, and the binary then
+//     died on startup: `libswiftObservation.so: undefined symbol`. The module
+//     is present, importable, and broken.
 //
-// Neither is obviously right, and the decision belongs with the TabulaMacros
-// packaging decision rather than ahead of it: macros need 5.9 too, so the
-// floor moves once, for a reason, or not at all. `Store` above is what an
-// observable store would wrap, so nothing here has to change when it lands.
+// Each guard was nearly right, and a guard that is nearly right reports green
+// until the moment it matters. The question this type actually wants answered
+// is "is there a SwiftUI to observe me", and `os(...)` asks it directly.
+#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
+    import Observation
+
+    /// A `Store` that SwiftUI can watch.
+    ///
+    /// The third of Phase 5's runtime types, and the one that moved the
+    /// package's tools-version to 5.9. `Package.swift` still declares no
+    /// `platforms:` clause: a deployment target there is a floor for every
+    /// consumer, so the requirement lives on this type as `@available` rather
+    /// than on the package. Nothing else here needs macOS 14.
+    ///
+    /// ## Written without `@Observable`
+    ///
+    /// The obvious version of this type is four lines shorter and starts with
+    /// `@Observable`. Driving `ObservationRegistrar` by hand is what that
+    /// macro expands to: a registrar, an `access` in the getter, a
+    /// `withMutation` on write. SwiftUI observes the result identically.
+    ///
+    /// Kept that way even though the `os(...)` guard above now means only
+    /// Darwin compiles this, where the macro does work. A library asking the
+    /// toolchain to load macro plugins is asking for something it does not
+    /// need, and the twelve lines are the whole cost of not asking.
+    ///
+    /// ## `state` is a mirror, not the source of truth
+    ///
+    /// Observation tracks *stored* properties, and a computed
+    /// `{ store.state }` would be invisible to it — reading it in a `body`
+    /// would subscribe to nothing and the view would never update. So `send`
+    /// and `drain` copy the driver's state out afterwards. The copy is the
+    /// price of observation and it is confined to this type; `Store` above
+    /// still has one state and one owner.
+    @available(macOS 14, iOS 17, tvOS 17, watchOS 10, *)
+    @MainActor
+    public final class ObservableStore<S, A, F>: Observable {
+        private let registrar = ObservationRegistrar()
+        private let store: Store<S, A, F>
+        private var storedState: S
+
+        public init(
+            initial: S,
+            capacity: Int = 8,
+            step: @escaping (S, A) -> Step<S, F>,
+            perform: @escaping (F) -> A?
+        ) {
+            self.storedState = initial
+            self.store = Store(
+                initial: initial, capacity: capacity, step: step, perform: perform
+            )
+        }
+
+        /// The current state. Reading this inside a SwiftUI `body` subscribes.
+        public var state: S {
+            registrar.access(self, keyPath: \.state)
+            return storedState
+        }
+
+        /// Pending actions.
+        public var pending: Int { store.pending }
+
+        /// Mailbox capacity.
+        public var capacity: Int { store.capacity }
+
+        /// Dispatch one action and drain everything it causes.
+        ///
+        /// The mirror is refreshed in a `defer`, so a throw part-way through a
+        /// drain still leaves `state` showing where the machine actually got
+        /// to. Reporting the old state after a partial drain would be worse
+        /// than reporting the error.
+        @discardableResult
+        public func send(_ action: A) throws -> Progress {
+            defer { publish() }
+            return try store.send(action)
+        }
+
+        /// Add an action to the back of the mailbox without draining.
+        ///
+        /// Deliberately does not publish: nothing has been stepped, so a view
+        /// that redrew here would be showing a state the machine has not
+        /// reached.
+        public func enqueue(_ action: A) throws {
+            try store.enqueue(action)
+        }
+
+        /// Drain the mailbox.
+        @discardableResult
+        public func drain() throws -> Progress {
+            defer { publish() }
+            return try store.drain()
+        }
+
+        private func publish() {
+            registrar.withMutation(of: self, keyPath: \.state) {
+                storedState = store.state
+            }
+        }
+    }
+#endif

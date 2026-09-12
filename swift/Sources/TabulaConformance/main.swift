@@ -188,10 +188,16 @@ struct EffectsNeverAdapter: Adapter {
             default: throw SpecError("effects-never: unknown action `\(st.action)`")
             }
             let step = gateStep(cells, GateCtx(), state, action)
-            // Always empty -- GateF has no cases -- but mapped the same way as
-            // every other adapter, so the trace assertions test the real path.
-            // There is no effectName here because there is no effect to name.
-            let effects: [String] = step.effects.map { _ in "" }
+            // Always empty, and the compiler says so out loud: mapping over
+            // these produced `warning: will never be executed`, because GateF
+            // is an enum with no cases and nothing can construct one.
+            //
+            // The map was there to run the same code path as every other
+            // adapter rather than short-circuit it. That argument does not
+            // survive the compiler proving the path unreachable -- an
+            // unreachable path is not a path -- so take its word and leave the
+            // uninhabited type to say what it means.
+            let effects: [String] = []
             let expect: Expect
             switch step {
             case .stay: expect = .stay

@@ -1,8 +1,19 @@
-// swift-tools-version: 5.7
+// swift-tools-version: 5.9
 //
-// 5.7, not the latest. Nothing in the core needs newer — conditional
-// conformance is 4.2, async closures are 5.5 — and a low tools-version works
-// on any toolchain above it. Raise it when TabulaMacros lands; macros need 5.9.
+// Raised from 5.7. The floor was kept low deliberately — nothing in the core
+// needs newer, and a low tools-version works on any toolchain above it — and
+// it was always going to move once, for a reason, rather than twice. The
+// reason is 5.9: both `@Observable` and macros need it, so `ObservableStore`
+// and `TabulaMacros` are one decision, not two.
+//
+// There is still **no `platforms:` clause**, and that is the part worth
+// keeping. A deployment target here is a floor for every consumer, and a
+// consumer using `Store` on an older OS should not pay for a type they never
+// import. `ObservableStore` carries `@available` instead, so it is the only
+// thing in the package that needs macOS 14 / iOS 17.
+//
+// The pinned toolchain is 5.10.1 (`nixpkgs-swift`, tracking nixos-unstable),
+// so 5.9 is below it rather than at it.
 import PackageDescription
 
 // Products match RELEASING.md. `Tabula` is the runtime and has no dependencies

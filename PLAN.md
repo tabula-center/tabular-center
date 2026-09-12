@@ -126,19 +126,48 @@ one state* and that holds at every width.
       three each — which is how a lint ends up agreeing by coincidence.
 - [ ] The `payload-hoist` fixture itself, now unblocked
 
-### 2. The Swift tools-version floor
+### 2. The Swift tools-version floor — decided: 5.9
 
-`Package.swift` declares `swift-tools-version: 5.7` with no `platforms:`
-clause, deliberately: a low floor builds on any toolchain above it and nothing
-in the core needs newer. Two deferred items both need 5.9 — `@Observable`
-(macOS 14 / iOS 17) for `ObservableStore`, and macros for `TabulaMacros`.
+**Chosen.** `Package.swift` declares `swift-tools-version: 5.9`, raised once
+rather than twice: `@Observable` and macros both need it, so `ObservableStore`
+and `TabulaMacros` were one decision. The pinned toolchain is 5.10.1, so the
+manifest sits below it rather than at it.
 
-The floor should move once, for a reason, or not at all. Raising it for
-`ObservableStore` alone would cost every consumer of a library that does not
-otherwise need it; wrapping that one type in `#if canImport(Observation)` plus
-availability annotations makes it absent on exactly the toolchains CI is most
-likely to have. `Store` is what an observable store would wrap, so nothing
-already written changes when it lands.
+**No `platforms:` clause**, which is the half worth keeping. A deployment
+target in the manifest is a floor for every consumer; someone using `Store` on
+an older OS should not pay for a type they never import. `ObservableStore`
+carries `@available(macOS 14, iOS 17, …)` instead, and sits behind
+`#if canImport(Observation)` so a toolchain without that module yields a
+package missing one type rather than one that does not build — the Linux path
+is best-effort for exactly this class of reason.
+
+**Darwin only, and written without `@Observable`.** Two weaker guards were
+tried first, and each failed one stage later than the last:
+
+1. `#if canImport(Observation)` — the module is present on the pinned Linux
+   toolchain and `@Observable` still fails to resolve. A module says nothing
+   about whether macro plugins load.
+2. Dropping the macro for a hand-written `ObservationRegistrar` — compiles,
+   links, and the binary dies on startup with
+   `libswiftObservation.so: undefined symbol`. Present, importable, broken.
+
+The guard the type actually wants is `os(macOS) || os(iOS) || …`, which is not
+a concession: `ObservableStore` exists to be watched by SwiftUI, and a Linux
+build has nothing to observe it with. The hand-written registrar is kept
+anyway — a library asking the toolchain to load macro plugins is asking for
+something it does not need.
+
+The lesson is one this repository keeps relearning in new costumes: a guard
+that answers a question *adjacent* to the one being asked reports green until
+the moment it matters. `canImport` for a macro is the same mistake as
+empty-stderr for an exit status.
+
+- [x] `swift-tools-version: 5.9`
+- [x] `@MainActor` `ObservableStore`, with checks — conforming to
+      `Observable` by hand rather than via the macro, which the Linux
+      toolchain lacks
+- [ ] `TabulaMacros` — the floor is no longer what blocks it; the swift-syntax
+      packaging question in the backlog is
 
 ### 3. The KSP adapter has never run
 
@@ -425,11 +454,12 @@ four fixtures pass, with the same golden `.grid` and `.lint` files.
       exactly one machine; a `Store` binds them once. `AsyncStore` is an actor
       rather than a lock, because serialized access to one piece of mutable
       state is exactly what an actor is
-- [ ] `@MainActor @Observable ObservableStore`. Held deliberately: `@Observable`
-      is macOS 14 / Swift 5.9, and `Package.swift` declares tools-version 5.7
-      with no `platforms:` on purpose. Raising the floor is a decision to make
-      once, with `TabulaMacros` — which needs 5.9 too — rather than ahead of it.
-      `Store` is what it would wrap, so nothing has to change when it lands
+- [x] `@MainActor ObservableStore`. `Store` was what it wraps, and
+      nothing in `Store` changed when it landed. Its `state` is a **mirror**
+      rather than a computed forward to the driver: `@Observable` tracks stored
+      properties, so a computed `{ store.state }` would be invisible to it and
+      a SwiftUI view reading it would subscribe to nothing and never update.
+      The copy is confined to this one type.
 - [x] First coverage for `AsyncDriver`, which had none. Sixty lines of
       duplicated loop, documented in `swift/README.md`, run by nothing. The
       check asserts the two colors report identical `Progress` for identical
@@ -806,8 +836,8 @@ them:
    members, not from who typed them — but it gives up the thing that makes the
    matrix readable.
 
-Also needs tools-version 5.9; the pinned toolchain is 5.10.1, so that part is a
-one-line change.
+Tools-version 5.9 is no longer part of this: the manifest was raised for
+`ObservableStore`, so the only question left here is swift-syntax packaging.
 
 ## Backlog — `tabula-fmt`, a formatter for matrix files
 

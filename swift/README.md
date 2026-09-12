@@ -314,15 +314,32 @@ TabulaExamples`.
 ## Toolchain
 
 **Swift comes from its own flake input** (`nixpkgs-swift`, tracking
-`nixos-unstable`). The pinned nixpkgs ships 5.8, below the 5.9 that macros
-require, so `TabulaMacros` needs a newer toolchain regardless. A separate input
+`nixos-unstable`). The pinned nixpkgs ships 5.8, below the 5.9 the manifest
+now requires, so the separate input is what makes the bump possible at all. A separate input
 means chasing a Swift toolchain never moves the Rust or Kotlin ones, which are
 pinned deliberately and working.
 
-`Package.swift` still declares **tools-version 5.7**. Nothing in the core needs
-newer — conditional conformance is 4.2, async closures are 5.5 — and a low
-tools-version works on any toolchain above it. Raise it when the macro lands
-and the newer toolchain is confirmed working.
+`Package.swift` declares **tools-version 5.9**, raised from 5.7 once rather
+than twice: `@Observable` and macros both need it, so `ObservableStore` and
+`TabulaMacros` were one decision. The pinned toolchain is 5.10.1, so 5.9 is
+below it rather than at it.
+
+There is still **no `platforms:` clause**, which is the part that matters. A
+deployment target in the manifest is a floor for every consumer, and someone
+using `Store` on an older OS should not pay for a type they never import.
+`ObservableStore` carries `@available(macOS 14, iOS 17, …)` instead, and sits
+behind `#if canImport(Observation)` so a toolchain shipping without that module
+gets a package missing one type rather than a package that does not build.
+
+In practice the guard is `os(macOS) || os(iOS) || os(tvOS) || os(watchOS)`,
+not `canImport(Observation)`. On the pinned Linux toolchain the module is
+present, `@Observable` does not resolve, and with the macro removed the binary
+links and then dies on startup with `libswiftObservation.so: undefined symbol`.
+Darwin is the type's honest scope anyway — it exists to be watched by SwiftUI.
+
+It also conforms to `Observable` **by hand**, driving `ObservationRegistrar`
+directly. That is what the macro expands to, SwiftUI observes it identically,
+and a library gains nothing by requiring macro plugins to load.
 
 ### What SwiftPM needs beyond the Swift toolchain
 

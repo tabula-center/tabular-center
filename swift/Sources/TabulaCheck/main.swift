@@ -381,6 +381,65 @@ func asyncStores() async {
     }
 }
 
+/// The observable store.
+///
+/// `@MainActor`, so it is called with `await` from the async top level rather
+/// than from the synchronous checks -- a MainActor method cannot be called
+/// from a nonisolated synchronous function at all.
+///
+/// Guarded to match the type: `os(...)` because `ObservableStore` is Darwin
+/// only -- it exists to be watched by SwiftUI -- and `#available` because the
+/// package has no platforms clause and so still builds for older targets.
+@MainActor
+func observableStores() async {
+    #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
+        guard #available(macOS 14, iOS 17, tvOS 17, watchOS 10, *) else {
+            Assert.ok(true, "observable store: skipped, needs macOS 14")
+            return
+        }
+        let cells = Timer()
+        let ctx = Ctx(limit: 1)
+        let store = ObservableStore<S, A, F>(
+            initial: .idle,
+            step: { s, a in step(cells, ctx, s, a) },
+            perform: { f in
+                if case .startClock = f { return .tick(now: 99) }
+                return nil
+            }
+        )
+        Assert.eq(store.state, .idle, "observable store: starts where it was told")
+
+        do {
+            let p = try store.send(.start)
+            Assert.eq(p.steps, 2, "observable store: the start, then the queued tick")
+            // The mirror is the whole point of the type. If `state` were a
+            // computed property forwarding to the driver, @Observable would
+            // track nothing and a SwiftUI view would never update -- so the
+            // check that matters is that the mirror actually moved.
+            Assert.eq(store.state, .done, "observable store: state mirrors the driver")
+        } catch {
+            Assert.ok(false, "observable store threw: \(error)")
+        }
+
+        // enqueue does not drain, so the mirror must not move either: a view
+        // showing a state the machine has not reached is the failure this
+        // type invites.
+        let d = ObservableStore<S, A, F>(
+            initial: .idle,
+            step: { s, a in step(Timer(), Ctx(limit: 100), s, a) },
+            perform: { _ in nil }
+        )
+        do {
+            try d.enqueue(.start)
+            Assert.eq(d.state, .idle, "observable store: enqueue leaves the mirror alone")
+            try d.drain()
+            Assert.eq(d.state, .running(since: 0), "observable store: drain moves it")
+        } catch {
+            Assert.ok(false, "observable store threw: \(error)")
+        }
+    #endif
+}
+
 // MARK: - Entry point
 
 transitions()
@@ -390,6 +449,7 @@ lintRules()
 drivers()
 stores()
 await asyncStores()
+await observableStores()
 
 let failures = Assert.report("swift reference")
 if failures > 0 {

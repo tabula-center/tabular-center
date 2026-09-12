@@ -6,9 +6,14 @@
 /// same reason.
 enum Assert {
     // Plain mutable statics. `nonisolated(unsafe)` is Swift 5.10 syntax and
-    // this package declares tools-version 5.7; in Swift 5 language mode a
+    // this package declares tools-version 5.9; in Swift 5 language mode a
     // mutable static is a concurrency warning at worst, and this harness is
     // single-threaded by construction.
+    //
+    // The version moved and the conclusion did not: tools-version selects the
+    // manifest API, not the language mode, and 5.9 is still Swift 5 mode. If
+    // this ever goes to 6, these become errors and the fix is
+    // `nonisolated(unsafe)`, which 5.10 will by then accept.
     static var failures = 0
     static var checks = 0
 
