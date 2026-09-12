@@ -52,6 +52,59 @@ private fun tableAndLints() {
     // is dynamic, or it would fire on nearly every healthy machine.
     Assert.ok(lint(t).none { it is Finding.NoStaticEntry },
         "no-static-entry is silent on a machine with HANDLE cells")
+
+    // payload-hoist had no check on this side at all -- Rust and Swift each
+    // had three, Kotlin none, which is how a lint ends up agreeing by
+    // coincidence rather than by construction.
+    Assert.eq(
+        payloadHoist(
+            listOf(
+                Triple("Connecting", "retryCount", "Long"),
+                Triple("Backoff", "retryCount", "Long"),
+                Triple("Backoff", "until", "Long"),
+                Triple("Reconnecting", "retryCount", "Long"),
+            ),
+        ),
+        // Canonical, not `Long`. See spec/diagnostics.md.
+        listOf(
+            Finding.PayloadHoist(
+                "retryCount", "int", listOf("Connecting", "Backoff", "Reconnecting"),
+            ),
+        ),
+        "a field in three states is flagged",
+    )
+    Assert.ok(
+        payloadHoist(listOf(Triple("A", "n", "Int"), Triple("B", "n", "Int"))).isEmpty(),
+        "two states is a coincidence, not a pattern",
+    )
+    Assert.ok(
+        payloadHoist(
+            listOf(
+                Triple("A", "count", "Int"),
+                Triple("B", "count", "String"),
+                Triple("C", "count", "Int"),
+            ),
+        ).isEmpty(),
+        "the same name at different types is not the same field",
+    )
+    Assert.eq(
+        payloadHoist(
+            listOf(Triple("A", "n", "Int"), Triple("B", "n", "Long"), Triple("C", "n", "Byte")),
+        ),
+        listOf(Finding.PayloadHoist("n", "int", listOf("A", "B", "C"))),
+        "widths of the same primitive are one field",
+    )
+    Assert.eq(
+        payloadHoist(
+            listOf(
+                Triple("A", "amount", "Money"),
+                Triple("B", "amount", "Money"),
+                Triple("C", "amount", "Money"),
+            ),
+        ),
+        listOf(Finding.PayloadHoist("amount", "Money", listOf("A", "B", "C"))),
+        "an unrecognised type passes through unchanged",
+    )
 }
 
 private fun exportRenderers() {

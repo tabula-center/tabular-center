@@ -41,7 +41,7 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 8 Introspection & tooling | **done (Rust half)** |
 | 9 Runtime / drivers | **done (Rust half)** |
 
-93 Rust tests; 18 compile-fail fixtures (9 Rust, 4 Kotlin, 1 Kotlin-codegen,
+95 Rust tests; 18 compile-fail fixtures (9 Rust, 4 Kotlin, 1 Kotlin-codegen,
 4 Swift); 5 conformance fixtures (34 trace steps); 5 golden `.grid`, 5 `.lint`,
 5 `.puml` and 5 `.cov` snapshots.
 
@@ -92,6 +92,61 @@ Findings from each phase are recorded in its commit message and folded back
 into `ARCHITECTURE.md`.
 
 ---
+
+## Open decisions
+
+Three items are blocked on a choice rather than on work. Each is written out
+here because the reasoning lives in commit messages otherwise, and a decision
+nobody can find gets remade badly.
+
+### 1. `payload-hoist` — decided: canonicalise type names
+
+**Chosen.** `spec/diagnostics.md` now carries a normative type vocabulary
+(`int`, `float`, `bool`, `string`, `char`), and each implementation maps its own
+spellings onto it. Unrecognised names pass through unchanged, which is the rule
+for user types and lets the table grow without a migration.
+
+The decision it beat was dropping the type from the message, which was cheaper
+and would have lost the distinction the lint exists to draw: it compares name
+*and* type precisely so `count: u32` and `count: String` are two ideas sharing
+a word.
+
+Canonicalisation happens **before the comparison**, not only before the
+message. Rust grouping `u32` separately from `usize` while Kotlin groups `Int`
+with `Long` would produce different findings from the same machine — which is
+the problem, not a detail of the fix. A side effect worth naming: `u32` and
+`usize` in three states now fire as one finding where before they were two
+groups of two and neither reached the threshold. That is the lint being right,
+since its suggestion is *this field belongs to the machine rather than to any
+one state* and that holds at every width.
+
+- [x] Vocabulary in `spec/diagnostics.md`
+- [x] `canonical_type` / `canonicalType` in all three lints, with tests. Kotlin
+      had **no** `payload-hoist` tests at all before this — Rust and Swift had
+      three each — which is how a lint ends up agreeing by coincidence.
+- [ ] The `payload-hoist` fixture itself, now unblocked
+
+### 2. The Swift tools-version floor
+
+`Package.swift` declares `swift-tools-version: 5.7` with no `platforms:`
+clause, deliberately: a low floor builds on any toolchain above it and nothing
+in the core needs newer. Two deferred items both need 5.9 — `@Observable`
+(macOS 14 / iOS 17) for `ObservableStore`, and macros for `TabulaMacros`.
+
+The floor should move once, for a reason, or not at all. Raising it for
+`ObservableStore` alone would cost every consumer of a library that does not
+otherwise need it; wrapping that one type in `#if canImport(Observation)` plus
+availability annotations makes it absent on exactly the toolchains CI is most
+likely to have. `Store` is what an observable store would wrap, so nothing
+already written changes when it lands.
+
+### 3. The KSP adapter has never run
+
+`kotlin/ksp/` is the only code in the repository that has never executed —
+there is no Gradle, and KSP is a Maven artifact this environment cannot reach.
+`kotlin/ksp/README.md` records four predictions about what will break first.
+One Maven run settles them. The generator itself is split out and tested
+without KSP, so what is unverified is the adapter, not the logic.
 
 ## Phase 0 — Foundations
 
@@ -700,6 +755,35 @@ Findings now flow both ways, which is the return on implementing twice:
 - **Effects convert through `From`**, so `GO!(Idle, StopClock)` and
   `GO!(Idle, Effect::StopClock)` both compile. The blanket `impl<T> From<T> for T`
   makes the qualified spelling keep working for free.
+
+### Findings from the audit pass
+
+Thirteen patches, five real defects. Worth recording together, because they
+were not five unrelated bugs — they were one blind spot found five times.
+
+| Defect | What had no second opinion |
+|---|---|
+| Rust accepted `EMIT!()` while Kotlin and Swift rejected it | Behaviour no fixture exercises. The conformance suite compares behaviour, and no fixture writes a cell the spec forbids. |
+| Rust's mermaid ordered edges differently from Kotlin's and Swift's | Output no golden compares. `.grid` and `.lint` had goldens; diagrams had none. |
+| The coverage report warned on a single deliberate `UNREACHABLE`, and reported reachability without the fully-static gate | Output only one language produced. Its thresholds were a *copy* of the lint's rules rather than the lint's rules. |
+| `AsyncDriver` (Swift) and `SuspendDriver` (Kotlin) were run by nothing | A hand-copied loop. In both languages the blocking driver was exercised from the day it was written and its colored twin was not. |
+| `table-diff` rendered effect lists in the `.tbl` spelling while the grid it is compared against uses the `.grid` spelling | A hand-copied renderer living in a binary, where no test can reach it. |
+
+And the harness that checks all of the above had the same shape of defect: all
+four compile-fail loops decided whether a fixture had been rejected by asking
+whether stderr was empty, which is a proxy for the exit status with nothing
+comparing the proxy to the answer.
+
+None of these was a wrong algorithm. Every one was something that existed in
+one place and was compared against nothing. The suite is well built for what it
+checks; the question that kept paying was **what is uncompared**, not what is
+unchecked.
+
+By that test the tree is now covered for renderers, reports, drivers, goldens
+and the compile-fail harness. What remains deliberately uncompared is generated
+*source* — Rust names cells by trait bound and the other two by identifier, so
+there is nothing to compare, and the per-language compile-fail suites are the
+substitute. Anyone hunting the next defect should start somewhere else.
 
 ## Backlog — `TabulaMacros`, and the swift-syntax problem
 

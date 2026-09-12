@@ -82,20 +82,49 @@ public let payloadHoistStates = 3
 public typealias Payloads = [(state: String, field: String, type: String)]
 
 /// Fields repeated across `payloadHoistStates` or more states.
+/// Map a Swift payload type name onto the spec vocabulary.
+///
+/// `spec/diagnostics.md` holds the normative table. The short version: the
+/// lint prints the field's type, each language spells its own, and the `.lint`
+/// goldens are compared byte for byte — so without this the lint could never
+/// have a shared fixture.
+///
+/// Applied before the comparison, not only before the message: three
+/// implementations grouping differently would produce different findings from
+/// the same machine, which is the problem this exists to solve rather than a
+/// detail of how it is solved.
+///
+/// Anything unrecognised passes through unchanged: a domain type is usually
+/// spelled the same in every port, and an unmapped primitive rendering as
+/// itself fails a golden loudly instead of quietly.
+public func canonicalType(_ type: String) -> String {
+    switch type {
+    case "Int", "Int8", "Int16", "Int32", "Int64",
+         "UInt", "UInt8", "UInt16", "UInt32", "UInt64":
+        return "int"
+    case "Float", "Double": return "float"
+    case "Bool": return "bool"
+    case "String", "Substring": return "string"
+    case "Character": return "char"
+    default: return type
+    }
+}
+
 public func payloadHoist(_ payloads: Payloads) -> [Finding] {
     var seen: [String] = []
     var out: [Finding] = []
     for entry in payloads {
-        let key = "\(entry.field)\u{0}\(entry.type)"
+        let type = canonicalType(entry.type)
+        let key = "\(entry.field)\u{0}\(type)"
         if seen.contains(key) { continue }
         seen.append(key)
         // A closure, not `map(\.state)`: Swift has no key paths to tuple
         // members, and the error it gives says something else entirely.
         let states = payloads
-            .filter { $0.field == entry.field && $0.type == entry.type }
+            .filter { $0.field == entry.field && canonicalType($0.type) == type }
             .map { $0.state }
         if states.count >= payloadHoistStates {
-            out.append(.payloadHoist(field: entry.field, type: entry.type, states: states))
+            out.append(.payloadHoist(field: entry.field, type: type, states: states))
         }
     }
     return out

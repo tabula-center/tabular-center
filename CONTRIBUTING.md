@@ -3,12 +3,21 @@
 ## Rules that are not negotiable
 
 1. **No runtime dependencies.** Build-time code generators (KSP, SwiftSyntax)
-   are fine; anything that links into a user's binary is not. CI enforces this
-   for Kotlin via a dependency-report check.
+   are fine; anything that links into a user's binary is not. For Kotlin this
+   is currently enforced *by construction* rather than by a check: there is no
+   build system, so there is no classpath but the stdlib. The dependency-report
+   check is written but gated on `has.kotlinGradle` and dormant until Gradle
+   can resolve.
 2. **Behaviour changes land in `spec/conformance` first.** The three
    implementations will drift unless something forces them not to.
-3. **Every diagnostic gets a compile-fail test.** `trybuild` for Rust, KSP
-   compile-testing for Kotlin, swift-macro-testing for Swift.
+3. **Every diagnostic gets a compile-fail fixture**, under
+   `rust/tabula/tests/compile_fail/`, `kotlin/compile_fail/`,
+   `kotlin/codegen/compile_fail/` or `swift/compile_fail/`. Driven by
+   `tools/verify` reading a `//~ EXPECT:` line — **not** by `trybuild`, KSP
+   compile-testing, or swift-macro-testing. Each of those would have been the
+   project's only dependency in its language, to do what a few lines of bash
+   already do. A fixture passes only if the compiler *refused* it and the
+   refusal contains the expected text; both halves matter.
 4. **Diagnostics are normative.** Message text lives in `spec/diagnostics.md`
    and should be recognizably the same in all three languages.
 5. **All implementations green before merge to `main`.**
@@ -45,6 +54,32 @@ would. Every Rust step must run in both. It has now cost us three times —
 clippy missed five warnings, `cargo fmt --check` passed a file with trailing
 whitespace, and a version bump staled a lockfile nothing refreshed. A step that
 runs in one workspace and reports green for both is worse than no step.
+
+## Reviewing: ask what is uncompared
+
+Five defects have been found in this repository by the same question, so it is
+worth writing down as a review habit.
+
+None of them was a wrong algorithm. Each was something that existed in one
+place with nothing to check it against: behaviour no fixture exercised, diagram
+output no golden compared, a coverage report only one language produced, a
+driver loop hand-copied into a second color and run by nothing, a grid renderer
+hand-copied into a binary where no test can reach it. In every case all three
+implementations *looked* green, because nothing was asking.
+
+So when reviewing a change, the useful question is not "is this checked?" but
+**"what would notice if this drifted?"** Concretely:
+
+- Adding a renderer, a report, or any other output? It needs a golden, or it
+  needs to share a code path with something that has one.
+- Copying a loop or a function into a second language, or a second color of the
+  same language? Something must assert the two agree, or they will not.
+- Writing a helper inside a `bin/`? Nothing can test it there. Put it in the
+  library.
+- Adding a rule with a threshold? Import the constant. A copy of a rule is a
+  rule that will drift, and it did.
+
+`PLAN.md` has the full list under *Findings from the audit pass*.
 
 ## Applying patches
 

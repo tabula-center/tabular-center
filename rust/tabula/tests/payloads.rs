@@ -53,6 +53,11 @@ mod tidy {
     }
 }
 
+/// The macro records Rust's own type names.
+///
+/// Canonicalisation into the spec vocabulary happens in the lint, not here.
+/// `PAYLOADS` is metadata about the machine as declared, and a generator that
+/// rewrote `u32` to `int` on the way out would be lying about the source.
 #[test]
 fn the_macro_records_payload_fields() {
     assert_eq!(
@@ -72,9 +77,14 @@ fn the_macro_records_payload_fields() {
 fn a_field_in_three_states_is_flagged() {
     let r = tabula::lint::report_with_payloads(&leaky::TABLE, leaky::PAYLOADS);
     assert!(r.contains("tabula::payload-hoist"), "{r}");
+    // `int`, not `u32`. The lint canonicalises before rendering so that the
+    // three implementations can share a `.lint` golden; see
+    // spec/diagnostics.md. `PAYLOADS` above still holds `u32`, which is the
+    // right split -- the generator reports what was declared, the lint decides
+    // how to talk about it.
     assert!(
         r.contains(
-            "`retry_count: u32` appears in the payloads of Connecting, Backoff, Reconnecting"
+            "`retry_count: int` appears in the payloads of Connecting, Backoff, Reconnecting"
         ),
         "{r}"
     );

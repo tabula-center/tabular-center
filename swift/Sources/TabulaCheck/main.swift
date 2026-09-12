@@ -173,11 +173,30 @@ func lintRules() {
             (state: "Reconnecting", field: "retryCount", type: "Int"),
         ]),
         [.payloadHoist(
+            // Canonical, not "Int". See spec/diagnostics.md.
             field: "retryCount",
-            type: "Int",
+            type: "int",
             states: ["Connecting", "Backoff", "Reconnecting"]
         )],
         "a field in three states is flagged"
+    )
+    Assert.eq(
+        payloadHoist([
+            (state: "A", field: "n", type: "Int"),
+            (state: "B", field: "n", type: "Int64"),
+            (state: "C", field: "n", type: "UInt8"),
+        ]),
+        [.payloadHoist(field: "n", type: "int", states: ["A", "B", "C"])],
+        "widths of the same primitive are one field"
+    )
+    Assert.eq(
+        payloadHoist([
+            (state: "A", field: "amount", type: "Money"),
+            (state: "B", field: "amount", type: "Money"),
+            (state: "C", field: "amount", type: "Money"),
+        ]),
+        [.payloadHoist(field: "amount", type: "Money", states: ["A", "B", "C"])],
+        "an unrecognised type passes through unchanged"
     )
     Assert.ok(
         payloadHoist([

@@ -104,12 +104,39 @@ const val PAYLOAD_HOIST_STATES = 3
 /** State payload fields, as `(state, field, type)` in declaration order. */
 typealias Payloads = List<Triple<String, String, String>>
 
+/**
+ * Map a Kotlin payload type name onto the spec vocabulary.
+ *
+ * `spec/diagnostics.md` holds the normative table. The short version: the lint
+ * prints the field's type, each language spells its own, and the `.lint`
+ * goldens are compared byte for byte — so without this the lint could never
+ * have a shared fixture.
+ *
+ * Applied before the comparison, not only before the message. Kotlin grouping
+ * `Int` with `Long` while Rust kept `u32` and `usize` apart would produce
+ * different findings from the same machine, which is the problem this exists
+ * to solve rather than a detail of how it is solved.
+ *
+ * Anything unrecognised passes through unchanged: a domain type is usually
+ * spelled the same in every port, and an unmapped primitive rendering as
+ * itself fails a golden loudly instead of quietly.
+ */
+fun canonicalType(type: String): String = when (type) {
+    "Byte", "Short", "Int", "Long", "UByte", "UShort", "UInt", "ULong" -> "int"
+    "Float", "Double" -> "float"
+    "Boolean" -> "bool"
+    "String", "CharSequence" -> "string"
+    "Char" -> "char"
+    else -> type
+}
+
 /** Fields repeated across [PAYLOAD_HOIST_STATES] or more states. */
 fun payloadHoist(payloads: Payloads): List<Finding> =
     payloads
-        // Same name AND same type. A `count: Int` and a `count: String` are two
-        // different ideas that happen to share a word.
-        .groupBy { it.second to it.third }
+        // Same name AND same canonical type. A `count: Int` and a
+        // `count: String` are two ideas that happen to share a word; a
+        // `count: Int` and a `count: Long` are one idea spelled twice.
+        .groupBy { it.second to canonicalType(it.third) }
         .filter { (_, group) -> group.size >= PAYLOAD_HOIST_STATES }
         .map { (key, group) ->
             Finding.PayloadHoist(key.first, key.second, group.map { it.first })
