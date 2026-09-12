@@ -9,6 +9,7 @@ Four machines, the same four in every language, ordered by what they add:
 | 3 | `retry` | the driver: effects producing follow-up actions through the mailbox |
 | 4 | `login` | composition: a `session` machine delegating to an `auth` machine |
 | 5 | `suspend` | the other color: a machine whose `step` suspends (Kotlin only) |
+| 6 | `observable-counter` | `ObservableStore`, and the only example that can *skip* (Swift only) |
 
 Each is a working machine with tests, and each is written twice — once per
 language — because the second writing is a review of the first. Two findings

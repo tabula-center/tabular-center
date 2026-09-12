@@ -589,7 +589,7 @@ step_swift_examples() {
     # dependency line. Run separately so a failure names the example rather
     # than the package.
     local out rc=0 one ex
-    for ex in traffic-light timer retry login; do
+    for ex in traffic-light timer retry login observable-counter; do
         # shellcheck disable=SC2046
         out="$( (cd examples/swift-examples && "$SWIFT" run -c release \
             $(swift_paths "$scratch") "$ex") 2>&1 )"

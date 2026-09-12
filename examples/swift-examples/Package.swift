@@ -24,6 +24,7 @@ let package = Package(
         .executable(name: "timer", targets: ["Timer"]),
         .executable(name: "retry", targets: ["Retry"]),
         .executable(name: "login", targets: ["Login"]),
+        .executable(name: "observable-counter", targets: ["ObservableCounter"]),
     ],
     dependencies: [
         .package(path: "../../swift")
@@ -61,6 +62,13 @@ let package = Package(
         ),
         .executableTarget(
             name: "Login",
+            dependencies: [.product(name: "Tabula", package: "swift"), "ExampleCheck"]
+        ),
+        // The only target whose checks can report `skip`. ObservableStore is
+        // Darwin only, so off Darwin this builds, runs, checks the machine,
+        // and says so rather than passing silently or failing loudly.
+        .executableTarget(
+            name: "ObservableCounter",
             dependencies: [.product(name: "Tabula", package: "swift"), "ExampleCheck"]
         ),
     ]

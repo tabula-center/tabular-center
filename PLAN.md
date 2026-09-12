@@ -209,9 +209,12 @@ owner.
       them so would be a sweep across every example for the harness's benefit
       rather than a reader's. Worth revisiting if the examples ever become a
       published package.
-- [ ] Swift: an `ObservableStore` example. It is the awkward corner —
-      Darwin-only, so the example must be *skipped* rather than failed off
-      Darwin, which no example currently has to do.
+- [x] Swift `ObservableCounter`: the `ObservableStore` example, and the only
+      one in the set that can report **skip**. Its machine is portable and
+      checked everywhere; only the store is gated. A check that passes where a
+      feature is absent claims the feature works, and one that fails there
+      claims the build is broken — saying `skip` out loud is the honest third
+      option, and the same call `tools/verify` makes for a missing toolchain.
 - [x] Kotlin `05-suspend`: a machine whose `step` suspends, driven by
       `SuspendDriver`. Built against `core` **alone**, which demonstrates the
       zero-runtime-dependency rule instead of asserting it — if the suspending
