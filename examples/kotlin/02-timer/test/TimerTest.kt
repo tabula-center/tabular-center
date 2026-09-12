@@ -1,45 +1,46 @@
-// Tests for `../src/Timer.kt`, compiled as their own unit against the example's
-// output rather than alongside it -- the Kotlin equivalent of a `tests/`
-// directory. An example is read as a template, and a template should not show
-// its tests living inside the implementation.
+// Tests for `../src/Timer.kt`, compiled as their own unit against the
+// example's output rather than alongside it -- the Kotlin equivalent of a
+// `tests/` directory. A test in the same unit can reach anything, so it
+// never shows that the example's own surface is usable.
 
 import dev.tabula.Step
+import examples.timer.*
 
 fun main() {
-    val m = examples.timer.Impl()
+    val m = Impl()
 
     Check.eq(
-        examples.timer.step(m, examples.timer.Ctx(10), examples.timer.S.Running(0), examples.timer.A.Tick(1)),
-        Step.Stay<examples.timer.F>(),
+        step(m, Ctx(10), S.Running(0), A.Tick(1)),
+        Step.Stay<F>(),
         "timer: a tick below the limit stays",
     )
     Check.ok(
-        examples.timer.step(m, examples.timer.Ctx(10), examples.timer.S.Running(0), examples.timer.A.Tick(1)) !is Step.Ignored,
+        step(m, Ctx(10), S.Running(0), A.Tick(1)) !is Step.Ignored,
         "timer: a tick while running is meaningful, not ignored",
     )
     Check.eq(
-        examples.timer.step(m, examples.timer.Ctx(3), examples.timer.S.Running(2), examples.timer.A.Tick(9)),
-        Step.Go(examples.timer.S.Done, listOf(examples.timer.F.StopClock(examples.timer.Reason.Elapsed))),
+        step(m, Ctx(3), S.Running(2), A.Tick(9)),
+        Step.Go(S.Done, listOf(F.StopClock(Reason.Elapsed))),
         "timer: the limit finishes the timer",
     )
     // The same effect, a different reason. The payload is what tells them apart.
     Check.eq(
-        examples.timer.step(m, examples.timer.Ctx(100), examples.timer.S.Running(0), examples.timer.A.Cancel).effects,
-        listOf(examples.timer.F.StopClock(examples.timer.Reason.Cancelled)),
+        step(m, Ctx(100), S.Running(0), A.Cancel).effects,
+        listOf(F.StopClock(Reason.Cancelled)),
         "timer: cancelling stops the clock for a different reason",
     )
 
-    val ctx = examples.timer.Ctx(1)
-    examples.timer.perform(m, ctx, examples.timer.F.StopClock(examples.timer.Reason.Elapsed))
+    val ctx = Ctx(1)
+    perform(m, ctx, F.StopClock(Reason.Elapsed))
     Check.eq(ctx.log, listOf("stop:Elapsed"), "timer: effect handlers receive narrowed payloads")
 
     for (pair in listOf(
-        examples.timer.S.Idle to examples.timer.A.Tick(1),
-        examples.timer.S.Idle to examples.timer.A.Cancel,
-        examples.timer.S.Done to examples.timer.A.Cancel,
+        S.Idle to A.Tick(1),
+        S.Idle to A.Cancel,
+        S.Done to A.Cancel,
     )) {
         Check.ok(
-            examples.timer.step(m, examples.timer.Ctx(1), pair.first, pair.second) is Step.Ignored,
+            step(m, Ctx(1), pair.first, pair.second) is Step.Ignored,
             "timer: ${pair.second} means nothing in ${pair.first}",
         )
     }

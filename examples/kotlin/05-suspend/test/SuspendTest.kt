@@ -2,11 +2,12 @@
 // example's output rather than alongside it.
 
 import dev.tabula.Step
+import examples.suspending.*
 
 fun main() {
-    examples.suspending.runSuspend {
-        val (state, ctx) = examples.suspending.run()
-        Check.eq(state, examples.suspending.S.Loaded, "suspend: one dispatch drives the machine to Loaded")
+    runSuspend {
+        val (state, ctx) = run()
+        Check.eq(state, S.Loaded, "suspend: one dispatch drives the machine to Loaded")
         // Fetch returned an Arrived, which the driver queued rather than
         // recursed into. Two steps, two effects, one follow-up -- the same
         // property the blocking example demonstrates, in the other color.
@@ -19,25 +20,25 @@ fun main() {
 
     // A colored machine is still a machine: the static cells resolve without
     // any handler, and `Ignored` still means the action does not apply here.
-    examples.suspending.runSuspend {
-        val s = examples.suspending.step(
-            examples.suspending.Impl(),
-            examples.suspending.Ctx(),
-            examples.suspending.S.Loading,
-            examples.suspending.A.Give,
+    runSuspend {
+        val s = step(
+            Impl(),
+            Ctx(),
+            S.Loading,
+            A.Give,
         )
-        Check.eq(s, Step.Go(examples.suspending.S.Loaded), "suspend: GO needs no handler, colored or not")
+        Check.eq(s, Step.Go(S.Loaded), "suspend: GO needs no handler, colored or not")
 
-        val ignored = examples.suspending.step(
-            examples.suspending.Impl(),
-            examples.suspending.Ctx(),
-            examples.suspending.S.Loaded,
-            examples.suspending.A.Start,
+        val ignored = step(
+            Impl(),
+            Ctx(),
+            S.Loaded,
+            A.Start,
         )
         Check.ok(ignored is Step.Ignored, "suspend: Start means nothing once Loaded")
     }
 
-    val cov = examples.suspending.TABLE.coverage()
+    val cov = TABLE.coverage()
     Check.eq(cov.total, 9, "suspend: nine cells")
     Check.eq(cov.requiredMembers, 2, "suspend: two implementations, both suspending")
 

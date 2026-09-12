@@ -230,8 +230,20 @@ owner.
 
 `kotlin/ksp/` is the only code in the repository that has never executed —
 there is no Gradle, and KSP is a Maven artifact this environment cannot reach.
-`kotlin/ksp/README.md` records four predictions about what will break first.
-One Maven run settles them. The generator itself is split out and tested
+`kotlin/ksp/README.md` records what will break first, re-read against the code
+rather than remembered. The headline: `getDeclaredFunctions` cannot compile as
+written — the shim calls a KSP *extension* by fully-qualified name with the
+receiver as an argument, which is not Kotlin. Expect the first failure there,
+before anything runs at all. One of the four original predictions had already
+been fixed and was removed.
+
+`build.gradle.kts` got the same read: it declared the generator with
+`implementation(files("../codegen"))`, which puts a path on the classpath as
+*class* files while that directory holds sources, so every `import codegen.*`
+would have failed. Now compiled as sources with the CLI, the golden-diff suite
+and the compile-fail fixtures excluded.
+
+One Maven run settles the rest. The generator itself is split out and tested
 without KSP, so what is unverified is the adapter, not the logic.
 
 ## Phase 0 — Foundations

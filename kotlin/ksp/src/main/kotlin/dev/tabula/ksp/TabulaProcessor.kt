@@ -8,6 +8,7 @@ import codegen.RawVariant
 import codegen.TabulaError
 import codegen.buildDesc
 import codegen.emit
+import com.google.devtools.ksp.getDeclaredFunctions
 import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.processing.KSPLogger
@@ -166,13 +167,36 @@ class TabulaProcessor(
             else -> v?.toString()?.substringAfterLast('.') ?: ""
         }
 
-    @Suppress("UNCHECKED_CAST")
+    /**
+     * `KClass` arguments, which KSP hands back as [KSType].
+     *
+     * An unrecognised shape **throws** rather than returning an empty list.
+     * That is the whole change: `filterIsInstance` silently dropped anything
+     * it did not recognise, so a KSP version handing back
+     * `KSClassDeclaration` directly would have produced a machine with no
+     * states and no error -- the one failure mode on this file's list that can
+     * look like success. It is unverified code against an API that has moved
+     * between versions; it should fail loudly or not at all.
+     */
     private fun KSAnnotation.classes(name: String): List<KSClassDeclaration> =
         when (val v = argument(name)) {
-            is List<*> -> v.filterIsInstance<KSType>().mapNotNull { it.declaration as? KSClassDeclaration }
-            is KSType -> listOfNotNull(v.declaration as? KSClassDeclaration)
-            else -> emptyList()
+            null -> emptyList()
+            is List<*> -> v.map { it.asClassDeclaration(name) }
+            else -> listOf(v.asClassDeclaration(name))
         }
+
+    private fun Any?.asClassDeclaration(name: String): KSClassDeclaration = when (this) {
+        is KSType -> declaration as? KSClassDeclaration
+        is KSClassDeclaration -> this
+        else -> null
+    } ?: error(
+        // Not a TabulaError: diagnostics are authored in `codegen` and this is
+        // an extraction failure in the adapter, not a claim about the user's
+        // machine. `process` catches it and prefixes `tabula:` like any other.
+        "argument `$name` came back as ${this?.let { it::class.simpleName } ?: "null"}, " +
+            "which this processor does not know how to read as a class. " +
+            "See the argument-shape note in kotlin/ksp/README.md.",
+    )
 
     @Suppress("UNCHECKED_CAST")
     private fun KSAnnotation.annotations(name: String): List<KSAnnotation> =
@@ -205,9 +229,6 @@ class TabulaProcessor(
         const val ROW_SIMPLE = "Row"
     }
 }
-
-private fun KSClassDeclaration.getDeclaredFunctions() =
-    com.google.devtools.ksp.getDeclaredFunctions(this)
 
 /** Registered via `META-INF/services`. */
 class TabulaProcessorProvider : SymbolProcessorProvider {
