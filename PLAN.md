@@ -243,6 +243,18 @@ been fixed and was removed.
 would have failed. Now compiled as sources with the CLI, the golden-diff suite
 and the compile-fail fixtures excluded.
 
+`examples/kotlin/06-generated` is the consumer: a machine declared in
+`@Machine` and `@Row` annotations, with its own `settings.gradle.kts` and
+`build.gradle.kts` applying the processor by path. KSP generates the
+dispatcher, the `Cells` interface and the effect-handler surface into
+`build/generated/ksp/`, and **nothing generated is committed** — `src/Impl.kt`
+implements an interface that does not exist until the build runs, so a
+committed copy would be a second source of truth nothing checks.
+
+It is skipped where Gradle is absent rather than faked. An earlier attempt
+stood in for the processor with a hand-written `MachineDesc`, which was
+committing by hand precisely what the example exists to generate.
+
 One Maven run settles the rest. The generator itself is split out and tested
 without KSP, so what is unverified is the adapter, not the logic.
 

@@ -9,6 +9,7 @@ Four machines, the same four in every language, ordered by what they add:
 | 3 | `retry` | the driver: effects producing follow-up actions through the mailbox |
 | 4 | `login` | composition: a `session` machine delegating to an `auth` machine |
 | 5 | `suspend` | the other color: a machine whose `step` suspends (Kotlin only) |
+| 6 | `generated` | matrix declared in **annotations**; KSP generates the dispatcher (Kotlin only, needs Gradle) |
 | 6 | `observable-counter` | `ObservableStore`, and the only example that can *skip* (Swift only) |
 | 7 | `spec-check` | pinning a matrix to a reviewable `.tbl` fixture with `TabulaTesting` (Swift only) |
 

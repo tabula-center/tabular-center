@@ -412,6 +412,27 @@ step_kotlin_examples() {
         # zero-dependency claim demonstrated rather than asserted. If
         # SuspendDriver needed kotlinx.coroutines, this line would fail.
         ex 05-suspend       SuspendTestKt      "suspend"       "$out/core"  || exit 1
+
+        # 06-generated is the only example whose dispatcher nobody wrote, and
+        # the only one that needs Gradle: its matrix is declared in annotations
+        # and KSP turns them into the dispatcher, the `Cells` interface and the
+        # effect-handler surface, into build/generated/ksp/.
+        #
+        # Nothing generated is committed. That is why this cannot fall back to
+        # kotlinc the way every other example does -- without the processor
+        # there is no `Cells` for src/Impl.kt to implement, and standing in for
+        # it with a hand-written MachineDesc would be committing by hand
+        # exactly what the example exists to generate.
+        #
+        # Skipped, not failed, where Gradle or Maven is absent. Same call the
+        # harness makes for a missing toolchain, and the same one
+        # examples/swift-examples makes for ObservableStore off Darwin.
+        if command -v gradle >/dev/null 2>&1; then
+            (cd 06-generated && gradle -q build) || exit 1
+            echo "ok   generated (ksp)"
+        else
+            echo "skip generated (needs gradle and Maven access; see kotlin/ksp/README.md)"
+        fi
     )
     local rc=$?
     rm -rf "$out"
