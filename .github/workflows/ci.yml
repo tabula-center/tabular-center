@@ -37,3 +37,71 @@ jobs:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
       - run: nix flake check --print-build-logs
+
+  # The same steps, without Nix.
+  #
+  # `tools/verify` is the single definition of green and the flake's checks call
+  # it, so nothing here duplicates a command list -- this job runs the same
+  # script against toolchains installed the ordinary way. That is the point:
+  # the claim that tabula builds without Nix was documentation until something
+  # ran it, and an untested claim about how to build a project is worse than an
+  # absent one, because someone believes it.
+  #
+  # It also covers a case Nix cannot. The sandbox has no network, so the Gradle
+  # and KSP path is skipped in every Nix job; here Gradle can reach Maven, and
+  # `examples/kotlin/06-generated` is the only consumer of the annotation
+  # processor. This job is where that path is exercised at all.
+  check-no-nix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Kotlin is driven by kotlinc directly -- there is no Gradle build for the
+      # library, deliberately, so the zero-runtime-dependency rule is enforced
+      # by there being no classpath but the stdlib. See kotlin/README.md.
+      #
+      # Fetched from the release rather than through a marketplace action. This
+      # job exists to prove the project builds with ordinary toolchains, and an
+      # action is a third party deciding what "ordinary" means -- it would also
+      # be the only unpinned dependency in a repository whose entire argument
+      # is that it has none. Six lines of curl, and the version is the one in
+      # kotlin/README.md.
+      - name: Install kotlinc
+        run: |
+          curl -fsSL -o kotlin.zip \
+            https://github.com/JetBrains/kotlin/releases/download/v2.1.20/kotlin-compiler-2.1.20.zip
+          unzip -q kotlin.zip -d "$HOME"
+          echo "$HOME/kotlinc/bin" >> "$GITHUB_PATH"
+
+      # Gradle for `examples/kotlin/06-generated` only. With Maven reachable,
+      # this is the first place the KSP processor actually runs.
+      - uses: gradle/actions/setup-gradle@v4
+
+      # No Swift step. macos-14 ships it with Xcode; Linux does not, and
+      # `tools/verify` reports `skip` for every Swift step there rather than
+      # failing. That asymmetry is the real posture -- Swift is Darwin-primary
+      # -- and installing a Linux toolchain here to make the matrix look
+      # symmetric would be testing a configuration nobody ships on.
+
+      - name: verify
+        run: ./tools/verify
+
+      # Reported separately so a KSP failure is not buried in the examples step.
+      # Expected to be the noisy one for a while: kotlin/ksp has never executed,
+      # and two bugs in its build file were already found by reading alone.
+      - name: ksp example (gradle)
+        working-directory: examples/kotlin/06-generated
+        run: gradle build --no-daemon

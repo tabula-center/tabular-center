@@ -95,6 +95,19 @@ include!("machine.tb.rs");
 splices it into the current one. Kotlin and Swift have no equivalent problem —
 neither derives module structure from file names.
 
+## Where it is used
+
+`examples/kotlin/06-generated/src/Machine.tb.kt` is the first file to take the
+convention, and it is deliberately an example rather than library code:
+examples are read as templates, so a convention that does not appear in one is
+a convention nobody will adopt.
+
+The library's own matrices have not moved yet. In Kotlin and Swift that is a
+rename; in Rust it needs the `#[path]` above, and the `transition_matrix!`
+invocation generates the state and action types, so splitting it out of
+`lib.rs` moves those into a submodule and every `Handle` impl has to follow.
+Worth doing, and worth doing as its own patch rather than inside this one.
+
 ## The formatter this anticipates
 
 `tabula-fmt` is in `PLAN.md`'s backlog: a formatter that pads cells to align

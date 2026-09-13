@@ -16,8 +16,20 @@ repositories { mavenCentral() }
 // annotations are compiled from source. `srcDir` and not `files()`: those
 // directories hold .kt sources, and `files()` would put them on the classpath
 // as directories of class files and resolve nothing.
+// The example's own sources live in `src/`, not Gradle's default
+// `src/main/kotlin`. Saying so is not optional: without it the default source
+// set does not exist, Gradle compiles nothing from this directory, and the
+// build succeeds having produced no dispatcher at all -- a green build for an
+// example that demonstrated nothing.
+sourceSets["main"].kotlin.srcDir("src")
+
 sourceSets["main"].kotlin.srcDir("../../../kotlin/core")
 sourceSets["main"].kotlin.srcDir("../../../kotlin/annotations")
+
+// Same for the checks, which are in `test/`. They are a separate compilation
+// unit compiled against the generated dispatcher, which is the property the
+// Kotlin examples were restructured for.
+sourceSets["test"].kotlin.srcDir("test")
 
 dependencies {
     ksp(project(":processor"))

@@ -12,6 +12,10 @@ generated code, because none of it is the macro's decision.
 
 ## The declaration
 
+In a file named `Turnstile.tb.swift` — see `spec/matrix-files.md`. The rows
+are column-aligned and general-purpose formatters exist to normalise exactly
+that, so the extension is what lets one be told to keep away.
+
 ```swift
 @Machine
 enum Turnstile {

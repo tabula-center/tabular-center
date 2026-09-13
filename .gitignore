@@ -42,3 +42,9 @@ result-*
 # Pages from docs/ itself, so this directory is a preview artifact only.
 /docs/_site/
 .jekyll-cache/
+
+# docs/ is GENERATED from spec/ by tools/docs and is not committed. GitHub
+# Pages builds it in CI (.github/workflows/pages.yml) and publishes the
+# artifact, so the repository never holds a second copy of normative text that
+# someone has to remember to regenerate.
+/docs/

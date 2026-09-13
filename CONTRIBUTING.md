@@ -55,6 +55,24 @@ clippy missed five warnings, `cargo fmt --check` passed a file with trailing
 whitespace, and a version bump staled a lockfile nothing refreshed. A step that
 runs in one workspace and reports green for both is worse than no step.
 
+## Building without Nix
+
+Nix is the convenient path, not the required one. `tools/verify` is plain bash
+and the single definition of green; `nix flake check` runs it in a sandbox and
+CI runs the flake, so all three paths execute the same commands. Nothing needs
+Nix to work.
+
+With `cargo`, `kotlinc` and `swift` on `$PATH`, `./tools/verify` runs
+everything available and reports `skip` for what is not. That is checked rather
+than asserted: `ci.yml` has a `check-no-nix` job on Linux and macOS using
+toolchains installed the ordinary way. An untested claim about how to build a
+project is worse than no claim, because someone believes it.
+
+The non-Nix path also covers something Nix cannot. The sandbox has no network,
+so Gradle and the KSP processor are skipped in every Nix job; with Maven
+reachable, `examples/kotlin/06-generated` is the only consumer of the processor
+and that job is where it runs at all.
+
 ## Reviewing: ask what is uncompared
 
 Five defects have been found in this repository by the same question, so it is

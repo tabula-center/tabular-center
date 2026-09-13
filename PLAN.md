@@ -95,6 +95,37 @@ into `ARCHITECTURE.md`.
 
 ## Open decisions
 
+### 0a. Both build paths are checked
+
+`tools/verify` never needed Nix — it is bash, and the flake's checks call it —
+but nothing ran it without Nix, so "works without Nix" was documentation.
+`ci.yml` now has a `check-no-nix` matrix on Linux and macOS with ordinary
+toolchains.
+
+It also reaches what the Nix jobs structurally cannot: the sandbox has no
+network, so Gradle and KSP are skipped in all of them. With Maven available,
+`examples/kotlin/06-generated` is the only consumer of the annotation processor
+and this is the only job that exercises it. Expect it to be the noisy one:
+`kotlin/ksp` has never executed and two bugs in its build file were found by
+reading alone.
+
+### 0. docs/ is no longer committed
+
+Generated output does not belong in the tree — the rule that keeps generated
+dispatchers out of `examples/kotlin/06-generated` applies to `docs/` too, and
+it was being broken by the patch that created it. `.github/workflows/pages.yml`
+runs `tools/docs` and publishes the result as a Pages artifact; `docs/` is
+gitignored.
+
+`tools/verify docs` had to change with it: there is nothing committed to be
+stale against, so it now checks that **every code in `spec/diagnostics.md` has
+an anchor in the rendered page**. That found ten codes on its first run — the
+lints are described as a group and in tables rather than as sections, so their
+links would have resolved to nothing and dropped the reader at the top of a
+long page. An `All codes` index now gives every code a landing point.
+
+
+
 Three items are blocked on a choice rather than on work. Each is written out
 here because the reasoning lives in commit messages otherwise, and a decision
 nobody can find gets remade badly.
@@ -968,8 +999,14 @@ extension narrows that to exactly the files that need it.
       is nightly-only and on stable prints a warning per file while formatting
       everything regardless. `#[rustfmt::skip]` is the stable, silent, per-item
       equivalent.
-- [ ] Move the existing matrices into `.tb.` files. Rust needs `#[path]` on the
-      module, since `machine.tb.rs` is not a valid module name.
+- [x] First consumer: `examples/kotlin/06-generated/src/Machine.tb.kt`. An
+      example rather than library code on purpose — examples are read as
+      templates, and a convention that appears in none of them is one nobody
+      adopts.
+- [ ] Move the remaining matrices. Kotlin and Swift are renames; Rust is not,
+      because `transition_matrix!` generates the state and action types, so
+      lifting it into `machine.tb.rs` puts those in a submodule and every
+      `Handle` impl follows.
 - [ ] `tabula-fmt` itself
 
 **The problem.** A matrix is only readable while its columns line up, and every

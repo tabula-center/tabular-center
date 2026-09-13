@@ -2,12 +2,14 @@
 # Generate docs/ from spec/.
 #
 # GitHub Pages serves docs/, and diagnostic messages link into it. The pages are
-# GENERATED, never edited: spec/ is normative, and a second copy of normative
-# text that someone maintains by hand is a second copy that drifts. This is the
-# same rule that keeps generated dispatchers out of the examples.
+# GENERATED and NOT COMMITTED: spec/ is normative, and a second copy of
+# normative text in the tree is a copy someone has to remember to regenerate.
+# .github/workflows/pages.yml runs this and publishes the result as an
+# artifact. Same rule that keeps generated dispatchers out of the examples.
 #
 #   ./tools/docs          regenerate
-#   ./tools/docs --check  fail if the tree is stale (this is what verify runs)
+#   ./tools/docs --check  render, and verify every diagnostic code has an
+#                         anchor for its messages to link to (verify runs this)
 #
 # To see it rendered: `nix run .#docs` serves it, `nix run .#docs -- build`
 # writes HTML. Both regenerate first, so a preview cannot show something the
@@ -40,6 +42,28 @@ page() {
 }
 
 page spec/diagnostics.md diagnostics.md "Diagnostics"
+
+# Not every code has a section of its own -- the lints are described as a group
+# and in tables, which reads better than ten near-identical headings would.
+# They still need somewhere to land, because a message links to an anchor by
+# name and a link that resolves to nothing drops the reader at the top of a
+# long page with no idea why.
+#
+# So: an index at the end, carrying an anchor for every code that did not get
+# one inline. Only for the ones that are missing, since duplicate ids are
+# invalid HTML and the first would win anyway.
+{
+    printf -- '\n---\n\n## All codes\n\n'
+    printf -- 'Every code, including the ones described as a group above.\n\n'
+    for code in $(grep -oE 'tabula::[a-z-]+' spec/diagnostics.md | sort -u); do
+        anchor="tabula-${code#tabula::}"
+        if grep -q "id=\"$anchor\"" "$out/diagnostics.md"; then
+            printf -- '- [`%s`](#%s)\n' "$code" "$anchor"
+        else
+            printf -- '- <a id="%s"></a>`%s`\n' "$anchor" "$code"
+        fi
+    done
+} >> "$out/diagnostics.md"
 page spec/cells.md       cells.md       "Cells"
 page spec/matrix-files.md matrix-files.md "Matrix files"
 
@@ -74,16 +98,32 @@ description: State machines as a matrix the compiler checks and a reviewer can r
 EOF
 
 if [ "$check" -eq 1 ]; then
-    if diff -r -q "$out" docs >/dev/null 2>&1; then
-        echo "ok   docs are current"
-        rm -rf "$out"
-        exit 0
-    fi
-    echo "docs/ is stale. Regenerate with ./tools/docs and commit the result."
-    echo
-    diff -r "$out" docs
+    # Not a staleness check any more: docs/ is generated in CI and is not in
+    # the repository, so there is nothing committed to be stale against. This
+    # checks the thing that can actually break.
+    #
+    # Every code in spec/diagnostics.md must have an anchor in the rendered
+    # page, because diagnostic messages link to those anchors by name. A code
+    # that gains a section without an anchor produces a link that silently
+    # lands at the top of the page -- from an error the reader is already stuck
+    # on, which is where a bad link costs most.
+    rc=0
+    codes="$(grep -oE 'tabula::[a-z-]+' spec/diagnostics.md | sort -u)"
+    for code in $codes; do
+        anchor="tabula-${code#tabula::}"
+        if ! grep -q "id=\"$anchor\"" "$out/diagnostics.md"; then
+            echo "no anchor for $code (expected id=\"$anchor\")"
+            rc=1
+        fi
+    done
+    n="$(printf '%s\n' "$codes" | grep -c .)"
     rm -rf "$out"
-    exit 1
+    if [ "$rc" -eq 0 ]; then
+        echo "ok   docs render, $n diagnostic anchors present"
+    else
+        echo "FAILED: docs"
+    fi
+    exit "$rc"
 fi
 
 echo "wrote docs/ from spec/"

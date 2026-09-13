@@ -9,6 +9,24 @@ ctx:
 let
   inherit (ctx) pkgs lib has rustInputs kotlinInputs swiftPkgs swiftAvailable commonInputs;
 
+  # Every app operates on the working tree -- regenerating docs/, running
+  # cargo, reading spec/ -- so every one of them assumed it was launched from
+  # the repository root. `nix run .#docs` from inside docs/ found that out:
+  #
+  #   /nix/store/...-tabula-docs/bin/tabula-docs: line 14: ./tools/docs:
+  #   No such file or directory
+  #
+  # Prepended to each app rather than fixed in one of them: the bug was in all
+  # four, and only the order people happened to run them kept it hidden.
+  cdRoot = ''
+    if root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+      cd "$root"
+    else
+      echo "not inside a git checkout of tabula; these apps work on the tree" >&2
+      exit 1
+    fi
+  '';
+
   app = drv: name: description: {
     type = "app";
     program = "${drv}/bin/${name}";
@@ -17,10 +35,11 @@ let
 
   conformance = pkgs.writeShellApplication {
     name = "tabula-conformance";
-    runtimeInputs = commonInputs ++ rustInputs
+    runtimeInputs = commonInputs ++ [ pkgs.git ] ++ rustInputs
       ++ lib.optionals has.kotlin kotlinInputs
       ++ lib.optionals (has.swift && swiftAvailable) swiftPkgs;
     text = ''
+      ${cdRoot}
       ${lib.optionalString has.rustConformance ''
         echo "== rust =="
         ./tools/verify conformance
@@ -38,8 +57,9 @@ let
 
   tableDiff = pkgs.writeShellApplication {
     name = "tabula-table-diff";
-    runtimeInputs = commonInputs ++ rustInputs;
+    runtimeInputs = commonInputs ++ [ pkgs.git ] ++ rustInputs;
     text = ''
+      ${cdRoot}
       cd rust
       cargo run -q -p tabula-conformance --bin table-diff --offline --locked -- "$@"
     '';
@@ -52,8 +72,9 @@ let
   # of everyone working on Rust.
   docs = pkgs.writeShellApplication {
     name = "tabula-docs";
-    runtimeInputs = commonInputs ++ [ pkgs.jekyll ];
+    runtimeInputs = commonInputs ++ [ pkgs.git pkgs.jekyll ];
     text = ''
+      ${cdRoot}
       cmd="''${1:-serve}"
 
       # Always regenerate first. docs/ is generated from spec/ and serving a
@@ -93,10 +114,13 @@ let
 
   verify = pkgs.writeShellApplication {
     name = "tabula-verify";
-    runtimeInputs = commonInputs ++ rustInputs
+    runtimeInputs = commonInputs ++ [ pkgs.git ] ++ rustInputs
       ++ lib.optionals has.kotlin kotlinInputs
       ++ lib.optionals (has.swift && swiftAvailable) swiftPkgs;
-    text = ''./tools/verify "$@"'';
+    text = ''
+      ${cdRoot}
+      ./tools/verify "$@"
+    '';
   };
 
   publish = import ./publish.nix ctx;
