@@ -80,4 +80,14 @@ in
     export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     ./tools/verify swift-codegen
   '';
+
+  # The macro package. Expected to skip rather than pass: the sandbox has no
+  # network, and the pinned SwiftPM cannot declare a `.macro` target at all.
+  # It is a check anyway so the skip is printed by CI instead of being
+  # something a developer discovers by running `swift build` in the wrong
+  # directory and reading a manifest error.
+  swift-macros = mkCheck "swift-macros" swiftPkgs ''
+    export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    ./tools/verify swift-macros
+  '';
 }

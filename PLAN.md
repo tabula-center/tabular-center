@@ -251,6 +251,16 @@ dispatcher, the `Cells` interface and the effect-handler surface into
 implements an interface that does not exist until the build runs, so a
 committed copy would be a second source of truth nothing checks.
 
+Rust needs no equivalent: `transition_matrix!` is a `macro_rules!` macro, so
+every Rust example exercises the generator by compiling, with no build script
+and nothing written to disk.
+
+Swift has no compile-time generator to consume yet — `TabulaMacros` is blocked
+on swift-syntax packaging, and `TabulaCodegen` takes a `MachineDesc` value
+rather than a file, so there is nothing a build plugin could invoke. When one
+lands, the example is a SwiftPM build-tool plugin with generated sources in
+`.build/` and nothing committed, matching Kotlin.
+
 It is skipped where Gradle is absent rather than faked. An earlier attempt
 stood in for the processor with a hand-written `MachineDesc`, which was
 committing by hand precisely what the example exists to generate.
@@ -896,31 +906,67 @@ and the compile-fail harness. What remains deliberately uncompared is generated
 there is nothing to compare, and the per-language compile-fail suites are the
 substitute. Anyone hunting the next defect should start somewhere else.
 
-## Backlog — `TabulaMacros`, and the swift-syntax problem
+## `TabulaMacros` — decided: a separate package
 
-The Swift generator's logic is done and testable (`Sources/TabulaCodegen`,
-13 diagnostics plus a golden diff). What is left is the macro that parses syntax
-into a `RawMachine` — and one decision that has to come first.
+The Swift generator's logic is done and testable (`Sources/TabulaCodegen`, 13
+diagnostics plus a golden diff). What was left was the macro that parses syntax
+into a `RawMachine`, and one packaging decision that had to come first.
 
-**A Swift macro implementation must link swift-syntax, which is a remote
-package, and `nix flake check` builds with no network.** Adding it naively takes
-down every Swift check, not just the macro's. Options, in the order I would try
-them:
+**Chosen: option 2.** `swift/macros/` is its own SwiftPM package, built in the
+dev shell and reported as `skip` by `nix flake check` rather than passing
+silently.
 
-1. **Vendor swift-syntax for the sandbox** (`swiftpm2nix` or a fetched fixed
-   output). Correct, and the most work.
-2. **Keep the macro in a separate SwiftPM package** that `nix flake check` does
-   not build, verified only in the dev shell. Cheap, and honest so long as the
-   skip is visible.
-3. **Give up on the macro** and have users write the dispatcher by hand from
-   `ReferenceTimer.swift`. Not absurd — the guarantee comes from the required
-   members, not from who typed them — but it gives up the thing that makes the
-   matrix readable.
+The argument that settles it is sharper than "swift-syntax is remote". A
+macro's *declaration* must live wherever users import it from, and
+`#externalMacro` names the implementation module — so declaring `@Machine` in
+`Tabula` makes `Tabula` depend on the macro target and therefore on
+swift-syntax. **There is no arrangement where the macro lives in the main
+package and the main package stays offline-buildable.** The declaration
+therefore lives in `swift/macros` too, and a user who wants the macro takes a
+second dependency while a user who does not pays nothing.
 
-Tools-version 5.9 is no longer part of this: the manifest was raised for
-`ObservableStore`, so the only question left here is swift-syntax packaging.
+Option 1 — vendoring swift-syntax with `swiftpm2nix` or a fixed-output
+derivation — remains the correct end state and is strictly more work. It can be
+adopted later without moving any code: only `nix/` changes.
+
+- [x] The packaging decision, and the package that embodies it
+- [x] `TabulaMacroDecl`, the declaration users import
+- [ ] **Blocked earlier than expected.** The pinned toolchain's SwiftPM does
+      not ship `CompilerPluginSupport`, so `Package.swift` fails to *compile* —
+      `no such module 'CompilerPluginSupport'` — before any dependency
+      resolution. No macro package can be declared with it. Vendoring
+      swift-syntax would not help; this needs a SwiftPM that ships the module,
+      which in practice means Darwin or a non-nix toolchain.
+- [x] `swift/macros/SURFACE.md`: the declaration surface and its field-by-field
+      mapping to `RawMachine`. The reviewable half, settled first because the
+      traversal's shape follows from it and nothing here can compile a
+      traversal. Rows are **aligned array literals**, matching Rust and Kotlin:
+      a labelled-tuple draft was rejected because labels make every row a
+      different width, and a matrix whose rows do not line up is just a list of
+      transitions.
+- [ ] `MachineMacro` itself: **SwiftSyntax nodes to a `RawMachine`**, and
+      nothing else. Everything downstream exists — `TabulaCodegen` validates a
+      `RawMachine` into a `MachineDesc` with every diagnostic and emits the
+      source. That split is why this package is small, and why the Kotlin side
+      survived KSP being unrunnable.
+- [ ] A `swift-macros` step in `tools/verify`, skipping without network
+- [ ] The Swift `06-generated` equivalent, which is what this unblocks: a
+      SwiftPM build with the macro applied, generated code not committed
 
 ## Backlog — `tabula-fmt`, a formatter for matrix files
+
+`spec/matrix-files.md` lands the half of this that does not need the tool: a
+`*.tb.rs` / `*.tb.kt` / `*.tb.swift` convention, with `rustfmt.toml` and
+`.editorconfig` configured to leave those files alone. Worth having before the
+formatter exists — the `.editorconfig` exemption currently disables alignment
+rules for *every* Kotlin file to protect the few holding matrices, and an
+extension narrows that to exactly the files that need it.
+
+- [x] The convention, and the formatter exemptions for it
+- [ ] Move the existing matrices into `.tb.` files, and narrow the broad
+      `[*.kt]` exemption once nothing depends on it. Rust needs `#[path]` on
+      the module, since `machine.tb.rs` is not a valid module name.
+- [ ] `tabula-fmt` itself
 
 **The problem.** A matrix is only readable while its columns line up, and every
 language formatter wants to destroy that. We already work around it: the

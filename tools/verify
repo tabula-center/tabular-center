@@ -11,7 +11,7 @@
 # Steps:  version fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
 #         kotlin-examples kotlin-matrix-stable
-#         swift swift-compile-fail swift-conformance
+#         swift swift-compile-fail swift-conformance swift-macros
 #         swift-examples swift-codegen
 set -uo pipefail
 
@@ -595,6 +595,53 @@ step_swift() {
 # `swiftc -typecheck` against the built module rather than `swift build`: the
 # fixtures must not be part of a target, or the package itself would stop
 # building.
+# The macro package, which is expected not to build almost everywhere.
+#
+# It exists as a step so its absence is *reported* rather than discovered. The
+# alternative is what happened before this: someone runs `swift build` in
+# swift/macros and gets a screenful of swiftc invocation ending in `no such
+# module 'CompilerPluginSupport'`, which is accurate and explains nothing.
+#
+# Three outcomes, and telling them apart is the whole value:
+#
+#   - CompilerPluginSupport missing -> skip. This SwiftPM cannot declare a
+#     macro target at all. Vendoring swift-syntax would not change it; it needs
+#     a different SwiftPM, which in practice means Darwin.
+#   - network unreachable -> skip. swift-syntax is a remote package and this is
+#     the obstacle that was expected first.
+#   - anything else -> fail, because then the package is genuinely wrong.
+step_swift_macros() {
+    if ! swift_available; then
+        echo "note: $SWIFT not found; skipping"
+        return 0
+    fi
+    require_dir swift/macros || return 1
+
+    local out
+    out="$( (cd swift/macros && "$SWIFT" build 2>&1) )"
+    if [ $? -eq 0 ]; then
+        printf '%s\n' "$out"
+        echo "ok   swift macros"
+        return 0
+    fi
+
+    case "$out" in
+        *"no such module 'CompilerPluginSupport'"*)
+            echo "skip swift-macros: this SwiftPM cannot declare a .macro target"
+            echo "       (CompilerPluginSupport is absent; see swift/macros/README.md)"
+            return 0
+            ;;
+        *"Network is unreachable"*|*"Could not resolve"*|*"failed to resolve"*|*"fatal: unable to access"*)
+            echo "skip swift-macros: swift-syntax is remote and the network is not"
+            return 0
+            ;;
+    esac
+
+    printf '%s\n' "$out"
+    echo "FAILED: swift-macros"
+    return 1
+}
+
 step_swift_examples() {
     if ! swift_available; then
         echo "note: $SWIFT not found; skipping"
@@ -889,7 +936,7 @@ steps=("$@")
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
            kotlin-examples kotlin-matrix-stable \
            swift swift-compile-fail swift-conformance swift-examples \
-           swift-codegen)
+           swift-codegen swift-macros)
 
 for s in "${steps[@]}"; do
     case "$s" in
@@ -912,6 +959,7 @@ for s in "${steps[@]}"; do
         swift-conformance)   run swift-conformance   step_swift_conformance ;;
         swift-examples)      run swift-examples      step_swift_examples ;;
         swift-codegen)       run swift-codegen       step_swift_codegen ;;
+        swift-macros)        run swift-macros        step_swift_macros ;;
         *) echo "unknown step: $s"; exit 2 ;;
     esac
 done

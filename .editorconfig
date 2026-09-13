@@ -16,6 +16,18 @@ indent_size = 2
 # The matrix declarations are column-aligned on purpose: a hole in the table
 # should be visible to a human reviewer before the compiler ever runs.
 # Alignment rules must not reformat them.
+#
+# Scoped to every .kt file, which is broader than it should be -- it disables
+# alignment rules for ordinary code to protect the few files holding matrices.
+# spec/matrix-files.md recommends `*.tb.kt` so the exemption can be narrowed to
+# exactly the files that need it; the broad rule stays until the existing
+# matrices move.
+[*.tb.kt]
+ktlint_standard_no-multi-spaces = disabled
+ktlint_standard_annotation = disabled
+ktlint_standard_argument-list-wrapping = disabled
+ktlint_standard_indent = disabled
+
 [*.kt]
 ktlint_standard_no-multi-spaces = disabled
 ktlint_standard_annotation = disabled

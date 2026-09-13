@@ -17,6 +17,36 @@ Each is a working machine with tests, and each is written twice — once per
 language — because the second writing is a review of the first. Two findings
 that changed the design came out of exactly that (see `PLAN.md`).
 
+## Compile-time generation, per language
+
+The library's whole claim is that the dispatcher is generated. An example that
+hand-writes one demonstrates the runtime and nothing else, so what each
+language's examples do about generation is worth stating plainly — the three
+are in genuinely different positions, and only one of them needs a build
+configuration for it.
+
+**Rust: every example, with no configuration at all.** `transition_matrix!` is
+a `macro_rules!` macro, so expansion is `rustc`'s job. There is no build
+script, no plugin, and nothing written to disk — which is why all four Rust
+examples exercise the generator by existing, and why there is nothing here to
+gitignore. `cargo build` is the whole story.
+
+**Kotlin: `06-generated`, which needs Gradle.** KSP is a Maven artifact and
+runs as a build step, so that example carries its own `settings.gradle.kts` and
+`build.gradle.kts`, and its generated sources land in `build/generated/ksp/`
+and are not committed. Skipped where Gradle is absent, because the alternative
+is standing in for the processor by hand.
+
+**Swift: not yet, and not for want of an example.** There is no compile-time
+generator to consume. `TabulaMacros` is still blocked on the swift-syntax
+packaging question, and `TabulaCodegen` is a `MachineDesc -> String` emitter
+with no way to invoke it from a build — it takes a Swift value, not a file.
+
+When one lands, the example is a SwiftPM build-tool plugin, and the shape is
+already decided by the other two: a declaration in the example, generated
+sources in `.build/`, nothing committed, and the example skipped rather than
+faked where the toolchain cannot run it.
+
 ## Each one is a project, not a module
 
 They were four modules in a single crate per language. They are now four

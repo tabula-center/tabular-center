@@ -1,2 +1,7 @@
 edition = "2021"
 max_width = 100
+
+# Matrix files are column-aligned on purpose and rustfmt would normalise the
+# padding away. See spec/matrix-files.md. Recommended convention, not enforced:
+# nothing reads the extension, it exists so formatters can be told to skip.
+ignore = ["**/*.tb.rs"]

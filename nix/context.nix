@@ -173,6 +173,15 @@ let
       ${lib.optionalString (!swiftAvailable) ''
         echo "  note: no swift toolchain on ${system}; swift/ is skipped."
       ''}
+      ${lib.optionalString (name == "swift" || name == "all") ''
+        # The shell opens at the repository root and there is no Package.swift
+        # here, so a bare `swift build` fails with "Could not find
+        # Package.swift". There are three of them, and which one you want is
+        # not guessable -- so say so rather than cd somewhere on someone's
+        # behalf.
+        echo "  swift packages: swift/ (core)  examples/swift-examples/  swift/macros/ (will not build here)"
+        echo "  cd into one before \`swift build\`, or run ./tools/verify swift"
+      ''}
     '';
   } // env);
 
