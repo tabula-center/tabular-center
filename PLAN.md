@@ -1007,10 +1007,11 @@ extension narrows that to exactly the files that need it.
       the `Table` literal moves, into an extension. Renaming the whole file
       would have exempted the handler bodies too, which is the over-broad
       exemption the `[*.kt]` block had before it was narrowed.
-- [ ] Rust has no consumer yet, and it is the awkward one: `transition_matrix!`
-      generates the state and action types, so lifting it into `machine.tb.rs`
-      puts those in a submodule behind `#[path]` and every `Handle` impl has to
-      follow with a re-export.
+- [x] Rust consumer: `01-traffic-light/src/machine.tb.rs`, reached with
+      `#[path]` and re-exported with `pub use machine::*;` — because
+      `transition_matrix!` generates the state and action types, so the split
+      moves the crate's namespace rather than just text. `#[rustfmt::skip]` on
+      the invocation is the stable exemption.
 - [ ] The hand-written examples in all three languages still keep their matrix
       and their handlers in one file.
 - [ ] `tabula-fmt` itself

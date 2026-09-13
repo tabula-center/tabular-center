@@ -12,7 +12,7 @@
 // struct construction, and `Step` is a fixed-capacity value rather than a Vec.
 #![no_std]
 
-use tabula::{transition_matrix, Handle, Step};
+use tabula::{Handle, Step};
 
 /// Cross-state data. A machine with nothing to remember still needs a type
 /// here; a unit struct is the honest answer.
@@ -20,24 +20,14 @@ pub struct Ctx {
     pub cycles: u32,
 }
 
-transition_matrix! {
-    machine TrafficLight;
-    context Ctx;
-    state   State;
-    action  Action;
-    // An uninhabited enum: this machine emits nothing, and its cells do
-    // whatever they need to do directly. A supported mode, not a degraded one.
-    effects Effect { }
-    initial Red;
+// The matrix lives in `machine.tb.rs`, per `spec/matrix-files.md`. `#[path]`
+// because `machine.tb` is not a valid module name; the glob re-export because
+// `transition_matrix!` generates `State`, `Action`, `Red` and the rest, so the
+// types this crate's users need are defined in there.
+#[path = "machine.tb.rs"]
+mod machine;
 
-    states  { Red, Green, Amber }
-    actions { Advance, Fault }
-
-    //           Advance        Fault
-    Red    => [  GO!(Green),    GO!(Red)   ];
-    Green  => [  GO!(Amber),    GO!(Red)   ];
-    Amber  => [  HANDLE,        GO!(Red)   ];
-}
+pub use machine::*;
 
 pub struct Controller;
 

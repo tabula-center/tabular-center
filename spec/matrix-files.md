@@ -77,7 +77,7 @@ the pattern from the formatter invocation. swift-format has no in-file
 suppression comparable to rustfmt's `ignore`, so the exclusion belongs in
 whatever runs it.
 
-## One wrinkle, in Rust
+## Rust moves types, not just text
 
 `machine.tb.rs` is not a valid module name, so `mod machine.tb;` does not
 exist. Two ways round it, and the first is preferable:
@@ -95,6 +95,22 @@ include!("machine.tb.rs");
 splices it into the current one. Kotlin and Swift have no equivalent problem —
 neither derives module structure from file names.
 
+There is a second consequence, and it is the reason Rust was done last.
+`transition_matrix!` **generates the state and action types**, so moving the
+invocation moves `State`, `Action` and every variant struct into the new
+module. The crate that had them at its root needs them back:
+
+```rust
+#[path = "machine.tb.rs"]
+mod machine;
+
+pub use machine::*;
+```
+
+Splitting a matrix out of a Rust file is therefore a change to the crate's
+namespace, not a move of text. Worth knowing before starting, and worth the
+`pub use` being deliberate rather than discovered.
+
 ## Where it is used
 
 Two examples carry it, one per language that can:
@@ -103,6 +119,8 @@ Two examples carry it, one per language that can:
   KSP reads.
 - `examples/swift-examples/Sources/SpecCheck/Turnstile.tb.swift` — the `Table`
   literal, moved out of `Turnstile.swift` into an extension.
+- `examples/rust/01-traffic-light/src/machine.tb.rs` — the
+  `transition_matrix!` invocation, reached with `#[path]`.
 
 Examples rather than library code, deliberately: they are read as templates, so
 a convention appearing in none of them is one nobody adopts.
