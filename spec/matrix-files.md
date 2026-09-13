@@ -21,15 +21,14 @@ what a `switch` already gives you. This repository already carries a workaround
 for it, in `.editorconfig`:
 
 ```
-# The matrix declarations are column-aligned on purpose: a hole in the table
-# should be visible to a human reviewer before the compiler ever runs.
 [*.kt]
 ktlint_standard_no-multi-spaces = disabled
 ```
 
-That disables alignment rules for **every** Kotlin file in the project, to
-protect the handful that hold matrices. A file extension fixes the scope
-problem: exempt `*.tb.kt` and ordinary code keeps its ordinary formatting.
+That disabled alignment rules for **every** Kotlin file in the project, to
+protect the handful that hold matrices — a wide exemption for a narrow problem,
+paid for by giving up formatting on all the ordinary code. It is now scoped to
+`*.tb.kt`, and ordinary Kotlin is formatted normally again.
 
 It also gives a reviewer a signal before they open anything. A diff touching a
 `.tb.` file is a diff that changes the machine's shape, which is the review
@@ -40,11 +39,29 @@ this design exists to make possible.
 Exempting by extension, per language. Each of these tells a general-purpose
 formatter to skip the file so a matrix-aware one can own it:
 
-**Rust** — `rustfmt.toml`:
+**Rust** — **not** `rustfmt.toml`. `ignore` is a nightly-only option; on stable
+rustfmt prints
 
-```toml
-ignore = ["**/*.tb.rs"]
 ```
+Warning: can't set `ignore = ...`, unstable features are only available in
+nightly channel.
+```
+
+once per file and formats everything anyway. A setting that does nothing and
+says so twenty times is worse than no setting. On stable the exemption is
+per-item and silent:
+
+```rust
+#[rustfmt::skip]
+transition_matrix! {
+    // ...
+}
+```
+
+In practice rustfmt already leaves `macro_rules!` invocation bodies alone,
+which is why the matrices in this repository survive without it. `#[rustfmt::skip]`
+is the guarantee rather than the observation, and it is worth writing for a
+matrix declared any other way.
 
 **Kotlin** — `.editorconfig`:
 

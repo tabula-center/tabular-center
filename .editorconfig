@@ -17,21 +17,15 @@ indent_size = 2
 # should be visible to a human reviewer before the compiler ever runs.
 # Alignment rules must not reformat them.
 #
-# Scoped to every .kt file, which is broader than it should be -- it disables
-# alignment rules for ordinary code to protect the few files holding matrices.
-# spec/matrix-files.md recommends `*.tb.kt` so the exemption can be narrowed to
-# exactly the files that need it; the broad rule stays until the existing
-# matrices move.
+# Scoped to `*.tb.kt` and nothing else. This used to disable the same rules for
+# every `.kt` file in the project, which protected the few holding matrices by
+# giving up formatting on all the ordinary code -- a wide exemption for a
+# narrow problem. See spec/matrix-files.md.
 [*.tb.kt]
 ktlint_standard_no-multi-spaces = disabled
 ktlint_standard_annotation = disabled
 ktlint_standard_argument-list-wrapping = disabled
 ktlint_standard_indent = disabled
-
-[*.kt]
-ktlint_standard_no-multi-spaces = disabled
-ktlint_standard_annotation = disabled
-ktlint_standard_argument-list-wrapping = disabled
 
 [*.md]
 trim_trailing_whitespace = false

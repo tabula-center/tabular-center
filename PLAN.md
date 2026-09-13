@@ -963,9 +963,13 @@ rules for *every* Kotlin file to protect the few holding matrices, and an
 extension narrows that to exactly the files that need it.
 
 - [x] The convention, and the formatter exemptions for it
-- [ ] Move the existing matrices into `.tb.` files, and narrow the broad
-      `[*.kt]` exemption once nothing depends on it. Rust needs `#[path]` on
-      the module, since `machine.tb.rs` is not a valid module name.
+- [x] Narrowed the `[*.kt]` exemption to `[*.tb.kt]`, so ktlint formats
+      ordinary Kotlin again. Rust gets no `rustfmt.toml` entry at all: `ignore`
+      is nightly-only and on stable prints a warning per file while formatting
+      everything regardless. `#[rustfmt::skip]` is the stable, silent, per-item
+      equivalent.
+- [ ] Move the existing matrices into `.tb.` files. Rust needs `#[path]` on the
+      module, since `machine.tb.rs` is not a valid module name.
 - [ ] `tabula-fmt` itself
 
 **The problem.** A matrix is only readable while its columns line up, and every
