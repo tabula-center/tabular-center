@@ -14,7 +14,7 @@ fix.
 ```
 tabula::row-arity: row `Running` has 2 cells; `actions` declares 3.
   The first missing column is `Cancel`.
-  https://anthropic-tabula.github.io/tabula/diagnostics#tabula-row-arity
+  https://hadilq.github.io/tabular/diagnostics#tabula-row-arity
 ```
 
 The anchor is injected by `tools/docs`, not derived from the heading text.

@@ -1014,7 +1014,15 @@ extension narrows that to exactly the files that need it.
       the invocation is the stable exemption.
 - [ ] The hand-written examples in all three languages still keep their matrix
       and their handlers in one file.
-- [ ] `tabula-fmt` itself
+- [x] `spec/tabula-fmt.md`: the contract. Written first for the reason
+      `SURFACE.md` was — a formatter's contract is almost all of its risk, and
+      it is the part reviewable by reading.
+- [ ] `tabula-fmt` itself, at the repository root in `tabula-fmt/`. One tool
+      for all three languages: the matrices differ in punctuation and agree in
+      structure, and a tool that parses neither Rust nor Kotlin is correct for
+      both. Root rather than inside `rust/` because a home in one language's
+      directory would imply an ownership that is not true — it belongs to the
+      `.tb.` format, which is language-agnostic.
 
 **The problem.** A matrix is only readable while its columns line up, and every
 language formatter wants to destroy that. We already work around it: the

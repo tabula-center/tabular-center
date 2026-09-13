@@ -19,7 +19,7 @@ cd "$(dirname "$0")/.." || exit 1
 
 # One place to change if the repository moves. Diagnostic messages embed this,
 # so it is deliberately not spread across three implementations.
-DOCS_BASE="https://anthropic-tabula.github.io/tabula"
+DOCS_BASE="https://hadilq.github.io/tabular"
 
 check=0
 [ "${1:-}" = "--check" ] && check=1
@@ -66,6 +66,7 @@ page spec/diagnostics.md diagnostics.md "Diagnostics"
 } >> "$out/diagnostics.md"
 page spec/cells.md       cells.md       "Cells"
 page spec/matrix-files.md matrix-files.md "Matrix files"
+page spec/tabula-fmt.md   tabula-fmt.md   "tabula-fmt"
 
 cat > "$out/index.md" <<EOF
 ---
@@ -84,6 +85,8 @@ State machines as a matrix the compiler checks and a reviewer can read.
 - [Cells]($DOCS_BASE/cells) — the normative semantics of the six cell kinds.
 - [Matrix files]($DOCS_BASE/matrix-files) — the \`*.tb.\` convention and how to
   stop general-purpose formatters from flattening a matrix.
+- [tabula-fmt]($DOCS_BASE/tabula-fmt) — the formatter that keeps them
+  rectangular, and the things it deliberately will not do.
 
 Everything here is generated from \`spec/\` in the repository. The spec is
 normative; these pages are a rendering of it.
