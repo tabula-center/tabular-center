@@ -97,10 +97,21 @@ neither derives module structure from file names.
 
 ## Where it is used
 
-`examples/kotlin/06-generated/src/Machine.tb.kt` is the first file to take the
-convention, and it is deliberately an example rather than library code:
-examples are read as templates, so a convention that does not appear in one is
-a convention nobody will adopt.
+Two examples carry it, one per language that can:
+
+- `examples/kotlin/06-generated/src/Machine.tb.kt` — the annotated declaration
+  KSP reads.
+- `examples/swift-examples/Sources/SpecCheck/Turnstile.tb.swift` — the `Table`
+  literal, moved out of `Turnstile.swift` into an extension.
+
+Examples rather than library code, deliberately: they are read as templates, so
+a convention appearing in none of them is one nobody adopts.
+
+**Note what the Swift one does not do.** It moves *only* the matrix. Renaming
+`Turnstile.swift` wholesale would have been less work and would have exempted
+the handler bodies from formatting too — the same over-broad exemption the
+`[*.kt]` block had before it was narrowed. A `.tb.` file earns its exemption by
+containing nothing that wants formatting.
 
 The library's own matrices have not moved yet. In Kotlin and Swift that is a
 rename; in Rust it needs the `#[path]` above, and the `transition_matrix!`

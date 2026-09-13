@@ -45,17 +45,6 @@ enum Turnstile {
         }
     }
 
-    static let TABLE = Table(
-        machine: "Turnstile",
-        states: ["Locked", "Unlocked"],
-        actions: ["Coin", "Push"],
-        cells: [
-            [.go(target: "Unlocked", effects: []), .ignore],
-            [.ignore, .handle],
-        ],
-        initial: "Locked"
-    )
-
     /// The same matrix, as a reviewer would read it.
     ///
     /// Inline rather than a file on disk: a SwiftPM `resources:` declaration

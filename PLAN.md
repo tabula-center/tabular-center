@@ -1003,10 +1003,16 @@ extension narrows that to exactly the files that need it.
       example rather than library code on purpose — examples are read as
       templates, and a convention that appears in none of them is one nobody
       adopts.
-- [ ] Move the remaining matrices. Kotlin and Swift are renames; Rust is not,
-      because `transition_matrix!` generates the state and action types, so
-      lifting it into `machine.tb.rs` puts those in a submodule and every
-      `Handle` impl follows.
+- [x] Swift consumer: `SpecCheck/Turnstile.tb.swift`. **Not a rename** — only
+      the `Table` literal moves, into an extension. Renaming the whole file
+      would have exempted the handler bodies too, which is the over-broad
+      exemption the `[*.kt]` block had before it was narrowed.
+- [ ] Rust has no consumer yet, and it is the awkward one: `transition_matrix!`
+      generates the state and action types, so lifting it into `machine.tb.rs`
+      puts those in a submodule behind `#[path]` and every `Handle` impl has to
+      follow with a re-export.
+- [ ] The hand-written examples in all three languages still keep their matrix
+      and their handlers in one file.
 - [ ] `tabula-fmt` itself
 
 **The problem.** A matrix is only readable while its columns line up, and every
