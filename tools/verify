@@ -112,6 +112,13 @@ step_fmt() {
 # it. Worse, `examples/rust/Cargo.lock` records tabula's version too, so a bump
 # that refreshes only the main workspace leaves exactly one step failing --
 # which reads like a problem with the examples rather than with the release.
+# docs/ is generated from spec/ and GitHub Pages serves it. Checked rather than
+# trusted: the pages are what diagnostic messages link to, so a stale tree means
+# a developer following a link from an error reads a description of a different
+# error. Same reason the conformance goldens are checked rather than blessed on
+# every run.
+step_docs() { ./tools/docs --check; }
+
 step_version() {
     local want got bad=0
     want="$(cat VERSION)"
@@ -941,6 +948,7 @@ steps=("$@")
 for s in "${steps[@]}"; do
     case "$s" in
         version)      run version      step_version ;;
+        docs)         run docs         step_docs ;;
         fmt)          run fmt          step_fmt ;;
         clippy)       run clippy       step_clippy ;;
         test)         run test         step_test ;;

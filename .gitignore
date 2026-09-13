@@ -37,3 +37,8 @@ result-*
 /examples/rust/target/
 /examples/swift-examples/.build/
 /examples/swift-examples/Package.resolved
+
+# Rendered locally by `nix run .#docs`. The published site is built by GitHub
+# Pages from docs/ itself, so this directory is a preview artifact only.
+/docs/_site/
+.jekyll-cache/

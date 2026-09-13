@@ -1,3 +1,10 @@
+---
+layout: default
+title: Diagnostics
+---
+
+<!-- Generated from spec/diagnostics.md by tools/docs. Do not edit. -->
+
 # Diagnostics
 
 Normative across all three implementations. The three code generators will
@@ -59,6 +66,8 @@ fix is `HANDLE`.
 
 ---
 
+<a id="tabula-row-arity"></a>
+
 ## `tabula::row-arity`
 
 A row has a different number of cells than the machine has actions.
@@ -81,6 +90,8 @@ Swift `TabulaCodegen/Raw.swift`).
 
 ---
 
+<a id="tabula-missing-row"></a>
+
 ## `tabula::missing-row` / `tabula::extra-row`
 
 A declared state has no row, or a row names something that is not a declared
@@ -101,6 +112,8 @@ against the incidental one.
 
 ---
 
+<a id="tabula-unknown-cell"></a>
+
 ## `tabula::unknown-cell`
 
 A cell is not one of the six kinds.
@@ -118,6 +131,8 @@ Phase 6, so the Rust message now reads
 `IGNORE, HANDLE, UNREACHABLE, GO!(..), EMIT!(..), DELEGATE!(..)`.
 
 ---
+
+<a id="tabula-go-target"></a>
 
 ## `tabula::go-target`
 
@@ -219,6 +234,8 @@ that: it compares behaviour, and no fixture writes a forbidden cell.
 | `go-target` | by construction | yes | yes |
 | `empty-emit` | yes | yes | yes |
 
+<a id="tabula-empty-emit"></a>
+
 ### `tabula::empty-emit`
 
 ```
@@ -235,6 +252,8 @@ In Rust the check must be a muncher arm placed *before* the general `EMIT!`
 arm — `$($g:tt)*` matches zero tokens, so the general arm would otherwise
 swallow it. Another instance of the rule in `ARCHITECTURE.md` §11.1: the useful
 diagnostic has to be emitted earlier than the incidental one.
+
+<a id="tabula-color-mismatch"></a>
 
 ## `tabula::color-mismatch` (Phase 6)
 
@@ -285,6 +304,8 @@ hold the most per-language logic in the project — the 70% and 25% thresholds,
 the `dead-row` subsumption, the fully-static gate on reachability.
 
 ---
+
+<a id="tabula-payload-hoist"></a>
 
 ## `tabula::payload-hoist`
 

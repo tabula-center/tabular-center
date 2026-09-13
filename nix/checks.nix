@@ -14,6 +14,11 @@ let
 in
 {
   version = verify "version" [ ];
+
+  # docs/ is generated from spec/. Checked in CI because the pages are what
+  # diagnostic messages link to: a stale tree means someone following a link
+  # from an error reads about a different error.
+  docs = verify "docs" [ ];
   rust-fmt = verify "fmt" rustInputs;
   rust-clippy = verify "clippy" rustInputs;
   rust-test = verify "test" rustInputs;
