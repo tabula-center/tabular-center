@@ -95,6 +95,26 @@ into `ARCHITECTURE.md`.
 
 ## Open decisions
 
+### 0b. Two runs are needed, both needing network
+
+Neither can be done from a sandbox, and both are one command:
+
+1. **`nix flake update`.** `flake.nix` now asks for `nixos-26.05` instead of
+   `nixos-25.05`, to get a Swift whose SwiftPM ships `CompilerPluginSupport` —
+   the thing that actually blocks `swift/macros`, ahead of swift-syntax being
+   remote. `flake.lock` still pins 25.05 and cannot be regenerated offline.
+2. **One build of `nix/gradle-deps.nix`.** It is a fixed-output derivation, so
+   its `outputHash` is a placeholder of zeroes; the first build fails with the
+   real hash in its message and that value gets pasted in. That is the normal
+   workflow for a fixed-output derivation rather than a workaround.
+
+After (2), `examples/kotlin/06-generated` builds offline against a pinned store
+path and the last avoidable skip in `nix flake check` is gone. Skipping it was
+never necessary — a build that fetches is what `cargoDeps` and `vendorHash`
+exist for, and Gradle is no different.
+
+
+
 ### 0a. Both build paths are checked
 
 `tools/verify` never needed Nix — it is bash, and the flake's checks call it —

@@ -906,16 +906,16 @@ plus the cross-language conformance runner.
 nix develop              # everything
 nix develop .#rust       # rustc + cargo + clippy + rust-analyzer
 nix develop .#kotlin     # JDK 21 + Gradle
-nix develop .#swift      # Swift 6 (best-effort on Linux, native on Darwin)
+nix develop .#swift      # Swift 5.10 (Linux and Darwin; checks run on both)
 nix flake check          # fmt + lint + test, all three + conformance
 nix run .#conformance    # cross-language conformance runner
 ```
 
-Swift on Linux is marked best-effort, and that is not a formality. The pinned
-nixpkgs 25.05 ships Swift 5.8 — below the 5.9 that macros require — and its
-SwiftPM is sensitive to how the C toolchain is supplied: adding `stdenv.cc` to
-satisfy the setup-hook changes swiftc's default target triple and breaks the
-stdlib lookup.
+**Swift is checked on Linux, not merely available there.** That was not always
+true and the reasons it was not are worth keeping: the pinned nixpkgs 25.05
+ships Swift 5.8, below the 5.9 macros require, and its SwiftPM is sensitive to
+how the C toolchain is supplied — adding `stdenv.cc` to satisfy the setup-hook
+changes swiftc's default target triple and breaks the stdlib lookup.
 
 **Swift therefore comes from a second flake input**, `nixpkgs-swift`, pinned to
 `nixos-unstable`. One input for all three toolchains would have meant dragging
@@ -923,12 +923,26 @@ Rust and Kotlin — which are working and pinned deliberately — onto unstable 
 solve a problem neither of them has. The second input lifts the 5.8 ceiling
 that `TabulaMacros` would have hit anyway.
 
-`nix flake check` gates the Swift checks on `swiftChecked`, which is Darwin
-only. On Linux the same steps are available through `nix develop .#swift`
-followed by `./tools/verify swift`. The rule behind that: `nix flake check`
-should not fail on a packaging problem in a dependency we do not control. The
-Darwin path is primary for Swift; CI runs Swift on macOS runners and
-Rust/Kotlin everywhere.
+`swiftChecked` is now simply `swiftAvailable`: every Swift check runs wherever
+a Swift toolchain exists, Linux included. The Darwin-only gate was correct while
+the corelibs packaging was untangled and became stale the moment it was — the
+kind of temporary exemption that outlives its reason unless someone goes back
+for it.
+
+**Two things still do not run here, and neither is a choice.**
+
+`swift/macros` cannot be built by this toolchain at all: its SwiftPM does not
+ship `CompilerPluginSupport`, so the manifest fails to *compile* before any
+dependency resolution. Vendoring swift-syntax would not help. It needs a
+SwiftPM that ships the module, which in practice means Darwin.
+
+`examples/kotlin/06-generated` needs Gradle to reach Maven for KSP, and the Nix
+sandbox has no network. It is covered by the `check-no-nix` CI job instead,
+which is where the annotation processor runs at all.
+
+Both report `skip` with their reason rather than passing quietly, and both are
+blocked on an environment rather than on work. Everything else in the
+repository runs in the Linux sandbox.
 
 `flake.nix` itself is a table of contents. Toolchains, shells, checks, apps,
 and publication live in `nix/`, because a flake that grows past a screen stops
