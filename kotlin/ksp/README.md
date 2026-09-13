@@ -19,49 +19,35 @@ A bug here is an *extraction* bug — a wrong argument name, a missing null chec
 — not a logic bug. It surfaces as an obviously wrong `RawMachine` rather than as
 subtly wrong generated code.
 
-## What to expect on the first run
+## It ran
 
-Re-read against the code rather than remembered, because one of these had
-already been fixed and would have sent someone hunting a problem that no longer
-exists.
+`gradle build` in `examples/kotlin/06-generated` succeeded. The processor read
+`@Machine` and `@Row` off `Machine.tb.kt`, built a `MachineDesc`, handed it to
+`TabulaCodegen`, and the emitted dispatcher compiled — with `Impl.kt`
+satisfying a `Cells` interface that did not exist until the build ran, and the
+behavioural checks passing against it.
 
-1. **`getDeclaredFunctions` — fixed, and the fix is unverified.** The file used
-   to carry a shim calling `com.google.devtools.ksp.getDeclaredFunctions(this)`.
-   KSP declares that as an *extension*, and Kotlin has no syntax for calling an
-   extension by fully-qualified name with the receiver as an argument, so it
-   could not have compiled. The shim is gone and the extension is imported.
+This file used to hold four predictions about what would break first. Keeping
+score, because the scoring is the useful part:
 
-   Still first on this list, because it is the item most likely to be wrong in
-   a new way: if the symbol has moved package between KSP versions, the import
-   is where it fails, and it fails at compile time.
+1. **`getDeclaredFunctions` could not compile.** Correct, and fixed before the
+   first run: the shim called a KSP extension by fully-qualified name with the
+   receiver as an argument, which is not Kotlin.
+2. **`CellSpec` needs an `args` parameter.** Wrong — already there, and the
+   prediction was stale. Removed.
+3. **Annotation argument shapes.** Did not bite. `classes()` now throws on a
+   shape it cannot read rather than dropping it silently, so if a future KSP
+   version changes the shape it will say so instead of producing a machine with
+   no states.
+4. **`DELEGATE` is not wired.** Still true, still deliberate: `children` is
+   passed empty, so a `DELEGATE` cell fails with `tabula::unknown-child`.
 
-2. **Annotation argument shapes.** KSP hands `KClass` arguments back as
-   `KSType`, arrays as `List<*>`, and enums inconsistently across versions —
-   `enumName` tries `KSType` and falls back to `toString()` after the last dot
-   for that reason. If something arrives as a `KSClassDeclaration` rather than
-   a `KSType`, `classes()` is where to look: it filters for `KSType` and would
-   silently return an empty list, which surfaces as a machine with no states
-   rather than as an error.
+The two bugs that actually stopped it were in `build.gradle.kts`, not the
+processor — `files()` where sources were meant, and undeclared source sets —
+and both were found by reading. The third, a missing harness on the test path,
+took a real run.
 
-   **This no longer fails silently.** `classes()` used `filterIsInstance`, so a
-   shape it did not recognise was dropped and surfaced as a machine with no
-   states — the one item on this list that could look like success. It now
-   throws, naming the class it actually got, and `process` reports it against
-   the declaration. Unverified code against an API that has moved between
-   versions should fail loudly or not at all.
-
-3. **`DELEGATE` is deliberately not wired.** `children = emptyList()` is passed
-   unconditionally, so a `DELEGATE` cell fails with `tabula::unknown-child` —
-   correctly, and with a clear message. Resolving a child means following a
-   `KClass` to another `@Machine` and reading *its* types, which is a second
-   pass this file does not attempt.
-
-**No longer expected:** `CellSpec.args`. An earlier version of this list said
-the annotation had no `args` parameter and would need one. It has had
-`val args: String = ""` since, with the rule-R3 reasoning in its doc comment,
-and `readCell` reads it. Nothing to do.
-
-## Building it
+## Building it## Building it
 
 Needs Gradle with Maven access, which is exactly what is missing here, so
 `build.gradle.kts` is written from the KSP documentation rather than from a

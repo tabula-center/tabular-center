@@ -8,6 +8,12 @@ plugins {
     kotlin("jvm") version "2.1.20"
 }
 
+// A coordinate, so a consuming build can substitute this project for it.
+// Nothing publishes to it; it exists to be named. See
+// examples/kotlin/06-generated/settings.gradle.kts.
+group = "dev.tabula"
+version = "0.1.0"
+
 repositories { mavenCentral() }
 
 dependencies {

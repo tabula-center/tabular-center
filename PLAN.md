@@ -34,7 +34,7 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 1 Rust core, no macro | **done** |
 | 2 `transition_matrix!` | **done** |
 | 3 The spec | **done** |
-| 4 Kotlin core + KSP | **M2 PASSED**; core, codegen, conformance done. KSP adapter written, never run |
+| 4 Kotlin core + KSP | **done**; KSP adapter now runs — `examples/kotlin/06-generated` builds green |
 | 5 Swift | core, reference, compile-fail, testing, conformance, examples, **codegen**; macros to come |
 | 6 Composition | **done (all three)** |
 | 7 Effects surface | **done (Rust half)** |

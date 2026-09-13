@@ -31,8 +31,20 @@ sourceSets["main"].kotlin.srcDir("../../../kotlin/annotations")
 // Kotlin examples were restructured for.
 sourceSets["test"].kotlin.srcDir("test")
 
+// The shared assertion harness. Every other Kotlin example gets it because
+// tools/verify compiles harness/Check.kt and puts it on the classpath by hand;
+// this one is built by Gradle, and nothing told Gradle it existed:
+//
+//   e: test/GeneratedTest.kt:21:5 Unresolved reference 'Check'.
+//
+// Found the first time a real `gradle build` ran. Worth noting that the Nix
+// derivation could never have found it -- it stops at dependency resolution,
+// so a missing source set is invisible to it.
+sourceSets["test"].kotlin.srcDir("../harness")
+
 dependencies {
-    ksp(project(":processor"))
+    // Named, and substituted to the included build in settings.gradle.kts.
+    ksp("dev.tabula:tabula-ksp:0.1.0")
 }
 
 kotlin { jvmToolchain(21) }
