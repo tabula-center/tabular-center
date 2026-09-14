@@ -19,8 +19,21 @@ let
   # directory that is not there. Gate on the build file rather than the
   # directory: a stub created early in a phase should not switch checks on
   # before the tooling can actually run.
+  #
+  # Kotlin has no build file, deliberately -- kotlinc is driven directly, so
+  # that the zero-runtime-dependency rule holds by construction rather than by
+  # a dependency report (ARCHITECTURE 11.2, 12). So the gate is the core source
+  # every Kotlin step compiles first.
+  #
+  # It used to read `../kotlin/src`, a directory this tree has never had. The
+  # gate was therefore always false and `nix flake check` silently ran NONE of
+  # the six Kotlin checks -- while `tools/verify` ran them all, and ci.yml's
+  # `check` job runs only the flake. Three paths, one definition of green, and
+  # a whole language missing from two of them because a path was wrong by one
+  # word. A gate that names a path which does not exist cannot report that it
+  # is off; that is what makes this class of bug expensive.
   has = {
-    kotlin = builtins.pathExists ../kotlin/src;
+    kotlin = builtins.pathExists ../kotlin/core/dev/tabula/Step.kt;
     kotlinGradle = builtins.pathExists ../kotlin/settings.gradle.kts;
     swift = builtins.pathExists ../swift/Package.swift;
     rustConformance = builtins.pathExists ../rust/tabula-conformance/Cargo.toml;
@@ -134,12 +147,29 @@ let
         # For Swift's setup-hook. A variable, not a package on the path -- see
         # the note on swiftPkgs above.
         NIX_CC = "${pkgs.stdenv.cc}";
+
+        # kotlinc and ktlint are both JVM programs that look for a JDK. The
+        # nixpkgs wrappers usually carry one, but "usually" is a guess and nix
+        # knows the answer -- the same reason swiftLibraryPath is computed here
+        # rather than searched for by the script.
+        JAVA_HOME = "${jdk}";
       }
       ''
         export HOME="$TMPDIR/home"
         export CARGO_HOME="$TMPDIR/cargo"
         export GRADLE_USER_HOME="$TMPDIR/gradle"
         export CARGO_NET_OFFLINE=true
+
+        # The sandbox has no network, and the steps that need one must SKIP
+        # rather than fail. Stated, not detected: a probe would be the script
+        # guessing at something nix already knows for certain, and a wrong
+        # guess turns a skip into a red check or, worse, the other way round.
+        #
+        # `tools/verify` reads this. Unset everywhere else, so the same script
+        # in ci.yml's check-no-nix job -- which HAS Maven -- still runs the
+        # Gradle and KSP path that only that job can reach.
+        export TABULA_OFFLINE=1
+
         mkdir -p "$HOME" "$CARGO_HOME" "$GRADLE_USER_HOME"
 
         cp -r ${self} src && chmod -R u+w src && cd src

@@ -46,25 +46,13 @@ class Ctx(val limit: Long) {
     var lastStopReason: Int? = null
 }
 
-@Machine(
-    states = [S.Idle::class, S.Running::class, S.Done::class],
-    actions = [A.Start::class, A.Tick::class, A.Cancel::class],
-    effects = [F.StartClock::class, F.StopClock::class],
-    initial = S.Idle::class,
-)
-//                       Start                    Tick                     Cancel
-@Row(S.Idle::class,    [CellSpec(Kind.HANDLE),  CellSpec(Kind.IGNORE),   CellSpec(Kind.IGNORE)])
-@Row(S.Running::class, [CellSpec(Kind.IGNORE),  CellSpec(Kind.HANDLE),   CellSpec(Kind.GO, to = S.Idle::class, emit = [F.StopClock::class])])
-@Row(S.Done::class,    [CellSpec(Kind.GO, to = S.Running::class, emit = [F.StartClock::class]), CellSpec(Kind.IGNORE), CellSpec(Kind.IGNORE)])
-interface TimerSpec {
-    /**
-     * The prototype. Whatever modifiers appear here are copied onto every
-     * generated cell member — `suspend` below, but equally a context receiver,
-     * an annotation, or anything a future Kotlin version ships. The library
-     * never enumerates colors; it copies.
-     */
-    suspend fun handle(ctx: Ctx, state: S, action: A): Step<S, F>
-}
+// The matrix itself lives in `TimerSpec.tb.kt`, next to this file.
+//
+// `spec/matrix-files.md` makes the case: a matrix is column-aligned on purpose
+// and a general-purpose formatter's whole job is to normalise whitespace, so
+// the two cannot share a file. `.editorconfig` exempts `*.tb.kt` and nothing
+// else, and while the declaration sat here it was outside that exemption --
+// unnoticed, because `kotlin-matrix-stable` had never run anywhere.
 
 // ===========================================================================
 // GENERATED — everything below this line is what KSP must emit

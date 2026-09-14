@@ -8,7 +8,7 @@
 # checked different things.
 #
 # Usage:  tools/verify [step ...]      (default: all)
-# Steps:  version fmt clippy test no-std compile-fail conformance examples
+# Steps:  version docs fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
 #         kotlin-examples kotlin-matrix-stable
 #         swift swift-compile-fail swift-conformance swift-macros
@@ -80,6 +80,19 @@ require_goldens() {
     echo "  cd rust && cargo run -p tabula-conformance -- --bless"
     return 1
 }
+
+# Whether this run has network access.
+#
+# Set by nix/context.nix's mkCheck, and by nothing else. The sandbox cannot
+# reach Maven, so the one step that needs it must report `skip` with its reason
+# -- ARCHITECTURE section 13 and PLAN 0a both say so, and until now the guard
+# for it was `command -v gradle`, which is present IN the sandbox because
+# kotlinInputs ships it. The guard tested for the wrong thing and the step
+# would have failed on a missing network while claiming a missing tool.
+#
+# Declared rather than probed. nix knows; the script would be guessing, and the
+# same reasoning already governs swiftLibraryPath and NIX_CC.
+offline() { [ -n "${TABULA_OFFLINE:-}" ]; }
 
 run() {
     local name="$1"; shift
@@ -434,11 +447,21 @@ step_kotlin_examples() {
         # Skipped, not failed, where Gradle or Maven is absent. Same call the
         # harness makes for a missing toolchain, and the same one
         # examples/swift-examples makes for ObservableStore off Darwin.
-        if command -v gradle >/dev/null 2>&1; then
+        #
+        # Two conditions, not one. `command -v gradle` alone was wrong in the
+        # place it mattered most: the nix sandbox HAS gradle -- kotlinInputs
+        # ships it -- and has no network, so this would have run the build and
+        # failed on an unreachable Maven while the message promised a skip.
+        # See `offline` above.
+        if ! command -v gradle >/dev/null 2>&1; then
+            echo "skip generated (no gradle; see kotlin/ksp/README.md)"
+        elif offline; then
+            echo "skip generated (gradle is here, Maven is not: KSP resolves from"
+            echo "     Maven Central and this run is offline. ci.yml's check-no-nix"
+            echo "     job is where this path runs; see kotlin/ksp/README.md)"
+        else
             (cd 06-generated && gradle -q build) || exit 1
             echo "ok   generated (ksp)"
-        else
-            echo "skip generated (needs gradle and Maven access; see kotlin/ksp/README.md)"
         fi
     )
     local rc=$?
@@ -911,8 +934,11 @@ step_kotlin_compile_fail() {
 
     (cd kotlin && kotlin_artifacts "$out") || return 1
     KCP="$(kotlin_cp "$out")"
-    (cd kotlin && "$KOTLINC" -cp "$KCP" test/ReferenceTimer.kt test/Composition.kt \
-        -d "$out/ref" 2>&1 | grep -v "^info:") || true
+    # TimerSpec.tb.kt carries the matrix; see spec/matrix-files.md. Listed
+    # explicitly rather than globbed so this step keeps compiling exactly the
+    # two machines the fixtures need and not the harness around them.
+    (cd kotlin && "$KOTLINC" -cp "$KCP" test/ReferenceTimer.kt test/TimerSpec.tb.kt \
+        test/Composition.kt -d "$out/ref" 2>&1 | grep -v "^info:") || true
 
     for f in kotlin/compile_fail/*.kt; do
         exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
@@ -938,8 +964,11 @@ step_kotlin_compile_fail() {
 }
 
 steps=("$@")
+# `docs` was in nix/checks.nix but not here, so `./tools/verify` and
+# `nix flake check` disagreed about what green means -- the one thing the
+# header above says this file exists to prevent.
 [ ${#steps[@]} -eq 0 ] && \
-    steps=(version fmt clippy test no-std compile-fail conformance examples \
+    steps=(version docs fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
            kotlin-examples kotlin-matrix-stable \
            swift swift-compile-fail swift-conformance swift-examples \

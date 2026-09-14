@@ -47,7 +47,7 @@ processor — `files()` where sources were meant, and undeclared source sets —
 and both were found by reading. The third, a missing harness on the test path,
 took a real run.
 
-## Building it## Building it
+## Building it
 
 Needs Gradle with Maven access, which is exactly what is missing here, so
 `build.gradle.kts` is written from the KSP documentation rather than from a

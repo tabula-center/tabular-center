@@ -121,6 +121,9 @@ Two examples carry it, one per language that can:
   literal, moved out of `Turnstile.swift` into an extension.
 - `examples/rust/01-traffic-light/src/machine.tb.rs` — the
   `transition_matrix!` invocation, reached with `#[path]`.
+- `kotlin/test/TimerSpec.tb.kt` — the reference machine's declaration, and the
+  one piece of *library* code carrying the convention. Split out of
+  `ReferenceTimer.kt` when `kotlin-matrix-stable` was first switched on.
 
 Examples rather than library code, deliberately: they are read as templates, so
 a convention appearing in none of them is one nobody adopts.
@@ -131,11 +134,22 @@ the handler bodies from formatting too — the same over-broad exemption the
 `[*.kt]` block had before it was narrowed. A `.tb.` file earns its exemption by
 containing nothing that wants formatting.
 
-The library's own matrices have not moved yet. In Kotlin and Swift that is a
-rename; in Rust it needs the `#[path]` above, and the `transition_matrix!`
-invocation generates the state and action types, so splitting it out of
-`lib.rs` moves those into a submodule and every `Handle` impl has to follow.
-Worth doing, and worth doing as its own patch rather than inside this one.
+Kotlin's has now moved: `kotlin/test/TimerSpec.tb.kt` holds the `@Machine` and
+`@Row` declarations that used to sit in `ReferenceTimer.kt`. It moved because
+it had to — `kotlin-matrix-stable` runs ktlint's formatter over a copy of
+`kotlin/` and compares the matrix rows, and with the declaration in an
+ordinary `.kt` file the `[*.tb.kt]` exemption did not reach it. The check had
+never executed (see `PLAN.md`), so nothing said so.
+
+That is the argument for the convention restated as evidence: the exemption is
+not a nicety, and a matrix outside a `.tb.` file is one collapse away from
+being a list of transitions.
+
+Swift's and Rust's have not. In Swift that is a rename; in Rust it needs the
+`#[path]` above, and the `transition_matrix!` invocation generates the state
+and action types, so splitting it out of `lib.rs` moves those into a submodule
+and every `Handle` impl has to follow. Worth doing, and worth doing as its own
+patch rather than inside this one.
 
 ## The formatter this anticipates
 

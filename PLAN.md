@@ -115,6 +115,44 @@ exist for, and Gradle is no different.
 
 
 
+### 0c. Kotlin was never checked by the flake — fixed
+
+`nix/context.nix` gated every Kotlin check on `builtins.pathExists
+../kotlin/src`. There is no `kotlin/src` and there never has been: the tree is
+`kotlin/{core,annotations,testing,codegen,test,conformance,compile_fail,ksp}`.
+So `has.kotlin` was always false, `nix/checks.nix` dropped all six Kotlin
+checks, and `ci.yml`'s `check` job — which runs `nix flake check` and nothing
+else — ran none of them. Kotlin was covered only by `check-no-nix`.
+
+The gate now names `kotlin/core/dev/tabula/Step.kt`, which is the file every
+Kotlin step compiles first. Kotlin has no build file to gate on, deliberately
+(ARCHITECTURE 11.2), so the core source is the honest stand-in.
+
+Two things this is worth recording for:
+
+- **A gate that names a path which does not exist cannot report that it is
+  off.** `lib.optionalAttrs` produces a smaller attribute set, and a smaller
+  set of checks is indistinguishable from a correct one in `nix flake check`'s
+  output. The Rust and Swift gates were right, so the summary looked plausible.
+- **Turning it on found two checks that had never run anywhere**, which is the
+  usual yield of switching on a gate rather than the exception:
+  1. `kotlin-examples` guarded `06-generated` on `command -v gradle`. The
+     sandbox *has* gradle — `kotlinInputs` ships it — and has no network, so
+     the guard tested for the wrong thing and the step would have failed while
+     its message promised a skip. `mkCheck` now exports `TABULA_OFFLINE=1` and
+     `tools/verify` reads it. Declared, not probed: nix knows and the script
+     would be guessing.
+  2. `kotlin-matrix-stable` is gated on ktlint being present *and* on
+     `has.kotlin`. `check-no-nix` installs no ktlint and the flake dropped the
+     check, so it had executed in neither. With `pkgs.ktlint` it runs — and the
+     matrix it guards was in `kotlin/test/ReferenceTimer.kt`, outside the
+     `[*.tb.kt]` exemption in `.editorconfig`. Moved to
+     `kotlin/test/TimerSpec.tb.kt`; see `spec/matrix-files.md`, which had
+     already written down that the library's own matrices had not moved yet.
+
+`docs` was in `nix/checks.nix` but not in `tools/verify`'s default step list,
+so the two disagreed about green in the other direction. Added.
+
 ### 0a. Both build paths are checked
 
 `tools/verify` never needed Nix — it is bash, and the flake's checks call it —
@@ -561,9 +599,13 @@ exercised through a compiler plugin is a generator nobody refactors.
       hierarchies — a change to `S` must reprocess dependent machines)
 
 **4d. Conformance**
-- [x] Kotlin harness green on `timer` and `toggle`; `retry` and
-      `nested-delegate` report as **skipped**, not passed. Verified to catch
-      both table drift and behavioural drift.
+- [x] Kotlin harness green on all five fixtures. It started green on `timer`
+      and `toggle` with `retry` and `nested-delegate` reporting as **skipped**;
+      Phase 6 landed `RetryAdapter` and `JobAdapter` in `conformance/Compose.kt`
+      and Phase 7 landed `EffectsNeverAdapter`, so `conformance/Machines.kt`
+      now registers all five. Verified to catch both table drift and
+      behavioural drift. The skip path is still live and still matters — it is
+      what a sixth fixture would hit before it has an adapter.
 - [x] The golden `.grid` files are now genuinely shared: Rust writes them,
       Kotlin reads and never blesses. Two renderers agreeing byte for byte
       covers padding, trimming, and the text of all six cell kinds — the
