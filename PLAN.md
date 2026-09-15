@@ -672,7 +672,19 @@ the build with a comprehensible message; the developer's source file contains no
 - [x] The KSP adapter, ~200 lines of extraction. **Unverified** — it is the
       only file in the repository that has never been run. `ksp/README.md`
       lists four honest guesses at what will need fixing first.
-- [ ] One run against Maven to confirm or correct it.
+- [x] One run against Maven to confirm or correct it. It ran: `nix flake check`
+      builds `examples/kotlin/06-generated` against the locked artifact set
+      (see 0d), and the processor is exercised on every check rather than on a
+      machine that happens to have Maven.
+- [x] The output held to a golden, `kotlin/ksp/golden/TurnstileGenerated.kt`.
+      The example compiling was the weaker claim: it proves `Cells` has a
+      member `Impl.kt` can override and that `step` type-checks, and nothing
+      about the table. Rows read out of order, an effect dropped from a `GO`
+      cell, `initial` resolved to the wrong state -- all compile, and `TABLE`
+      and `PAYLOADS` are read by nothing in the example. Since every decision
+      lives in `codegen/`, extraction is the processor's entire untested
+      surface, and extraction bugs are exactly the kind that yield a
+      well-formed machine saying the wrong thing.
 
 The split is worth keeping after KSP lands. A generator whose logic can only be
 exercised through a compiler plugin is a generator nobody refactors.

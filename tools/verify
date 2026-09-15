@@ -530,6 +530,44 @@ step_kotlin_ksp() {
 
     (cd examples/kotlin/06-generated && gradle "${args[@]}" build) || return 1
     echo "ok   generated (ksp)"
+
+    # What the processor EMITTED, not just that it compiled.
+    #
+    # The build succeeding proves `Cells` has a member Impl.kt can override and
+    # that `step` type-checks. It proves nothing about the table: rows read in
+    # the wrong order, an effect dropped from a GO cell, `initial` resolved to
+    # the wrong state -- all compile, and `TABLE` and `PAYLOADS` are inert data
+    # the example never reads. Extraction bugs produce a well-formed machine
+    # that says the wrong thing, and that is the whole surface this processor
+    # has: every decision it makes lives in codegen/, which kotlinc already
+    # covers.
+    #
+    # Located by name rather than by path. KSP's output directory has moved
+    # between versions, and a hardcoded path that stops matching would make
+    # this silently check nothing -- the failure mode the repository keeps
+    # finding. If it is not there, that is a failure, not a skip.
+    local gen
+    gen="$(find examples/kotlin/06-generated/build/generated \
+        -name 'TurnstileGenerated.kt' -type f 2>/dev/null | head -1)"
+    if [ -z "$gen" ]; then
+        echo "FAIL: the build succeeded but no TurnstileGenerated.kt was emitted."
+        echo "      The processor is registered through META-INF/services; if it"
+        echo "      did not run at all, Gradle reports nothing and the example"
+        echo "      would have failed to compile -- so this means KSP wrote"
+        echo "      somewhere unexpected. Look under build/generated/."
+        return 1
+    fi
+
+    if diff -u kotlin/ksp/golden/TurnstileGenerated.kt.golden "$gen"; then
+        echo "ok   generated matches golden"
+    else
+        echo
+        echo "FAIL: the processor's output does not match"
+        echo "      kotlin/ksp/golden/TurnstileGenerated.kt.golden."
+        echo "      Read the diff before re-blessing -- see that directory's"
+        echo "      README for which diffs mean what."
+        return 1
+    fi
 }
 
 # Swift builds with SwiftPM. Unlike Kotlin there is no build-system problem
