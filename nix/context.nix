@@ -38,7 +38,19 @@ let
     swift = builtins.pathExists ../swift/Package.swift;
     rustConformance = builtins.pathExists ../rust/tabula-conformance/Cargo.toml;
     examples = builtins.pathExists ../examples/rust/Cargo.toml;
+
+    # The KSP example can build offline exactly when the lock exists. Gating on
+    # the lock rather than on `gradle` being installed is the whole point of
+    # the rewrite: gradle is always present in these checks -- kotlinInputs
+    # ships it -- and what was ever missing is the artifacts.
+    gradleLock = builtins.pathExists ../nix/gradle-lock.json;
   };
+
+  # The offline Maven repository, or null when nothing has been locked yet.
+  gradleRepo =
+    if has.gradleLock
+    then import ./gradle-repo.nix { inherit pkgs lib; lockFile = ../nix/gradle-lock.json; }
+    else null;
 
   rustToolchain =
     if builtins.pathExists ../rust/rust-toolchain.toml
@@ -221,6 +233,6 @@ in
     self system pkgs lib has
     rustToolchain jdk swiftAvailable swiftChecked swiftPkgs
     rustInputs kotlinInputs commonInputs
-    swiftLibraryPath
+    swiftLibraryPath gradleRepo
     mkCheck mkShell;
 }

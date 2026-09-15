@@ -1,4 +1,4 @@
-// UNVERIFIED. See settings.gradle.kts.
+// The KSP example. See settings.gradle.kts for where artifacts come from.
 //
 // This is the only build file in the repository that runs the annotation
 // processor, and it exists so the examples cover the path a user actually
@@ -10,7 +10,15 @@ plugins {
     id("com.google.devtools.ksp") version "2.1.20-1.0.32"
 }
 
-repositories { mavenCentral() }
+// Same switch as pluginManagement in settings.gradle.kts, and it has to be
+// made twice: plugin resolution and dependency resolution read different
+// repository lists, and an offline build that finds its plugins and not its
+// dependencies fails halfway through with a message about neither.
+val tabulaRepo: String? = System.getenv("TABULA_MAVEN_REPO")?.takeIf { it.isNotBlank() }
+
+repositories {
+    if (tabulaRepo != null) maven { url = uri(tabulaRepo) } else mavenCentral()
+}
 
 // tabula is not published to any repository yet, so the runtime and the
 // annotations are compiled from source. `srcDir` and not `files()`: those

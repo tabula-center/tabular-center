@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+# Record every Maven artifact the KSP example needs, with its URL and hash.
+#
+#   ./tools/gradle-lock            regenerate nix/gradle-lock.json
+#   ./tools/gradle-lock --check    verify the committed lock is complete
+#
+# NEEDS NETWORK. That is the point: this is the one command in the repository
+# that reaches Maven, it is run by a person or by CI, and its output is
+# committed. Afterwards `nix flake check` resolves nothing -- every artifact is
+# an ordinary `fetchurl` with a pinned hash, fetched by nix's own downloader.
+#
+# ## Why not a fixed-output derivation
+#
+# `nix/gradle-deps.nix` was one, and it was the wrong shape twice over.
+#
+# It asked the JVM to do the fetching inside a nix sandbox, which is a
+# networking question with three indistinguishable failure modes -- no route,
+# no DNS, no CA bundle the JVM will read -- all of which Gradle reports as
+# `could not resolve plugin artifact ... Searched in the following
+# repositories`. Five patches were spent on that one summary line.
+#
+# And a Gradle cache does not hash reproducibly. `caches/modules-2` carries
+# `.lock` files, `gc.properties`, and binary descriptors keyed by absolute
+# paths, so the `outputHash` a first build reports is not necessarily the one
+# the second produces. Deleting the locks narrows that; it does not close it.
+#
+# One artifact, one `fetchurl`, one hash is the shape nix already knows how to
+# make reproducible. It is what gradle2nix does, and the core of it is small
+# enough to own rather than depend on.
+#
+# ## How the URLs are recovered
+#
+# gradle2nix runs a Gradle plugin to ask the resolution engine where each
+# artifact came from. This does the same job from the outside, and the cache
+# layout is what makes it possible:
+#
+#   caches/modules-2/files-2.1/<group>/<name>/<version>/<sha1>/<file>
+#
+# Those four components are exactly a Maven coordinate, and a Maven coordinate
+# is exactly a path under a repository root. So: walk the cache, rebuild the
+# path, and try each known repository root until one serves a file whose
+# sha256 matches the one on disk.
+#
+# The hash comparison is not belt-and-braces -- it is the whole proof. A
+# reconstructed URL that is wrong cannot pass it, so this cannot silently
+# record a plausible URL for the wrong bytes. It costs a second download per
+# artifact, which is the right trade for a command run once per dependency
+# change.
+set -uo pipefail
+
+cd "$(dirname "$0")/.." || exit 1
+
+LOCK="nix/gradle-lock.json"
+EXAMPLE="examples/kotlin/06-generated"
+
+# Every repository the builds declare, in the order Gradle would try them.
+# Adding a repository to a build file means adding it here; the check below
+# fails loudly rather than quietly recording nothing, because an artifact whose
+# URL cannot be found is reported by name.
+REPOS=(
+    "https://repo1.maven.org/maven2"
+    "https://plugins.gradle.org/m2"
+)
+
+check=0
+[ "${1:-}" = "--check" ] && check=1
+
+for tool in gradle curl sha256sum; do
+    command -v "$tool" >/dev/null 2>&1 || {
+        echo "gradle-lock: $tool is required and not on PATH"
+        exit 2
+    }
+done
+
+scratch="$(mktemp -d)"
+trap 'rm -rf "$scratch"' EXIT
+guh="$scratch/gradle-home"
+mkdir -p "$guh"
+
+# Recorded in the lock, because the artifact set is a function of it.
+#
+# Two Gradle versions can want two different sets for the same build file --
+# different plugin marker resolution, different metadata variants -- so a lock
+# is only meaningful alongside the version that produced it. Without this the
+# replay failure is `Could not find <some artifact>` against a directory that
+# looks complete, with nothing pointing at the cause.
+gradle_version="$(gradle --version 2>/dev/null | awk '/^Gradle /{print $2; exit}')"
+[ -n "$gradle_version" ] || gradle_version="unknown"
+echo "gradle $gradle_version"
+
+# A FRESH GRADLE_USER_HOME, every time.
+#
+# Against a warm cache this records whatever happens to be sitting there,
+# including artifacts a previous branch needed and this one does not -- and,
+# worse, misses nothing, so the lock looks complete while being a superset
+# nobody can reproduce. An empty home makes the download set the dependency
+# set.
+echo "== resolving (this reaches the network) =="
+if ! GRADLE_USER_HOME="$guh" TABULA_MAVEN_REPO="" \
+    gradle --no-daemon --console=plain -p "$EXAMPLE" \
+    -Dorg.gradle.java.installations.auto-download=false \
+    build; then
+    echo
+    echo "gradle-lock: the online build failed, so there is nothing to lock."
+    echo "  This command needs Maven access. If you are inside 'nix develop'"
+    echo "  or a nix build, you do not have it -- run it on a machine that"
+    echo "  does, and commit the result."
+    exit 1
+fi
+
+cache="$guh/caches/modules-2/files-2.1"
+[ -d "$cache" ] || { echo "gradle-lock: no artifact cache at $cache"; exit 1; }
+
+echo
+echo "== recovering URLs =="
+
+entries=""
+missing=""
+count=0
+
+while IFS= read -r f; do
+    # .../files-2.1/<group>/<name>/<version>/<sha1>/<file>
+    local_sha="$(sha256sum "$f" | cut -d' ' -f1)"
+    file="$(basename "$f")"
+    rest="$(dirname "$(dirname "$f")")"      # strip <sha1>/
+    version="$(basename "$rest")"
+    rest="$(dirname "$rest")"
+    name="$(basename "$rest")"
+    group="$(basename "$(dirname "$rest")")"
+
+    # Maven layout: the group's dots become directory separators. Everything
+    # else is already in the right shape, which is why no coordinate parsing
+    # happens on the nix side -- the path in the lock IS the path in the repo.
+    path="${group//.//}/$name/$version/$file"
+
+    found=""
+    for base in "${REPOS[@]}"; do
+        url="$base/$path"
+        if curl -fsSL --max-time 60 -o "$scratch/dl" "$url" 2>/dev/null; then
+            if [ "$(sha256sum "$scratch/dl" | cut -d' ' -f1)" = "$local_sha" ]; then
+                found="$url"
+                break
+            fi
+            # Same path, different bytes. A repository that mirrors a
+            # coordinate it does not own will do this, and recording it would
+            # pin the wrong artifact under a name that looks right.
+            echo "note: $base serves $path with different content; trying the next"
+        fi
+    done
+
+    if [ -z "$found" ]; then
+        missing="$missing  $path"$'\n'
+        continue
+    fi
+
+    entries="$entries    { \"path\": \"$path\", \"url\": \"$found\", \"sha256\": \"$local_sha\" },"$'\n'
+    count=$((count + 1))
+    printf '  %s\n' "$path"
+done < <(find "$cache" -type f | sort)
+
+if [ -n "$missing" ]; then
+    echo
+    echo "gradle-lock: could not find a URL for:"
+    printf '%s' "$missing"
+    echo
+    echo "  Every repository a build file declares must be listed in REPOS at"
+    echo "  the top of this script. If one of these came from somewhere else,"
+    echo "  add it there rather than hand-editing the lock."
+    exit 1
+fi
+
+# Sorted, and the trailing comma removed, so the file is a stable diff. An
+# artifact set that reorders between runs makes every regeneration look like a
+# dependency change.
+generated="$scratch/lock.json"
+{
+    echo '{'
+    echo '  "comment": "Generated by tools/gradle-lock. Do not edit. See nix/gradle-repo.nix.",'
+    echo '  "schema": 1,'
+    echo "  \"gradle\": \"$gradle_version\","
+    echo '  "artifacts": ['
+    printf '%s' "$entries" | sort | sed '$ s/,$//'
+    echo '  ]'
+    echo '}'
+} > "$generated"
+
+if [ "$check" -eq 1 ]; then
+    if [ ! -f "$LOCK" ]; then
+        echo
+        echo "gradle-lock: $LOCK does not exist; run ./tools/gradle-lock"
+        exit 1
+    fi
+    if diff -u "$LOCK" "$generated"; then
+        echo
+        echo "ok   $LOCK is current ($count artifacts)"
+        exit 0
+    fi
+    echo
+    echo "gradle-lock: $LOCK is stale; run ./tools/gradle-lock"
+    exit 1
+fi
+
+mkdir -p "$(dirname "$LOCK")"
+cp "$generated" "$LOCK"
+echo
+echo "wrote $LOCK ($count artifacts)"
+echo
+echo "Next: commit it. 'nix flake check' reads it and fetches each artifact"
+echo "with fetchurl, so the KSP example stops being a skip."

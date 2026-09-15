@@ -10,7 +10,7 @@
 # Usage:  tools/verify [step ...]      (default: all)
 # Steps:  version docs fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
-#         kotlin-examples kotlin-matrix-stable
+#         kotlin-examples kotlin-ksp kotlin-matrix-stable
 #         swift swift-compile-fail swift-conformance swift-macros
 #         swift-examples swift-codegen
 set -uo pipefail
@@ -94,12 +94,30 @@ require_goldens() {
 # same reasoning already governs swiftLibraryPath and NIX_CC.
 offline() { [ -n "${TABULA_OFFLINE:-}" ]; }
 
+# Every skip, collected.
+#
+# A skip is the most dangerous line this script prints. It is not an error, so
+# nothing counts it; it scrolls past in a green run; and the summary at the end
+# says "all green" either way. Two separate things were skipped for months
+# behind that -- the whole Kotlin suite, and the KSP example -- and in both
+# cases the output looked correct.
+#
+# So every step's output goes through `tee` into one file, and the end of the
+# run reprints whatever said `skip`. Nothing is required of the step functions,
+# which is the point: a ledger that only sees the sites someone remembered to
+# instrument is a ledger that lies by omission.
+TALLY="$(mktemp)"
+trap 'rm -f "$TALLY"' EXIT
+
 run() {
     local name="$1"; shift
     printf '\n\033[1m== %s ==\033[0m\n' "$name"
-    if "$@"; then
-        return 0
-    fi
+    # Piped, so the ledger sees the output, and PIPESTATUS because with a pipe
+    # `$?` belongs to tee. Streaming is preserved -- a five-minute cargo build
+    # still prints as it goes, which capture-then-print would have cost.
+    "$@" 2>&1 | tee -a "$TALLY"
+    local rc="${PIPESTATUS[0]}"
+    [ "$rc" -eq 0 ] && return 0
     echo "FAILED: $name"
     fail=1
 }
@@ -433,40 +451,85 @@ step_kotlin_examples() {
         # SuspendDriver needed kotlinx.coroutines, this line would fail.
         ex 05-suspend       SuspendTestKt      "suspend"       "$out/core"  || exit 1
 
-        # 06-generated is the only example whose dispatcher nobody wrote, and
-        # the only one that needs Gradle: its matrix is declared in annotations
-        # and KSP turns them into the dispatcher, the `Cells` interface and the
-        # effect-handler surface, into build/generated/ksp/.
-        #
-        # Nothing generated is committed. That is why this cannot fall back to
-        # kotlinc the way every other example does -- without the processor
-        # there is no `Cells` for src/Impl.kt to implement, and standing in for
-        # it with a hand-written MachineDesc would be committing by hand
-        # exactly what the example exists to generate.
-        #
-        # Skipped, not failed, where Gradle or Maven is absent. Same call the
-        # harness makes for a missing toolchain, and the same one
-        # examples/swift-examples makes for ObservableStore off Darwin.
-        #
-        # Two conditions, not one. `command -v gradle` alone was wrong in the
-        # place it mattered most: the nix sandbox HAS gradle -- kotlinInputs
-        # ships it -- and has no network, so this would have run the build and
-        # failed on an unreachable Maven while the message promised a skip.
-        # See `offline` above.
-        if ! command -v gradle >/dev/null 2>&1; then
-            echo "skip generated (no gradle; see kotlin/ksp/README.md)"
-        elif offline; then
-            echo "skip generated (gradle is here, Maven is not: KSP resolves from"
-            echo "     Maven Central and this run is offline. ci.yml's check-no-nix"
-            echo "     job is where this path runs; see kotlin/ksp/README.md)"
-        else
-            (cd 06-generated && gradle -q build) || exit 1
-            echo "ok   generated (ksp)"
-        fi
+        # 06-generated is not built here. It is the only Kotlin example that
+        # needs Gradle and an artifact set, so it has its own step --
+        # `kotlin-ksp` below -- and a failure there reads as the processor
+        # being broken rather than as an example being broken.
     )
     local rc=$?
     rm -rf "$out"
     return "$rc"
+}
+
+# The annotation processor, running.
+#
+# 06-generated is the only example whose dispatcher nobody wrote: its matrix is
+# declared in annotations and KSP turns them into the dispatcher, the `Cells`
+# interface and the effect-handler surface, into build/generated/ksp/. Nothing
+# generated is committed, which is why this cannot fall back to kotlinc the way
+# every other example does -- without the processor there is no `Cells` for
+# src/Impl.kt to implement.
+#
+# Three ways to run, and the first is the one that made this stop being a skip:
+#
+#   TABULA_MAVEN_REPO set -> resolve offline from that directory. nix builds it
+#     from nix/gradle-lock.json and nix/checks.nix points here at it.
+#   unset, online        -> the real repositories. ci.yml's check-no-nix job,
+#     and a developer with network.
+#   unset, offline       -> skip, with the reason.
+step_kotlin_ksp() {
+    if ! command -v gradle >/dev/null 2>&1; then
+        echo "skip kotlin-ksp (no gradle; see kotlin/ksp/README.md)"
+        return 0
+    fi
+    require_dir examples/kotlin/06-generated || return 1
+
+    local args=(--no-daemon --console=plain)
+
+    if [ -n "${TABULA_MAVEN_REPO:-}" ]; then
+        # The lock records the Gradle that produced it. A different one can
+        # legitimately want a different artifact set, and when it does the
+        # failure is `Could not find <artifact>` against a directory that looks
+        # complete -- a resolution error with no hint that the cause is a
+        # version skew. Warn rather than fail: the sets usually overlap, and a
+        # build that works should not be blocked by a metadata mismatch.
+        if [ -f nix/gradle-lock.json ] && command -v jq >/dev/null 2>&1; then
+            local locked_with here
+            locked_with="$(jq -r '.gradle // "unknown"' nix/gradle-lock.json)"
+            here="$(gradle --version 2>/dev/null | awk '/^Gradle /{print $2; exit}')"
+            if [ -n "$here" ] && [ "$locked_with" != "unknown" ] && \
+               [ "$locked_with" != "$here" ]; then
+                echo "note: lock was produced by gradle $locked_with, running $here"
+                echo "      if resolution fails below, re-lock: nix run .#gradle-lock"
+            fi
+        fi
+
+        # No --offline, deliberately.
+        #
+        # It reads like the right flag and it is the wrong one: Gradle's
+        # offline mode does not mean "do not use the network", it means
+        # "resolve from the dependency cache and nothing else". Every external
+        # repository is wrapped so it refuses, and a `maven { url = file:// }`
+        # repository is an external repository -- so the flag that looks like
+        # it enforces this setup is the one that breaks it, with
+        # `No cached version of ... available for offline mode` against a
+        # directory sitting right there holding the artifact.
+        #
+        # Nothing is needed in its place. The repository list has been replaced
+        # by one local directory, so there is no remote left to try, and every
+        # version is pinned so nothing goes looking for metadata. The sandbox
+        # has no route either way, and refuses immediately rather than hanging.
+        echo "note: resolving offline from $TABULA_MAVEN_REPO"
+    elif offline; then
+        echo "skip kotlin-ksp (no locked artifact set: run 'nix run .#gradle-lock'"
+        echo "     on a machine with network and commit nix/gradle-lock.json)"
+        return 0
+    else
+        echo "note: resolving from the network"
+    fi
+
+    (cd examples/kotlin/06-generated && gradle "${args[@]}" build) || return 1
+    echo "ok   generated (ksp)"
 }
 
 # Swift builds with SwiftPM. Unlike Kotlin there is no build-system problem
@@ -970,7 +1033,7 @@ steps=("$@")
 [ ${#steps[@]} -eq 0 ] && \
     steps=(version docs fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
-           kotlin-examples kotlin-matrix-stable \
+           kotlin-examples kotlin-ksp kotlin-matrix-stable \
            swift swift-compile-fail swift-conformance swift-examples \
            swift-codegen swift-macros)
 
@@ -990,6 +1053,7 @@ for s in "${steps[@]}"; do
         kotlin-conformance)  run kotlin-conformance  step_kotlin_conformance ;;
         kotlin-codegen)      run kotlin-codegen      step_kotlin_codegen ;;
         kotlin-examples)     run kotlin-examples     step_kotlin_examples ;;
+        kotlin-ksp)          run kotlin-ksp          step_kotlin_ksp ;;
         kotlin-matrix-stable) run kotlin-matrix-stable step_kotlin_matrix_stable ;;
         swift)               run swift               step_swift ;;
         swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
@@ -1002,6 +1066,20 @@ for s in "${steps[@]}"; do
 done
 
 echo
+
+# The ledger, before the verdict, because "all green" read on its own is what
+# made two missing suites invisible. Anything listed here did not run, and a
+# run with no list is the only one that means what it says.
+# POSIX classes, not \s. BSD grep and sed do not understand \s, and
+# ci.yml's check-no-nix job runs this on macos-14 -- where the ledger would
+# have silently matched nothing, which is the exact failure it exists to stop.
+if grep -q '^[[:space:]]*skip ' "$TALLY"; then
+    echo "verify: skipped ---------------------------------------------"
+    grep '^[[:space:]]*skip ' "$TALLY" | sed 's/^[[:space:]]*/  /'
+    echo "------------------------------------------------------------"
+    echo
+fi
+
 if [ "$fail" -eq 0 ]; then
     echo "verify: all green"
 else

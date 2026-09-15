@@ -1,5 +1,5 @@
-// UNVERIFIED, for the same reason kotlin/ksp is: Gradle needs Maven Central
-// and this environment cannot reach it.
+// The KSP example's settings. This build has run: see kotlin/ksp/README.md,
+// where the missing `../harness` source set was found by running it.
 // Where plugins come from, declared rather than defaulted.
 //
 // Gradle's default is the plugin portal alone, and the first build in the Nix
@@ -12,10 +12,25 @@
 // mavenCentral() is added because both the Kotlin and KSP plugins publish
 // their marker artifacts there too, so resolution has a second source that is
 // the same one the dependencies already come from.
+//
+// TABULA_MAVEN_REPO switches the whole set for one offline directory. An
+// environment variable, not a Gradle property: `-P` does not cross into an
+// included build, and `kotlin/ksp` is one -- so a property would configure
+// this build and leave the processor still reaching for the network, which
+// fails later, elsewhere, and reads like a different problem.
+//
+// Set: nix/gradle-repo.nix built it from nix/gradle-lock.json and `nix flake
+// check` points here at the store path. Unset: the online repositories, which
+// is what tools/gradle-lock and ci.yml's check-no-nix job use.
 pluginManagement {
+    val tabulaRepo: String? = System.getenv("TABULA_MAVEN_REPO")?.takeIf { it.isNotBlank() }
     repositories {
-        gradlePluginPortal()
-        mavenCentral()
+        if (tabulaRepo != null) {
+            maven { url = uri(tabulaRepo) }
+        } else {
+            gradlePluginPortal()
+            mavenCentral()
+        }
     }
 }
 

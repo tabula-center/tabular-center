@@ -25,7 +25,27 @@ jobs:
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
       - name: nix flake check
-        run: nix flake check --print-build-logs
+        run: nix flake check --print-build-logs --keep-going
+
+      # Lock freshness, and it belongs HERE rather than in check-no-nix.
+      #
+      # It was in that job first, on the reasoning that it is the one with
+      # network. True, and not sufficient: nix/gradle-lock.json records what
+      # THE FLAKE'S gradle resolves, and check-no-nix installs its own through
+      # setup-gradle. Two different Gradle versions can want two different
+      # artifact sets for the same build, so --check there would have gone red
+      # on a version skew rather than on a stale lock -- a false alarm on the
+      # one signal that has to stay trustworthy.
+      #
+      # `nix run` is not sandboxed: it executes on the host, with network, from
+      # the flake's pinned toolchain. So this is the only place both halves are
+      # available at once, which makes it the only place the question can
+      # actually be asked.
+      #
+      # Not part of `nix flake check`, because a check that reaches the network
+      # is not a check. Same split as apps-versus-checks in nix/apps.nix.
+      - name: gradle lock is current
+        run: nix run .#gradle-lock -- --check
 
   # Swift is primary on Darwin: nixpkgs' Linux swift lags and macro plugins are
   # toolchain-version sensitive. Gated on Package.swift so it no-ops until
@@ -47,10 +67,12 @@ jobs:
   # ran it, and an untested claim about how to build a project is worse than an
   # absent one, because someone believes it.
   #
-  # It also covers a case Nix cannot. The sandbox has no network, so the Gradle
-  # and KSP path is skipped in every Nix job; here Gradle can reach Maven, and
-  # `examples/kotlin/06-generated` is the only consumer of the annotation
-  # processor. This job is where that path is exercised at all.
+  # It also covers a case Nix cannot -- though no longer the one this comment
+  # used to claim. The KSP example is not skipped under Nix any more: it
+  # resolves from nix/gradle-lock.json through fetchurl, so `kotlin-ksp` runs
+  # in the sandbox like every other check. What is left here is the harder
+  # question, which is whether the build still works against real repositories
+  # with an ordinary Gradle rather than against a pinned directory.
   check-no-nix:
     strategy:
       fail-fast: false
@@ -99,9 +121,12 @@ jobs:
       - name: verify
         run: ./tools/verify
 
-      # Reported separately so a KSP failure is not buried in the examples step.
-      # Expected to be the noisy one for a while: kotlin/ksp has never executed,
-      # and two bugs in its build file were already found by reading alone.
-      - name: ksp example (gradle)
-        working-directory: examples/kotlin/06-generated
-        run: gradle build --no-daemon
+      # No lock check here, deliberately -- it lives in the `check` job. The
+      # lock describes what the flake's gradle resolves, and this job's gradle
+      # is a different version, so checking it here would compare two things
+      # that were never meant to match.
+      #
+      # What this job still does for KSP is better: `./tools/verify` builds
+      # examples/kotlin/06-generated online, against the real repositories,
+      # with an ordinary Gradle. That is the no-nix claim tested rather than
+      # asserted, and it is the one thing the sandbox genuinely cannot do.

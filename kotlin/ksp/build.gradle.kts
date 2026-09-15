@@ -14,7 +14,14 @@ plugins {
 group = "dev.tabula"
 version = "0.1.0"
 
-repositories { mavenCentral() }
+// Same TABULA_MAVEN_REPO switch as the example. This is an included build, so
+// it resolves independently -- its own pluginManagement lives in the
+// settings.gradle.kts next to this file.
+val tabulaRepo: String? = System.getenv("TABULA_MAVEN_REPO")?.takeIf { it.isNotBlank() }
+
+repositories {
+    if (tabulaRepo != null) maven { url = uri(tabulaRepo) } else mavenCentral()
+}
 
 dependencies {
     implementation("com.google.devtools.ksp:symbol-processing-api:2.1.20-1.0.32")

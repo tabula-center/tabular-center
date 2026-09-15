@@ -9,7 +9,7 @@ ctx:
 
 let
   inherit (ctx) lib has rustInputs kotlinInputs swiftPkgs swiftChecked
-    swiftLibraryPath mkCheck;
+    swiftLibraryPath gradleRepo mkCheck;
   verify = name: inputs: mkCheck name inputs "./tools/verify ${name}";
 in
 {
@@ -40,6 +40,60 @@ in
   # Guards the matrix alignment against ktlint's formatter -- narrowly, without
   # adopting ktlint as a style gate. See the backlog entry in PLAN.md.
   kotlin-matrix-stable = verify "kotlin-matrix-stable" kotlinInputs;
+}
+// lib.optionalAttrs has.kotlin {
+  # The annotation processor, running.
+  #
+  # Its own check rather than part of `kotlin-examples`, because it is the one
+  # Kotlin step whose inputs are not just source: it needs the artifact set
+  # nix/gradle-lock.json pins. A failure here means a stale lock or a broken
+  # processor, and burying that in the examples step would make it read as an
+  # example being broken.
+  #
+  # Gated on `has.kotlin` ALONE, deliberately -- not on the lock existing.
+  #
+  # Gating on the lock was the obvious thing and it was wrong in the same way
+  # `has.kotlin = pathExists ../kotlin/src` was wrong: a check that is absent
+  # from the attribute set cannot report that it is absent. `nix flake check`
+  # would have printed a tidy green summary over a KSP example nobody built,
+  # which is the failure this repository has now hit twice. Once is a bug;
+  # twice is a pattern worth spending a check on.
+  #
+  # So when there is no lock, this check EXISTS and FAILS, with the command
+  # that fixes it. The experiment is reproducible or it is red; it is never
+  # quietly smaller than it looks.
+  kotlin-ksp =
+    if gradleRepo != null
+    then
+      mkCheck "kotlin-ksp" kotlinInputs ''
+        # Exported here rather than guessed at by the script, for the same
+        # reason swiftLibraryPath is: nix built the directory and knows where
+        # it is. Everything else about the step is `tools/verify`'s, so the
+        # no-nix path runs the same commands against the real repositories.
+        export TABULA_MAVEN_REPO="${gradleRepo}"
+        ./tools/verify kotlin-ksp
+      ''
+    else
+      mkCheck "kotlin-ksp" [ ] ''
+        cat <<'MSG'
+        kotlin-ksp: nix/gradle-lock.json does not exist, so there is no
+        artifact set to build examples/kotlin/06-generated against.
+
+        Bootstrap it once, on a machine with network:
+
+            nix run .#gradle-lock
+
+        then commit nix/gradle-lock.json. After that every `nix flake check`
+        builds the KSP example offline against pinned hashes -- nix fetches
+        each artifact itself, which is reproducible in a way a Gradle
+        resolution inside a sandbox is not.
+
+        This check fails rather than disappearing on purpose. A missing check
+        looks exactly like a passing one in `nix flake check` output, and that
+        is how the Kotlin steps went unrun for as long as they did.
+        MSG
+        exit 1
+      '';
 }
 // lib.optionalAttrs has.kotlinGradle {
   # Guards the zero-runtime-dependency rule. Only meaningful once Gradle can

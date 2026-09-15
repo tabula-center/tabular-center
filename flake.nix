@@ -42,20 +42,23 @@
 
         # Not a check, and not built by `nix flake check`.
         #
-        # `gradle-deps` is a fixed-output derivation: it reaches the network to
-        # resolve KSP from Maven, and pins the result by hash so the build that
-        # uses it can run offline. Putting it in `checks` would mean every
-        # `nix flake check` either fetches or fails, which is the problem it
-        # exists to remove.
+        # The offline Maven repository `kotlin-ksp` resolves against, exposed
+        # so it can be built and inspected on purpose:
         #
-        # It is a package so it can be built on purpose:
+        #   nix build .#gradle-repo
+        #   ls result
         #
-        #   nix build .#gradle-deps
+        # It reaches no network: every artifact is a `fetchurl` with a hash
+        # pinned in nix/gradle-lock.json. Regenerating that lock is
+        # `./tools/gradle-lock`, which does need network and is deliberately
+        # not a derivation -- see the header of that script for why the
+        # fixed-output derivation this replaces was the wrong shape.
         #
-        # The first build fails with the real hash, which goes into
-        # `outputHash` in nix/gradle-deps.nix. Normal fixed-output workflow.
-        packages.gradle-deps = import ./nix/gradle-deps.nix {
-          inherit (ctx) pkgs lib jdk;
+        # Absent until the lock exists, so a fresh clone that has never run
+        # the generator gets "attribute 'gradle-repo' missing" rather than an
+        # evaluation error about a file that is not there.
+        packages = ctx.lib.optionalAttrs (ctx.gradleRepo != null) {
+          gradle-repo = ctx.gradleRepo;
         };
 
         # `nix fmt` formats the flake. Deliberately not a `nix flake check`: a

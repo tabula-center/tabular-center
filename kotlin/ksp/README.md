@@ -1,4 +1,4 @@
-# tabula-ksp — the one file that has never been run
+# tabula-ksp
 
 KSP is a Maven artifact. The environment this was developed in cannot reach
 Maven, and the jars are not published as GitHub release assets either (checked).
@@ -49,10 +49,9 @@ took a real run.
 
 ## Building it
 
-Needs Gradle with Maven access, which is exactly what is missing here, so
-`build.gradle.kts` is written from the KSP documentation rather than from a
-successful run. Treat it the same way as the processor — and it got the same
-read, which turned up one near-certain bug.
+`build.gradle.kts` was written from the KSP documentation rather than from a
+successful run, and got the same read the processor did, which turned up one
+near-certain bug.
 
 It used to depend on the generator with `implementation(files("../codegen"))`.
 `files()` puts a path on the compile classpath as a directory of **class**
@@ -66,16 +65,41 @@ point), `Tests.kt` (the golden-diff suite, which reads paths relative to the
 repository root), and `compile_fail/` — fixtures that are *supposed* not to
 compile.
 
-Still unverified, and two things are worth knowing before the first run:
+Two notes, one of which stopped being a note:
 
-- There is **no `settings.gradle.kts`**. Gradle will synthesise one for a
-  standalone build and take the project name from the directory, which is
-  `ksp`. Harmless for a build, wrong for publication.
+- There **is** a `settings.gradle.kts` now. It was missing, and the entry here
+  said Gradle would synthesise one and take the project name from the
+  directory — `ksp` — which was "harmless for a build, wrong for publication".
+  It stopped being harmless when the offline repository landed: an included
+  build resolves its plugins through its *own* `pluginManagement`, and a
+  synthesised settings file defaults to the plugin portal. So this build would
+  have gone on reaching for the network however the example was configured,
+  and failed on a line naming a plugin rather than a repository. Writing the
+  file fixed the publication half as a side effect.
 - The KSP version is pinned to `2.1.20-1.0.32`, matching the Kotlin version.
   KSP releases are tied to a specific Kotlin compiler build, so this pair moves
   together or not at all.
 
 The first useful signal is whether `codegen/golden/timer.kt.golden` comes back
 out of the processor unchanged when it is pointed at
-`test/ReferenceTimer.kt`'s annotations. That single comparison exercises the
+`test/TimerSpec.tb.kt`'s annotations. That single comparison exercises the
 whole path.
+
+## Where the artifacts come from
+
+Not from Maven, under nix. `nix/gradle-lock.json` pins every artifact this
+build and the example need, by URL and hash; `nix/gradle-repo.nix` turns that
+into a directory; `TABULA_MAVEN_REPO` points both builds at it. Nothing
+resolves over the network inside a nix build, which is what the fixed-output
+derivation this replaced kept failing to do.
+
+Regenerating the lock needs network and is not a derivation:
+
+```
+./tools/gradle-lock          # rewrites nix/gradle-lock.json
+./tools/gradle-lock --check  # CI: is the committed lock still complete?
+```
+
+Run it after changing a version in either `build.gradle.kts`, and commit the
+result. `ci.yml`'s `check-no-nix` job runs `--check` — the only job with
+network, and so the only one that can notice a lock going stale.
