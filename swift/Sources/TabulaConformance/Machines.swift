@@ -162,3 +162,88 @@ struct GateImpl: GateCells {
     func onUnlock(_ ctx: GateCtx) -> Step<GateS, GateF> { .go(.open, effects: []) }
     func onPush(_ ctx: GateCtx) -> Step<GateS, GateF> { .stay(effects: []) }
 }
+
+// MARK: - payload-hoist.tbl — the only coverage for `tabula::payload-hoist`
+
+/// `attempt` in three states, which is what the lint is looking for.
+///
+/// The machine is deliberately a little wrong: a retry counter that outlives
+/// every transition belongs in Context, and three states carrying their own
+/// copy is the smell `tabula::payload-hoist` names. A fixture for a lint has
+/// to trip it, so this models the smell rather than the fix.
+///
+/// Three is `payloadHoistStates` exactly. An implementation firing on `>`
+/// rather than `>=` passes every other fixture and fails this one.
+enum ConnS: Equatable {
+    case connecting(attempt: Int)
+    case backoff(attempt: Int)
+    case reconnecting(attempt: Int)
+    case live
+}
+
+enum ConnA: Equatable { case open, fail, timeout }
+
+/// No effects, like `GateF`. Two fixtures now cover the uninhabited case; this
+/// one reaches it with payload-carrying states, which `effects-never` does not.
+enum ConnF {}
+
+final class ConnCtx {
+    let maxAttempts: Int
+    init(maxAttempts: Int) { self.maxAttempts = maxAttempts }
+}
+
+struct ConnBackoff { let attempt: Int }
+
+protocol ConnCells {
+    func connectingOpen(_ ctx: ConnCtx) -> Step<ConnS, ConnF>
+    func reconnectingOpen(_ ctx: ConnCtx) -> Step<ConnS, ConnF>
+    func backoffTimeout(_ ctx: ConnCtx, _ s: ConnBackoff) -> Step<ConnS, ConnF>
+}
+
+func connStep(
+    _ c: ConnCells, _ ctx: ConnCtx, _ s: ConnS, _ a: ConnA
+) -> Step<ConnS, ConnF> {
+    switch (s, a) {
+    case (.connecting, .open): return c.connectingOpen(ctx)
+    // A static cell cannot read the state it is leaving, so the counter
+    // restarts here. That is what GO means, and it is half of why this machine
+    // wants the field in Context.
+    case (.connecting, .fail): return .go(.backoff(attempt: 0), effects: [])
+    case (.connecting, .timeout): return .go(.backoff(attempt: 0), effects: [])
+    case (.backoff, .open): return .ignored
+    case (.backoff, .fail): return .ignored
+    case let (.backoff(attempt), .timeout):
+        return c.backoffTimeout(ctx, ConnBackoff(attempt: attempt))
+    case (.reconnecting, .open): return c.reconnectingOpen(ctx)
+    case (.reconnecting, .fail): return .go(.backoff(attempt: 0), effects: [])
+    case (.reconnecting, .timeout): return .go(.backoff(attempt: 0), effects: [])
+    case (.live, .open): return .ignored
+    case (.live, .fail): return .go(.reconnecting(attempt: 0), effects: [])
+    case (.live, .timeout): return .ignored
+    }
+}
+
+let CONN_TABLE = Table(
+    machine: "Conn",
+    states: ["Connecting", "Backoff", "Reconnecting", "Live"],
+    actions: ["Open", "Fail", "Timeout"],
+    cells: [
+        [.handle, .go(target: "Backoff", effects: []), .go(target: "Backoff", effects: [])],
+        [.ignore, .ignore, .handle],
+        [.handle, .go(target: "Backoff", effects: []), .go(target: "Backoff", effects: [])],
+        [.ignore, .go(target: "Reconnecting", effects: []), .ignore],
+    ],
+    initial: "Connecting"
+)
+
+struct ConnImpl: ConnCells {
+    func connectingOpen(_ ctx: ConnCtx) -> Step<ConnS, ConnF> { .go(.live, effects: []) }
+    func reconnectingOpen(_ ctx: ConnCtx) -> Step<ConnS, ConnF> { .go(.live, effects: []) }
+
+    /// The only cell that advances the counter, and the only one that can.
+    func backoffTimeout(_ ctx: ConnCtx, _ s: ConnBackoff) -> Step<ConnS, ConnF> {
+        s.attempt >= ctx.maxAttempts
+            ? .stay(effects: [])
+            : .go(.reconnecting(attempt: s.attempt + 1), effects: [])
+    }
+}

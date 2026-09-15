@@ -642,7 +642,13 @@ could be written from it without reading the Rust source.
 - [x] Rust adapter. `PAYLOADS` is emitted by `transition_matrix!` from the
       `states` block, so the field list is never spelled twice, and the type it
       records is `u32` against Kotlin's `Long` -- both canonicalise to `int`.
-- [ ] Swift adapter. The last thing between this lint and three-way coverage. Kotlin first; Rust and Swift report the fixture as **skipped**
+- [x] Swift adapter. `payload-hoist` now runs in all three, and the fixture
+      that could not exist -- one `.lint` golden across three languages that
+      each spell the field's type differently -- exists. `u32`, `Long` and
+      `Int` all reach `attempt: int` through `canonicalType`, which is the
+      decision in section 1 above finally exercised rather than asserted.
+- [x] `ConnF` is the second uninhabited effect type, after `GateF`. This one
+      reaches it with payload-carrying states, which `effects-never` does not. Kotlin first; Rust and Swift report the fixture as **skipped**
       until theirs land, which is the designed behaviour for a fixture without
       an adapter and is now visible in `tools/verify`'s skip ledger rather
       than silent.

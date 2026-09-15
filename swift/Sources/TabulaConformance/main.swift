@@ -212,11 +212,90 @@ struct EffectsNeverAdapter: Adapter {
     }
 }
 
+struct PayloadHoistAdapter: Adapter {
+    let name = "payload-hoist"
+    let table = CONN_TABLE
+
+    /// Spelled `Int`, not `int`.
+    ///
+    /// The adapter reports its own language's type and `canonicalType` maps it
+    /// onto the spec vocabulary before the comparison. Rust records `u32` and
+    /// Kotlin `Long` for this same field; all three land on `attempt: int` and
+    /// share one `.lint` golden. Writing `int` here would pass today and hide
+    /// the mapping the fixture exists to exercise.
+    let payloads: Payloads = [
+        (state: "Connecting", field: "attempt", type: "Int"),
+        (state: "Backoff", field: "attempt", type: "Int"),
+        (state: "Reconnecting", field: "attempt", type: "Int"),
+    ]
+
+    func replay(_ trace: Trace) throws -> [Observed] {
+        let ctx = ConnCtx(maxAttempts: trace.ctx["max_attempts"] ?? 0)
+        let cells = ConnImpl()
+        var state = try stateOf(trace.from, trace.fromFields)
+        var out: [Observed] = []
+
+        for st in trace.steps {
+            let step = connStep(cells, ctx, state, try actionOf(st.action))
+            // Always empty: `ConnF` has no cases, so nothing can construct one.
+            // Written as a literal rather than a map for the reason spelled
+            // out in EffectsNeverAdapter -- the compiler proves the map body
+            // unreachable and says so.
+            let effects: [String] = []
+            let expect: Expect
+            switch step {
+            case .stay: expect = .stay
+            case .ignored: expect = .ignored
+            case let .go(next, _):
+                state = next
+                var want: [String: Int] = [:]
+                if case let .go(_, fields) = st.expect { want = fields }
+                expect = describe(next, want)
+            }
+            out.append(Observed(expect: expect, effects: effects))
+        }
+        return out
+    }
+
+    private func stateOf(_ name: String, _ f: [String: Int]) throws -> ConnS {
+        let attempt = f["attempt"] ?? 0
+        switch name {
+        case "Connecting": return .connecting(attempt: attempt)
+        case "Backoff": return .backoff(attempt: attempt)
+        case "Reconnecting": return .reconnecting(attempt: attempt)
+        case "Live": return .live
+        default: throw SpecError("payload-hoist: unknown state `\(name)`")
+        }
+    }
+
+    private func actionOf(_ name: String) throws -> ConnA {
+        switch name {
+        case "Open": return .open
+        case "Fail": return .fail
+        case "Timeout": return .timeout
+        default: throw SpecError("payload-hoist: unknown action `\(name)`")
+        }
+    }
+
+    private func describe(_ s: ConnS, _ want: [String: Int]) -> Expect {
+        func fields(_ a: Int) -> [String: Int] {
+            want["attempt"] != nil ? ["attempt": a] : [:]
+        }
+        switch s {
+        case let .connecting(attempt): return .go(state: "Connecting", fields: fields(attempt))
+        case let .backoff(attempt): return .go(state: "Backoff", fields: fields(attempt))
+        case let .reconnecting(attempt):
+            return .go(state: "Reconnecting", fields: fields(attempt))
+        case .live: return .go(state: "Live", fields: [:])
+        }
+    }
+}
+
 /// Every adapter that has landed. A fixture with none is reported as skipped,
 /// never as passed.
 let adapters: [Adapter] = [
     TimerAdapter(), ToggleAdapter(), RetryAdapter(), JobAdapter(),
-    EffectsNeverAdapter(),
+    EffectsNeverAdapter(), PayloadHoistAdapter(),
 ]
 
 // MARK: - Runner
