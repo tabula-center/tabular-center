@@ -52,6 +52,10 @@ let package = Package(
         // no XCTest, the same constraint the main package records.
         .executableTarget(
             name: "TabulaMacroSyntaxCheck",
+            // `exclude` is not needed for `pending/` -- it is outside
+            // Sources/ -- but the checks READ it, along with SURFACE.md, by
+            // relative path from the package root. Both are inputs to a test
+            // rather than sources, which is why neither is a target.
             dependencies: [
                 "TabulaMacroSyntax",
                 .product(name: "TabulaCodegen", package: "swift"),

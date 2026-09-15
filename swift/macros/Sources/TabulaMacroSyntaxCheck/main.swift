@@ -198,6 +198,35 @@ do {
     }
 }
 
+// MARK: - pending/Machine.swift
+//
+// Compiled by nothing. It holds the `@Machine` declaration, moved out of the
+// build when the manifest had to drop its `.macro` target (see
+// `Package.swift`), and it goes back when a SwiftPM ships
+// `CompilerPluginSupport`.
+//
+// Which makes it the single most rot-prone file here: excluded from the build,
+// so no compiler reads it, and not due back for months. The restore was going
+// to find whatever state it had drifted into, at the moment someone was
+// already busy with a toolchain upgrade.
+//
+// Parsing is not compiling and does not pretend to be. It catches the failure
+// that actually happens to an unbuilt file -- an edit that leaves it
+// syntactically broken -- and it checks the one fact the restore depends on:
+// that `#externalMacro` still names the module `Package.swift` will declare.
+do {
+    let path = "pending/Machine.swift"
+    guard let text = try? String(contentsOfFile: path, encoding: .utf8) else {
+        check(false, "\(path) is readable")
+        exit(1)
+    }
+    let tree = Parser.parse(source: text)
+    check(!tree.hasError, "\(path) is still valid Swift")
+    check(
+        text.contains(#"#externalMacro(module: "TabulaMacros""#),
+        "\(path) still names the module Package.swift will declare")
+}
+
 check(TabulaMacroSyntax.surface == "see SURFACE.md", "the module links")
 
 print("")

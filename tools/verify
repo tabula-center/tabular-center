@@ -969,9 +969,23 @@ step_kotlin_matrix_stable() {
     fi
     require_dir kotlin || return 1
 
-    local scratch bad=0 f
+    # BOTH trees, not just the library's.
+    #
+    # This scanned `kotlin/` alone, which reached exactly one file --
+    # kotlin/test/TimerSpec.tb.kt -- and missed
+    # examples/kotlin/06-generated/src/Machine.tb.kt entirely. The example is
+    # the matrix a user copies, so it was the more important of the two and the
+    # one nothing checked. `.editorconfig`'s `[*.tb.kt]` already covered it;
+    # only the scan did not.
+    local roots=(kotlin)
+    [ -d examples/kotlin ] && roots+=(examples/kotlin)
+
+    local scratch bad=0 found=0 f root
     scratch="$(mktemp -d)"
-    cp -r kotlin "$scratch/kotlin"
+    for root in "${roots[@]}"; do
+        mkdir -p "$scratch/$(dirname "$root")"
+        cp -r "$root" "$scratch/$root"
+    done
 
     # The .editorconfig comes too, and it is the point of the test.
     #
@@ -987,21 +1001,37 @@ step_kotlin_matrix_stable() {
     # ktlint exits non-zero for rules it cannot auto-correct (line length,
     # wildcard imports). Those are style opinions we have not adopted; the
     # formatting pass still runs, which is all this needs.
-    (cd "$scratch" && "$KTLINT" --format "kotlin/**/*.kt" >/dev/null 2>&1) || true
-
-    for f in $(cd kotlin && grep -rl "@Row(\|@Machine(" . 2>/dev/null); do
-        if ! diff -q \
-            <(grep -h "@Row(\|@Machine(\|CellSpec(" "kotlin/$f") \
-            <(grep -h "@Row(\|@Machine(\|CellSpec(" "$scratch/kotlin/$f") >/dev/null; then
-            echo "FAIL ktlint --format changed the matrix in kotlin/$f"
-            diff \
-                <(grep -h "@Row(\|@Machine(\|CellSpec(" "kotlin/$f") \
-                <(grep -h "@Row(\|@Machine(\|CellSpec(" "$scratch/kotlin/$f") | head -6
-            bad=1
-        else
-            echo "ok   matrix rows survive ktlint --format: kotlin/$f"
-        fi
+    for root in "${roots[@]}"; do
+        (cd "$scratch" && "$KTLINT" --format "$root/**/*.kt" >/dev/null 2>&1) || true
     done
+
+    for root in "${roots[@]}"; do
+        for f in $(cd "$root" && grep -rl "@Row(\|@Machine(" . 2>/dev/null); do
+            found=$((found + 1))
+            if ! diff -q \
+                <(grep -h "@Row(\|@Machine(\|CellSpec(" "$root/$f") \
+                <(grep -h "@Row(\|@Machine(\|CellSpec(" "$scratch/$root/$f") >/dev/null; then
+                echo "FAIL ktlint --format changed the matrix in $root/$f"
+                diff \
+                    <(grep -h "@Row(\|@Machine(\|CellSpec(" "$root/$f") \
+                    <(grep -h "@Row(\|@Machine(\|CellSpec(" "$scratch/$root/$f") | head -6
+                bad=1
+            else
+                echo "ok   matrix rows survive ktlint --format: $root/$f"
+            fi
+        done
+    done
+
+    # A scan that matches nothing passes silently, which is how this check
+    # would have reported success after a rename moved every matrix out from
+    # under it -- and it nearly did: TimerSpec.tb.kt only exists because the
+    # gate that hid this whole check got fixed first.
+    if [ "$found" -eq 0 ]; then
+        echo "FAIL no @Machine/@Row declarations found under: ${roots[*]}"
+        echo "     Either the matrices moved or the scan looks in the wrong"
+        echo "     place. A check with nothing to check is not passing."
+        bad=1
+    fi
 
     rm -rf "$scratch"
     return "$bad"
