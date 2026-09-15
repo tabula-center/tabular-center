@@ -412,11 +412,18 @@ for adapter in adapters {
 print("")
 print("conformance (swift): \(adapters.count) tables, \(steps) trace steps, \(failed) failed")
 
-// A fixture with no adapter is skipped, not passed.
+// A fixture with no adapter is skipped, not passed -- and each one is NAMED, on
+// its own line starting with `skip `, because that prefix is what `tools/verify`
+// collects into the ledger it prints before the verdict. A count said how many
+// were missing without saying which, and a count is invisible to the ledger, so
+// the one place skips are supposed to be visible was the one place these never
+// appeared.
 if let entries = try? FileManager.default.contentsOfDirectory(atPath: root) {
-    let declared = entries.filter { $0.hasSuffix(".tbl") }.count
-    if declared > adapters.count {
-        print("       \(declared - adapters.count) fixture(s) have no Swift adapter (skipped)")
+    let declared = entries.filter { $0.hasSuffix(".tbl") }
+        .map { String($0.dropLast(4)) }.sorted()
+    let covered = Set(adapters.map { $0.name })
+    for name in declared where !covered.contains(name) {
+        print("skip \(name) (no Swift adapter)")
     }
 }
 

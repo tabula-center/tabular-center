@@ -321,7 +321,7 @@ kotlin_artifacts() {
 
 step_kotlin() {
     if ! kotlin_available; then
-        echo "note: $KOTLINC not found; skipping (set KOTLINC= to point at one)"
+        echo "skip kotlin (\$KOTLINC not found; set KOTLINC= to point at one)"
         return 0
     fi
     local out
@@ -343,7 +343,7 @@ step_kotlin() {
 
 step_kotlin_conformance() {
     if ! kotlin_available; then
-        echo "note: $KOTLINC not found; skipping"
+        echo "skip kotlin-conformance (\$KOTLINC not found)"
         return 0
     fi
     require_goldens || return 1
@@ -399,7 +399,7 @@ step_examples() {
 
 step_kotlin_examples() {
     if ! kotlin_available; then
-        echo "note: $KOTLINC not found; skipping"
+        echo "skip kotlin-examples (\$KOTLINC not found)"
         return 0
     fi
     local out
@@ -603,7 +603,7 @@ swift_paths() {
 
 step_swift() {
     if ! swift_available; then
-        echo "note: $SWIFT not found; skipping (nix develop .#swift provides it)"
+        echo "skip swift (\$SWIFT not found; nix develop .#swift provides it)"
         return 0
     fi
     require_dir swift || return 1
@@ -743,13 +743,32 @@ step_swift() {
 #   - anything else -> fail, because then the package is genuinely wrong.
 step_swift_macros() {
     if ! swift_available; then
-        echo "note: $SWIFT not found; skipping"
+        echo "skip swift-macros (\$SWIFT not found)"
         return 0
     fi
     require_dir swift/macros || return 1
 
+    # The offline checkout set, when nix has built one from nix/swift-lock.json.
+    #
+    # SwiftPM believes it has already resolved when it finds two things: the
+    # unpacked sources under .build/checkouts, and a workspace-state.json
+    # naming their revisions. Given both, --disable-automatic-resolution never
+    # contacts a remote. Given only the first it re-resolves and fails, which
+    # reads like the checkouts were ignored rather than like the state file was
+    # missing -- worth knowing before debugging it.
+    local args=(build)
+    if [ -n "${TABULA_SWIFT_DEPS:-}" ]; then
+        echo "note: resolving offline from $TABULA_SWIFT_DEPS"
+        rm -rf swift/macros/.build/checkouts swift/macros/.build/workspace-state.json
+        mkdir -p swift/macros/.build
+        cp -r "$TABULA_SWIFT_DEPS/checkouts" swift/macros/.build/checkouts
+        cp "$TABULA_SWIFT_DEPS/workspace-state.json" swift/macros/.build/
+        chmod -R u+w swift/macros/.build
+        args+=(--disable-automatic-resolution)
+    fi
+
     local out
-    out="$( (cd swift/macros && "$SWIFT" build 2>&1) )"
+    out="$( (cd swift/macros && "$SWIFT" "${args[@]}" 2>&1) )"
     if [ $? -eq 0 ]; then
         printf '%s\n' "$out"
         echo "ok   swift macros"
@@ -758,12 +777,30 @@ step_swift_macros() {
 
     case "$out" in
         *"no such module 'CompilerPluginSupport'"*)
-            echo "skip swift-macros: this SwiftPM cannot declare a .macro target"
-            echo "       (CompilerPluginSupport is absent; see swift/macros/README.md)"
-            return 0
+            # Not a skip any more. The manifest no longer imports it -- see the
+            # header of swift/macros/Package.swift -- so seeing this message
+            # means something reintroduced a `.macro` target on a SwiftPM that
+            # cannot declare one, and that is a regression rather than an
+            # environment.
+            printf '%s\n' "$out"
+            echo "FAILED: swift-macros reintroduced CompilerPluginSupport"
+            return 1
             ;;
         *"Network is unreachable"*|*"Could not resolve"*|*"failed to resolve"*|*"fatal: unable to access"*)
-            echo "skip swift-macros: swift-syntax is remote and the network is not"
+            if [ -n "${TABULA_SWIFT_DEPS:-}" ]; then
+                # A locked set was supplied and SwiftPM went to the network
+                # anyway. That is a failure, not an environment: the state file
+                # was rejected, or a dependency appeared that the lock does not
+                # cover.
+                printf '%s\n' "$out"
+                echo "FAILED: swift-macros reached the network despite a locked"
+                echo "        checkout set. Re-lock: nix run .#swift-lock"
+                return 1
+            fi
+            echo "skip swift-macros (swift-syntax is remote, this run is offline,"
+            echo "     and no locked checkout set was supplied: run"
+            echo "     'nix run .#swift-lock' with network and commit"
+            echo "     nix/swift-lock.json)"
             return 0
             ;;
     esac
@@ -775,7 +812,7 @@ step_swift_macros() {
 
 step_swift_examples() {
     if ! swift_available; then
-        echo "note: $SWIFT not found; skipping"
+        echo "skip swift-examples (\$SWIFT not found)"
         return 0
     fi
     require_dir examples/swift-examples || return 1
@@ -802,7 +839,7 @@ step_swift_examples() {
 
 step_swift_codegen() {
     if ! swift_available; then
-        echo "note: $SWIFT not found; skipping"
+        echo "skip swift-codegen (\$SWIFT not found)"
         return 0
     fi
     require_dir swift || return 1
@@ -825,7 +862,7 @@ step_swift_codegen() {
 
 step_swift_conformance() {
     if ! swift_available; then
-        echo "note: $SWIFT not found; skipping"
+        echo "skip swift-conformance (\$SWIFT not found)"
         return 0
     fi
     require_goldens || return 1
@@ -846,7 +883,7 @@ step_swift_conformance() {
 
 step_swift_compile_fail() {
     if ! swift_available; then
-        echo "note: $SWIFT not found; skipping"
+        echo "skip swift-compile-fail (\$SWIFT not found)"
         return 0
     fi
 
@@ -919,7 +956,7 @@ KTLINT="${KTLINT:-ktlint}"
 # the library actually depends on.
 step_kotlin_matrix_stable() {
     if ! command -v "$KTLINT" >/dev/null 2>&1; then
-        echo "note: $KTLINT not found; skipping (nixpkgs provides it)"
+        echo "skip kotlin-matrix-stable (\$KTLINT not found; nixpkgs provides it)"
         return 0
     fi
     require_dir kotlin || return 1
@@ -964,7 +1001,7 @@ step_kotlin_matrix_stable() {
 
 step_kotlin_codegen() {
     if ! kotlin_available; then
-        echo "note: $KOTLINC not found; skipping"
+        echo "skip kotlin-codegen (\$KOTLINC not found)"
         return 0
     fi
     local out gen
@@ -1026,7 +1063,7 @@ step_kotlin_codegen() {
 
 step_kotlin_compile_fail() {
     if ! kotlin_available; then
-        echo "note: $KOTLINC not found; skipping"
+        echo "skip kotlin-compile-fail (\$KOTLINC not found)"
         return 0
     fi
     local out bad f exp err raw rc

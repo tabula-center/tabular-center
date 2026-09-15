@@ -89,11 +89,17 @@ fun main(args: Array<String>) {
     println()
     println("conformance (kotlin): ${adapters.size} tables, $steps trace steps, $failed failed")
 
-    // A fixture with no adapter is skipped, not passed. Swift will start with
-    // everything skipped and that has to be visible.
-    val declared = root.listFiles { f -> f.name.endsWith(".tbl") }?.size ?: 0
-    if (declared > adapters.size) {
-        println("       ${declared - adapters.size} fixture(s) have no Kotlin adapter (skipped)")
+    // A fixture with no adapter is skipped, not passed -- and each one is NAMED, on
+    // its own line starting with `skip `, because that prefix is what `tools/verify`
+    // collects into the ledger it prints before the verdict. A count said how many
+    // were missing without saying which, and a count is invisible to the ledger, so
+    // the one place skips are supposed to be visible was the one place these never
+    // appeared.
+    val declared = root.listFiles { f -> f.name.endsWith(".tbl") }
+        ?.map { it.name.removeSuffix(".tbl") }?.sorted() ?: emptyList()
+    val covered = adapters.map { it.name }.toSet()
+    for (name in declared.filter { it !in covered }) {
+        println("skip $name (no Kotlin adapter)")
     }
 
     if (failed > 0) kotlin.system.exitProcess(1)

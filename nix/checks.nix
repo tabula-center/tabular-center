@@ -9,7 +9,7 @@ ctx:
 
 let
   inherit (ctx) lib has rustInputs kotlinInputs swiftPkgs swiftChecked
-    swiftLibraryPath gradleRepo mkCheck;
+    swiftLibraryPath gradleRepo swiftDeps mkCheck;
   verify = name: inputs: mkCheck name inputs "./tools/verify ${name}";
 in
 {
@@ -108,6 +108,38 @@ in
     fi
   '';
 }
+// lib.optionalAttrs (has.swift && !swiftChecked) {
+  # The Swift checks are NOT here, and this check exists to say so out loud.
+  #
+  # `lib.optionalAttrs` produces a smaller attribute set, and a smaller set of
+  # checks is indistinguishable from a correct one in `nix flake check` output.
+  # That is exactly how `has.kotlin = pathExists ../kotlin/src` hid six checks
+  # for months (0c), and how `kotlin-ksp` would have hidden itself had it been
+  # gated on the lock (0d). Six Swift checks vanish on Linux for a reason that
+  # is real, and the reason being real does not make their absence visible.
+  #
+  # Passing, not failing. `kotlin-ksp` is red without its lock because the fix
+  # is one command the user can run; here the fix is a Swift toolchain that
+  # nixpkgs does not package for this platform, so red would mean `nix flake
+  # check` never passes on Linux no matter what anyone does. A check that
+  # cannot go green is not a signal, it is noise with a red light.
+  #
+  # `skip ` prefixed so it reads the same as every other skip in the repo, and
+  # so a future run that greps the build log finds it the way `tools/verify`
+  # greps its tally.
+  swift-unavailable = mkCheck "swift-unavailable" [ ] ''
+    cat <<'MSG'
+    skip swift, swift-compile-fail, swift-conformance, swift-codegen,
+         swift-examples, swift-macros (no Swift toolchain on this platform:
+         nixpkgs has no `swift` for it, so these six checks are absent from
+         `nix flake check` rather than failing)
+
+    They are not unchecked: ci.yml's check-darwin job runs all six on macOS,
+    and `nix develop .#swift` plus `./tools/verify swift` runs them here if a
+    toolchain is installed by hand.
+    MSG
+  '';
+}
 // lib.optionalAttrs (has.swift && swiftChecked) {
   # Darwin only. See the note on `swiftChecked` in context.nix: on Linux this
   # is `nix develop .#swift` followed by `./tools/verify swift`.
@@ -147,6 +179,12 @@ in
   # directory and reading a manifest error.
   swift-macros = mkCheck "swift-macros" swiftPkgs ''
     export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    ${lib.optionalString (swiftDeps != null) ''
+      # The offline checkout set, exported rather than searched for -- same
+      # reason as TABULA_MAVEN_REPO and swiftLibraryPath: nix built the
+      # directory and knows where it is.
+      export TABULA_SWIFT_DEPS="${swiftDeps}"
+    ''}
     ./tools/verify swift-macros
   '';
 }

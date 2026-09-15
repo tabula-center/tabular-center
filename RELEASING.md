@@ -28,6 +28,7 @@ rather than asserted in a README.
 | | `tabula-ksp` | `ksp` | the processor |
 | | `tabula-testing` | `testImplementation` | `.tbl`/`.trace` parser, `checkTable` |
 | Swift | `Tabula` | runtime | the core |
+| | `TabulaCodegen` | transitive of the plugin | `MachineDesc`, validation, the emitter |
 | | `TabulaMacros` | build-time plugin | the macro implementation |
 | | `TabulaTesting` | test target | the fixture harness |
 

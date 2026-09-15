@@ -86,3 +86,31 @@ purpose. The traversal is a mapping, its input contract decides its shape, and
 no toolchain reachable from here can compile a line of it to tell us we got the
 contract wrong — so the half that can be reviewed by reading is the half to
 settle first.
+
+## The manifest could not compile (resolved)
+
+nixpkgs' swiftpm 5.10.1 ships no `CompilerPluginSupport` in its ManifestAPI, so
+`Package.swift` failed to compile before dependency resolution began:
+
+```
+error: 'macros': Invalid manifest
+Package.swift:5:8: error: no such module 'CompilerPluginSupport'
+```
+
+Worth being precise about, because the obvious reading is wrong: this was never
+a network problem, and vendoring swift-syntax would not have touched it.
+Nothing had got far enough to want a dependency.
+
+The manifest now declares a plain `.target` and imports only
+`PackageDescription`. `TabulaMacroDecl` — the `@Machine` declaration — moved to
+`pending/`, because `#externalMacro` names a module SwiftPM only wires up for a
+`.macro` target and a macro nobody can apply is worse than an absent one.
+
+That leaves the part with all the logic in it. `MachineMacro` is SwiftSyntax
+nodes to a `RawMachine` (`SURFACE.md`) and that is an ordinary function over
+syntax trees — writable, buildable and testable here by parsing source with
+`SwiftParser`. Expansion is the only piece needing the plugin wiring, and it is
+the piece with no decisions in it.
+
+It also makes `SURFACE.md`'s two open questions answerable by a test instead of
+by a toolchain upgrade.

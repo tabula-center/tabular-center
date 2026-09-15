@@ -7,7 +7,8 @@
 ctx:
 
 let
-  inherit (ctx) pkgs lib has rustInputs kotlinInputs swiftPkgs swiftAvailable commonInputs;
+  inherit (ctx) pkgs lib has rustInputs kotlinInputs swiftPkgs swiftAvailable
+    swiftLibraryPath commonInputs;
 
   # Every app operates on the working tree -- regenerating docs/, running
   # cargo, reading spec/ -- so every one of them assumed it was launched from
@@ -156,6 +157,26 @@ let
     '';
   };
 
+  # The second and last command here that reaches the network. See the header
+  # of tools/swift-lock, and gradleLock above for the same shape against Maven.
+  swiftLock = pkgs.writeShellApplication {
+    name = "tabula-swift-lock";
+    runtimeInputs = commonInputs ++ swiftPkgs ++ [
+      pkgs.git
+      pkgs.curl
+      pkgs.coreutils
+      pkgs.findutils
+      pkgs.gnused
+      pkgs.gnugrep
+      pkgs.diffutils
+    ];
+    text = ''
+      ${cdRoot}
+      export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      ./tools/swift-lock "$@"
+    '';
+  };
+
   verify = pkgs.writeShellApplication {
     name = "tabula-verify";
     runtimeInputs = commonInputs ++ [ pkgs.git ] ++ rustInputs
@@ -179,6 +200,9 @@ in
 
   verify = app verify "tabula-verify"
     "Run the same checks nix flake check runs, without the sandbox";
+
+  swift-lock = app swiftLock "tabula-swift-lock"
+    "Resolve swift/macros against the network and write nix/swift-lock.json";
 
   gradle-lock = app gradleLock "tabula-gradle-lock"
     "Resolve the KSP example against Maven and write nix/gradle-lock.json";

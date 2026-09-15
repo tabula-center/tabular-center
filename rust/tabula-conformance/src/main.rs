@@ -141,20 +141,30 @@ fn main() -> ExitCode {
     println!();
     println!("conformance (rust): {tables} tables, {steps} trace steps, {failed} failed");
 
-    // A fixture with no adapter is skipped, not passed. Phase 4 and 5 start
-    // with everything skipped and that has to be visible.
-    let declared = std::fs::read_dir(&root)
+    // A fixture with no adapter is skipped, not passed -- and each one is NAMED, on
+    // its own line starting with `skip `, because that prefix is what `tools/verify`
+    // collects into the ledger it prints before the verdict. A count said how many
+    // were missing without saying which, and a count is invisible to the ledger, so
+    // the one place skips are supposed to be visible was the one place these never
+    // appeared.
+    let mut declared: Vec<String> = std::fs::read_dir(&root)
         .map(|d| {
             d.filter_map(Result::ok)
-                .filter(|e| e.path().extension().is_some_and(|x| x == "tbl"))
-                .count()
+                .filter_map(|e| {
+                    let n = e.file_name().to_string_lossy().into_owned();
+                    n.strip_suffix(".tbl").map(str::to_string)
+                })
+                .collect()
         })
-        .unwrap_or(0);
-    if declared > tables {
-        println!(
-            "       {} fixture(s) have no Rust adapter (skipped)",
-            declared - tables
-        );
+        .unwrap_or_default();
+    declared.sort();
+    // `all()` again rather than a binding: the loop above consumes the vec,
+    // and `name()` is `&'static str`, so the names outlive the temporary.
+    // Building the adapters twice costs nothing and keeps the loop reading as
+    // a consuming iteration, which is what it is.
+    let covered: Vec<&str> = all().iter().map(|a| a.name()).collect();
+    for name in declared.iter().filter(|n| !covered.contains(&n.as_str())) {
+        println!("skip {name} (no Rust adapter)");
     }
 
     let _ = Expect::Stay; // keep the import honest across refactors

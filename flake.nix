@@ -59,6 +59,24 @@
         # evaluation error about a file that is not there.
         packages = ctx.lib.optionalAttrs (ctx.gradleRepo != null) {
           gradle-repo = ctx.gradleRepo;
+        }
+        // ctx.lib.optionalAttrs (ctx.swiftDeps != null) {
+          # The Swift half of the same thing:
+          #
+          #   nix build .#swift-deps
+          #   ls result/checkouts
+          #   cat result/workspace-state.json
+          #
+          # Worth being buildable on its own rather than only as a dependency
+          # of `swift-macros`. The two values in `workspace-state.json` that
+          # SwiftPM will silently reject -- the schema version and the checkout
+          # directory name -- are inspectable here in one command, where inside
+          # the check they surface as a re-resolve that dies offline.
+          #
+          # This was missing when the check first ran, so `nix build
+          # .#swift-deps` answered "no such attribute" rather than building the
+          # thing the error message was about.
+          swift-deps = ctx.swiftDeps;
         };
 
         # `nix fmt` formats the flake. Deliberately not a `nix flake check`: a

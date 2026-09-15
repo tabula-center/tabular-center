@@ -1220,7 +1220,9 @@ adopted later without moving any code: only `nix/` changes.
       `RawMachine` into a `MachineDesc` with every diagnostic and emits the
       source. That split is why this package is small, and why the Kotlin side
       survived KSP being unrunnable.
-- [ ] A `swift-macros` step in `tools/verify`, skipping without network
+- [x] A `swift-macros` step in `tools/verify`, skipping without network. It
+      matches the error text SwiftPM prints for an unreachable host, so an
+      absent network is a skip and a real build failure is still a failure.
 - [ ] The Swift `06-generated` equivalent, which is what this unblocks: a
       SwiftPM build with the macro applied, generated code not committed
 
@@ -1350,6 +1352,126 @@ only if a case turns up that configuration cannot fix — and note that `.tb.*`
 would cost Rust users a `#[path]` attribute on every matrix module, which is the
 largest single cost in the proposal and buys nothing for the language that is
 already safe.
+
+## 0e. Nothing skips silently; swift-syntax is next
+
+Two findings, both the shape of 0c.
+
+**Twelve skips were invisible to the ledger.** `tools/verify` collects lines
+beginning `skip `, but every toolchain-absence skip said `note: $KOTLINC not
+found; skipping` instead. So the mechanism built to make skips visible could
+not see the most common skip in the repository. All twelve now use the prefix
+and name their step.
+
+**Six Swift checks vanish from the flake on Linux.** `lib.optionalAttrs
+(has.swift && swiftChecked)` drops them, and a smaller attribute set is
+indistinguishable from a correct one in `nix flake check` output -- the same
+property that hid the whole Kotlin suite in 0c and that 0d refused to repeat
+for `kotlin-ksp`. A `swift-unavailable` check is now present on exactly the
+platforms where the others are not, and says which six are missing and why.
+
+It passes rather than fails, unlike `kotlin-ksp` without its lock. The
+distinction is whether the user can fix it: a missing lock is one command, and
+a Swift toolchain nixpkgs does not package for this platform is not. A check
+that cannot go green is noise with a red light.
+
+### Still skipping, and what it would take
+
+`swift-macros` skips for **two** stacked reasons, and only one of them is a
+dependency problem:
+
+1. `swift-syntax` is remote and the sandbox is offline. This is the half that
+   looks exactly like the Gradle problem in 0d, and the same answer fits:
+   `Package.resolved` already pins every dependency to a revision, so a
+   `tools/swift-lock` could record each as a GitHub archive URL plus a sha256
+   and `nix/swift-deps.nix` could `fetchurl` them into `.build/checkouts` with
+   a `workspace-state.json`, exactly as `gradle-lock` does for Maven. It is
+   the core of `swiftpm2nix`, the same way `gradle-lock` is the core of
+   `gradle2nix`.
+2. The pinned toolchain's SwiftPM ships no `CompilerPluginSupport`, so
+   `Package.swift` fails to **compile** before resolution is even attempted.
+   No lock can fix this. It is upstream of every dependency question.
+
+Doing (1) while (2) holds produces a vendored dependency set that SwiftPM never
+gets far enough to use. So (2) has to be answered first, and answering it is
+one command on a machine with a Swift toolchain:
+
+```
+cd swift/macros && swift build
+```
+
+`no such module 'CompilerPluginSupport'` means (2) is live and the lock is
+premature. A network error instead means (2) has aged out -- the note dates
+from an older toolchain -- and the lock is the whole remaining job.
+
+- [x] Run it. Answer: (2) is live. nixpkgs' **swiftpm 5.10.1** ships no
+      `CompilerPluginSupport` in its ManifestAPI.
+
+      ```
+      error: 'macros': Invalid manifest
+      Package.swift:5:8: error: no such module 'CompilerPluginSupport'
+      ```
+
+      Which confirms the lock would have been premature in the most expensive
+      way: it would have produced a correct, verified, vendored swift-syntax
+      that SwiftPM never got far enough to ask for.
+
+- [x] Make the manifest compile, which is upstream of everything else.
+      `Package.swift` now imports only `PackageDescription` and declares a
+      plain `.target`. `TabulaMacroDecl` moved to `pending/` — `#externalMacro`
+      names a module SwiftPM only wires up for a `.macro` target, so declaring
+      it without one yields a macro nobody can apply.
+
+      The cost is smaller than it looks. `MachineMacro`'s whole job is
+      SwiftSyntax to `RawMachine`, which is a function over syntax trees:
+      writable, buildable and unit-testable here by parsing source with
+      `SwiftParser`. Expansion is the only part needing plugin wiring and it is
+      the part with no decisions in it. `SURFACE.md`'s two open questions
+      become answerable by a test rather than by a toolchain upgrade.
+
+- [x] Export `TabulaCodegen` as a product of `swift/Package.swift`. With the
+      manifest compiling, resolution got far enough to find the next blocker,
+      which had been sitting behind it since `swift/macros` was written:
+
+      ```
+      error: 'macros': product 'TabulaCodegen' required by package 'macros'
+      target 'TabulaMacroSyntax' not found in package 'swift'
+      ```
+
+      SwiftPM only lets one package reach another's *products*, and
+      `TabulaCodegen` was a target only. The original `.macro` manifest named
+      the same product and would have hit this too -- two blockers stacked, the
+      first hiding the second, which is the argument for fixing the outermost
+      one rather than reasoning about the pile.
+
+      Swift-syntax resolved at 509.1.1 on the way past, which is the version a
+      lock will pin.
+
+- [ ] `tools/swift-lock` and `nix/swift-deps.nix`. Now the right next step
+      rather than a premature one: with the manifest compiling, the *only*
+      thing between `swift-macros` and running under `nix flake check` is that
+      swift-syntax is remote. `Package.resolved` already pins it; the shape is
+      `gradle-lock`'s, one artifact one hash, generated once with network by
+      `nix run .#swift-lock` and committed.
+- [ ] `MachineMacro` itself, once the package builds offline.
+- [ ] Restore `pending/Machine.swift` and the `.macro` target on a SwiftPM
+      that ships `CompilerPluginSupport`. Only `Package.swift` changes.
+
+## Skips are named, everywhere
+
+`tools/verify` collects every line beginning `skip ` and reprints it before the
+verdict. The conformance harnesses were the one place that never reached it:
+all three printed a COUNT of fixtures with no adapter — `1 fixture(s) have no
+Rust adapter (skipped)` — which says how many without saying which, and does
+not carry the prefix the ledger greps for.
+
+So the harness that exists to make missing coverage visible was invisible to
+the tool that exists to make skips visible. All three now name each fixture on
+its own `skip <name> (no <lang> adapter)` line.
+
+Nothing is skipped today — `payload-hoist` closed the last gap — which is
+exactly when this was worth fixing. The next fixture added before its adapters
+is the one that would have gone quiet.
 
 ## Backlog — happy paths
 

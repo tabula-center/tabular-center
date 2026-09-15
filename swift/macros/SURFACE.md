@@ -111,8 +111,11 @@ that requires columns that are columns.
 So: an array literal, one row per line, cells padded to align down the page,
 with the action names in a comment above the first row. That is the same shape
 Rust and Kotlin use, and it is the reason `.editorconfig` disables ktlint's
-alignment rules for `*.kt` — the matrices are aligned on purpose and a
-formatter must not touch them.
+alignment rules for `*.tb.kt` — the matrices are aligned on purpose and a
+formatter must not touch them. `*.tb.kt`, not `*.kt`: the exemption is scoped
+to matrix files precisely so that ordinary Kotlin stays formatted, which is
+also why `kotlin/test/TimerSpec.tb.kt` had to be split out of
+`ReferenceTimer.kt` before `kotlin-matrix-stable` could run at all.
 
 The pairing a reviewer needs comes from the header comment and from the
 alignment, not from repeating the action name on every cell. What labels would

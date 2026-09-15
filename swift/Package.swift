@@ -39,6 +39,23 @@ let package = Package(
     products: [
         .library(name: "Tabula", targets: ["Tabula"]),
         .library(name: "TabulaTesting", targets: ["TabulaTesting"]),
+        // A product, not just a target, because `swift/macros` depends on this
+        // package and SwiftPM only lets a package reach another package's
+        // PRODUCTS:
+        //
+        //     error: product 'TabulaCodegen' required by package 'macros'
+        //     target 'TabulaMacroSyntax' not found in package 'swift'
+        //
+        // Latent since `swift/macros` was written -- the original `.macro`
+        // manifest named the same product -- and unreachable until the
+        // manifest compiled far enough to resolve anything. Two blockers
+        // stacked behind one that hid both.
+        //
+        // Exported for the same reason `tabula-codegen` is a separate Kotlin
+        // artifact (RELEASING.md): the generator's logic is consumed by a
+        // build-time plugin, and it carries no runtime weight for anyone who
+        // does not use one.
+        .library(name: "TabulaCodegen", targets: ["TabulaCodegen"]),
         .executable(name: "tabula-check", targets: ["TabulaCheck"]),
         .executable(name: "tabula-conformance", targets: ["TabulaConformance"]),
         .executable(name: "tabula-codegen-check", targets: ["TabulaCodegenCheck"]),

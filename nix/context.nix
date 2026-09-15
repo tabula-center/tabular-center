@@ -44,12 +44,21 @@ let
     # the rewrite: gradle is always present in these checks -- kotlinInputs
     # ships it -- and what was ever missing is the artifacts.
     gradleLock = builtins.pathExists ../nix/gradle-lock.json;
+
+    # Same gate, same reasoning, for SwiftPM. `swift/macros` is the only thing
+    # in the repository that links a remote package.
+    swiftLock = builtins.pathExists ../nix/swift-lock.json;
   };
 
   # The offline Maven repository, or null when nothing has been locked yet.
   gradleRepo =
     if has.gradleLock
     then import ./gradle-repo.nix { inherit pkgs lib; lockFile = ../nix/gradle-lock.json; }
+    else null;
+
+  swiftDeps =
+    if has.swiftLock
+    then import ./swift-deps.nix { inherit pkgs lib; lockFile = ../nix/swift-lock.json; }
     else null;
 
   rustToolchain =
@@ -233,6 +242,6 @@ in
     self system pkgs lib has
     rustToolchain jdk swiftAvailable swiftChecked swiftPkgs
     rustInputs kotlinInputs commonInputs
-    swiftLibraryPath gradleRepo
+    swiftLibraryPath gradleRepo swiftDeps
     mkCheck mkShell;
 }
