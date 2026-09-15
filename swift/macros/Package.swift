@@ -54,6 +54,7 @@ let package = Package(
             name: "TabulaMacroSyntaxCheck",
             dependencies: [
                 "TabulaMacroSyntax",
+                .product(name: "TabulaCodegen", package: "swift"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
             ]

@@ -25,6 +25,7 @@
 // and tested before the `.macro` target is declarable.
 import SwiftParser
 import SwiftSyntax
+import TabulaCodegen
 import TabulaMacroSyntax
 
 var failed = 0
@@ -94,6 +95,57 @@ if let machine = decls.first {
         .filter { $0.attributes.contains { $0.as(AttributeSyntax.self)?
             .attributeName.trimmedDescription == "Row" } }
     check(rows.count == 2, "@Row on a `static let` parses as an attribute")
+}
+
+// MARK: - The traversal
+
+if let machine = decls.first {
+    do {
+        let raw = try MachineSyntax.read(machine)
+        check(raw.machine == "Turnstile", "machine name")
+        check(raw.initial == "locked", "initial is the case, not the qualified name")
+        check(raw.states.map(\.name) == ["locked", "unlocked"], "states in declaration order")
+        check(raw.actions.map(\.name) == ["coin", "push"], "actions in declaration order")
+        check(raw.effects.map(\.name) == ["click"], "effects read from F")
+        check(raw.rows.map(\.state) == ["locked", "unlocked"], "rows in source order")
+
+        let first = raw.rows.first?.cells ?? []
+        check(first.map(\.kind) == ["GO", "IGNORE"], "cells in column order")
+        check(first.first?.target == "unlocked", "GO target")
+        check(first.first?.effects == ["click"], "GO effects")
+
+        // No validation here, by design: `buildDesc` owns every diagnostic in
+        // spec/diagnostics.md, and a second implementation would be two
+        // messages for one error drifting apart. So the real check is that the
+        // two halves meet.
+        let desc = try buildDesc(raw)
+        check(desc.machine == "Turnstile", "buildDesc accepts what the traversal produces")
+    } catch {
+        check(false, "the traversal reads the surface: \(error)")
+    }
+}
+
+// A shape it cannot read is an error, never a silent drop.
+do {
+    let bad = Parser.parse(source: """
+        @Machine
+        enum Broken {
+            enum S { case a }
+            enum A { case x }
+            static let initial = S.a
+            @Row(.a) static let r = (x: .ignore)
+        }
+        """)
+    if let decl = bad.statements.first?.item.as(EnumDeclSyntax.self) {
+        do {
+            _ = try MachineSyntax.read(decl)
+            check(false, "a tuple where a row was expected is an error")
+        } catch let e as SyntaxError {
+            check(
+                e.message.contains("array literal") && e.message.contains(".a"),
+                "the error names what was found and where: \(e.message)")
+        }
+    }
 }
 
 check(TabulaMacroSyntax.surface == "see SURFACE.md", "the module links")
