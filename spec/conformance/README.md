@@ -88,7 +88,7 @@ trace reaches-done
 
 ## What the goldens prove
 
-`<name>.grid`, `<name>.lint` and `<name>.cov` are written by the
+`<name>.grid`, `<name>.mmd`, `<name>.lint` and `<name>.cov` are written by the
 Rust harness (`--bless`) and **read** by every other implementation. Neither
 Kotlin nor Swift blesses: a renderer or a lint that drifts by a single space
 fails there rather than quietly rewriting the shared file.
@@ -109,17 +109,18 @@ means the padding rules, the right-trimming, and the cell text for all six
 kinds match across three languages — and those are exactly the details that rot
 silently.
 
-**No diagram golden.** There was one -- `<name>.puml` -- and it existed for a
-real reason: until it landed, nothing compared a line of diagram output across
-the three implementations and they had already drifted, Rust emitting every
-`GO` edge before every self-loop while Kotlin and Swift interleaved them in
-cell order.
+`<name>.mmd` is the diagram golden, and it is the only output compared ACROSS
+the three implementations. That is what makes it worth a file per fixture:
+before a diagram golden existed the three had already drifted on edge ordering,
+Rust emitting every `GO` edge before every self-loop while Kotlin and Swift
+interleaved them in cell order, and nothing said so.
 
-Dropping PlantUML dropped that check with it. Each language now pins its own
-edge order against a literal in its unit tests, which catches a renderer
-growing a second walk but not the three disagreeing with each other. That is a
-real reduction in coverage and is recorded in `PLAN.md` rather than left to be
-rediscovered.
+It was `.puml` first. PlantUML was removed and the check went with it; for the
+stretch in between, each language pinned its own edge order against a literal
+in its unit tests, which catches one renderer growing a second walk but not the
+three disagreeing with each other -- the failure that actually happened.
+Mermaid is a format the library still supports, and since every renderer comes
+off one walk, pinning one pins the order for all of them.
 
 `<name>.cov` is the coverage report, and it was added by following the lesson
 below rather than by finding a bug first. It was the last output that was
@@ -161,7 +162,7 @@ and the golden fails.
 ## Adding a fixture
 
 1. Write `<name>.tbl` and `traces/<name>.trace`. Run the Rust harness with
-   `--bless` to create `<name>.grid`, `<name>.lint` and
+   `--bless` to create `<name>.grid`, `<name>.mmd`, `<name>.lint` and
    `<name>.cov`; never write those by hand, since the whole value of a golden
    is that a machine wrote it.
 2. Add an adapter in each language mapping action names and payload fields to

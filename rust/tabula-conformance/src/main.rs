@@ -97,14 +97,15 @@ fn main() -> ExitCode {
 
         let mut errs = adapter.check_table(&spec);
         errs.extend(check_golden(&root, name, "grid", &adapter.grid(), bless));
+        // The diagram. The only output compared ACROSS implementations, and
+        // the reason it is worth a golden: they had already drifted on edge
+        // ordering before anything looked.
+        errs.extend(check_golden(&root, name, "mmd", &adapter.mermaid(), bless));
         // The lints carry the most per-language logic there is -- thresholds,
         // the dead-row/no-static-exit subsumption, the fully-static gate on
         // reachability. Nothing compared them across languages until now, so a
         // rule could drift in one and nobody would know.
         errs.extend(check_golden(&root, name, "lint", &adapter.lint(), bless));
-        // The diagram, for the same reason -- and because until this existed
-        // nothing compared diagram output across the three implementations,
-        // which had already drifted on edge ordering.
         let cov = adapter.coverage_report();
         errs.extend(check_golden(&root, name, "cov", &cov, bless));
         tables += 1;

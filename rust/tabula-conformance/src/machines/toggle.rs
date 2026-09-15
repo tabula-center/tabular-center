@@ -70,6 +70,10 @@ impl Adapter for ToggleAdapter {
         tabula::export::to_grid(&TABLE)
     }
 
+    fn mermaid(&self) -> String {
+        tabula::export::to_mermaid(&TABLE)
+    }
+
     fn lint(&self) -> String {
         tabula::lint::report_with_payloads(&TABLE, PAYLOADS)
     }

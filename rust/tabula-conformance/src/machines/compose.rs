@@ -198,6 +198,10 @@ impl Adapter for RetryAdapter {
         tabula::export::to_grid(&retry::TABLE)
     }
 
+    fn mermaid(&self) -> String {
+        tabula::export::to_mermaid(&retry::TABLE)
+    }
+
     fn lint(&self) -> String {
         tabula::lint::report_with_payloads(&retry::TABLE, retry::PAYLOADS)
     }
@@ -261,6 +265,10 @@ impl Adapter for JobAdapter {
 
     fn grid(&self) -> String {
         tabula::export::to_grid(&job::TABLE)
+    }
+
+    fn mermaid(&self) -> String {
+        tabula::export::to_mermaid(&job::TABLE)
     }
 
     fn lint(&self) -> String {

@@ -1476,10 +1476,15 @@ Each language now pins its own edge order against a literal in its unit tests.
 That catches one renderer growing a second walk. It does not catch the three
 disagreeing with each other, which is the failure that actually happened.
 
-- [ ] Decide whether to restore the cross-language check on mermaid. One
-      `<name>.mmd` golden per fixture would do it, at the cost of a golden per
-      fixture again -- the same trade as before with a format that is still
-      supported. Cheap, and the argument for it is unchanged.
+- [x] Restored on mermaid. `<name>.mmd` per fixture, six of them, compared by
+      all three harnesses; `GOLDEN_EXTS` is `grid mmd lint cov`. The goldens
+      were generated from the `.tbl` files by a script mirroring `edges` and
+      `toMermaid` rather than typed, for the reason two earlier hand-written
+      literals give.
+- [ ] The literals those unit tests now pin could go back to being derived.
+      Rust already compares mermaid against DOT; Kotlin and Swift have
+      `toDot` and could do the same, which would delete the last hand-written
+      edge lists in the repository.
 
 ## Explicitly deferred
 

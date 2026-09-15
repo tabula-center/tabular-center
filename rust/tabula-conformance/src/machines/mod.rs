@@ -44,6 +44,21 @@ pub trait Adapter {
     /// Lint findings for the generated `TABLE`, one per line.
     fn lint(&self) -> String;
 
+    /// The generated `TABLE` rendered as a mermaid `stateDiagram-v2`.
+    ///
+    /// Snapshotted because it is the only output compared ACROSS the three
+    /// implementations. There was a `.puml` golden doing this job and it went
+    /// when PlantUML did; for the stretch in between, nothing compared a line
+    /// of diagram output between languages, which is precisely the gap that
+    /// let them drift in the first place -- Rust emitted every `GO` edge
+    /// before every self-loop while Kotlin and Swift interleaved them in cell
+    /// order.
+    ///
+    /// Mermaid because it is a format the library still supports. All the
+    /// renderers come off one walk, so pinning any one of them pins the order
+    /// for all of them; one golden per fixture is enough.
+    fn mermaid(&self) -> String;
+
     /// The build-time coverage report for the generated `TABLE`.
     ///
     /// The last uncompared output. It was Rust-only and had no golden, and in
