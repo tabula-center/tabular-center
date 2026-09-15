@@ -48,6 +48,16 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "509.0.0"),
     ],
     targets: [
+        // The checks. An executable, not a test target: nixpkgs' Swift ships
+        // no XCTest, the same constraint the main package records.
+        .executableTarget(
+            name: "TabulaMacroSyntaxCheck",
+            dependencies: [
+                "TabulaMacroSyntax",
+                .product(name: "SwiftParser", package: "swift-syntax"),
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+            ]
+        ),
         // The only target in the repository that links swift-syntax, which is
         // the whole reason this is a separate package: `nix flake check`
         // builds the rest of Swift with no network at all.

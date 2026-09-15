@@ -47,6 +47,18 @@ jobs:
       - name: gradle lock is current
         run: nix run .#gradle-lock -- --check
 
+      # The same question for SwiftPM, and it belongs in the same job for the
+      # same reason: `nix flake check` consumes nix/swift-lock.json and cannot
+      # tell whether it is current, because being unable to reach the network
+      # is the whole reason the file exists. `nix run` is not sandboxed, so
+      # this job has both the flake's toolchain and a network.
+      #
+      # It runs on Linux, where the Swift CHECKS are absent (see
+      # `swift-unavailable`) but `swift package resolve` works fine -- resolving
+      # needs a toolchain and a network, not a platform anyone can build on.
+      - name: swift lock is current
+        run: nix run .#swift-lock -- --check
+
   # Swift is primary on Darwin: nixpkgs' Linux swift lags and macro plugins are
   # toolchain-version sensitive. Gated on Package.swift so it no-ops until
   # phase 5 rather than sitting red.

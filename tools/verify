@@ -772,6 +772,12 @@ step_swift_macros() {
     if [ $? -eq 0 ]; then
         printf '%s\n' "$out"
         echo "ok   swift macros"
+        # Building is not checking. The package compiled for a long time
+        # before anything ran, and `TabulaMacroSyntaxCheck` is where the
+        # traversal gets held to SURFACE.md -- so a build that succeeds and a
+        # check that never runs would be the same silence this repository has
+        # now removed three times.
+        (cd swift/macros && "$SWIFT" run "${args[@]:1}" TabulaMacroSyntaxCheck) || return 1
         return 0
     fi
 
