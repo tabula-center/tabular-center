@@ -777,6 +777,8 @@ step_swift_macros() {
         # traversal gets held to SURFACE.md -- so a build that succeeds and a
         # check that never runs would be the same silence this repository has
         # now removed three times.
+        # From swift/macros, because the checks read SURFACE.md by relative
+        # path -- the surface is documented in one place and executed from it.
         (cd swift/macros && "$SWIFT" run "${args[@]:1}" TabulaMacroSyntaxCheck) || return 1
         return 0
     fi

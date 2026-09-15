@@ -16,6 +16,13 @@ In a file named `Turnstile.tb.swift` — see `spec/matrix-files.md`. The rows
 are column-aligned and general-purpose formatters exist to normalise exactly
 that, so the extension is what lets one be told to keep away.
 
+**The block below is executed.** `TabulaMacroSyntaxCheck` reads this file,
+takes the first ```swift fence, and runs the traversal over it. Edit it and
+the checks run against the edit; edit it into something `MachineSyntax` cannot
+read and they go red. A specification that describes a surface nothing parses
+is a specification that has already stopped being true, and the only way to
+know is to make the document the input.
+
 ```swift
 @Machine
 enum Turnstile {

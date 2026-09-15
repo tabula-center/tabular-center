@@ -6,11 +6,21 @@
 /// swift-syntax. So the piece that needs swift-syntax is kept as small and as
 /// dumb as possible: it reads syntax into strings and stops.
 ///
-/// Which means **no validation here**. Row arity, unknown states, `GO` targets
-/// that name nothing — none of it. `buildDesc` produces the normative text for
-/// all of those, and a second implementation would be two messages for one
-/// error, drifting apart. The errors below are only about syntax that cannot
-/// be read at all.
+/// Which means **every rule is checked exactly once, and not here**. Row
+/// arity, unknown states, `GO` targets that name nothing — `buildDesc` owns
+/// all of them, produces the normative text from `spec/diagnostics.md`, and is
+/// covered by `TabulaCodegenCheck`.
+///
+/// One owner per rule is not an unchecked path, and the two read alike from a
+/// distance while behaving nothing alike. A rule checked in two places is a
+/// rule with two messages that drift, and the drift is found by a user hitting
+/// the stale one. So the handover is asserted rather than described:
+/// `TabulaMacroSyntaxCheck` runs `buildDesc` on what this file produces and
+/// requires the diagnostics to still fire, with their normative codes.
+///
+/// The errors below are the one category `buildDesc` cannot see — syntax that
+/// cannot be read at all. By the time it holds a `RawMachine`, whatever was
+/// unreadable is already gone.
 ///
 /// The surface this reads is `SURFACE.md`, which is normative for it.
 import SwiftSyntax
@@ -18,6 +28,10 @@ import TabulaCodegen
 
 public enum MachineSyntax {
     /// Read an `@Machine`-attached enum into a `RawMachine`.
+    ///
+    /// Produces whatever the source says, including machines `buildDesc` will
+    /// reject. That is the contract: reading and judging are separate steps, so
+    /// judging can be tested without a toolchain that can expand macros.
     public static func read(_ decl: EnumDeclSyntax) throws -> RawMachine {
         let machine = decl.name.text
         let members = decl.memberBlock.members.map(\.decl)

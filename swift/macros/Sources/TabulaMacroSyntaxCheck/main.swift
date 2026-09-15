@@ -23,6 +23,7 @@
 // `AttributeSyntax` for it regardless of whether any macro is declared, because
 // parsing does not resolve attributes. The traversal can therefore be written
 // and tested before the `.macro` target is declarable.
+import Foundation
 import SwiftParser
 import SwiftSyntax
 import TabulaCodegen
@@ -39,27 +40,42 @@ func check(_ ok: Bool, _ what: String) {
     }
 }
 
-/// The declaration from SURFACE.md, as a string. Kept here rather than in a
-/// fixture file so the checks run from a single built product with no path
-/// assumptions — the same call the Kotlin and Rust harnesses make.
-let source = """
-@Machine
-enum Turnstile {
-    enum S { case locked, unlocked }
-    enum A { case coin, push }
-    enum F { case click }
-
-    final class Ctx { var admitted = 0 }
-
-    static let initial = S.locked
-
-    //                        Coin                        Push
-    @Row(.locked)   static let l = [ .go(.unlocked, [.click]),  .ignore ]
-    @Row(.unlocked) static let u = [ .ignore,                   .handle ]
-
-    func handle(_ ctx: Ctx, _ state: S, _ action: A) -> Step<S, F> { fatalError() }
+/// The declaration from `SURFACE.md`, read **out of `SURFACE.md`**.
+///
+/// It was a copy of that block pasted here, and a copy is a drift path: the
+/// normative description of the surface and the only thing checking the
+/// surface could disagree, and the check would go on passing against a
+/// declaration nobody writes any more. The same shape as every other gap this
+/// repository has closed — a green light over a question nobody asked.
+///
+/// So the document is executable. Edit the fenced block in `SURFACE.md` and
+/// this runs against the edit; edit it into something the traversal cannot
+/// read and this goes red, which is the only way a specification stays true.
+///
+/// Foundation is fine here, unlike in `TabulaCheck`: this target already links
+/// swift-syntax, so the argument for a dependency-free check does not apply.
+func surfaceDeclaration() -> String {
+    let path = "SURFACE.md"
+    guard let text = try? String(contentsOfFile: path, encoding: .utf8) else {
+        print("FAIL could not read \(path) (run from swift/macros)")
+        exit(1)
+    }
+    // The first ```swift fence. That file has one declaration and its later
+    // fences are diagnostics, so "first" is a fact about the document rather
+    // than a guess.
+    let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+    guard let open = lines.firstIndex(where: { $0.hasPrefix("```swift") }) else {
+        print("FAIL \(path) has no ```swift block; the surface must stay documented")
+        exit(1)
+    }
+    guard let close = lines[(open + 1)...].firstIndex(where: { $0.hasPrefix("```") }) else {
+        print("FAIL \(path)'s ```swift block is unterminated")
+        exit(1)
+    }
+    return lines[(open + 1)..<close].joined(separator: "\n")
 }
-"""
+
+let source = surfaceDeclaration()
 
 let parsed = Parser.parse(source: source)
 
@@ -144,6 +160,40 @@ do {
             check(
                 e.message.contains("array literal") && e.message.contains(".a"),
                 "the error names what was found and where: \(e.message)")
+        }
+    }
+}
+
+// MARK: - The handover is checked, not assumed
+//
+// `MachineSyntax` checks no rules: `buildDesc` owns every one in
+// spec/diagnostics.md so that each has a single message rather than two that
+// drift. "One owner" is only true if the owner actually runs on what the
+// traversal produces, so it is asserted here rather than described in a
+// comment.
+do {
+    let bad = Parser.parse(source: """
+        @Machine
+        enum Arity {
+            enum S { case a, b }
+            enum A { case x, y }
+            static let initial = S.a
+            @Row(.a) static let ra = [ .handle, .ignore ]
+            @Row(.b) static let rb = [ .handle ]
+        }
+        """)
+    if let decl = bad.statements.first?.item.as(EnumDeclSyntax.self) {
+        let raw = try? MachineSyntax.read(decl)
+        check(raw != nil, "the traversal reads a machine buildDesc will reject")
+        if let raw {
+            do {
+                _ = try buildDesc(raw)
+                check(false, "a short row is rejected by buildDesc")
+            } catch let e as TabulaError {
+                check(e.code == "tabula::row-arity", "and with the normative code: \(e.code)")
+            } catch {
+                check(false, "a short row is rejected by buildDesc: \(error)")
+            }
         }
     }
 }
