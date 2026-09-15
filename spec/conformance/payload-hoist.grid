@@ -1,0 +1,5 @@
+Conn          Open    Fail              Timeout
+Connecting    HANDLE  GO(Backoff)       GO(Backoff)
+Backoff       IGNORE  IGNORE            HANDLE
+Reconnecting  HANDLE  GO(Backoff)       GO(Backoff)
+Live          IGNORE  GO(Reconnecting)  IGNORE

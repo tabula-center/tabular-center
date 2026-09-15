@@ -1,0 +1,24 @@
+# The `tabula::payload-hoist` fixture: one field in three states.
+#
+# Sized so the lint under test is the ONLY finding. No dead row or column,
+# 4 of 12 cells IGNORE (33%, well under IGNORE_HEAVY_PERCENT), no UNREACHABLE,
+# and HANDLE cells present so the matrix is not fully static -- which keeps
+# `no-static-entry` out of the way without having to reason about reachability.
+#
+# `attempt` lives in Connecting, Backoff and Reconnecting; Live carries
+# nothing. Three states is PAYLOAD_HOIST_STATES exactly, so the fixture sits on
+# the boundary on purpose: an implementation using `>` instead of `>=` fails.
+#
+# Payloads are NOT declared here. They come from each language's adapter --
+# see `spec/conformance/README.md` -- because the matrix file is the matrix,
+# the same separation generated code makes between TABLE and PAYLOADS.
+
+machine Conn
+initial Connecting
+states  Connecting Backoff Reconnecting Live
+actions Open Fail Timeout
+
+Connecting   | HANDLE | GO(Backoff)      | GO(Backoff)
+Backoff      | IGNORE | IGNORE           | HANDLE
+Reconnecting | HANDLE | GO(Backoff)      | GO(Backoff)
+Live         | IGNORE | GO(Reconnecting) | IGNORE

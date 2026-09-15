@@ -1,0 +1,2 @@
+Conn: 12 cells (4x3), 3 required members
+  ignore 4 | go 5 | emit 0 | handle 3 | delegate 0 | unreachable 0

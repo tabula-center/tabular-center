@@ -1,0 +1,26 @@
+trace backoff-then-live
+  ctx  max_attempts=3
+  from Connecting
+  Open           => go Live
+  Fail           => go Reconnecting
+  Open           => go Live
+
+trace timeout-walks-the-backoff-loop
+  # Each pass through Backoff carries `attempt` forward, which is the shape
+  # that makes the lint fire: the field is not state-local, it belongs to the
+  # machine. The fixture models the smell rather than the fix on purpose.
+  ctx  max_attempts=3
+  from Connecting
+  Fail            => go Backoff attempt=1
+  Timeout         => go Reconnecting attempt=1
+  Fail            => go Backoff attempt=2
+  Open            => ignored
+  Timeout         => go Reconnecting attempt=2
+
+trace live-ignores-most-things
+  ctx  max_attempts=3
+  from Connecting
+  Open    => go Live
+  Open    => ignored
+  Timeout => ignored
+  Fail    => go Reconnecting attempt=0
