@@ -639,9 +639,10 @@ could be written from it without reading the Rust source.
       reports its own language's type and `canonicalType` maps it before the
       comparison. Writing `int` there would pass today and hide the mapping
       that makes one shared `.lint` golden possible at all.
-- [ ] Rust and Swift adapters. Both report the fixture as skipped until then,
-      which is the designed behaviour and is now the ONLY thing between this
-      lint and three-way coverage. Kotlin first; Rust and Swift report the fixture as **skipped**
+- [x] Rust adapter. `PAYLOADS` is emitted by `transition_matrix!` from the
+      `states` block, so the field list is never spelled twice, and the type it
+      records is `u32` against Kotlin's `Long` -- both canonicalise to `int`.
+- [ ] Swift adapter. The last thing between this lint and three-way coverage. Kotlin first; Rust and Swift report the fixture as **skipped**
       until theirs land, which is the designed behaviour for a fixture without
       an adapter and is now visible in `tools/verify`'s skip ledger rather
       than silent.
