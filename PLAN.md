@@ -1625,3 +1625,111 @@ disagreeing with each other, which is the failure that actually happened.
 - **Runtime matrix construction.** Contradicts the premise.
 - **`dyn`-compatible Rust traits by default.** Behind a feature flag only;
   AFIT is not `dyn`-safe and we monomorphize anyway.
+
+## Backlog — four GUI examples: Compose and iced
+
+Two Kotlin apps on Compose Desktop, two Rust apps on iced. In each pair, one
+small machine and one composing several with payloads. They exist to be *shown*
+— the current examples are correct and none of them is a screenshot.
+
+### Why iced is the sharper of the two
+
+iced is The Elm Architecture: a `Message` enum, and
+
+```rust
+fn update(&mut self, message: Message) -> Task<Message>
+```
+
+which is a hand-written dispatcher over `(state, message)` — the exact artifact
+this library exists to delete, in a framework people already use. The demo is a
+substitution, not a decoration: `Message` becomes `A`, `update` becomes the
+generated `step`, and the `match` with its `_ =>` arm stops existing.
+
+The effect story lines up too, which is luck worth using. `perform(cells, ctx,
+f) -> A?` returns an optional follow-up action; iced's `Task<Message>` is an
+optional follow-up message. One maps onto the other with no adapter layer, so
+the example can show effects being carried out rather than describing them.
+
+Compose has no equivalent shape. State lives in `remember`/`MutableState` and
+effects in `LaunchedEffect`, so the Kotlin apps demonstrate a `Driver` feeding a
+`StateFlow` the UI collects. Worth doing, and a weaker argument than the iced
+one — say so in the README rather than implying symmetry.
+
+### Happy paths come first
+
+Requested as the reason to build these, and the ordering is right rather than
+merely convenient. A UI is where the asymmetry actually shows: the success path
+is a screen, and the rest is an error banner. An app that renders
+
+```kotlin
+val next = machine.send(action) elvis (
+    Rejected  = { showBanner(it.why) },
+    Locked    = { navigateToSupport() },
+)
+```
+
+makes the case in a way no test can. Which also means the apps are the
+acceptance test for that design: if the sugar does not read well in a `@Composable`
+or in `view()`, it is the sugar that is wrong.
+
+So: **happy paths land first**, and these four are what judge them.
+
+### The dependency problem, which is the real work
+
+These are the first things in the repository with heavyweight third-party
+dependencies, and each lands on machinery that is half-built.
+
+**Rust/iced is the harder half, and it is a new instance of a solved problem.**
+Every example today depends on `tabula` by path and nothing else — the entire
+`examples/rust` workspace has zero crates.io dependencies. `CARGO_NET_OFFLINE=true`
+in `mkCheck` works because there is nothing to fetch, not because anything
+vendors it. iced pulls in winit, wgpu and a few hundred transitive crates, so
+this needs the Cargo analogue of `gradle-lock` and `swift-lock`:
+`Cargo.lock` already pins everything, and nixpkgs' `importCargoLock` consumes
+exactly that. Third instance of one pattern, and the cheapest of the three,
+because Cargo writes a complete lock as a matter of course.
+
+Worth noting what it changes: `CARGO_NET_OFFLINE=true` currently passes
+vacuously. Once a real dependency exists it starts meaning something, and a
+missing vendor directory becomes a failure rather than a no-op.
+
+**Kotlin/Compose is easier and noisier.** `tools/gradle-lock` resolves whatever
+the example builds, so adding a Compose app is a re-lock and nothing more. But
+Compose Multiplatform pulls hundreds of artifacts, so `nix/gradle-lock.json`
+goes from a readable file to a large one. That is fine — it is generated and
+hash-verified — but it stops being reviewable by reading, and the check that it
+is current stops being optional.
+
+**Compose Desktop, not Android.** The Android SDK is not something the flake
+can supply without a licence-accepting download, which is the opposite of every
+other dependency here. Desktop keeps it a plain JVM Gradle build, which is what
+`06-generated` already proves works offline.
+
+### What "checked" means for a GUI
+
+A window cannot be run in `nix flake check`, so be explicit about the split
+rather than letting a green check imply more than it covers:
+
+- The machines are checked the way every other example is — headless, through
+  the generated dispatcher, with the same trace fixtures.
+- The UI layer is **compiled only**. That catches the thing worth catching: add
+  a state or an action and the `Composable` or `view()` stops compiling,
+  because the generated `Cells` surface changed. Which is the library's whole
+  claim, demonstrated on a real framework.
+- Nothing asserts what is on the screen. Saying so in the README is the point;
+  an example that overclaims its coverage is worse than one that covers less.
+
+### Order of work
+
+- [ ] Happy-path sugar, per the backlog above. These apps are its acceptance
+      test and should not be written before it.
+- [ ] `Cargo.lock`-driven vendoring for `examples/rust`, so a crates.io
+      dependency can exist at all. Independent of the apps and worth landing
+      on its own — it is the third instance of a pattern already proven twice.
+- [ ] iced app 1: one machine, the `update`-becomes-`step` substitution, with
+      the hand-written version in the README beside it for contrast.
+- [ ] iced app 2: composition and payloads. `nested-delegate` and `retry`
+      already model this as fixtures; the app should be recognisably the same
+      machines so a reader can move between them.
+- [ ] Compose app 1 and 2, mirroring those, over a `Driver` and a `StateFlow`.
+- [ ] A screenshot in each README, which is most of why these exist.
