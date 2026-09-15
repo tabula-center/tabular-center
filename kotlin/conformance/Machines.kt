@@ -351,6 +351,169 @@ object ToggleAdapter : Adapter {
     }
 }
 
+// ---------------------------------------------------------------------------
+// payload-hoist.tbl -- the only coverage for `tabula::payload-hoist`
+// ---------------------------------------------------------------------------
+
+/**
+ * `attempt` in three states, which is what the lint is looking for.
+ *
+ * The machine is deliberately a little wrong: a retry counter that outlives
+ * every transition belongs in Context, and three states carrying their own
+ * copy is the smell `tabula::payload-hoist` names. The fixture models the
+ * smell rather than the fix, because a fixture for a lint has to trip it.
+ *
+ * `F` has no variants. A machine with no effects is legal and this is the only
+ * fixture that exercises it -- `Step<S, F>` still type-checks, `effects` is
+ * always empty, and the coverage report says `emit 0`.
+ */
+object payloadHoist {
+    sealed interface S {
+        data class Connecting(val attempt: Long) : S
+        data class Backoff(val attempt: Long) : S
+        data class Reconnecting(val attempt: Long) : S
+        data object Live : S
+    }
+    sealed interface A {
+        data object Open : A
+        data object Fail : A
+        data object Timeout : A
+    }
+    sealed interface F
+
+    class Ctx(val maxAttempts: Long)
+
+    abstract class Machine {
+        abstract fun connectingOpen(ctx: Ctx, state: S.Connecting, action: A.Open): Step<S, F>
+        abstract fun backoffTimeout(ctx: Ctx, state: S.Backoff, action: A.Timeout): Step<S, F>
+        abstract fun reconnectingOpen(ctx: Ctx, state: S.Reconnecting, action: A.Open): Step<S, F>
+
+        fun step(ctx: Ctx, s: S, a: A): Step<S, F> = when (s) {
+            is S.Connecting -> when (a) {
+                is A.Open -> connectingOpen(ctx, s, a)
+                // A static cell cannot read the state it is leaving, so the
+                // counter restarts here. That is not a shortcut for the
+                // fixture -- it is what GO means, and it is half of why this
+                // machine wants the field hoisted.
+                is A.Fail -> Step.Go(S.Backoff(0))
+                is A.Timeout -> Step.Go(S.Backoff(0))
+            }
+            is S.Backoff -> when (a) {
+                is A.Open -> Step.Ignored
+                is A.Fail -> Step.Ignored
+                is A.Timeout -> backoffTimeout(ctx, s, a)
+            }
+            is S.Reconnecting -> when (a) {
+                is A.Open -> reconnectingOpen(ctx, s, a)
+                is A.Fail -> Step.Go(S.Backoff(0))
+                is A.Timeout -> Step.Go(S.Backoff(0))
+            }
+            is S.Live -> when (a) {
+                is A.Open -> Step.Ignored
+                is A.Fail -> Step.Go(S.Reconnecting(0))
+                is A.Timeout -> Step.Ignored
+            }
+        }
+
+        companion object {
+            val TABLE = Table(
+                machine = "Conn",
+                states = listOf("Connecting", "Backoff", "Reconnecting", "Live"),
+                actions = listOf("Open", "Fail", "Timeout"),
+                initial = "Connecting",
+                cells = listOf(
+                    listOf(Cell.Handle, Cell.Go("Backoff"), Cell.Go("Backoff")),
+                    listOf(Cell.Ignore, Cell.Ignore, Cell.Handle),
+                    listOf(Cell.Handle, Cell.Go("Backoff"), Cell.Go("Backoff")),
+                    listOf(Cell.Ignore, Cell.Go("Reconnecting"), Cell.Ignore),
+                ),
+            )
+        }
+    }
+
+    class Impl : Machine() {
+        override fun connectingOpen(ctx: Ctx, state: S.Connecting, action: A.Open): Step<S, F> =
+            Step.Go(S.Live)
+
+        override fun reconnectingOpen(ctx: Ctx, state: S.Reconnecting, action: A.Open): Step<S, F> =
+            Step.Go(S.Live)
+
+        /** The only cell that advances the counter, and the only one that can. */
+        override fun backoffTimeout(ctx: Ctx, state: S.Backoff, action: A.Timeout): Step<S, F> =
+            if (state.attempt >= ctx.maxAttempts) Step.Stay()
+            else Step.Go(S.Reconnecting(state.attempt + 1))
+    }
+}
+
+object PayloadHoistAdapter : Adapter {
+    override val name = "payload-hoist"
+
+    /**
+     * Spelled `Long`, not `int`.
+     *
+     * The adapter reports the type in its own language and `canonicalType`
+     * maps it onto the spec vocabulary before the comparison. Rust says `u32`
+     * and Swift says `Int` for this same field; all three land on
+     * `attempt: int` and share one `.lint` golden. Writing `int` here would
+     * pass today and hide the mapping that makes the fixture work.
+     */
+    override val payloads: Payloads = listOf(
+        Triple("Connecting", "attempt", "Long"),
+        Triple("Backoff", "attempt", "Long"),
+        Triple("Reconnecting", "attempt", "Long"),
+    )
+
+    override val table = payloadHoist.Machine.TABLE
+
+    override fun replay(trace: Trace): List<Observed> {
+        val ctx = payloadHoist.Ctx(trace.ctx["max_attempts"] ?: 0)
+        val m = payloadHoist.Impl()
+        var state: payloadHoist.S = stateOf(trace.from, trace.fromFields)
+        return trace.steps.map { st ->
+            val step = m.step(ctx, state, actionOf(st.action))
+            val effects = step.effects.map { it.toString() }
+            val expect = when (step) {
+                is Step.Stay -> Expect.Stay
+                is Step.Ignored -> Expect.Ignored
+                is Step.Go -> {
+                    state = step.next
+                    val want = (st.expect as? Expect.Go)?.fields ?: emptyMap()
+                    describe(step.next, want)
+                }
+            }
+            Observed(expect, effects)
+        }
+    }
+
+    private fun stateOf(name: String, f: Map<String, Long>): payloadHoist.S = when (name) {
+        "Connecting" -> payloadHoist.S.Connecting(f["attempt"] ?: 0)
+        "Backoff" -> payloadHoist.S.Backoff(f["attempt"] ?: 0)
+        "Reconnecting" -> payloadHoist.S.Reconnecting(f["attempt"] ?: 0)
+        "Live" -> payloadHoist.S.Live
+        else -> error("payload-hoist: unknown state `$name`")
+    }
+
+    private fun actionOf(name: String): payloadHoist.A = when (name) {
+        "Open" -> payloadHoist.A.Open
+        "Fail" -> payloadHoist.A.Fail
+        "Timeout" -> payloadHoist.A.Timeout
+        else -> error("payload-hoist: unknown action `$name`")
+    }
+
+    private fun describe(s: payloadHoist.S, want: Map<String, Long>): Expect.Go {
+        fun f(v: Long) = if (want.containsKey("attempt")) mapOf("attempt" to v) else emptyMap()
+        return when (s) {
+            is payloadHoist.S.Connecting -> Expect.Go("Connecting", f(s.attempt))
+            is payloadHoist.S.Backoff -> Expect.Go("Backoff", f(s.attempt))
+            is payloadHoist.S.Reconnecting -> Expect.Go("Reconnecting", f(s.attempt))
+            is payloadHoist.S.Live -> Expect.Go("Live", emptyMap())
+        }
+    }
+}
+
 /** Every adapter that has landed. A fixture with none is reported as skipped. */
 val adapters: List<Adapter> =
-    listOf(TimerAdapter, ToggleAdapter, RetryAdapter, JobAdapter, EffectsNeverAdapter)
+    listOf(
+        TimerAdapter, ToggleAdapter, RetryAdapter, JobAdapter, EffectsNeverAdapter,
+        PayloadHoistAdapter,
+    )

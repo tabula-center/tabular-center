@@ -1,26 +1,30 @@
-trace backoff-then-live
+trace connect-succeeds
   ctx  max_attempts=3
   from Connecting
-  Open           => go Live
-  Fail           => go Reconnecting
-  Open           => go Live
+  Open => go Live
+  Open => ignored
+  Fail => go Reconnecting
+  Open => go Live
 
-trace timeout-walks-the-backoff-loop
-  # Each pass through Backoff carries `attempt` forward, which is the shape
-  # that makes the lint fire: the field is not state-local, it belongs to the
-  # machine. The fixture models the smell rather than the fix on purpose.
+trace backoff-advances-the-counter
+  # `backoffTimeout` is the only cell that can advance `attempt`: the GO cells
+  # into Backoff are static, and a static cell cannot read the state it is
+  # leaving, so every one of them restarts the count at 0. That is not a
+  # shortcut in the fixture -- it is what GO means, and it is half of why this
+  # machine wants the field in Context instead.
   ctx  max_attempts=3
-  from Connecting
-  Fail            => go Backoff attempt=1
-  Timeout         => go Reconnecting attempt=1
-  Fail            => go Backoff attempt=2
-  Open            => ignored
-  Timeout         => go Reconnecting attempt=2
+  from Backoff attempt=1
+  Timeout => go Reconnecting attempt=2
+  Fail    => go Backoff attempt=0
+  Timeout => go Reconnecting attempt=1
 
-trace live-ignores-most-things
+trace backoff-exhausts
+  # At the limit the cell stays put rather than transitioning. `stay` and
+  # `ignored` are different outcomes and a machine returning the wrong one
+  # fails here -- see timer.trace's `stay-is-not-ignored`.
   ctx  max_attempts=3
-  from Connecting
-  Open    => go Live
+  from Backoff attempt=3
+  Timeout => stay
   Open    => ignored
-  Timeout => ignored
-  Fail    => go Reconnecting attempt=0
+  Fail    => ignored
+  Timeout => stay
