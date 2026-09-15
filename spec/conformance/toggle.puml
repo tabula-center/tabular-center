@@ -1,8 +1,0 @@
-@startuml
-hide empty description
-[*] --> Off
-Off --> On : Flip / Light
-Off --> Off : Poke / Buzz
-On --> Off : Flip
-On --> On : Poke / ?handle
-@enduml

@@ -125,27 +125,6 @@ pub fn to_dot<const N: usize, const M: usize>(t: &Table<N, M>) -> String {
     s
 }
 
-/// Render as a PlantUML state diagram.
-///
-/// The third format, and the last of the three ARCHITECTURE section 10
-/// promises. It costs a dozen lines because it is the same walk as the other
-/// two with a different separator -- which is the argument for having built
-/// `edges` first rather than writing a third independent renderer.
-///
-/// `hide empty description` suppresses the empty compartment PlantUML draws
-/// under every state that has no description, which is all of them here.
-pub fn to_plantuml<const N: usize, const M: usize>(t: &Table<N, M>) -> String {
-    let mut s = String::from("@startuml\nhide empty description\n");
-    if let Some(initial) = t.initial {
-        s.push_str(&format!("[*] --> {initial}\n"));
-    }
-    for e in edges(t) {
-        s.push_str(&format!("{} --> {} : {}\n", e.from, e.to, e.label));
-    }
-    s.push_str("@enduml\n");
-    s
-}
-
 /// Render the matrix as an aligned ASCII grid.
 ///
 /// This is the artifact `tools/table-diff` snapshots: a PR that changes
@@ -324,45 +303,35 @@ mod tests {
     }
 
     #[test]
-    fn plantuml_is_well_formed() {
-        let p = to_plantuml(&T);
-        assert!(p.starts_with("@startuml\n"));
-        assert!(p.trim_end().ends_with("@enduml"));
-        assert!(p.contains("[*] --> Off"));
-        assert!(p.contains("Off --> On : Flip / Light"));
-    }
-
-    #[test]
-    fn plantuml_draws_handle_cells_as_self_loops_too() {
-        // Same rule as mermaid and dot: the target of a HANDLE cell is not
-        // knowable at build time, so annotate a self-loop rather than invent
-        // an edge.
-        assert!(to_plantuml(&T).contains("On --> On : Poke / ?handle"));
-    }
-
-    #[test]
     fn every_format_draws_the_same_edges_in_the_same_order() {
-        // The three renderers share one walk, so this is close to a tautology
+        // The renderers share one walk, so this is close to a tautology
         // today. It is here because it was not always true: mermaid used to
         // emit every GO edge before every self-loop while Kotlin and Swift
         // interleaved them in cell order, and nothing compared diagram output
         // so nothing failed. Independent renderers drift; this fails if one
         // grows its own walk again.
-        let pairs = |s: &str, sep: &str| -> Vec<String> {
-            s.lines()
-                .filter(|l| l.contains("-->") && !l.contains("[*]"))
-                .map(|l| l.trim().replace(sep, "|"))
-                .collect()
-        };
-        let m = pairs(&to_mermaid(&T), ": ");
-        let p = pairs(&to_plantuml(&T), " : ");
-        assert_eq!(m, p);
-        let want = [
-            "Off --> On|Flip / Light",
-            "On --> Off|Flip",
-            "On --> On|Poke / ?handle",
-        ];
-        assert_eq!(m, want);
+        // Mermaid against DOT, since PlantUML is gone. The two formats share
+        // no syntax, so each is extracted on its own terms and compared as
+        // `from|to|label` triples -- which is what the walk actually produces
+        // and what drift would change.
+        let mermaid_edges: Vec<String> = to_mermaid(&T)
+            .lines()
+            .filter(|l| l.contains("-->") && !l.contains("[*]"))
+            .map(|l| l.trim().replace(" --> ", "|").replace(": ", "|"))
+            .collect();
+        let dot_edges: Vec<String> = to_dot(&T)
+            .lines()
+            .filter(|l| l.contains("->") && !l.contains("__start"))
+            .map(|l| {
+                let l = l.trim();
+                let (edge, rest) = l.split_once(" [label=\"").unwrap();
+                let label = rest.split('"').next().unwrap();
+                format!("{}|{}", edge.replace(" -> ", "|"), label)
+            })
+            .collect();
+        assert_eq!(mermaid_edges, dot_edges);
+        let want = ["Off|On|Flip / Light", "On|Off|Flip", "On|On|Poke / ?handle"];
+        assert_eq!(mermaid_edges, want);
     }
 
     #[test]

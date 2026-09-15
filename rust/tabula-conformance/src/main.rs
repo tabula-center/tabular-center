@@ -105,8 +105,6 @@ fn main() -> ExitCode {
         // The diagram, for the same reason -- and because until this existed
         // nothing compared diagram output across the three implementations,
         // which had already drifted on edge ordering.
-        let puml = adapter.plantuml();
-        errs.extend(check_golden(&root, name, "puml", &puml, bless));
         let cov = adapter.coverage_report();
         errs.extend(check_golden(&root, name, "cov", &cov, bless));
         tables += 1;

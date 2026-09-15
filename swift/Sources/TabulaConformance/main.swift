@@ -283,7 +283,6 @@ for adapter in adapters {
     errs += checkGolden(adapter.name, "lint", report(adapter.table, payloads: adapter.payloads))
     // The diagram. Three renderers agreeing on edge ORDER, not just on the
     // edge set -- which is the thing that had already drifted.
-    errs += checkGolden(adapter.name, "puml", Export.toPlantuml(adapter.table))
     errs += checkGolden(adapter.name, "cov", Export.toCoverageReport(adapter.table))
 
     var traces: [Trace] = []

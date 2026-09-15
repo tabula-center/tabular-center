@@ -1,7 +1,0 @@
-@startuml
-hide empty description
-[*] --> Locked
-Locked --> Locked : Unlock / ?handle
-Open --> Locked : Lock
-Open --> Open : Push / ?handle
-@enduml

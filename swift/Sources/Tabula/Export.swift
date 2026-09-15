@@ -77,18 +77,6 @@ public enum Export {
         return out
     }
 
-    /// PlantUML state diagram.
-    ///
-    /// `hide empty description` suppresses the empty compartment PlantUML draws
-    /// under every state without a description, which is all of them here.
-    public static func toPlantuml(_ t: Table) -> String {
-        var out = "@startuml\nhide empty description\n"
-        if let initial = t.initial { out += "[*] --> \(initial)\n" }
-        for e in edges(t) { out += "\(e.from) --> \(e.to) : \(e.label)\n" }
-        out += "@enduml\n"
-        return out
-    }
-
     /// The build-time coverage report.
     ///
     /// Thresholds are the lint's, referenced rather than repeated: this and

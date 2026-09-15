@@ -91,10 +91,6 @@ impl Adapter for EffectsNeverAdapter {
         tabula::lint::report_with_payloads(&TABLE, PAYLOADS)
     }
 
-    fn plantuml(&self) -> String {
-        tabula::export::to_plantuml(&TABLE)
-    }
-
     fn coverage_report(&self) -> String {
         tabula::export::to_coverage_report(&TABLE)
     }

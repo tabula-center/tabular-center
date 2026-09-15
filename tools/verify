@@ -55,7 +55,7 @@ require_dir() {
 #
 # It earns its keep twice: it also catches adding a .tbl fixture and forgetting
 # to bless it, which produces the same misleading message.
-GOLDEN_EXTS="grid lint puml cov"
+GOLDEN_EXTS="grid lint cov"
 
 require_goldens() {
     local missing="" tbl name ext

@@ -43,7 +43,7 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 
 95 Rust tests; 18 compile-fail fixtures (9 Rust, 4 Kotlin, 1 Kotlin-codegen,
 4 Swift); 5 conformance fixtures (34 trace steps); 5 golden `.grid`, 5 `.lint`,
-5 `.puml` and 5 `.cov` snapshots.
+5 `.cov` snapshots.
 
 These counts are checked against the tree, not remembered. Regenerate with:
 
@@ -588,7 +588,53 @@ could be written from it without reading the Rust source.
       because an empty one is `tabula::empty-emit`. It also pins the
       reachability gate — `Open` is reached only from a `HANDLE` cell, so the
       coverage report must stay silent about its missing static entry
-- [ ] Fixture still outstanding: `payload-hoist`, and the reason is **not** the
+- [x] Fixture designed, and the blocker below turned out to be already solved.
+      `spec/diagnostics.md`'s canonical vocabulary lands `attempt: Long`,
+      `attempt: u32` and `attempt: Int` all on `attempt: int`, so a shared
+      byte-for-byte `.lint` golden IS possible — that is what canonicalising
+      *before the comparison* bought, and the note below predates it.
+
+      The second thing worth recording: **`.tbl` needs no new field.**
+      `conformance/Main.kt` builds the `.lint` golden from
+      `report(adapter.table, adapter.payloads)`, so payloads come from each
+      language's adapter, not from the fixture. The matrix file stays the
+      matrix, which is the same separation `PAYLOADS`-beside-`TABLE` already
+      makes in generated code.
+
+      The machine, `Conn`, chosen so the ONLY finding is the one under test —
+      no dead row or column, 4 of 12 cells `IGNORE` (33%, well under
+      `IGNORE_HEAVY_PERCENT`), fully static with every non-initial state
+      statically reached, so `lint()` is silent and `payloadHoist` is not:
+
+      ```
+      machine Conn
+      initial Connecting
+      states  Connecting Backoff Reconnecting Live
+      actions Open Fail Timeout
+
+      Connecting   | GO(Live) | GO(Backoff)      | GO(Backoff)
+      Backoff      | IGNORE   | IGNORE           | GO(Reconnecting)
+      Reconnecting | GO(Live) | GO(Backoff)      | GO(Backoff)
+      Live         | IGNORE   | GO(Reconnecting) | IGNORE
+      ```
+
+      `Connecting`, `Backoff` and `Reconnecting` each carry `attempt`; `Live`
+      carries nothing. Three states, which is `PAYLOAD_HOIST_STATES` exactly —
+      the fixture sits on the boundary on purpose, so an implementation that
+      used `>` instead of `>=` fails it.
+
+      Expected `payload-hoist.lint`, one line:
+
+      ```
+      warning[tabula::payload-hoist]: Conn: `attempt: int` appears in the payloads of Connecting, Backoff, Reconnecting; consider hoisting it to Context
+      ```
+
+- [ ] The remaining goldens — `.grid`, `.cov`, `.puml` — and a `.trace`, plus
+      adapters. Kotlin first; Rust and Swift report the fixture as **skipped**
+      until theirs land, which is the designed behaviour for a fixture without
+      an adapter and is now visible in `tools/verify`'s skip ledger rather
+      than silent.
+- [ ] Stale, kept for the record: the reason recorded here was **not** the
       one recorded here before. Every implementation already has both the lint
       and a `Payloads` type; the adapters now supply them. The blocker is that
       the lint prints the field's *type*, which each language spells itself —
@@ -869,7 +915,7 @@ color-mismatch is a build error in all three.
 Ship export early if you want adopters. It is the most demoable feature and
 falls out of `TABLE` almost for free.
 
-### Findings from Phase 8's PlantUML patch
+### Findings from Phase 8's PlantUML patch (format since removed)
 
 - **Mermaid output had already diverged, and no check could see it.** Rust
   emitted every `GO` edge and *then* every self-loop; Kotlin and Swift
@@ -1286,6 +1332,136 @@ only if a case turns up that configuration cannot fix — and note that `.tb.*`
 would cost Rust users a `#[path]` attribute on every matrix module, which is the
 largest single cost in the proposal and buys nothing for the language that is
 already safe.
+
+## Backlog — happy paths
+
+Prior art, and it is ours: [`hadilq/happy`](https://github.com/hadilq/happy)
+does this for `sealed` classes. `@Happy` marks one variant as the success case
+and a processor generates a DSL that narrows to it, so the caller writes
+
+```kotlin
+val result: HappyA = doWork() elvis (
+    OptionOne = ::handleOptionOne,
+    OptionTwo = { f -> return B.failure(f.why) },
+)
+```
+
+instead of a `when` over every branch. The argument in that README is worth
+restating because it is the same argument this repository makes about matrices:
+Kotlin's null-safety is loved not because `Optional` is clever but because the
+happy path reads differently from the failure. `when` flattens that back out.
+
+The task here is the state-machine version. A user marks the happy path **in
+the matrix** — which is where every other fact about the machine already lives
+— and the generator derives defaults from it and offers a narrowed calling
+surface for developers who only want to say what happens when things go right.
+
+### The one thing to get right
+
+A happy-path sugar is an `else` unless it is built very carefully, and `else` is
+the thing this library exists to make unavailable. ARCHITECTURE 1: the
+dispatcher exists only in generated code so that `else` is not a temptation but
+an absence.
+
+`happy` ships both shapes and the difference is exactly the line:
+
+- **`elseIf`** takes one lambda for everything that is not the happy variant.
+  That is an `else`. Add a state and the lambda still compiles, still runs, and
+  now silently swallows a case nobody has considered — the failure mode the
+  matrix exists to prevent.
+- **`elvis`** takes one named parameter per non-happy variant. Add a variant and
+  every call site stops compiling. That is exhaustiveness wearing nicer syntax,
+  which is the whole of what we want.
+
+So: the `elvis` shape, and the `elseIf` shape only where a machine has exactly
+two outcomes, where the two are indistinguishable. That restriction has to be
+enforced by the generator rather than documented, for the usual reason.
+
+### What "the happy path" is in a matrix
+
+Two readings, and they are not the same feature:
+
+1. **Per-cell.** A cell is marked happy; the generated member for it is the one
+   with the convenient name and the narrowed return.
+2. **Per-run.** The happy path is a *spine* through the table — a sequence of
+   transitions from `initial` to a terminal state — and marking it is marking a
+   route rather than a square.
+
+(2) is the one that earns its keep. It is what makes defaults derivable: a
+`HANDLE` cell on the spine with no declared target defaults to the next state
+along it, so the common case stops being typed at all. It is also what gives
+the lints something to check. (1) falls out of (2) for free.
+
+Open, and the reason this is backlog rather than a phase:
+
+- **How is a spine written?** A `Kind.HAPPY` alongside `GO`/`HANDLE` reads
+  wrong — happiness is orthogonal to what a cell *does*. A `happy = true`
+  argument on the existing kinds is honest but verbose in a file whose entire
+  point is that a reader scans columns. A separate `@Path` annotation naming a
+  state sequence keeps the matrix clean and puts the route somewhere a reader
+  will not see it. No obvious winner yet.
+- **Does a machine get more than one?** Probably yes, and then they need names,
+  and then the calling surface needs to say which one it is narrowing to.
+
+### It has to be three languages
+
+The convergence rule (ARCHITECTURE 2) applies: one guarantee, three
+implementations. The `elvis` shape is Kotlin-shaped and does not transfer
+directly.
+
+- **Rust.** The narrowed result is a `Result`-alike and `?` already does this.
+  The interesting question is whether the generated type can be `Try`-compatible
+  so the happy path is a `?` and nothing else is needed.
+- **Swift.** `guard case .happy(let x) = step else { ... }` is the existing
+  idiom, and a generated `throws` overload plus `try` is the closer analogue.
+  Either way the compiler has to reject a missing case, which `guard ... else`
+  does not.
+
+If it cannot be made to hold in all three, it is Kotlin sugar and belongs behind
+the same kind of gate as the rendering surface in 9b — not in the core.
+
+### Order of work
+
+Per the cross-cutting rule above, behaviour lands in `spec/conformance` first.
+That is not ceremony here: a happy path changes what a *run* means, so the
+fixture format itself may need a field, and finding that out after three
+implementations is how the expensive version of this goes.
+
+- [ ] Read `hadilq/happy`'s processor, `happy-processor-common`, for what the
+      generated DSL actually looks like once nested cases are involved — the
+      naming scheme there (`SituationOneOptionTwo`) is the part that got
+      thought about, and matrix cells have the same flattening problem.
+- [ ] Decide spine-vs-cell and the declaration syntax, in `spec/`, before any
+      implementation.
+- [ ] A conformance fixture with a happy path, and the question of whether
+      `.tbl` needs a new field answered by writing one.
+- [ ] Lints that only exist once a spine does: a happy path that does not reach
+      a terminal state, a happy cell that no run can arrive at, a spine that
+      leaves the matrix through an `IGNORE`.
+- [ ] The narrowed calling surface, `elvis`-shaped, with the two-outcome
+      `elseIf` special case allowed and everything else refused.
+- [ ] Defaults derived from the spine, which is the half the user asked for and
+      the half that cannot be designed until the two above are settled.
+
+## PlantUML — removed
+
+`toPlantuml` is gone from all three cores, the `.puml` goldens are deleted, and
+`GOLDEN_EXTS` is `grid lint cov`. Mermaid and DOT stay.
+
+What went with it is worth naming, because the section above argued for the
+golden and the argument was right: the `.puml` snapshot was the only thing
+comparing a line of diagram output **across** the three implementations, and it
+was added after they had already drifted -- Rust emitting every `GO` edge
+before every self-loop while Kotlin and Swift interleaved them in cell order.
+
+Each language now pins its own edge order against a literal in its unit tests.
+That catches one renderer growing a second walk. It does not catch the three
+disagreeing with each other, which is the failure that actually happened.
+
+- [ ] Decide whether to restore the cross-language check on mermaid. One
+      `<name>.mmd` golden per fixture would do it, at the cost of a golden per
+      fixture again -- the same trade as before with a format that is still
+      supported. Cheap, and the argument for it is unchanged.
 
 ## Explicitly deferred
 

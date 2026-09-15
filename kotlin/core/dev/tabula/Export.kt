@@ -77,20 +77,6 @@ object Export {
     }
 
     /**
-     * PlantUML state diagram.
-     *
-     * `hide empty description` suppresses the empty compartment PlantUML draws
-     * under every state without a description, which is all of them here.
-     */
-    fun toPlantuml(t: Table): String {
-        val sb = StringBuilder("@startuml\nhide empty description\n")
-        t.initial?.let { sb.append("[*] --> $it\n") }
-        for (e in edges(t)) sb.append("${e.from} --> ${e.to} : ${e.label}\n")
-        sb.append("@enduml\n")
-        return sb.toString()
-    }
-
-    /**
      * The build-time coverage report.
      *
      * Thresholds are the lint's, imported rather than repeated: this and

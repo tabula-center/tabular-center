@@ -202,10 +202,6 @@ impl Adapter for RetryAdapter {
         tabula::lint::report_with_payloads(&retry::TABLE, retry::PAYLOADS)
     }
 
-    fn plantuml(&self) -> String {
-        tabula::export::to_plantuml(&retry::TABLE)
-    }
-
     fn coverage_report(&self) -> String {
         tabula::export::to_coverage_report(&retry::TABLE)
     }
@@ -269,10 +265,6 @@ impl Adapter for JobAdapter {
 
     fn lint(&self) -> String {
         tabula::lint::report_with_payloads(&job::TABLE, job::PAYLOADS)
-    }
-
-    fn plantuml(&self) -> String {
-        tabula::export::to_plantuml(&job::TABLE)
     }
 
     fn coverage_report(&self) -> String {

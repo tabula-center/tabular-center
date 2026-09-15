@@ -502,7 +502,7 @@ retained-mode UI, and it keeps `@Composable` out of the transition path.
 
 Because the matrix exists as inert data (`TABLE`), these come free:
 
-- **Mermaid / DOT / PlantUML export** — a pure function of `TABLE`, usable at
+- **Mermaid / DOT export** — a pure function of `TABLE`, usable at
   build time or runtime. All three formats render from **one edge walk per
   language**, in row-major matrix order, so a machine draws the same way
   whichever format you ask for. That is not tidiness: the three renderers were
@@ -818,7 +818,6 @@ tabula/
 │       ├── effects-never.tbl
 │       ├── <name>.grid          # golden matrix; Rust blesses, others read
 │       ├── <name>.lint          # golden lint output; same rule
-│       ├── <name>.puml          # golden diagram; same rule
 │       ├── <name>.cov           # golden coverage report; same rule
 │       └── traces/<name>.trace  # (state, action) → expected (state, effects)
 │

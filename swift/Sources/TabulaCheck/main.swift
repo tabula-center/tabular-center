@@ -111,30 +111,25 @@ func tableAndLints() {
         "dot leaves static edges solid"
     )
 
-    let puml = Export.toPlantuml(TIMER_TABLE)
-    Assert.ok(puml.hasPrefix("@startuml\n"), "plantuml opens")
-    Assert.ok(puml.hasSuffix("@enduml\n"), "plantuml closes")
-    Assert.ok(puml.contains("[*] --> Idle"), "plantuml marks the initial state")
-    Assert.ok(
-        puml.contains("Running --> Idle : Cancel / StopClock"),
-        "plantuml draws static transitions"
-    )
-
-    // The three formats share one walk, so they must list the same edges in
-    // the same order. They did not always: mermaid was rendered in two passes
-    // for a while, every GO edge before every self-loop, while Kotlin
-    // interleaved them in cell order. Nothing compares diagram output across
-    // languages, so nothing failed.
+    // The walk, pinned to a literal.
+    //
+    // This used to compare mermaid against plantuml: two renderings of one
+    // walk had to agree, which caught real drift -- mermaid was rendered in
+    // two passes for a while, every GO edge before every self-loop, while
+    // Kotlin interleaved them in cell order. With plantuml dropped, mermaid is
+    // the only `-->` format left, so there is nothing to compare it to and the
+    // expected order is written out instead.
+    //
+    // Weaker on purpose, and worth knowing it is weaker: a literal pins THIS
+    // language's walk. Nothing now compares a line of diagram output across
+    // the three, which is the thing the .puml goldens were doing. See PLAN.
     //
     // Tokenised rather than string-replaced because this target imports no
-    // Foundation -- no trimmingCharacters, no replacingOccurrences. Splitting
-    // on spaces drops the indentation for free, which is the only reason the
-    // two formats needed normalising at all.
+    // Foundation -- no trimmingCharacters, no replacingOccurrences.
     func edgeOrder(_ s: String) -> [String] {
         s.split(separator: "\n").compactMap { raw -> String? in
             let parts = raw.split(separator: " ").map(String.init)
             guard parts.count >= 3, parts[1] == "-->", parts[0] != "[*]" else { return nil }
-            // mermaid writes `To: label`, plantuml writes `To : label`.
             var to = parts[2]
             if to.hasSuffix(":") { to.removeLast() }
             var rest = parts.dropFirst(3).joined(separator: " ")
@@ -143,8 +138,13 @@ func tableAndLints() {
         }
     }
     Assert.eq(
-        edgeOrder(mermaid), edgeOrder(puml),
-        "mermaid and plantuml agree on edge order"
+        edgeOrder(mermaid),
+        // HANDLE draws a SELF-LOOP -- see the Kotlin copy of this list. The
+        // same wrong literal was written in both; Kotlin caught it first
+        // because Darwin is where this target runs.
+        ["Idle->Idle|Start / ?handle", "Running->Running|Tick / ?handle",
+         "Running->Idle|Cancel / StopClock", "Done->Running|Start / StartClock"],
+        "mermaid lists edges in cell order"
     )
 }
 

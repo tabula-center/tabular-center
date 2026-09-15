@@ -1,8 +1,0 @@
-@startuml
-hide empty description
-[*] --> Idle
-Idle --> Idle : Run / ?handle
-Retrying --> Retrying : Run / >retry
-Retrying --> Retrying : Tick / >retry
-Retrying --> Done : Cancel / Log
-@enduml

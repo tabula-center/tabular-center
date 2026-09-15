@@ -143,29 +143,38 @@ private fun exportRenderers() {
         "dot leaves static edges solid",
     )
 
-    val puml = Export.toPlantuml(TimerMachine.TABLE)
-    Assert.ok(puml.startsWith("@startuml\n"), "plantuml opens")
-    Assert.ok(puml.endsWith("@enduml\n"), "plantuml closes")
-    Assert.ok(puml.contains("[*] --> Idle"), "plantuml marks the initial state")
-    Assert.ok(
-        puml.contains("Running --> Idle : Cancel / StopClock"),
-        "plantuml draws static transitions",
-    )
-
-    // The three formats share one walk, so they must list the same edges in
-    // the same order. Rust rendered mermaid in two passes for a while — every
-    // GO edge, then every self-loop — while this side interleaved them in cell
-    // order. Same edge set, different line order, and nothing compares diagram
-    // output so nothing failed.
+    // The walk, pinned to a literal.
+    //
+    // This compared mermaid against plantuml until plantuml was dropped: two
+    // renderings of one walk had to agree, which caught real drift -- mermaid
+    // was rendered in two passes for a while, every GO edge before every
+    // self-loop, while this file interleaved them in cell order. Mermaid is
+    // now the only `-->` format, so the expected order is written out.
+    //
+    // Weaker, and worth saying so: a literal pins THIS language's walk.
+    // Nothing compares diagram output across the three any more. See PLAN.
     fun edgeOrder(s: String): List<String> = s.lines().mapNotNull { raw ->
         val parts = raw.trim().split(" ").filter { it.isNotEmpty() }
         if (parts.size < 3 || parts[1] != "-->" || parts[0] == "[*]") return@mapNotNull null
-        // mermaid writes `To: label`, plantuml writes `To : label`.
         val to = parts[2].removeSuffix(":")
         val rest = parts.drop(3).joinToString(" ").removePrefix(": ")
         "${parts[0]}->$to|$rest"
     }
-    Assert.eq(edgeOrder(mermaid), edgeOrder(puml), "mermaid and plantuml agree on edge order")
+    Assert.eq(
+        edgeOrder(mermaid),
+        listOf(
+            // HANDLE draws a SELF-LOOP: the target of a handled cell is not
+            // knowable at build time, so the walk annotates the state it is
+            // in rather than inventing an edge to where the matrix says it
+            // "should" go. Writing `Idle->Running` here read correctly from
+            // the matrix and was wrong about the diagram.
+            "Idle->Idle|Start / ?handle",
+            "Running->Running|Tick / ?handle",
+            "Running->Idle|Cancel / StopClock",
+            "Done->Running|Start / StartClock",
+        ),
+        "mermaid lists edges in cell order",
+    )
 }
 
 private fun drivers() {
