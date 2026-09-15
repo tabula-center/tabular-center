@@ -111,22 +111,25 @@ func tableAndLints() {
         "dot leaves static edges solid"
     )
 
-    // The walk, pinned to a literal.
+    // The walk, derived from both renderers rather than written down.
     //
-    // This used to compare mermaid against plantuml: two renderings of one
-    // walk had to agree, which caught real drift -- mermaid was rendered in
-    // two passes for a while, every GO edge before every self-loop, while
-    // Kotlin interleaved them in cell order. With plantuml dropped, mermaid is
-    // the only `-->` format left, so there is nothing to compare it to and the
-    // expected order is written out instead.
+    // Mermaid and DOT come off one `edges` call, so they must list the same
+    // edges in the same order. They did not always: mermaid was rendered in
+    // two passes for a while, every GO edge before every self-loop, while the
+    // other implementations interleaved them in cell order, and nothing
+    // compared diagram output so nothing failed.
     //
-    // Weaker on purpose, and worth knowing it is weaker: a literal pins THIS
-    // language's walk. Nothing now compares a line of diagram output across
-    // the three, which is the thing the .puml goldens were doing. See PLAN.
+    // This compared mermaid against PlantUML until that format was removed,
+    // and against a hand-written list for a while after. The literal was a
+    // step down: its first entry said `Idle->Running` where HANDLE draws a
+    // SELF-LOOP, because a handled cell's target is not knowable at build
+    // time. Reading correctly from the matrix and being wrong about the
+    // diagram is what a derived comparison cannot do.
     //
     // Tokenised rather than string-replaced because this target imports no
-    // Foundation -- no trimmingCharacters, no replacingOccurrences.
-    func edgeOrder(_ s: String) -> [String] {
+    // Foundation -- no trimmingCharacters, no replacingOccurrences. Splitting
+    // on spaces drops the indentation for free.
+    func mermaidEdges(_ s: String) -> [String] {
         s.split(separator: "\n").compactMap { raw -> String? in
             let parts = raw.split(separator: " ").map(String.init)
             guard parts.count >= 3, parts[1] == "-->", parts[0] != "[*]" else { return nil }
@@ -137,15 +140,24 @@ func tableAndLints() {
             return "\(parts[0])->\(to)|\(rest)"
         }
     }
+    // Split on the quote, not on spaces: a DOT label contains spaces and the
+    // edge does not, so the quote is the only reliable boundary. It also does
+    // the filtering for free -- `digraph`, `node [...]` and the `__start`
+    // lines carry no quoted label and fall out here.
+    func dotEdges(_ s: String) -> [String] {
+        s.split(separator: "\n").compactMap { raw -> String? in
+            let quoted = raw.split(separator: "\"")
+            guard quoted.count >= 2 else { return nil }
+            let head = quoted[0].split(separator: " ").map(String.init)
+            guard head.count >= 3, head[1] == "->", head[0] != "__start" else { return nil }
+            return "\(head[0])->\(head[2])|\(String(quoted[1]))"
+        }
+    }
     Assert.eq(
-        edgeOrder(mermaid),
-        // HANDLE draws a SELF-LOOP -- see the Kotlin copy of this list. The
-        // same wrong literal was written in both; Kotlin caught it first
-        // because Darwin is where this target runs.
-        ["Idle->Idle|Start / ?handle", "Running->Running|Tick / ?handle",
-         "Running->Idle|Cancel / StopClock", "Done->Running|Start / StartClock"],
-        "mermaid lists edges in cell order"
+        mermaidEdges(mermaid), dotEdges(dot),
+        "mermaid and dot agree on edge order"
     )
+    Assert.eq(mermaidEdges(mermaid).count, 4, "the timer draws four edges")
 }
 
 func lintRules() {

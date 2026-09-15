@@ -143,38 +143,45 @@ private fun exportRenderers() {
         "dot leaves static edges solid",
     )
 
-    // The walk, pinned to a literal.
+    // The walk, derived from both renderers rather than written down.
     //
-    // This compared mermaid against plantuml until plantuml was dropped: two
-    // renderings of one walk had to agree, which caught real drift -- mermaid
-    // was rendered in two passes for a while, every GO edge before every
-    // self-loop, while this file interleaved them in cell order. Mermaid is
-    // now the only `-->` format, so the expected order is written out.
+    // Mermaid and DOT come off one `edges` call, so they must list the same
+    // edges in the same order. They did not always: mermaid was rendered in
+    // two passes for a while, every GO edge before every self-loop, while this
+    // file interleaved them in cell order, and nothing compared diagram output
+    // so nothing failed.
     //
-    // Weaker, and worth saying so: a literal pins THIS language's walk.
-    // Nothing compares diagram output across the three any more. See PLAN.
-    fun edgeOrder(s: String): List<String> = s.lines().mapNotNull { raw ->
+    // This compared mermaid against PlantUML until that format was removed,
+    // and against a hand-written list for a while after. The literal was a
+    // step down and it proved it: the first entry said `Idle->Running` when
+    // HANDLE draws a SELF-LOOP, because a handled cell's target is not
+    // knowable at build time. Reading correctly from the matrix and being
+    // wrong about the diagram is exactly what a derived comparison cannot do.
+    //
+    // The two formats share no syntax, so each is extracted on its own terms
+    // and compared as `from->to|label` triples.
+    fun mermaidEdges(s: String): List<String> = s.lines().mapNotNull { raw ->
         val parts = raw.trim().split(" ").filter { it.isNotEmpty() }
         if (parts.size < 3 || parts[1] != "-->" || parts[0] == "[*]") return@mapNotNull null
         val to = parts[2].removeSuffix(":")
         val rest = parts.drop(3).joinToString(" ").removePrefix(": ")
         "${parts[0]}->$to|$rest"
     }
+    fun dotEdges(s: String): List<String> = s.lines().mapNotNull { raw ->
+        val line = raw.trim()
+        if (!line.contains(" -> ") || line.contains("__start")) return@mapNotNull null
+        // Split on the quote rather than on spaces: a label contains spaces
+        // and the edge does not, so the quote is the only reliable boundary.
+        val head = line.substringBefore(" [label=\"")
+        val label = line.substringAfter(" [label=\"").substringBefore("\"")
+        "${head.replace(" -> ", "->")}|$label"
+    }
     Assert.eq(
-        edgeOrder(mermaid),
-        listOf(
-            // HANDLE draws a SELF-LOOP: the target of a handled cell is not
-            // knowable at build time, so the walk annotates the state it is
-            // in rather than inventing an edge to where the matrix says it
-            // "should" go. Writing `Idle->Running` here read correctly from
-            // the matrix and was wrong about the diagram.
-            "Idle->Idle|Start / ?handle",
-            "Running->Running|Tick / ?handle",
-            "Running->Idle|Cancel / StopClock",
-            "Done->Running|Start / StartClock",
-        ),
-        "mermaid lists edges in cell order",
+        mermaidEdges(mermaid),
+        dotEdges(dot),
+        "mermaid and dot agree on edge order",
     )
+    Assert.eq(mermaidEdges(mermaid).size, 4, "the timer draws four edges")
 }
 
 private fun drivers() {

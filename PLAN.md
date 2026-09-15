@@ -1481,10 +1481,16 @@ disagreeing with each other, which is the failure that actually happened.
       were generated from the `.tbl` files by a script mirroring `edges` and
       `toMermaid` rather than typed, for the reason two earlier hand-written
       literals give.
-- [ ] The literals those unit tests now pin could go back to being derived.
-      Rust already compares mermaid against DOT; Kotlin and Swift have
-      `toDot` and could do the same, which would delete the last hand-written
-      edge lists in the repository.
+- [x] Derived again, in all three. Kotlin and Swift now compare mermaid
+      against DOT the way Rust does, and no hand-written edge list is left in
+      the repository.
+
+      Worth keeping as a note rather than just a checkbox: the literals were
+      introduced as a stopgap when PlantUML left, and one of them was wrong
+      within the hour -- it said `Idle->Running` where HANDLE draws a
+      self-loop, which reads correctly off the matrix and is wrong about the
+      diagram. A derived comparison cannot make that mistake, because neither
+      side is anybody's belief about what the walk should produce.
 
 ## Explicitly deferred
 
