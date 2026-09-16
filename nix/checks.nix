@@ -31,6 +31,15 @@ in
   # matrices at all. It does not today -- macro bodies are left alone -- and 28
   # files depend on that continuing to be true.
   rust-matrix-stable = verify "rust-matrix-stable" rustInputs;
+
+  # The check above the other two. Both of those scan roots they name, so a
+  # matrix in a directory neither names is outside both and silently so. This
+  # enumerates the files that exist and asks which scan reaches each, which is
+  # the question a scan cannot ask about itself.
+  #
+  # No toolchain: it is `find` and `case`. Which is also why it can run on
+  # every platform while the language checks it guards cannot.
+  matrix-covered = verify "matrix-covered" [ ];
 }
 // lib.optionalAttrs has.rustConformance {
   rust-conformance = verify "conformance" rustInputs;

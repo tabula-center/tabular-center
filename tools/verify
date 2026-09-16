@@ -11,6 +11,7 @@
 # Steps:  version docs fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
 #         kotlin-examples kotlin-ksp kotlin-matrix-stable rust-matrix-stable
+#         matrix-covered
 #         swift swift-compile-fail swift-conformance swift-macros
 #         swift-examples swift-codegen
 set -uo pipefail
@@ -962,6 +963,74 @@ KTLINT="${KTLINT:-ktlint}"
 # Narrow on purpose. Adopting ktlint as a style gate would mean making the whole
 # tree ktlint-clean, which is a separate decision; this guards the one property
 # the library actually depends on.
+# Every `.tb.` file is covered by one of the matrix checks.
+#
+# The check above the other two, and the one they cannot make about
+# themselves. `kotlin-matrix-stable` and `rust-matrix-stable` each scan roots
+# they name, so a matrix in a directory neither names is outside both -- and
+# silently so, because each scan finds what it finds and reports on that.
+#
+# That is not hypothetical. `kotlin-matrix-stable` scanned `kotlin/` alone for
+# as long as it existed, and
+# examples/kotlin/06-generated/src/Machine.tb.kt sat outside it the whole time
+# while both checks were green.
+#
+# So this enumerates the `.tb.` files that exist and asks which scan reaches
+# each one, rather than asking each scan what it found.
+step_matrix_covered() {
+    local f bad=0 total=0 covered=0
+    local uncovered=""
+
+    while IFS= read -r f; do
+        total=$((total + 1))
+        case "$f" in
+            # Roots that `kotlin-matrix-stable` copies and ktlints.
+            ./kotlin/*.tb.kt|./examples/kotlin/*.tb.kt)
+                covered=$((covered + 1))
+                echo "ok   $f (kotlin-matrix-stable)"
+                ;;
+            # Roots that `rust-matrix-stable` copies and cargo-fmts.
+            ./rust/*.tb.rs|./examples/rust/*.tb.rs)
+                covered=$((covered + 1))
+                echo "ok   $f (rust-matrix-stable)"
+                ;;
+            *.tb.swift)
+                # A known gap with a name, not an omission. swift-format is a
+                # remote SwiftPM package and there is no swift-matrix-stable
+                # yet; see PLAN. Reported through the ledger so it is counted
+                # rather than assumed.
+                echo "skip matrix-covered ($f: no swift-matrix-stable yet;"
+                echo "     swift-format is a remote package -- see PLAN)"
+                ;;
+            *)
+                uncovered="$uncovered  $f"$'\n'
+                bad=1
+                ;;
+        esac
+    done < <(find . -name '*.tb.*' \
+        -not -path './.git/*' \
+        -not -path '*/build/*' \
+        -not -path '*/.build/*' \
+        -not -path '*/target/*' | sort)
+
+    if [ -n "$uncovered" ]; then
+        echo "FAIL these matrix files are scanned by no check:"
+        printf '%s' "$uncovered"
+        echo "     Either move them under a root one of the matrix checks"
+        echo "     names, or widen that check. A matrix no formatter check"
+        echo "     reaches is one collapse away from being a list."
+    fi
+
+    if [ "$total" -eq 0 ]; then
+        echo "FAIL no .tb. files found at all; the convention has evaporated"
+        echo "     or this scan is looking in the wrong place."
+        bad=1
+    fi
+
+    echo "matrix files: $total found, $covered covered"
+    return "$bad"
+}
+
 # Matrix rows must survive `cargo fmt`, the same claim kotlin-matrix-stable
 # makes about ktlint.
 #
@@ -1220,6 +1289,7 @@ steps=("$@")
     steps=(version docs fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
            kotlin-examples kotlin-ksp kotlin-matrix-stable rust-matrix-stable \
+           matrix-covered \
            swift swift-compile-fail swift-conformance swift-examples \
            swift-codegen swift-macros)
 
@@ -1242,6 +1312,7 @@ for s in "${steps[@]}"; do
         kotlin-ksp)          run kotlin-ksp          step_kotlin_ksp ;;
         kotlin-matrix-stable) run kotlin-matrix-stable step_kotlin_matrix_stable ;;
         rust-matrix-stable)  run rust-matrix-stable  step_rust_matrix_stable ;;
+        matrix-covered)      run matrix-covered      step_matrix_covered ;;
         swift)               run swift               step_swift ;;
         swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
         swift-conformance)   run swift-conformance   step_swift_conformance ;;
