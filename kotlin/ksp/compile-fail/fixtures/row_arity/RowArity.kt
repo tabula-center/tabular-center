@@ -1,21 +1,15 @@
-//~ EXPECT: tabula::row-arity
+// The types the fixture's matrix refers to. Ordinary Kotlin, formatted
+// normally.
 //
-// A row with two cells against three actions.
-//
-// The first KSP diagnostic to get a UI test. Every one of these rules is
-// already unit-tested in `codegen/Tests.kt`, which drives `buildDesc`
-// directly -- what was missing is the diagnostic as a user meets it: emitted
-// by the processor, through a real compilation, failing the build.
-//
-// The distinction is not academic. `buildDesc` throwing a `TabulaError` and
-// the processor turning that into a `KSPLogger.error` are different steps, and
-// nothing exercised the second one.
+// The matrix itself is in `BadSpec.tb.kt` next to this file, and the split is
+// not decoration: `kotlin-matrix-stable` caught this file the first time it
+// ran, because it held an aligned matrix outside the `[*.tb.kt]` exemption in
+// .editorconfig and ktlint collapsed the columns. Third time the convention
+// has been learned the hard way in this repository -- `ReferenceTimer.kt`, the
+// `06-generated` example, and now here -- which is the argument for the check
+// that keeps finding it.
 package fixtures.rowarity
 
-import dev.tabula.CellSpec
-import dev.tabula.Kind
-import dev.tabula.Machine
-import dev.tabula.Row
 import dev.tabula.Step
 
 sealed interface S {
@@ -33,15 +27,7 @@ sealed interface F
 
 class Ctx
 
-@Machine(
-    states = [S.Idle::class, S.Busy::class],
-    actions = [A.Start::class, A.Stop::class, A.Poke::class],
-    effects = [],
-    initial = S.Idle::class,
-)
-//                    Start                    Stop                     Poke
-@Row(S.Idle::class, [CellSpec(Kind.HANDLE),  CellSpec(Kind.IGNORE)])
-@Row(S.Busy::class, [CellSpec(Kind.IGNORE),  CellSpec(Kind.HANDLE),   CellSpec(Kind.IGNORE)])
-interface BadSpec {
+/** The prototype, kept beside the types so the matrix file holds only rows. */
+interface Prototype {
     fun handle(ctx: Ctx, state: S, action: A): Step<S, F>
 }

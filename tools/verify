@@ -495,12 +495,26 @@ step_kotlin_ksp_compile_fail() {
         name="$(basename "$dir")"
         n=$((n + 1))
 
-        expect="$(sed -n 's|^//~ EXPECT: ||p' "$dir"/*.kt | head -1)"
-        if [ -z "$expect" ]; then
-            echo "FAIL $name -- no '//~ EXPECT:' line"
+        # Across every file in the fixture, and exactly one.
+        #
+        # `head -1` would have worked here and been wrong tomorrow: a fixture
+        # is more than one file -- the matrix lives in a `.tb.kt` and the types
+        # beside it -- so which EXPECT wins would have depended on filename
+        # order. Two EXPECT lines is a fixture asserting two things and
+        # checking one.
+        local expects count
+        expects="$(sed -n 's|^//~ EXPECT: ||p' "$dir"/*.kt 2>/dev/null)"
+        count="$(printf '%s\n' "$expects" | grep -c .)"
+        if [ "$count" -eq 0 ]; then
+            echo "FAIL $name -- no '//~ EXPECT:' line in any file"
+            bad=1
+            continue
+        elif [ "$count" -gt 1 ]; then
+            echo "FAIL $name -- $count '//~ EXPECT:' lines; a fixture asserts one thing"
             bad=1
             continue
         fi
+        expect="$expects"
 
         out="$( (cd kotlin/ksp/compile-fail && gradle --no-daemon --console=plain \
             -PtabulaFixture="$name" build 2>&1) )"
