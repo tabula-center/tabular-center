@@ -96,6 +96,19 @@ in
   # So when there is no lock, this check EXISTS and FAILS, with the command
   # that fixes it. The experiment is reproducible or it is red; it is never
   # quietly smaller than it looks.
+  kotlin-ksp-compile-fail =
+    if gradleRepo != null
+    then
+      mkCheck "kotlin-ksp-compile-fail" kotlinInputs ''
+        export TABULA_MAVEN_REPO="${gradleRepo}"
+        ./tools/verify kotlin-ksp-compile-fail
+      ''
+    else
+      mkCheck "kotlin-ksp-compile-fail" [ ] ''
+        echo "kotlin-ksp-compile-fail: needs nix/gradle-lock.json; see kotlin-ksp"
+        exit 1
+      '';
+
   kotlin-ksp =
     if gradleRepo != null
     then

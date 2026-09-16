@@ -10,7 +10,8 @@
 # Usage:  tools/verify [step ...]      (default: all)
 # Steps:  version docs fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
-#         kotlin-examples kotlin-ksp kotlin-matrix-stable rust-matrix-stable
+#         kotlin-examples kotlin-ksp kotlin-ksp-compile-fail kotlin-matrix-stable
+#         rust-matrix-stable
 #         matrix-covered swift-format-config diagnostics-coverage fixtures-complete
 #         swift swift-compile-fail swift-conformance swift-macros
 #         swift-examples swift-codegen
@@ -460,6 +461,71 @@ step_kotlin_examples() {
     local rc=$?
     rm -rf "$out"
     return "$rc"
+}
+
+# The annotation processor's diagnostics, as a user meets them.
+#
+# `codegen/Tests.kt` already drives `buildDesc` directly and asserts on every
+# code. What nothing exercised is the step after: the processor catching a
+# `TabulaError` and turning it into a `KSPLogger.error` that fails a real
+# compilation. Those are different pieces of code and only one had a test.
+#
+# The Rust half of this has existed since the beginning -- `tools/compile-fail`
+# with `//~ EXPECT:` lines -- and this is deliberately the same shape, down to
+# the comment syntax, so a contributor who has read one has read both.
+#
+# No new dependency. KSP compile-testing as a library would mean an embedded
+# Kotlin compiler in nix/gradle-lock.json and a re-lock; this reuses the two
+# plugins the example already resolves, so the lock covers it unchanged.
+step_kotlin_ksp_compile_fail() {
+    if ! command -v gradle >/dev/null 2>&1; then
+        echo "skip kotlin-ksp-compile-fail (\$gradle not found)"
+        return 0
+    fi
+    if [ -z "${TABULA_MAVEN_REPO:-}" ] && offline; then
+        echo "skip kotlin-ksp-compile-fail (no locked artifact set; run"
+        echo "     'nix run .#gradle-lock' with network and commit it)"
+        return 0
+    fi
+    require_dir kotlin/ksp/compile-fail/fixtures || return 1
+
+    local dir name expect out bad=0 n=0
+    for dir in kotlin/ksp/compile-fail/fixtures/*/; do
+        [ -d "$dir" ] || continue
+        name="$(basename "$dir")"
+        n=$((n + 1))
+
+        expect="$(sed -n 's|^//~ EXPECT: ||p' "$dir"/*.kt | head -1)"
+        if [ -z "$expect" ]; then
+            echo "FAIL $name -- no '//~ EXPECT:' line"
+            bad=1
+            continue
+        fi
+
+        out="$( (cd kotlin/ksp/compile-fail && gradle --no-daemon --console=plain \
+            -PtabulaFixture="$name" build 2>&1) )"
+        local rc=$?
+
+        # The exit status first, for the reason tools/compile-fail records: a
+        # fixture that COMPILES but warns has non-empty output, and a warning
+        # containing the expected text would report a passing build as ok.
+        if [ "$rc" -eq 0 ]; then
+            echo "FAIL $name -- compiled, but was expected to fail"
+            bad=1
+        elif printf '%s' "$out" | grep -qF -- "$expect"; then
+            echo "ok   $name ($expect)"
+        else
+            echo "FAIL $name -- failed, but not with \`$expect\`"
+            printf '%s' "$out" | grep -iE "^e:|error:" | head -3 | sed 's/^/       /'
+            bad=1
+        fi
+    done
+
+    if [ "$n" -eq 0 ]; then
+        echo "FAIL no fixtures in kotlin/ksp/compile-fail/fixtures"
+        bad=1
+    fi
+    return "$bad"
 }
 
 # The annotation processor, running.
@@ -1476,7 +1542,8 @@ steps=("$@")
 [ ${#steps[@]} -eq 0 ] && \
     steps=(version docs fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
-           kotlin-examples kotlin-ksp kotlin-matrix-stable rust-matrix-stable \
+           kotlin-examples kotlin-ksp kotlin-ksp-compile-fail \
+           kotlin-matrix-stable rust-matrix-stable \
            matrix-covered swift-format-config diagnostics-coverage \
            fixtures-complete \
            swift swift-compile-fail swift-conformance swift-examples \
@@ -1499,6 +1566,7 @@ for s in "${steps[@]}"; do
         kotlin-codegen)      run kotlin-codegen      step_kotlin_codegen ;;
         kotlin-examples)     run kotlin-examples     step_kotlin_examples ;;
         kotlin-ksp)          run kotlin-ksp          step_kotlin_ksp ;;
+        kotlin-ksp-compile-fail) run kotlin-ksp-compile-fail step_kotlin_ksp_compile_fail ;;
         kotlin-matrix-stable) run kotlin-matrix-stable step_kotlin_matrix_stable ;;
         rust-matrix-stable)  run rust-matrix-stable  step_rust_matrix_stable ;;
         matrix-covered)      run matrix-covered      step_matrix_covered ;;
