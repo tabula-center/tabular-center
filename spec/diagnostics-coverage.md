@@ -42,7 +42,7 @@ implementation renders `report(table, payloads)` and all three must produce the
 same bytes. Across all six fixtures, two codes appear.
 
 ```fixtures
-tabula::dead-column        -
+tabula::dead-column        dead-column
 tabula::dead-row           nested-delegate retry
 tabula::ignore-heavy       -
 tabula::no-static-entry    -
@@ -51,8 +51,8 @@ tabula::payload-hoist      payload-hoist
 tabula::unreachable-heavy  -
 ```
 
-Five of the seven runtime lints are implemented three times and tripped zero
-times. Each implementation's own unit tests cover them; nothing compares the
+Four of the seven runtime lints are implemented three times and tripped zero
+times; `dead-column` was the fifth until its fixture landed. Each implementation's own unit tests cover them; nothing compares the
 three. That is exactly the gap the `.lint` golden exists to close, left open
 because no fixture happened to cross a threshold — every fixture sits well
 under `ignoreHeavyPercent`, and none has an `UNREACHABLE` cell at all.

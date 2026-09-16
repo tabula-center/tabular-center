@@ -511,9 +511,143 @@ object PayloadHoistAdapter : Adapter {
     }
 }
 
+// ---------------------------------------------------------------------------
+// dead-column.tbl -- the only coverage for `tabula::dead-column`
+// ---------------------------------------------------------------------------
+
+/**
+ * A vending machine whose refund button was never wired up.
+ *
+ * `Refund` is IGNORE in every row, which is the lint. The rest of the matrix
+ * is shaped to stay quiet so the fixture says one thing -- see the notes in
+ * `dead-column.tbl`, including why 6 of 9 IGNORE (66%) sits deliberately close
+ * to `IGNORE_HEAVY_PERCENT` rather than comfortably below it.
+ *
+ * `credit` is on one state only. Three would trip `payload-hoist` and the
+ * fixture would then be testing two things, neither of them cleanly.
+ */
+object deadColumn {
+    sealed interface S {
+        data object Idle : S
+        data class Charged(val credit: Long) : S
+        data object Dispensing : S
+    }
+    sealed interface A {
+        data object Insert : A
+        data object Select : A
+        data object Refund : A
+    }
+    sealed interface F
+
+    class Ctx(val price: Long)
+
+    abstract class Machine {
+        abstract fun idleInsert(ctx: Ctx, state: S.Idle, action: A.Insert): Step<S, F>
+        abstract fun chargedSelect(ctx: Ctx, state: S.Charged, action: A.Select): Step<S, F>
+
+        fun step(ctx: Ctx, s: S, a: A): Step<S, F> = when (s) {
+            is S.Idle -> when (a) {
+                is A.Insert -> idleInsert(ctx, s, a)
+                is A.Select -> Step.Ignored
+                is A.Refund -> Step.Ignored
+            }
+            is S.Charged -> when (a) {
+                is A.Insert -> Step.Ignored
+                is A.Select -> chargedSelect(ctx, s, a)
+                is A.Refund -> Step.Ignored
+            }
+            is S.Dispensing -> when (a) {
+                is A.Insert -> Step.Go(S.Idle)
+                is A.Select -> Step.Ignored
+                is A.Refund -> Step.Ignored
+            }
+        }
+
+        companion object {
+            val TABLE = Table(
+                machine = "Vend",
+                states = listOf("Idle", "Charged", "Dispensing"),
+                actions = listOf("Insert", "Select", "Refund"),
+                initial = "Idle",
+                cells = listOf(
+                    listOf(Cell.Handle, Cell.Ignore, Cell.Ignore),
+                    listOf(Cell.Ignore, Cell.Handle, Cell.Ignore),
+                    listOf(Cell.Go("Idle"), Cell.Ignore, Cell.Ignore),
+                ),
+            )
+        }
+    }
+
+    class Impl : Machine() {
+        override fun idleInsert(ctx: Ctx, state: S.Idle, action: A.Insert): Step<S, F> =
+            Step.Go(S.Charged(1))
+
+        /**
+         * `stay`, not `ignored`, when the credit is short.
+         *
+         * The distinction the third trace exists for: this cell is HANDLE and
+         * refuses, while `Charged`/`Insert` beside it is IGNORE and never
+         * runs. An implementation collapsing the two passes every other
+         * fixture.
+         */
+        override fun chargedSelect(ctx: Ctx, state: S.Charged, action: A.Select): Step<S, F> =
+            if (state.credit >= ctx.price) Step.Go(S.Dispensing) else Step.Stay()
+    }
+}
+
+object DeadColumnAdapter : Adapter {
+    override val name = "dead-column"
+
+    /** One state, so `payload-hoist` stays out of this fixture's way. */
+    override val payloads: Payloads = listOf(Triple("Charged", "credit", "Long"))
+
+    override val table = deadColumn.Machine.TABLE
+
+    override fun replay(trace: Trace): List<Observed> {
+        val ctx = deadColumn.Ctx(trace.ctx["price"] ?: 0)
+        val m = deadColumn.Impl()
+        var state: deadColumn.S = stateOf(trace.from, trace.fromFields)
+        return trace.steps.map { st ->
+            val step = m.step(ctx, state, actionOf(st.action))
+            val effects = step.effects.map { it.toString() }
+            val expect = when (step) {
+                is Step.Stay -> Expect.Stay
+                is Step.Ignored -> Expect.Ignored
+                is Step.Go -> {
+                    state = step.next
+                    val want = (st.expect as? Expect.Go)?.fields ?: emptyMap()
+                    describe(step.next, want)
+                }
+            }
+            Observed(expect, effects)
+        }
+    }
+
+    private fun stateOf(name: String, f: Map<String, Long>): deadColumn.S = when (name) {
+        "Idle" -> deadColumn.S.Idle
+        "Charged" -> deadColumn.S.Charged(f["credit"] ?: 0)
+        "Dispensing" -> deadColumn.S.Dispensing
+        else -> error("dead-column: unknown state `$name`")
+    }
+
+    private fun actionOf(name: String): deadColumn.A = when (name) {
+        "Insert" -> deadColumn.A.Insert
+        "Select" -> deadColumn.A.Select
+        "Refund" -> deadColumn.A.Refund
+        else -> error("dead-column: unknown action `$name`")
+    }
+
+    private fun describe(s: deadColumn.S, want: Map<String, Long>): Expect.Go = when (s) {
+        is deadColumn.S.Idle -> Expect.Go("Idle", emptyMap())
+        is deadColumn.S.Charged ->
+            Expect.Go("Charged", if (want.containsKey("credit")) mapOf("credit" to s.credit) else emptyMap())
+        is deadColumn.S.Dispensing -> Expect.Go("Dispensing", emptyMap())
+    }
+}
+
 /** Every adapter that has landed. A fixture with none is reported as skipped. */
 val adapters: List<Adapter> =
     listOf(
         TimerAdapter, ToggleAdapter, RetryAdapter, JobAdapter, EffectsNeverAdapter,
-        PayloadHoistAdapter,
+        PayloadHoistAdapter, DeadColumnAdapter,
     )

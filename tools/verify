@@ -11,7 +11,7 @@
 # Steps:  version docs fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
 #         kotlin-examples kotlin-ksp kotlin-matrix-stable rust-matrix-stable
-#         matrix-covered swift-format-config diagnostics-coverage
+#         matrix-covered swift-format-config diagnostics-coverage fixtures-complete
 #         swift swift-compile-fail swift-conformance swift-macros
 #         swift-examples swift-codegen
 set -uo pipefail
@@ -963,6 +963,51 @@ KTLINT="${KTLINT:-ktlint}"
 # Narrow on purpose. Adopting ktlint as a style gate would mean making the whole
 # tree ktlint-clean, which is a separate decision; this guards the one property
 # the library actually depends on.
+# Every fixture has every golden.
+#
+# The conformance harness already catches a missing golden -- it is what caught
+# `dead-column.mmd`. But only once an ADAPTER exists, because the harness walks
+# adapters and checks the goldens each one needs. A fixture added ahead of its
+# adapters, which is how every fixture here has been added, sits incomplete and
+# reports nothing until three patches later.
+#
+# GOLDEN_EXTS is the list either way, so this asks the same question earlier
+# and without a toolchain: for each `.tbl`, does every extension exist?
+step_fixtures_complete() {
+    local d=spec/conformance
+    require_dir "$d" || return 1
+
+    local tbl name ext bad=0 n=0 missing
+    for tbl in "$d"/*.tbl; do
+        [ -e "$tbl" ] || continue
+        name="$(basename "$tbl" .tbl)"
+        n=$((n + 1))
+        missing=""
+        for ext in $GOLDEN_EXTS; do
+            [ -f "$d/$name.$ext" ] || missing="$missing $ext"
+        done
+        # A trace is not in GOLDEN_EXTS -- it is an input, not an expectation --
+        # and a fixture without one checks a table and no behaviour.
+        [ -f "$d/traces/$name.trace" ] || missing="$missing trace"
+
+        if [ -n "$missing" ]; then
+            echo "FAIL $name is missing:$missing"
+            bad=1
+        fi
+    done
+
+    if [ "$n" -eq 0 ]; then
+        echo "FAIL no fixtures found in $d"
+        bad=1
+    elif [ "$bad" -eq 0 ]; then
+        echo "ok   $n fixtures, each with $GOLDEN_EXTS and a trace"
+    else
+        echo "     Bless what is missing, or generate it:"
+        echo "       cd rust && cargo run -p tabula-conformance -- --bless"
+    fi
+    return "$bad"
+}
+
 # Every diagnostic code, in every implementation, matches what is written down.
 #
 # Nothing compared the three until this existed, and the thing nothing compared
@@ -1433,6 +1478,7 @@ steps=("$@")
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
            kotlin-examples kotlin-ksp kotlin-matrix-stable rust-matrix-stable \
            matrix-covered swift-format-config diagnostics-coverage \
+           fixtures-complete \
            swift swift-compile-fail swift-conformance swift-examples \
            swift-codegen swift-macros)
 
@@ -1458,6 +1504,7 @@ for s in "${steps[@]}"; do
         matrix-covered)      run matrix-covered      step_matrix_covered ;;
         swift-format-config) run swift-format-config step_swift_format_config ;;
         diagnostics-coverage) run diagnostics-coverage step_diagnostics_coverage ;;
+        fixtures-complete)   run fixtures-complete   step_fixtures_complete ;;
         swift)               run swift               step_swift ;;
         swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
         swift-conformance)   run swift-conformance   step_swift_conformance ;;

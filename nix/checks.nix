@@ -53,6 +53,11 @@ in
   # text -- which is why it can run on every platform and notice a Swift
   # diagnostic going missing on a machine that cannot build Swift.
   diagnostics-coverage = verify "diagnostics-coverage" [ ];
+
+  # Asks the conformance harness's question earlier. That harness walks
+  # adapters, so an incomplete fixture is invisible until one exists -- and
+  # every fixture here has been added a patch or more ahead of its adapters.
+  fixtures-complete = verify "fixtures-complete" [ ];
 }
 // lib.optionalAttrs has.rustConformance {
   rust-conformance = verify "conformance" rustInputs;

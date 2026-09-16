@@ -1,0 +1,25 @@
+# The `tabula::dead-column` fixture: an action no state responds to.
+#
+# `Refund` is IGNORE in every row, which is the lint. Everything else is shaped
+# to stay quiet so this fixture says one thing:
+#
+#   - every row has a HANDLE or a GO, so no `dead-row` and no `no-static-exit`
+#   - a HANDLE is present, so the matrix is not fully static and
+#     `no-static-entry` does not apply
+#   - 6 of 9 cells IGNORE is 66%, under `ignoreHeavyPercent` (70) -- close on
+#     purpose, because a fixture that sits at 20% would not notice a
+#     threshold moved to 50
+#   - no UNREACHABLE cells, so `unreachable-heavy` stays silent
+#
+# A vending machine that was built with a refund button and never wired it up,
+# which is what this lint is for: the matrix makes the omission visible where a
+# hand-written dispatcher would just never mention it.
+
+machine Vend
+initial Idle
+states  Idle Charged Dispensing
+actions Insert Select Refund
+
+Idle       | HANDLE   | IGNORE | IGNORE
+Charged    | IGNORE   | HANDLE | IGNORE
+Dispensing | GO(Idle) | IGNORE | IGNORE

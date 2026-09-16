@@ -1,0 +1,28 @@
+trace coin-then-selection
+  ctx  price=1
+  from Idle
+  Insert => go Charged credit=1
+  Select => go Dispensing
+  Insert => go Idle
+
+trace refund-does-nothing
+  # The lint's point, as behaviour. `Refund` is IGNORE in every row, so every
+  # state answers it the same way: not at all. A reader who expected the refund
+  # button to work finds out here rather than in front of a machine.
+  ctx  price=1
+  from Idle
+  Refund => ignored
+  Insert => go Charged credit=1
+  Refund => ignored
+  Insert => ignored
+
+trace selection-needs-the-full-price
+  # `stay` and `ignored` are different outcomes and this fixture has both in
+  # the same column: Charged/Select is HANDLE and stays put when the credit is
+  # short, while Charged/Insert is IGNORE. An implementation that collapsed the
+  # two would pass every other fixture and fail here.
+  ctx  price=2
+  from Charged credit=1
+  Select => stay
+  Refund => ignored
+  Select => stay

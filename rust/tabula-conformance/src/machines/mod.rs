@@ -9,6 +9,7 @@
 //! passed.
 
 pub mod compose;
+pub mod dead_column;
 pub mod effects_never;
 pub mod payload_hoist;
 pub mod timer;
@@ -85,5 +86,6 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
         Box::new(compose::JobAdapter),
         Box::new(effects_never::EffectsNeverAdapter),
         Box::new(payload_hoist::PayloadHoistAdapter),
+        Box::new(dead_column::DeadColumnAdapter),
     ]
 }
