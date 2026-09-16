@@ -40,6 +40,13 @@ in
   # No toolchain: it is `find` and `case`. Which is also why it can run on
   # every platform while the language checks it guards cannot.
   matrix-covered = verify "matrix-covered" [ ];
+
+  # Runs on every platform, including the ones with no Swift toolchain, which
+  # is the point: the risk it guards is a config file appearing in a commit,
+  # and a commit can be made from anywhere. Tying it to `swiftChecked` would
+  # have left the guard absent on exactly the machines most likely to add one
+  # without being able to run it.
+  swift-format-config = verify "swift-format-config" [ ];
 }
 // lib.optionalAttrs has.rustConformance {
   rust-conformance = verify "conformance" rustInputs;

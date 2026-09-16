@@ -11,7 +11,7 @@
 # Steps:  version docs fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
 #         kotlin-examples kotlin-ksp kotlin-matrix-stable rust-matrix-stable
-#         matrix-covered
+#         matrix-covered swift-format-config
 #         swift swift-compile-fail swift-conformance swift-macros
 #         swift-examples swift-codegen
 set -uo pipefail
@@ -963,6 +963,49 @@ KTLINT="${KTLINT:-ktlint}"
 # Narrow on purpose. Adopting ktlint as a style gate would mean making the whole
 # tree ktlint-clean, which is a separate decision; this guards the one property
 # the library actually depends on.
+# The Swift matrix has no formatter guarding it. This guards the guard.
+#
+# `swift-matrix-stable` is not written, because swift-format is a remote
+# SwiftPM package and adding it is a real cost with a version trap in it (see
+# PLAN). So `Turnstile.tb.swift` survives for a reason worth naming precisely:
+# nothing formats it. That is luck, and luck expires the day someone adds
+# swift-format to the repository -- at which point it collapses the matrix on
+# its first run, and `swift-fmt --check` would then demand the collapsed form
+# forever after, exactly as rustfmt would.
+#
+# The expiry is what is checkable today with no dependency at all. If a
+# swift-format configuration appears, it must already exclude `.tb.swift`. A
+# config that arrives without the exemption is the moment the matrix breaks,
+# and this is the check that is standing there when it does.
+step_swift_format_config() {
+    local cfg found=0 bad=0
+    while IFS= read -r cfg; do
+        found=$((found + 1))
+        # swift-format reads `.swift-format` as JSON; it has no per-glob rule
+        # exemptions the way .editorconfig does, so the only way to keep it off
+        # a file is to keep the file out of its input. Either mechanism is
+        # fine; naming the extension somewhere in the config is the evidence
+        # that someone thought about it.
+        if grep -q "tb.swift" "$cfg"; then
+            echo "ok   $cfg mentions .tb.swift"
+        else
+            echo "FAIL $cfg does not mention .tb.swift"
+            echo "     A swift-format config now exists, so something formats"
+            echo "     Swift here. Matrix files are column-aligned on purpose"
+            echo "     and must be excluded from its input -- see"
+            echo "     spec/matrix-files.md -- and then swift-matrix-stable"
+            echo "     needs writing to prove the exclusion holds."
+            bad=1
+        fi
+    done < <(find . \( -name '.swift-format' -o -name '.swift-format.json' \) \
+        -not -path './.git/*' -not -path '*/.build/*' | sort)
+
+    if [ "$found" -eq 0 ]; then
+        echo "ok   no swift-format config; nothing formats Swift here yet"
+    fi
+    return "$bad"
+}
+
 # Every `.tb.` file is covered by one of the matrix checks.
 #
 # The check above the other two, and the one they cannot make about
@@ -1289,7 +1332,7 @@ steps=("$@")
     steps=(version docs fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
            kotlin-examples kotlin-ksp kotlin-matrix-stable rust-matrix-stable \
-           matrix-covered \
+           matrix-covered swift-format-config \
            swift swift-compile-fail swift-conformance swift-examples \
            swift-codegen swift-macros)
 
@@ -1313,6 +1356,7 @@ for s in "${steps[@]}"; do
         kotlin-matrix-stable) run kotlin-matrix-stable step_kotlin_matrix_stable ;;
         rust-matrix-stable)  run rust-matrix-stable  step_rust_matrix_stable ;;
         matrix-covered)      run matrix-covered      step_matrix_covered ;;
+        swift-format-config) run swift-format-config step_swift_format_config ;;
         swift)               run swift               step_swift ;;
         swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
         swift-conformance)   run swift-conformance   step_swift_conformance ;;

@@ -1775,3 +1775,40 @@ check cannot cover three.
 - [ ] A check that every `.tb.` file in the tree is covered by one of the
       three. The scans are per-language and a fourth language, or a matrix in
       an unexpected directory, would be outside all of them without saying so.
+
+## swift-matrix-stable — the cost, and what stands in until it is paid
+
+The Kotlin and Rust matrix checks have no Swift counterpart, and the asymmetry
+is not an oversight. It is worth writing down before someone "completes the
+set" without pricing it.
+
+**What the other two guard is a formatter that runs.** `cargo fmt --check` is
+in `rust-fmt`; ktlint is on the path and a contributor may reach for it.
+`swift-format` is not used anywhere in this repository, so a
+`swift-matrix-stable` would guard a formatter nobody invokes.
+
+**What it costs.** A second remote SwiftPM dependency in `swift/macros`, which
+means `nix run .#swift-lock` again and swift-format's own tree — swift-syntax,
+swift-argument-parser and more — entering every `swift-macros` build.
+
+**And a version trap.** swift-format's releases track swift-syntax's:
+swift-format 510 requires swift-syntax 510, and `swift/macros` pins
+`from: "509.0.0"`, resolving to 509.1.1. Taking swift-format 510 drags
+swift-syntax to 510 underneath `MachineSyntax`, so the traversal's API surface
+moves as a side effect of adding a formatter check. swift-format 509.0.0 avoids
+that and is the version to use.
+
+**What stands in meanwhile.** `swift-format-config` — a check with no
+dependencies that fails if a swift-format configuration ever appears without
+mentioning `.tb.swift`. `Turnstile.tb.swift` survives today because nothing
+formats it, which is luck rather than a design, and the luck expires precisely
+when someone adds that config. This is the check standing there when they do.
+
+- [x] `swift-format-config`, on every platform including those with no Swift
+      toolchain. The risk is a file appearing in a commit and a commit can come
+      from anywhere; gating it on `swiftChecked` would have removed the guard
+      from the machines most likely to add a config they cannot run.
+- [ ] `swift-matrix-stable` proper, at swift-format 509.0.0, when a formatter
+      is actually adopted — or sooner, if the cost above is judged worth
+      paying. Not a five-line change, and not urgent while nothing formats
+      Swift here.
