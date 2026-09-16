@@ -227,6 +227,67 @@ do {
         "\(path) still names the module Package.swift will declare")
 }
 
+// MARK: - The diagnostics, as fixtures
+//
+// Swift's half of PLAN's "every diagnostic gets a UI test", and worth being
+// exact about what it does and does not reach.
+//
+// `swift-macro-testing` asserts on macro EXPANSION, which needs a `.macro`
+// target, which needs `CompilerPluginSupport`, which this SwiftPM does not
+// ship. That is the blocked part and it stays blocked.
+//
+// What was never blocked is everything underneath it. A macro's job here is
+// `SwiftParser` -> `MachineSyntax` -> `buildDesc`, and a malformed matrix is
+// rejected by the third step regardless of who called it. So these fixtures
+// run the same pipeline the macro would and assert the same diagnostic, in the
+// same `//~ EXPECT:` form as `tools/compile-fail` and the KSP harness.
+//
+// The one property this cannot check is the one expansion adds: that the error
+// arrives attached to a source position. The Kotlin harness checks exactly
+// that and this cannot, which is the honest size of the remaining gap -- one
+// property, not the whole item.
+do {
+    let dir = "fixtures"
+    let names = ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).sorted()
+    check(!names.isEmpty, "there are diagnostic fixtures")
+
+    for name in names {
+        let path = "\(dir)/\(name)/Spec.tb.swift"
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else {
+            check(false, "\(name): Spec.tb.swift is readable")
+            continue
+        }
+        guard let expect = text.split(separator: "\n")
+            .first(where: { $0.hasPrefix("//~ EXPECT: ") })
+            .map({ String($0.dropFirst("//~ EXPECT: ".count)) })
+        else {
+            check(false, "\(name): has a '//~ EXPECT:' line")
+            continue
+        }
+
+        let tree = Parser.parse(source: text)
+        guard let decl = tree.statements.compactMap({
+            $0.item.as(EnumDeclSyntax.self)
+        }).first else {
+            check(false, "\(name): declares an enum")
+            continue
+        }
+
+        do {
+            let raw = try MachineSyntax.read(decl)
+            _ = try buildDesc(raw)
+            check(false, "\(name): expected \(expect), but the machine was accepted")
+        } catch let e as TabulaError {
+            check(e.code == expect, "\(name): \(e.code)")
+        } catch {
+            // A SyntaxError here means the fixture cannot be READ, which is a
+            // broken fixture rather than a diagnostic -- the traversal is not
+            // where these rules live.
+            check(false, "\(name): expected \(expect), got \(error)")
+        }
+    }
+}
+
 check(TabulaMacroSyntax.surface == "see SURFACE.md", "the module links")
 
 print("")

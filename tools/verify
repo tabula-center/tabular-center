@@ -463,6 +463,72 @@ step_kotlin_examples() {
     return "$rc"
 }
 
+# Does this SwiftPM ship `CompilerPluginSupport`?
+#
+# The single fact that decides how much of the macro package can exist. With
+# it, `Package.swift` declares a `.macro` target, `pending/Machine.swift` goes
+# back, and `swift-macro-testing` becomes available -- which is the only way to
+# check that a diagnostic reaches the user attached to a source position, the
+# one property Swift's fixtures cannot reach today.
+#
+# A four-line probe package rather than looking for a file in the store,
+# because the store path is a nixpkgs implementation detail and the question is
+# "will a manifest importing this compile". Ask the toolchain, not the
+# filesystem.
+#
+# Reported, never failed. The answer is a property of the toolchain and no
+# commit can change it, so a red check here would be permanent noise on the
+# platforms that have Swift at all -- the same reasoning as `swift-unavailable`
+# in nix/checks.nix.
+step_swift_macro_support() {
+    if ! command -v "$SWIFT" >/dev/null 2>&1; then
+        echo "skip swift-macro-support (\$SWIFT not found)"
+        return 0
+    fi
+
+    local probe
+    probe="$(mktemp -d)"
+    mkdir -p "$probe/Sources/probe"
+    : > "$probe/Sources/probe/probe.swift"
+    cat > "$probe/Package.swift" <<'PROBE'
+// swift-tools-version: 5.9
+import CompilerPluginSupport
+import PackageDescription
+
+let package = Package(
+    name: "probe",
+    targets: [.target(name: "probe")]
+)
+PROBE
+
+    local out
+    out="$( (cd "$probe" && "$SWIFT" package dump-package 2>&1) )"
+    local rc=$?
+    rm -rf "$probe"
+
+    if [ "$rc" -eq 0 ]; then
+        echo "ok   CompilerPluginSupport is available"
+        echo "     The .macro target can be restored: see swift/macros/Package.swift"
+        echo "     and pending/Machine.swift. PLAN 0e covers what that unblocks."
+        return 0
+    fi
+
+    case "$out" in
+        *"no such module 'CompilerPluginSupport'"*)
+            echo "skip swift-macro-support (this SwiftPM does not ship"
+            echo "     CompilerPluginSupport, so no .macro target can be declared."
+            echo "     $("$SWIFT" --version 2>/dev/null | head -1))"
+            return 0
+            ;;
+    esac
+
+    # Anything else is the probe itself being wrong, which is worth knowing:
+    # a probe that fails for an unrelated reason would answer "no" forever.
+    echo "FAIL swift-macro-support -- the probe failed for an unexpected reason"
+    printf '%s\n' "$out" | head -5 | sed 's/^/       /'
+    return 1
+}
+
 # The annotation processor's diagnostics, as a user meets them.
 #
 # `codegen/Tests.kt` already drives `buildDesc` directly and asserts on every
@@ -489,7 +555,7 @@ step_kotlin_ksp_compile_fail() {
     fi
     require_dir kotlin/ksp/compile-fail/fixtures || return 1
 
-    local dir name expect out bad=0 n=0
+    local dir name expect src out bad=0 n=0
     for dir in kotlin/ksp/compile-fail/fixtures/*/; do
         [ -d "$dir" ] || continue
         name="$(basename "$dir")"
@@ -503,6 +569,9 @@ step_kotlin_ksp_compile_fail() {
         # order. Two EXPECT lines is a fixture asserting two things and
         # checking one.
         local expects count
+        # The file carrying the EXPECT line is the one the diagnostic should
+        # point at, so it is remembered rather than rediscovered.
+        src="$(grep -l '^//~ EXPECT: ' "$dir"/*.kt 2>/dev/null | head -1)"
         expects="$(sed -n 's|^//~ EXPECT: ||p' "$dir"/*.kt 2>/dev/null)"
         count="$(printf '%s\n' "$expects" | grep -c .)"
         if [ "$count" -eq 0 ]; then
@@ -526,12 +595,30 @@ step_kotlin_ksp_compile_fail() {
         if [ "$rc" -eq 0 ]; then
             echo "FAIL $name -- compiled, but was expected to fail"
             bad=1
-        elif printf '%s' "$out" | grep -qF -- "$expect"; then
-            echo "ok   $name ($expect)"
-        else
+        elif ! printf '%s' "$out" | grep -qF -- "$expect"; then
             echo "FAIL $name -- failed, but not with \`$expect\`"
             printf '%s' "$out" | grep -iE "^e:|error:" | head -3 | sed 's/^/       /'
             bad=1
+        elif ! printf '%s' "$out" | grep -qF -- "$(basename "$src")"; then
+            # The position, not just the message.
+            #
+            # PLAN asks for diagnostics "via KSPLogger.error with node
+            # positions", and the message alone cannot tell the two apart:
+            # `logger.error(msg, decl)` and `logger.error(msg)` print the same
+            # text, and only the first prefixes the file and line. A user
+            # reading `tabula::row-arity` with no location has to find the
+            # matrix themselves, which for a generated dispatcher means
+            # guessing which of several machines it came from.
+            #
+            # Checking for the fixture's own filename is the cheap proof that a
+            # node was attached at all.
+            echo "FAIL $name -- reported \`$expect\` with no source position"
+            echo "       expected the message to name $(basename "$src");"
+            echo "       KSPLogger.error was probably called without its node."
+            printf '%s' "$out" | grep -iE "^e:" | head -3 | sed 's/^/       /'
+            bad=1
+        else
+            echo "ok   $name ($expect, positioned)"
         fi
     done
 
@@ -1556,6 +1643,7 @@ steps=("$@")
 [ ${#steps[@]} -eq 0 ] && \
     steps=(version docs fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
+           swift-macro-support \
            kotlin-examples kotlin-ksp kotlin-ksp-compile-fail \
            kotlin-matrix-stable rust-matrix-stable \
            matrix-covered swift-format-config diagnostics-coverage \
@@ -1593,6 +1681,7 @@ for s in "${steps[@]}"; do
         swift-examples)      run swift-examples      step_swift_examples ;;
         swift-codegen)       run swift-codegen       step_swift_codegen ;;
         swift-macros)        run swift-macros        step_swift_macros ;;
+        swift-macro-support) run swift-macro-support step_swift_macro_support ;;
         *) echo "unknown step: $s"; exit 2 ;;
     esac
 done

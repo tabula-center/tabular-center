@@ -224,6 +224,11 @@ in
   # It is a check anyway so the skip is printed by CI instead of being
   # something a developer discovers by running `swift build` in the wrong
   # directory and reading a manifest error.
+  # Reports whether this toolchain can declare a `.macro` target at all. Not a
+  # pass/fail question -- no commit can change the answer -- so it prints and
+  # succeeds, and the ledger carries it when the answer is no.
+  swift-macro-support = verify "swift-macro-support" swiftPkgs;
+
   swift-macros = mkCheck "swift-macros" swiftPkgs ''
     export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     ${lib.optionalString (swiftDeps != null) ''
