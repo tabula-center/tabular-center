@@ -1,0 +1,28 @@
+# The `tabula::no-static-exit` fixture: a row that cannot be left statically.
+#
+# `Fault` is [IGNORE, EMIT(Alarm), IGNORE]. An EMIT cell stays in the state it
+# is in -- it names an effect, not a destination -- so no cell in that row has
+# a static target and none is dynamic either. The machine can enter Fault and,
+# as far as the matrix can prove, never leaves.
+#
+# Not `dead-row`: that fires only when every cell IGNOREs, and the EMIT keeps
+# this row alive. The two lints subsume in that order on purpose, so a fixture
+# for this one has to have exactly one non-IGNORE cell that goes nowhere.
+#
+# This is also the first fixture in the suite to use EMIT at all. Every parser
+# has supported it since the format existed and none has been asked to.
+#
+# Quiet elsewhere: `Idle` has a HANDLE and `Blinking` a GO, so neither trips
+# this lint; a HANDLE anywhere means the matrix is not fully static, which
+# gates off `no-static-entry` -- see effects-never.tbl, which pins that gate
+# from the other side; no column is all IGNORE; 5 of 9 IGNORE is 55%; no
+# UNREACHABLE cells; no payloads at all, so `payload-hoist` cannot fire.
+
+machine Beacon
+initial Idle
+states  Idle Blinking Fault
+actions Start Pulse Clear
+
+Idle     | HANDLE | IGNORE      | IGNORE
+Blinking | IGNORE | EMIT(Flash) | GO(Idle)
+Fault    | IGNORE | EMIT(Alarm) | IGNORE

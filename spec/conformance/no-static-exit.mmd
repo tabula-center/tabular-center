@@ -1,0 +1,6 @@
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Idle: Start / ?handle
+    Blinking --> Blinking: Pulse / Flash
+    Blinking --> Idle: Clear
+    Fault --> Fault: Pulse / Alarm

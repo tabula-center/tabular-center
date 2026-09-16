@@ -1,0 +1,29 @@
+trace blink-and-clear
+  ctx  limit=0
+  from Idle
+  Start => go Blinking
+  Pulse => stay          ! Flash
+  Pulse => stay          ! Flash
+  Clear => go Idle
+  Pulse => ignored
+
+trace fault-is-a-one-way-door
+  # The lint as behaviour. Every action available in Fault either ignores or
+  # emits and stays, so nothing in the matrix leads out. A reader who assumed
+  # `Clear` was a reset finds out here.
+  ctx  limit=0
+  from Fault
+  Clear => ignored
+  Start => ignored
+  Pulse => stay          ! Alarm
+  Clear => ignored
+
+trace emit-stays-put
+  # EMIT is `stay` plus an effect, not a transition. An implementation that
+  # treated it as a self-GO would report `go Blinking` here and fail -- and
+  # `stay` versus `go` to the same state is exactly the distinction the
+  # coverage report counts separately.
+  ctx  limit=0
+  from Blinking
+  Pulse => stay          ! Flash
+  Clear => go Idle

@@ -1,0 +1,4 @@
+Beacon    Start   Pulse        Clear
+Idle      HANDLE  IGNORE       IGNORE
+Blinking  IGNORE  EMIT(Flash)  GO(Idle)
+Fault     IGNORE  EMIT(Alarm)  IGNORE

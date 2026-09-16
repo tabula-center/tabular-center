@@ -1,0 +1,2 @@
+Beacon: 9 cells (3x3), 1 required members
+  ignore 5 | go 1 | emit 2 | handle 1 | delegate 0 | unreachable 0
