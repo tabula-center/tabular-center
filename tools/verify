@@ -1038,6 +1038,27 @@ step_diagnostics_coverage() {
         fi
     done
 
+    # And the fixture table: which runtime lints a `.lint` golden trips.
+    #
+    # Recorded rather than required, because five of seven are `-` today and a
+    # check that fails on a known gap is a check people learn to ignore. What
+    # it catches is movement in either direction: a fixture that stops tripping
+    # a lint it used to, and a lint that gains coverage without the table
+    # noticing. Closing a gap is then a diff here, which is the point.
+    local fixtures actualf
+    while read -r code langs; do
+        [ -n "$code" ] || continue
+        actualf="$(grep -l "$code" spec/conformance/*.lint 2>/dev/null \
+            | sed 's|.*/||; s|\.lint$||' | sort | tr '\n' ' ')"
+        actualf="$(echo $actualf)"
+        [ -z "$actualf" ] && actualf="-"
+        fixtures="$(echo $langs)"
+        if [ "$actualf" != "$fixtures" ]; then
+            echo "FAIL $code: $doc says fixtures [$fixtures], goldens say [$actualf]"
+            bad=1
+        fi
+    done < <(sed -n '/^```fixtures$/,/^```$/p' "$doc" | sed '1d;$d')
+
     [ "$bad" -eq 0 ] && echo "ok   $n diagnostic codes agree across three implementations"
     return "$bad"
 }

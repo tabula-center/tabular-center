@@ -31,6 +31,40 @@ tabula::unknown-state      kotlin swift
 tabula::unreachable-heavy  rust kotlin swift
 ```
 
+## Which lints a conformance fixture actually trips
+
+The table above says the three implementations emit the same codes. It does not
+say any of them is ever *exercised* by a fixture, and that turned out to be a
+different and worse question.
+
+The `.lint` goldens are the only cross-language check on lint behaviour: each
+implementation renders `report(table, payloads)` and all three must produce the
+same bytes. Across all six fixtures, two codes appear.
+
+```fixtures
+tabula::dead-column        -
+tabula::dead-row           nested-delegate retry
+tabula::ignore-heavy       -
+tabula::no-static-entry    -
+tabula::no-static-exit     -
+tabula::payload-hoist      payload-hoist
+tabula::unreachable-heavy  -
+```
+
+Five of the seven runtime lints are implemented three times and tripped zero
+times. Each implementation's own unit tests cover them; nothing compares the
+three. That is exactly the gap the `.lint` golden exists to close, left open
+because no fixture happened to cross a threshold — every fixture sits well
+under `ignoreHeavyPercent`, and none has an `UNREACHABLE` cell at all.
+
+Closing it is fixtures, not code: a matrix with a dead column, one over 70%
+`IGNORE`, one with an unreachable-heavy grid, one fully static with an
+unreachable state, and one row that cannot be left. Each needs a `.tbl`, its
+goldens, and three adapters — the `payload-hoist` shape, five times over.
+
+Listed as `-` rather than silently absent so that closing one is a diff to this
+file, and so nobody rediscovers the gap by finding a bug it would have caught.
+
 ## Why Rust emits four fewer, and why that is not a bug
 
 `tabula::go-target`, `tabula::unknown-state`, `tabula::unknown-effect` and

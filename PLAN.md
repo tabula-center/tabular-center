@@ -1850,3 +1850,37 @@ is one a refactor closes or widens without anyone deciding to.
       which suggests it is unimplementable by design and the spec should say
       so. Until someone answers, a documented diagnostic no implementation
       emits is a promise to a reader that nothing keeps.
+
+## Five of seven lints are never tripped by a fixture
+
+The diagnostics table said the three implementations emit the same codes. It
+did not say any code is ever *exercised*, and that is a different question with
+a worse answer.
+
+The `.lint` goldens are the only cross-language check on lint behaviour — each
+implementation renders `report(table, payloads)` and all three must produce the
+same bytes. Across all six fixtures, two codes appear: `dead-row` and
+`payload-hoist`. `dead-column`, `no-static-entry`, `no-static-exit`,
+`ignore-heavy` and `unreachable-heavy` are implemented three times and tripped
+zero times.
+
+Each implementation's own unit tests cover them. Nothing compares the three,
+which is precisely what the `.lint` golden exists for. The gap is not a
+decision anyone made: every fixture happens to sit well under
+`ignoreHeavyPercent`, and none has an `UNREACHABLE` cell at all.
+
+- [x] A `fixtures` table in `spec/diagnostics-coverage.md`, checked. Recorded
+      rather than required — a check that fails on a known gap is one people
+      learn to ignore — so it catches movement instead: a fixture that stops
+      tripping a lint, or a lint that gains coverage the table did not notice.
+      Closing a gap is then a diff to that file.
+- [ ] Five fixtures, each the `payload-hoist` shape: a `.tbl`, `.grid`,
+      `.lint`, `.cov`, a trace, and three adapters.
+      - a matrix with a dead column
+      - one over 70% `IGNORE`
+      - one with enough `UNREACHABLE` cells to pass 25%
+      - one fully static with a state nothing reaches
+      - one row that cannot be left
+      Four patches each, on the `payload-hoist` evidence. Worth it: these are
+      the only lints in the library whose three implementations have never been
+      compared to each other on a single byte.
