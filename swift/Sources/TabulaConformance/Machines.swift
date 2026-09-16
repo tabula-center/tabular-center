@@ -247,3 +247,76 @@ struct ConnImpl: ConnCells {
             : .go(.reconnecting(attempt: s.attempt + 1), effects: [])
     }
 }
+
+// MARK: - dead-column.tbl — the only coverage for `tabula::dead-column`
+
+/// A vending machine whose refund button was never wired up.
+///
+/// `Refund` is `.ignored` in every row, which is the lint. The rest is shaped
+/// to keep the other six quiet so the `.lint` golden holds exactly one line —
+/// see the notes in the `.tbl`, including why 6 of 9 `IGNORE` (66%) sits
+/// deliberately near `ignoreHeavyPercent` rather than comfortably below it.
+enum VendS: Equatable {
+    case idle
+    case charged(credit: Int)
+    case dispensing
+}
+
+enum VendA: Equatable { case insert, select, refund }
+
+/// No effects, like `GateF` and `ConnF`.
+enum VendF {}
+
+final class VendCtx {
+    let price: Int
+    init(price: Int) { self.price = price }
+}
+
+struct VendCharged { let credit: Int }
+
+protocol VendCells {
+    func idleInsert(_ ctx: VendCtx) -> Step<VendS, VendF>
+    func chargedSelect(_ ctx: VendCtx, _ s: VendCharged) -> Step<VendS, VendF>
+}
+
+func vendStep(
+    _ c: VendCells, _ ctx: VendCtx, _ s: VendS, _ a: VendA
+) -> Step<VendS, VendF> {
+    switch (s, a) {
+    case (.idle, .insert): return c.idleInsert(ctx)
+    case (.idle, .select): return .ignored
+    case (.idle, .refund): return .ignored
+    case (.charged, .insert): return .ignored
+    case let (.charged(credit), .select):
+        return c.chargedSelect(ctx, VendCharged(credit: credit))
+    case (.charged, .refund): return .ignored
+    case (.dispensing, .insert): return .go(.idle, effects: [])
+    case (.dispensing, .select): return .ignored
+    case (.dispensing, .refund): return .ignored
+    }
+}
+
+let VEND_TABLE = Table(
+    machine: "Vend",
+    states: ["Idle", "Charged", "Dispensing"],
+    actions: ["Insert", "Select", "Refund"],
+    cells: [
+        [.handle, .ignore, .ignore],
+        [.ignore, .handle, .ignore],
+        [.go(target: "Idle", effects: []), .ignore, .ignore],
+    ],
+    initial: "Idle"
+)
+
+struct VendImpl: VendCells {
+    func idleInsert(_ ctx: VendCtx) -> Step<VendS, VendF> {
+        .go(.charged(credit: 1), effects: [])
+    }
+
+    /// `.stay`, not `.ignored`, when the credit is short. The distinction the
+    /// third trace exists for: this cell is HANDLE and refuses, while
+    /// `Charged`/`Insert` beside it is IGNORE and never runs.
+    func chargedSelect(_ ctx: VendCtx, _ s: VendCharged) -> Step<VendS, VendF> {
+        s.credit >= ctx.price ? .go(.dispensing, effects: []) : .stay(effects: [])
+    }
+}

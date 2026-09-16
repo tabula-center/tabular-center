@@ -291,11 +291,77 @@ struct PayloadHoistAdapter: Adapter {
     }
 }
 
+struct DeadColumnAdapter: Adapter {
+    let name = "dead-column"
+    let table = VEND_TABLE
+
+    /// One state, so `payload-hoist` stays out of this fixture's way. Spelled
+    /// `Int`; Kotlin says `Long` and Rust `u32`, and all three canonicalise to
+    /// `int` for the shared `.lint` golden.
+    let payloads: Payloads = [
+        (state: "Charged", field: "credit", type: "Int")
+    ]
+
+    func replay(_ trace: Trace) throws -> [Observed] {
+        let ctx = VendCtx(price: trace.ctx["price"] ?? 0)
+        let cells = VendImpl()
+        var state = try stateOf(trace.from, trace.fromFields)
+        var out: [Observed] = []
+
+        for st in trace.steps {
+            let step = vendStep(cells, ctx, state, try actionOf(st.action))
+            // Always empty: `VendF` has no cases, so nothing can construct one.
+            let effects: [String] = []
+            let expect: Expect
+            switch step {
+            case .stay: expect = .stay
+            case .ignored: expect = .ignored
+            case let .go(next, _):
+                state = next
+                var want: [String: Int] = [:]
+                if case let .go(_, fields) = st.expect { want = fields }
+                expect = describe(next, want)
+            }
+            out.append(Observed(expect: expect, effects: effects))
+        }
+        return out
+    }
+
+    private func stateOf(_ name: String, _ f: [String: Int]) throws -> VendS {
+        switch name {
+        case "Idle": return .idle
+        case "Charged": return .charged(credit: f["credit"] ?? 0)
+        case "Dispensing": return .dispensing
+        default: throw SpecError("dead-column: unknown state `\(name)`")
+        }
+    }
+
+    private func actionOf(_ name: String) throws -> VendA {
+        switch name {
+        case "Insert": return .insert
+        case "Select": return .select
+        case "Refund": return .refund
+        default: throw SpecError("dead-column: unknown action `\(name)`")
+        }
+    }
+
+    private func describe(_ s: VendS, _ want: [String: Int]) -> Expect {
+        switch s {
+        case .idle: return .go(state: "Idle", fields: [:])
+        case let .charged(credit):
+            return .go(
+                state: "Charged",
+                fields: want["credit"] != nil ? ["credit": credit] : [:])
+        case .dispensing: return .go(state: "Dispensing", fields: [:])
+        }
+    }
+}
+
 /// Every adapter that has landed. A fixture with none is reported as skipped,
 /// never as passed.
 let adapters: [Adapter] = [
     TimerAdapter(), ToggleAdapter(), RetryAdapter(), JobAdapter(),
-    EffectsNeverAdapter(), PayloadHoistAdapter(),
+    EffectsNeverAdapter(), PayloadHoistAdapter(), DeadColumnAdapter(),
 ]
 
 // MARK: - Runner
