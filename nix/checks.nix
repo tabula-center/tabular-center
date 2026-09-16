@@ -24,6 +24,13 @@ in
   rust-test = verify "test" rustInputs;
   rust-no-std = verify "no-std" rustInputs;
   rust-compile-fail = verify "compile-fail" rustInputs;
+
+  # The counterpart to kotlin-matrix-stable, and the reason it is separate from
+  # rust-fmt: `cargo fmt --check` asserts the tree matches rustfmt's opinion,
+  # which is a different question from whether rustfmt has an opinion about the
+  # matrices at all. It does not today -- macro bodies are left alone -- and 28
+  # files depend on that continuing to be true.
+  rust-matrix-stable = verify "rust-matrix-stable" rustInputs;
 }
 // lib.optionalAttrs has.rustConformance {
   rust-conformance = verify "conformance" rustInputs;

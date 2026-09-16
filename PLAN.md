@@ -1733,3 +1733,45 @@ rather than letting a green check imply more than it covers:
       machines so a reader can move between them.
 - [ ] Compose app 1 and 2, mirroring those, over a `Driver` and a `StateFlow`.
 - [ ] A screenshot in each README, which is most of why these exist.
+
+## Every matrix survives every formatter
+
+`kotlin-matrix-stable` existed and the other two languages had nothing. A
+matrix is column-aligned on purpose and a formatter's job is to normalise
+exactly that, so "the formatter leaves it alone" is a claim each language has
+to make separately — and each makes it for a different reason, which is why one
+check cannot cover three.
+
+- **Kotlin.** ktlint formats Kotlin it understands, so the alignment survives
+  only because `.editorconfig` disables four rules for `[*.tb.kt]`. The
+  exemption is load-bearing and the check proves it still is.
+- **Rust.** rustfmt needs no exemption: `transition_matrix!` takes a body that
+  is not a Rust expression, so rustfmt bails on the whole invocation. That is
+  an implementation detail of rustfmt rather than a promise, and 28 files
+  depend on it. A release that got better at formatting macro bodies would
+  collapse every matrix in the tree, and `cargo fmt --check` in `rust-fmt`
+  would then demand the collapsed form forever after.
+- **Swift.** Nothing to check against yet, which is not the same as safe.
+
+- [x] `rust-matrix-stable`, scanning `rust/` and `examples/rust/`. Separate
+      from `rust-fmt` because `cargo fmt --check` asks whether the tree matches
+      rustfmt's opinion, and this asks whether rustfmt has one about matrices
+      at all.
+- [x] `kotlin-matrix-stable` extended to `examples/kotlin/`. It scanned the
+      library only, so it reached one file and missed
+      `examples/kotlin/06-generated/src/Machine.tb.kt` — the matrix a user
+      copies, and so the more important of the two.
+- [x] Both fail on an empty scan. `for f in $(grep -rl ...)` matching nothing
+      prints nothing and returns zero, which is how either check would report
+      success after a rename moved every matrix out from under it.
+- [ ] `swift-matrix-stable`, against `swift-format`. Blocked on the same
+      question `swift-syntax` was: the formatter is a remote SwiftPM package
+      and the sandbox is offline. `tools/swift-lock` already solves that shape,
+      so this is adding a dependency to `swift/macros` and a step, not new
+      machinery. Until it lands,
+      `examples/swift-examples/Sources/SpecCheck/Turnstile.tb.swift` has no
+      formatter guarding it — and no formatter running over it either, so
+      nothing has broken it. That is luck, not a design.
+- [ ] A check that every `.tb.` file in the tree is covered by one of the
+      three. The scans are per-language and a fourth language, or a matrix in
+      an unexpected directory, would be outside all of them without saying so.

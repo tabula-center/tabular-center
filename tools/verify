@@ -10,7 +10,7 @@
 # Usage:  tools/verify [step ...]      (default: all)
 # Steps:  version docs fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
-#         kotlin-examples kotlin-ksp kotlin-matrix-stable
+#         kotlin-examples kotlin-ksp kotlin-matrix-stable rust-matrix-stable
 #         swift swift-compile-fail swift-conformance swift-macros
 #         swift-examples swift-codegen
 set -uo pipefail
@@ -962,6 +962,79 @@ KTLINT="${KTLINT:-ktlint}"
 # Narrow on purpose. Adopting ktlint as a style gate would mean making the whole
 # tree ktlint-clean, which is a separate decision; this guards the one property
 # the library actually depends on.
+# Matrix rows must survive `cargo fmt`, the same claim kotlin-matrix-stable
+# makes about ktlint.
+#
+# The reasoning behind the Rust answer is different from the Kotlin one, and
+# that difference is the thing worth checking. Kotlin needs an `.editorconfig`
+# exemption because ktlint formats Kotlin it understands. rustfmt needs no
+# exemption because `transition_matrix!` is a macro invocation whose body is
+# not a Rust expression, so rustfmt bails on the whole invocation and leaves
+# the alignment alone.
+#
+# "Bails on the whole invocation" is an implementation detail of rustfmt, not a
+# promise, and the repository depends on it in 28 files. A rustfmt release that
+# got better at formatting macro bodies would silently collapse every matrix in
+# the tree, and `cargo fmt --check` in step_fmt would then demand the collapsed
+# form forever after. So it is asserted rather than assumed.
+step_rust_matrix_stable() {
+    if ! command -v cargo >/dev/null 2>&1; then
+        echo "skip rust-matrix-stable (\$cargo not found)"
+        return 0
+    fi
+    require_dir rust || return 1
+
+    local roots=(rust)
+    [ -d examples/rust ] && roots+=(examples/rust)
+
+    local scratch bad=0 found=0 f root
+    scratch="$(mktemp -d)"
+    for root in "${roots[@]}"; do
+        mkdir -p "$scratch/$(dirname "$root")"
+        cp -r "$root" "$scratch/$root"
+    done
+    [ -f rustfmt.toml ] && cp rustfmt.toml "$scratch/"
+    [ -f .rustfmt.toml ] && cp .rustfmt.toml "$scratch/"
+
+    for root in "${roots[@]}"; do
+        (cd "$scratch/$root" && cargo fmt >/dev/null 2>&1) || true
+    done
+
+    for root in "${roots[@]}"; do
+        # `tests/compile_fail/` is excluded on purpose. Those fixtures belong
+        # to no cargo target -- trybuild feeds them to rustc directly -- so
+        # `cargo fmt` never visits them, and comparing them would report `ok`
+        # for files the formatter cannot reach. A check that passes because
+        # nothing happened is the failure mode this repository keeps finding.
+        for f in $(cd "$root" && grep -rl "transition_matrix!" . 2>/dev/null \
+            | grep -v "/compile_fail/"); do
+            grep -q "=> \[" "$root/$f" || continue
+            found=$((found + 1))
+            if ! diff -q \
+                <(grep -h "=> \[" "$root/$f") \
+                <(grep -h "=> \[" "$scratch/$root/$f") >/dev/null; then
+                echo "FAIL cargo fmt changed the matrix in $root/$f"
+                diff \
+                    <(grep -h "=> \[" "$root/$f") \
+                    <(grep -h "=> \[" "$scratch/$root/$f") | head -6
+                bad=1
+            fi
+        done
+    done
+
+    if [ "$found" -eq 0 ]; then
+        echo "FAIL no transition_matrix! rows found under: ${roots[*]}"
+        echo "     Either the matrices moved or the scan looks in the wrong"
+        echo "     place. A check with nothing to check is not passing."
+        bad=1
+    else
+        echo "ok   matrix rows survive cargo fmt in $found file(s)"
+    fi
+
+    rm -rf "$scratch"
+    return "$bad"
+}
+
 step_kotlin_matrix_stable() {
     if ! command -v "$KTLINT" >/dev/null 2>&1; then
         echo "skip kotlin-matrix-stable (\$KTLINT not found; nixpkgs provides it)"
@@ -1146,7 +1219,7 @@ steps=("$@")
 [ ${#steps[@]} -eq 0 ] && \
     steps=(version docs fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
-           kotlin-examples kotlin-ksp kotlin-matrix-stable \
+           kotlin-examples kotlin-ksp kotlin-matrix-stable rust-matrix-stable \
            swift swift-compile-fail swift-conformance swift-examples \
            swift-codegen swift-macros)
 
@@ -1168,6 +1241,7 @@ for s in "${steps[@]}"; do
         kotlin-examples)     run kotlin-examples     step_kotlin_examples ;;
         kotlin-ksp)          run kotlin-ksp          step_kotlin_ksp ;;
         kotlin-matrix-stable) run kotlin-matrix-stable step_kotlin_matrix_stable ;;
+        rust-matrix-stable)  run rust-matrix-stable  step_rust_matrix_stable ;;
         swift)               run swift               step_swift ;;
         swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
         swift-conformance)   run swift-conformance   step_swift_conformance ;;
