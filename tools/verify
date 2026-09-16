@@ -11,7 +11,7 @@
 # Steps:  version docs fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
 #         kotlin-examples kotlin-ksp kotlin-matrix-stable rust-matrix-stable
-#         matrix-covered swift-format-config
+#         matrix-covered swift-format-config diagnostics-coverage
 #         swift swift-compile-fail swift-conformance swift-macros
 #         swift-examples swift-codegen
 set -uo pipefail
@@ -963,6 +963,85 @@ KTLINT="${KTLINT:-ktlint}"
 # Narrow on purpose. Adopting ktlint as a style gate would mean making the whole
 # tree ktlint-clean, which is a separate decision; this guards the one property
 # the library actually depends on.
+# Every diagnostic code, in every implementation, matches what is written down.
+#
+# Nothing compared the three until this existed, and the thing nothing compared
+# had already diverged: Rust emits twelve of the sixteen codes; Kotlin and
+# Swift emit all sixteen. The four it omits are the language doing the work --
+# `GO!(Typo)` is a path that does not resolve, and rustc's message about the
+# user's own token beats a `compile_error!` about the same thing -- so the gap
+# is right. It had just never been stated, and an unstated gap is one a
+# refactor closes or widens without anybody deciding to.
+#
+# `spec/diagnostics-coverage.md` states it. This check holds the source to it
+# in both directions: a code emitted but not listed, and a code listed but not
+# emitted, are both failures. One-directional would have missed the case that
+# matters most -- an implementation quietly losing a diagnostic.
+step_diagnostics_coverage() {
+    local doc="spec/diagnostics-coverage.md"
+    [ -f "$doc" ] || { echo "FAILED: $doc is missing"; return 1; }
+
+    local bad=0 code langs lang actual expected n=0
+
+    # Quoted matches only. An unquoted `tabula::lint::report` is a module path,
+    # not a diagnostic, and counting it would report three codes Rust does not
+    # have.
+    emitted() { grep -rhoE "\"tabula::[a-z-]+" "$1/" 2>/dev/null | tr -d '"' | sort -u; }
+
+    local rust_codes kotlin_codes swift_codes
+    rust_codes="$(emitted rust)"
+    kotlin_codes="$(emitted kotlin)"
+    swift_codes="$(emitted swift)"
+
+    while read -r code langs; do
+        [ -n "$code" ] || continue
+        n=$((n + 1))
+        for lang in rust kotlin swift; do
+            case "$lang" in
+                rust) actual="$rust_codes" ;;
+                kotlin) actual="$kotlin_codes" ;;
+                swift) actual="$swift_codes" ;;
+            esac
+            expected=no
+            case " $langs " in *" $lang "*) expected=yes ;; esac
+            if printf '%s\n' "$actual" | grep -qx "$code"; then
+                if [ "$expected" = no ]; then
+                    echo "FAIL $lang emits $code but $doc does not list it"
+                    echo "     A new diagnostic needs a row here and a section"
+                    echo "     in spec/diagnostics.md, or readers meet a code"
+                    echo "     with no page behind it."
+                    bad=1
+                fi
+            elif [ "$expected" = yes ]; then
+                echo "FAIL $doc lists $code for $lang, which does not emit it"
+                echo "     Either the diagnostic was lost or the table is"
+                echo "     stale. Both are worth stopping for."
+                bad=1
+            fi
+        done
+    done < <(sed -n '/^```coverage$/,/^```$/p' "$doc" | sed '1d;$d')
+
+    if [ "$n" -eq 0 ]; then
+        echo "FAIL $doc has no \`\`\`coverage block, so this checked nothing"
+        bad=1
+    fi
+
+    # And the table must cover spec/diagnostics.md exactly: a code documented
+    # for readers but absent from the table would slip past the loop above,
+    # since the loop only walks rows that exist.
+    local documented
+    documented="$(grep -oE 'tabula::[a-z-]+' spec/diagnostics.md | sort -u)"
+    for code in $documented; do
+        if ! sed -n '/^```coverage$/,/^```$/p' "$doc" | grep -q "^$code "; then
+            echo "FAIL spec/diagnostics.md documents $code; $doc has no row for it"
+            bad=1
+        fi
+    done
+
+    [ "$bad" -eq 0 ] && echo "ok   $n diagnostic codes agree across three implementations"
+    return "$bad"
+}
+
 # The Swift matrix has no formatter guarding it. This guards the guard.
 #
 # `swift-matrix-stable` is not written, because swift-format is a remote
@@ -1332,7 +1411,7 @@ steps=("$@")
     steps=(version docs fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
            kotlin-examples kotlin-ksp kotlin-matrix-stable rust-matrix-stable \
-           matrix-covered swift-format-config \
+           matrix-covered swift-format-config diagnostics-coverage \
            swift swift-compile-fail swift-conformance swift-examples \
            swift-codegen swift-macros)
 
@@ -1357,6 +1436,7 @@ for s in "${steps[@]}"; do
         rust-matrix-stable)  run rust-matrix-stable  step_rust_matrix_stable ;;
         matrix-covered)      run matrix-covered      step_matrix_covered ;;
         swift-format-config) run swift-format-config step_swift_format_config ;;
+        diagnostics-coverage) run diagnostics-coverage step_diagnostics_coverage ;;
         swift)               run swift               step_swift ;;
         swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
         swift-conformance)   run swift-conformance   step_swift_conformance ;;

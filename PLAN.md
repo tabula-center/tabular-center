@@ -1812,3 +1812,41 @@ when someone adds that config. This is the check standing there when they do.
       is actually adopted — or sooner, if the cost above is judged worth
       paying. Not a five-line change, and not urgent while nothing formats
       Swift here.
+
+## The three implementations had diverged on diagnostics
+
+Nothing compared them. `tools/docs --check` verified every code in
+`spec/diagnostics.md` has an anchor in the rendered page — link integrity, not
+behaviour — and each implementation's own tests checked its own messages. No
+check asked whether the three emit the same set.
+
+They do not. Rust emits twelve codes; Kotlin and Swift emit sixteen. Rust omits
+`tabula::go-target`, `tabula::unknown-state`, `tabula::unknown-effect` and
+`tabula::unknown-child`, and `tabula::color-mismatch` has a section in the spec
+and no implementation at all.
+
+The Rust gap is correct. All four say "a cell names something the machine does
+not declare", and in Rust the matrix is `macro_rules!`, so `GO!(Typo)` expands
+to a path that does not resolve — rustc names the token in the user's own file,
+points at their line, and suggests the states that exist. A `compile_error!`
+checking it first would replace a better message with a worse one. Same
+argument `RELEASING.md` makes for Rust being one crate where Kotlin is five:
+the language does the work.
+
+Correct and unwritten, though, which is the part worth fixing. An unstated gap
+is one a refactor closes or widens without anyone deciding to.
+
+- [x] `spec/diagnostics-coverage.md`: a machine-readable table of code against
+      implementation, with the reasoning for every absence.
+- [x] `diagnostics-coverage`, checking it in **both** directions — a code
+      emitted but unlisted, and a code listed but not emitted, both fail.
+      One-directional would have missed the case that matters most, an
+      implementation quietly losing a diagnostic.
+- [x] Quoted matches only. `tabula::lint::report` is a module path, and
+      counting it would have credited Rust with three codes it does not have —
+      the check would have passed by measuring the wrong thing.
+- [ ] Decide `tabula::color-mismatch`. Prototype modifiers are copied rather
+      than enumerated, so a mismatch is a type error before any check runs,
+      which suggests it is unimplementable by design and the spec should say
+      so. Until someone answers, a documented diagnostic no implementation
+      emits is a promise to a reader that nothing keeps.

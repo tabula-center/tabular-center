@@ -47,6 +47,12 @@ in
   # have left the guard absent on exactly the machines most likely to add one
   # without being able to run it.
   swift-format-config = verify "swift-format-config" [ ];
+
+  # The first check that compares all three implementations to each other
+  # rather than each to a golden. Needs no toolchain -- it reads source as
+  # text -- which is why it can run on every platform and notice a Swift
+  # diagnostic going missing on a machine that cannot build Swift.
+  diagnostics-coverage = verify "diagnostics-coverage" [ ];
 }
 // lib.optionalAttrs has.rustConformance {
   rust-conformance = verify "conformance" rustInputs;
