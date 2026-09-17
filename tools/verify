@@ -553,6 +553,119 @@ PROBE
     return 1
 }
 
+# A change to `S` reprocesses the machines that depend on it.
+#
+# PLAN's last open KSP item, and the one that cannot be checked by building
+# once. KSP caches per-round and tracks which sources a processor read; if
+# `TabulaProcessor` does not declare the sealed hierarchy as a dependency of
+# what it writes, a second build after editing `Types.kt` reuses the first
+# build's output. The dispatcher then describes a machine that no longer
+# exists, and nothing says so -- the build is green and the generated file is
+# stale.
+#
+# The edit is made to `Types.kt` and NOT to the annotated file, which is the
+# whole point: editing the matrix obviously reprocesses it. `Locked` gains a
+# payload, so `PAYLOADS` in the generated output must change from `emptyList()`
+# to naming the field. A processor with correct dependency tracking emits the
+# new line; one without emits the old file.
+#
+# In a scratch copy, because it deliberately breaks the example and the example
+# has to stay buildable for `kotlin-ksp`.
+step_kotlin_ksp_incremental() {
+    if ! command -v gradle >/dev/null 2>&1; then
+        echo "skip kotlin-ksp-incremental (\$gradle not found)"
+        return 0
+    fi
+    if [ -z "${TABULA_MAVEN_REPO:-}" ] && offline; then
+        echo "skip kotlin-ksp-incremental (no locked artifact set; run"
+        echo "     'nix run .#gradle-lock' with network and commit it)"
+        return 0
+    fi
+    require_dir examples/kotlin/06-generated || return 1
+
+    local scratch rc bad=0 gen
+    scratch="$(mktemp -d)"
+    mkdir -p "$scratch/examples" "$scratch/kotlin"
+
+    # `examples/kotlin` whole, for the reason `kotlin/` is copied whole one
+    # line below. Copying only `06-generated` left `:compileTestKotlin`
+    # failing: the example's test source set reaches `../harness/Check.kt`,
+    # the assertion helper every Kotlin example shares. A relative path out of
+    # the directory being copied is invisible until the copy is built, and
+    # this check exists precisely to build a copy.
+    cp -r examples/kotlin "$scratch/examples/kotlin"
+    # The whole `kotlin/` tree, not four directories out of it.
+    #
+    # Naming a subset means knowing every path the example and the processor
+    # reach through, and those are relative paths spread across three build
+    # files. The tree is small and the copy is cheap; guessing which parts
+    # matter is how the first run of this check died with nothing to say.
+    rmdir "$scratch/kotlin"
+    cp -r kotlin "$scratch/kotlin"
+    chmod -R u+w "$scratch"
+
+    local ex="$scratch/examples/kotlin/06-generated"
+
+    # Output kept, not discarded.
+    #
+    # The first version sent both builds to /dev/null, reasoning that
+    # `kotlin-ksp` already covers whether the example builds. It does -- in the
+    # SOURCE TREE. Here the example is a copy at a different depth, and
+    # `settings.gradle.kts` reaches its processor through
+    # `includeBuild("../../../kotlin/ksp")`, so anything the layout gets wrong
+    # shows up only here. Reporting "the first build failed" with no log left
+    # this check unable to explain its own failure.
+    local first
+    first="$( (cd "$ex" && gradle --no-daemon --console=plain build 2>&1) )"
+    if [ $? -ne 0 ]; then
+        echo "FAIL the first build failed, before any edit was made."
+        echo "     kotlin-ksp builds this example in the source tree, so a"
+        echo "     failure here is about the scratch copy's layout rather than"
+        echo "     about the example."
+        printf '%s\n' "$first" | grep -iE "error|FAILURE|what went wrong" -A3 \
+            | head -20 | sed 's/^/       /'
+        rm -rf "$scratch"
+        return 1
+    fi
+
+    gen="$(find "$ex/build/generated" -name 'TurnstileGenerated.kt' | head -1)"
+    if printf '%s' "$(cat "$gen")" | grep -q "since"; then
+        echo "FAIL the first build already mentions \`since\`; the fixture is wrong"
+        rm -rf "$scratch"
+        return 1
+    fi
+
+    # The edit. `Types.kt` only.
+    sed -i 's|    data object Locked : S|    data class Locked(val since: Long) : S|' \
+        "$ex/src/Types.kt"
+
+    local second
+    second="$( (cd "$ex" && gradle --no-daemon --console=plain build 2>&1) )"
+    rc=$?
+
+    gen="$(find "$ex/build/generated" -name 'TurnstileGenerated.kt' | head -1)"
+    if [ -z "$gen" ]; then
+        echo "FAIL no generated file after the second build"
+        bad=1
+    elif grep -q "since" "$gen"; then
+        echo "ok   a change to S reprocessed the machine"
+    else
+        echo "FAIL the generated file is stale: \`Locked\` gained a payload and"
+        echo "     PAYLOADS does not mention it. KSP reused the first build's"
+        echo "     output, so the processor is not declaring the sealed"
+        echo "     hierarchy as a dependency of what it writes."
+        if [ "$rc" -ne 0 ]; then
+            echo "     (the second build also failed, rc=$rc)"
+            printf '%s\n' "$second" | grep -iE "error|what went wrong" -A3 \
+                | head -20 | sed 's/^/       /'
+        fi
+        bad=1
+    fi
+
+    rm -rf "$scratch"
+    return "$bad"
+}
+
 # The annotation processor's diagnostics, as a user meets them.
 #
 # `codegen/Tests.kt` already drives `buildDesc` directly and asserts on every
@@ -1683,7 +1796,7 @@ steps=("$@")
     steps=(version docs fmt clippy test no-std compile-fail conformance examples \
            kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen \
            swift-macro-support \
-           kotlin-examples kotlin-ksp kotlin-ksp-compile-fail \
+           kotlin-examples kotlin-ksp kotlin-ksp-compile-fail kotlin-ksp-incremental \
            kotlin-matrix-stable rust-matrix-stable \
            matrix-covered swift-format-config diagnostics-coverage \
            fixtures-complete \
@@ -1708,6 +1821,7 @@ for s in "${steps[@]}"; do
         kotlin-examples)     run kotlin-examples     step_kotlin_examples ;;
         kotlin-ksp)          run kotlin-ksp          step_kotlin_ksp ;;
         kotlin-ksp-compile-fail) run kotlin-ksp-compile-fail step_kotlin_ksp_compile_fail ;;
+        kotlin-ksp-incremental) run kotlin-ksp-incremental step_kotlin_ksp_incremental ;;
         kotlin-matrix-stable) run kotlin-matrix-stable step_kotlin_matrix_stable ;;
         rust-matrix-stable)  run rust-matrix-stable  step_rust_matrix_stable ;;
         matrix-covered)      run matrix-covered      step_matrix_covered ;;

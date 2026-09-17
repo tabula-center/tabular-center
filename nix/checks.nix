@@ -96,6 +96,19 @@ in
   # So when there is no lock, this check EXISTS and FAILS, with the command
   # that fixes it. The experiment is reproducible or it is red; it is never
   # quietly smaller than it looks.
+  kotlin-ksp-incremental =
+    if gradleRepo != null
+    then
+      mkCheck "kotlin-ksp-incremental" kotlinInputs ''
+        export TABULA_MAVEN_REPO="${gradleRepo}"
+        ./tools/verify kotlin-ksp-incremental
+      ''
+    else
+      mkCheck "kotlin-ksp-incremental" [ ] ''
+        echo "kotlin-ksp-incremental: needs nix/gradle-lock.json; see kotlin-ksp"
+        exit 1
+      '';
+
   kotlin-ksp-compile-fail =
     if gradleRepo != null
     then
