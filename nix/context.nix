@@ -63,8 +63,6 @@ let
     then
       import ./swiftpm-plugin-support.nix {
         inherit pkgs lib swiftPkgsSet;
-        swiftPkgs = swiftBase;
-        swiftLibraryPath = swiftBaseLibraryPath;
       }
     else null;
 

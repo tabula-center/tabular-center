@@ -526,6 +526,23 @@ PROBE
     fi
 
     case "$out" in
+        *"macros are not supported in this compiler"*)
+            # A deeper blocker than the manifest one, and a different layer.
+            # `CompilerPluginSupport` was SwiftPM: it decides whether a
+            # `.macro` TARGET can be declared. This is swiftc itself, built
+            # without macro support, so `macro Machine() = #externalMacro(...)`
+            # cannot be declared at all -- no manifest change reaches it.
+            #
+            # Everything up to here now works: the manifest loads, the `.macro`
+            # target resolves, `MachineMacro.swift` compiles and `TabulaMacros`
+            # links. The declaration is the only thing that cannot.
+            echo "skip swift-macros (this swiftc is built without macro support:"
+            echo "     'macros are not supported in this compiler'. SwiftPM can"
+            echo "     now declare a .macro target -- see"
+            echo "     nix/swiftpm-plugin-support.nix -- but the compiler cannot"
+            echo "     compile a macro declaration. pending/ holds both files.)"
+            return 0
+            ;;
         *"no such module 'CompilerPluginSupport'"*)
             case "$api" in
                 *plugin-support*)
@@ -1114,16 +1131,31 @@ step_swift_macros() {
 
     case "$out" in
         *"no such module 'CompilerPluginSupport'"*)
-            # Not a skip any more. The manifest no longer imports it -- see the
-            # header of swift/macros/Package.swift -- so seeing this message
-            # means something reintroduced a `.macro` target on a SwiftPM that
-            # cannot declare one, and that is a regression rather than an
-            # environment.
+            # The manifest imports it on purpose now, so this means the SwiftPM
+            # in use is not the augmented one. Almost always a stale shell: the
+            # augmented SwiftPM is a new store path, and a `nix develop` opened
+            # before it was built still has the original on PATH.
+            #
+            # The previous message here said "reintroduced
+            # CompilerPluginSupport", which was true while the `.macro` target
+            # was out of the manifest and became actively misleading the moment
+            # it came back -- it blamed the source for an environment.
             printf '%s\n' "$out"
-            echo "FAILED: swift-macros reintroduced CompilerPluginSupport"
+            echo "FAILED: this SwiftPM does not ship CompilerPluginSupport."
+            echo "        The manifest needs it for its .macro target."
+            echo "        Which SwiftPM is in use:"
+            printf '%s' "$out" | sed -n 's|.*"-I", "\([^"]*ManifestAPI\)".*|          \1|p' | head -1
+            echo "        If that is not *-plugin-support-*, the shell predates"
+            echo "        it: leave and re-enter 'nix develop'. If it is, run"
+            echo "        ./tools/verify swift-macro-support for the detail."
             return 1
             ;;
         *"Network is unreachable"*|*"Could not resolve"*|*"failed to resolve"*|*"fatal: unable to access"*)
+            # Matched LAST on purpose. SwiftPM's shared-cache probe puts
+            # `fatal: unable to access 'https://...'` into the output of every
+            # run, so this pattern matches whatever the real failure was -- it
+            # reported "reached the network despite a locked checkout set" for
+            # a compiler that cannot declare macros.
             if [ -n "${TABULA_SWIFT_DEPS:-}" ]; then
                 # A locked set was supplied and SwiftPM went to the network
                 # anyway. That is a failure, not an environment: the state file

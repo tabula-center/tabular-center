@@ -1,203 +1,159 @@
-# `CompilerPluginSupport`, added to nixpkgs' SwiftPM.
+# nixpkgs' SwiftPM, rebuilt with `CompilerPluginSupport` in its ManifestAPI.
 #
-# Without it `Package.swift` cannot declare a `.macro` target, which is all
-# that stands between `swift/macros` and a real macro: no expansion, so
-# `pending/Machine.swift` stays out of the build and Swift's diagnostics can be
-# checked for their code but never for their source position.
+# An `overrideAttrs`, not a copy. Four rounds were spent on a copy before the
+# reason it cannot work became clear, and it is worth stating plainly:
 #
-# ## Not a SwiftPM package
+#   $ swift-package dump-package
+#   ... -I /nix/store/k6b07...-swiftpm-5.10.1/lib/swift/pm/ManifestAPI ...
 #
-# SwiftPM has a bootstrap problem -- building it needs a working SwiftPM -- so
-# packaging it outright is closer to packaging a compiler than a library. And
-# nothing here needs a different SwiftPM; it needs one more module in the one
-# that is already installed.
+# `swift-package` emits that path while running from a different store path
+# entirely. The manifest API location is BAKED INTO THE BINARY at its own build
+# time -- not derived from where the binary sits, and not read from the `swift`
+# wrapper, which contains no reference to swiftpm at all. So a copy beside the
+# original inherits the original's baked path and is never consulted, however
+# early it appears on PATH and whether or not its symlinks are dereferenced.
 #
-# ## What is actually missing
+# The module has to be inside the derivation that produces that path. Which
+# also makes this simpler than the copy was: swiftpm builds from source, so
+# `Sources/CompilerPluginSupport` is already in the build tree and no separate
+# fetch is needed.
 #
-# nixpkgs' ManifestAPI directory holds exactly three files:
+# ## Why PackageDescription is rebuilt too
 #
-#   libPackageDescription.so
-#   PackageDescription.swiftdoc
-#   PackageDescription.swiftinterface
+# `CompilerPluginSupport/TargetExtensions.swift` opens with
 #
-# So `CompilerPluginSupport` is absent outright -- no interface, no library --
-# rather than present-but-unexposed. Upstream SwiftPM builds it as a separate
-# target beside `PackageDescription` and installs both; this install step keeps
-# one of them.
+#     @_spi(PackageDescriptionInternal) import PackageDescription
 #
-# Two things follow. It has to be BUILT, not just declared, so this emits a
-# library as well as an interface. And `-enable-library-evolution` is not
-# optional: the neighbouring module ships a `.swiftinterface` rather than a
-# `.swiftmodule`, which is what that flag produces, and a module built without
-# it cannot import one built with it across a version boundary.
+# and uses that SPI to reach `Target`'s internal initializer and its `.macro`
+# type. A public `.swiftinterface` has SPI stripped by definition, so compiling
+# against the installed module fails with
 #
-# ## The link step, and why this is expected to work unpatched
+#     'Target' cannot be constructed because it has no accessible initializers
 #
-# The manifest loader invokes swiftc with `-I <ManifestAPI>` and
-# `-L <ManifestAPI>` but links only `-lPackageDescription`, so a second library
-# in that directory is findable and not named. Swift's autolinking closes the
-# gap: a module records its own library in autolink metadata, and swiftc passes
-# it to the linker without being asked. Putting both files in the directory the
-# loader already searches should therefore be enough.
-#
-# If it is not, the symptom is an undefined-symbol error at manifest link time
-# rather than `no such module`, and the fix is a patch teaching the loader to
-# pass `-lCompilerPluginSupport`. `tools/verify swift-macro-support` reports
-# which of the two is happening, which is why it distinguishes them.
-# Takes the whole Swift package set, not two packages out of it.
-#
-# Swift's setup-hook reads `NIX_CC`, and needs Swift's own `binutils` and `cc`
-# on the path. `mkCheck` in nix/context.nix already worked all three out -- see
-# its note on `NIX_CC` being a variable rather than a package -- and a build
-# here naming only `swift` dies on
-#
-#   setup-hook: line 23: NIX_CC: unbound variable
-#
-# before compiling anything. Passing the set keeps the two places from drifting
-# on which pieces Swift needs.
-{ pkgs, lib, swiftPkgsSet, swiftPkgs, swiftLibraryPath }:
+# No flag recovers erased symbols. `-emit-private-module-interface-path` keeps
+# them: the public interface is still emitted for everyone else, and the private
+# one beside it is what `CompilerPluginSupport` reads.
+{ pkgs, lib, swiftPkgsSet }:
 
-let
-  inherit (swiftPkgsSet) swiftpm swift;
-  version = swiftpm.version or "5.10.1";
+swiftPkgsSet.swiftpm.overrideAttrs (old: {
+  pname = "${old.pname or "swiftpm"}-plugin-support";
 
-  # Pinned to the SwiftPM the toolchain is. A `CompilerPluginSupport` from
-  # another release compiles and then disagrees with the `PackageDescription`
-  # beside it about types they share, which surfaces as a manifest that builds
-  # and produces the wrong targets.
-  src = pkgs.fetchFromGitHub {
-    owner = "swiftlang";
-    repo = "swift-package-manager";
-    rev = "swift-${version}-RELEASE";
-    # From the first build's mismatch, which is the only way to get one
-    # honestly. `swift-5.10.1-RELEASE` is confirmed to exist by that fetch
-    # succeeding -- the tag format was a guess until then.
-    hash = "sha256-yL/cPCt7pZ0XqbbxEnrbzM2X3EkU9klon7SzO2Z13SA=";
-  };
+  nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.patchelf ];
 
-in
-pkgs.runCommand "swiftpm-${version}-plugin-support"
-{
-  # The checks' own input list, not a hand-picked subset.
+  # `postFixup`, not `postInstall`.
   #
-  # Three rounds were spent rediscovering pieces `swiftPkgs` already had:
-  # `NIX_CC`, Swift's binutils and cc, and then `Foundation` --
+  # The override landed -- the manifest loader named
+  # `swiftpm-plugin-support-5.10.1` -- and the module was still absent, with
+  # the build reporting success. A derivation with a custom `installPhase`
+  # that omits `runHook postInstall` skips the hook silently, which is what
+  # happened: the addition was attached to a phase nothing called.
   #
-  #   ContextModel.swift:16:8: error: no such module 'Foundation'
-  #
-  # which comes from `swiftCorelibs`, a list context.nix builds with a comment
-  # explaining that its absence is what used to make people think Swift on
-  # Linux was broken. Reusing the list ends that: anything the checks need to
-  # compile Swift, this needs too, and by construction rather than by memory.
-  nativeBuildInputs = swiftPkgs;
+  # `fixupPhase` is stdenv's own and always runs `postFixup`. The assertion at
+  # the end makes the difference moot either way: a phase that does not run
+  # now fails the build instead of producing a quiet copy of the original.
+  postFixup = (old.postFixup or "") + ''
+    api="$out/lib/swift/pm/ManifestAPI"
+    [ -d "$api" ] || { echo "no ManifestAPI at $api"; exit 1; }
 
-  # A variable, not a package on the path -- the same arrangement every Swift
-  # check in nix/checks.nix makes, and for the same reason: the setup-hook
-  # reads it rather than looking for a compiler.
-  NIX_CC = "${pkgs.stdenv.cc}";
+    # Found, not guessed.
+    #
+    # `$NIX_BUILD_TOP/source` was the guess and it was wrong; stdenv names the
+    # unpacked directory after the tarball, which is a fact about nixpkgs'
+    # `srcs` that this file should not need to know. `$sourceRoot` is stdenv's
+    # own answer and is still in scope during `fixupPhase`, and the search is
+    # there for the case where it is not -- looking for the module by name is
+    # the one question with an unambiguous answer.
+    src=""
+    for candidate in "''${SWIFTPM_SOURCE:-}" "''${sourceRoot:-}" "$NIX_BUILD_TOP/source"; do
+      [ -n "$candidate" ] && [ -d "$candidate/Sources/CompilerPluginSupport" ] && {
+        src="$candidate"; break
+      }
+    done
+    if [ -z "$src" ]; then
+      found="$(find "$NIX_BUILD_TOP" -maxdepth 4 -type d -name CompilerPluginSupport         -path '*/Sources/*' 2>/dev/null | head -1)"
+      [ -n "$found" ] && src="$(dirname "$(dirname "$found")")"
+    fi
+    if [ -z "$src" ]; then
+      echo "tabula: could not find Sources/CompilerPluginSupport under $NIX_BUILD_TOP"
+      echo "  This override compiles two modules out of swiftpm's own checkout."
+      echo "  Contents of the build directory:"
+      ls -1 "$NIX_BUILD_TOP" | head -20
+      exit 1
+    fi
+    echo "tabula: swiftpm sources at $src"
 
-  passthru = { inherit version; inherit (swiftpm) meta; };
-} ''
-  set -euo pipefail
+    # ONE library, two modules.
+    #
+    # The loader links `-lPackageDescription` and nothing else. Shipping
+    # `libCompilerPluginSupport.so` beside it did not work, and neither did
+    # recording it as a DT_NEEDED dependency: modern `ld` defaults to
+    # `--no-copy-dt-needed-entries` and refuses to resolve symbols from
+    # libraries it was not given directly. The result both times was
+    #
+    #   undefined reference to '...Target...CompilerPluginSupportE5macro...'
+    #
+    # So the objects go into the library the loader actually names. Each module
+    # is compiled to an object separately -- they are still two modules, with
+    # two interfaces, and `import CompilerPluginSupport` is still its own
+    # import -- and both objects are linked into `libPackageDescription.so`.
+    # That is a packaging decision, not a language one: a Swift module's code
+    # does not have to live in a library of the same name.
+    #
+    # -suppress-warnings: this compiles upstream's sources unmodified, and
+    # every warning is nixpkgs' Foundation not being built with library
+    # evolution. None of it is actionable here, and a wall of unactionable
+    # warnings teaches people to skim build output. Errors are unaffected.
+    #
+    # -package-description-version: `PackageDescription` gates its own API with
+    # `@available(_PackageDescription 5.7)`, resolved from this flag. Without
+    # it every gated symbol is unavailable to its own module.
+    swiftc -suppress-warnings -c -whole-module-optimization \
+      -enable-library-evolution -swift-version 5 \
+      -package-description-version 999.0 \
+      -module-name PackageDescription \
+      -emit-module-path "$api/PackageDescription.swiftmodule" \
+      -emit-module-interface-path "$api/PackageDescription.swiftinterface" \
+      -emit-private-module-interface-path "$api/PackageDescription.private.swiftinterface" \
+      -o "$TMPDIR/PackageDescription.o" \
+      "$src"/Sources/PackageDescription/*.swift
 
-  # Same as every Swift check. The corelibs are found at compile time through
-  # the inputs above and at run time through here.
-  export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    # `@_spi(PackageDescriptionInternal) import PackageDescription` reaches
+    # `Target`'s internal initializer and its `.macro` type. A public
+    # `.swiftinterface` has SPI stripped by definition, which is why the
+    # private one above exists and why `-I "$api"` finds it here.
+    swiftc -suppress-warnings -c -whole-module-optimization \
+      -enable-library-evolution -swift-version 5 \
+      -package-description-version 999.0 \
+      -module-name CompilerPluginSupport -I "$api" \
+      -emit-module-path "$api/CompilerPluginSupport.swiftmodule" \
+      -emit-module-interface-path "$api/CompilerPluginSupport.swiftinterface" \
+      -o "$TMPDIR/CompilerPluginSupport.o" \
+      "$src"/Sources/CompilerPluginSupport/*.swift
 
-  # A copy, not a symlink farm. The loader passes this directory to swiftc as
-  # both -L and -I, and a read-only tree of store symlinks surfaces as a
-  # permission error several layers inside the manifest loader.
-  mkdir -p "$out"
-  cp -r ${swiftpm}/. "$out/"
-  chmod -R u+w "$out"
+    swiftc -emit-library -o "$api/libPackageDescription.so" \
+      "$TMPDIR/PackageDescription.o" "$TMPDIR/CompilerPluginSupport.o"
 
-  api="$out/lib/swift/pm/ManifestAPI"
-  [ -d "$api" ] || { echo "no ManifestAPI at $api"; exit 1; }
+    # The build must not succeed without the module.
+    #
+    # Four rounds were spent on an augmented SwiftPM that was correct and
+    # unreachable, and a fifth on one whose build hook never ran. Every one of
+    # them reported success. This is the assertion that makes "it built" and
+    # "it worked" the same statement.
+    [ -e "$api/CompilerPluginSupport.swiftmodule" ] || {
+      echo "tabula: CompilerPluginSupport.swiftmodule is missing after postFixup"
+      exit 1
+    }
+    # And the symbols, not just the module. Two earlier attempts produced a
+    # findable module whose code the linker could not reach, and both reported
+    # success here.
+    nm -D --defined-only "$api/libPackageDescription.so" \
+      | grep -q CompilerPluginSupport || {
+      echo "tabula: libPackageDescription.so defines no CompilerPluginSupport"
+      echo "  symbols; the module is findable and will not link."
+      exit 1
+    }
 
-  for m in PackageDescription CompilerPluginSupport; do
-    [ -e ${src}/Sources/$m ] || { echo "no Sources/$m in the checkout"; exit 1; }
-  done
-
-  # BOTH modules, rebuilt together. Not a preference -- a requirement.
-  #
-  # `CompilerPluginSupport/TargetExtensions.swift` opens with
-  #
-  #     @_spi(PackageDescriptionInternal) import PackageDescription
-  #
-  # and uses that SPI to reach `Target`'s internal initializer and its
-  # `.macro` type. nixpkgs installs only a PUBLIC `.swiftinterface` for
-  # `PackageDescription`, and a public interface has SPI stripped out of it by
-  # definition, so compiling against the installed module fails with
-  #
-  #     'Target' cannot be constructed because it has no accessible initializers
-  #     cannot infer contextual base in reference to member 'macro'
-  #
-  # There is no flag that recovers erased symbols. The SPI has to be in scope
-  # at compile time, which means building the module that declares it, which
-  # means building `PackageDescription` here too and installing both.
-  #
-  # `-emit-private-module-interface-path` is what keeps the SPI visible: the
-  # public interface is still emitted for everyone else, and the private one
-  # beside it is what `CompilerPluginSupport` reads.
-  build="$TMPDIR/build"
-  mkdir -p "$build"
-
-  # `-suppress-warnings`, and only here.
-  #
-  # This compiles SwiftPM's own sources, unmodified, and every warning it
-  # produces is about nixpkgs' `Foundation` not being built with library
-  # evolution:
-  #
-  #   warning: module 'Foundation' was not compiled with library evolution
-  #   support; using it means binary compatibility for 'PackageDescription'
-  #   can't be guaranteed
-  #
-  # Twice per file, plus an `inconsistently imported as implementation-only`
-  # for each. None of it is actionable from here: the source is upstream's and
-  # the Foundation is nixpkgs'. Upstream SwiftPM's own build emits the same
-  # lines when built this way.
-  #
-  # Suppressed rather than tolerated because a wall of warnings nobody can act
-  # on teaches people to skim build output, which is how a real one gets
-  # missed. Errors are unaffected -- `-suppress-warnings` does not touch them,
-  # and the four rounds it took to get here were all errors.
-  swiftc \
-    -suppress-warnings \
-    -emit-library -emit-module \
-    -enable-library-evolution \
-    -emit-module-path "$build/PackageDescription.swiftmodule" \
-    -emit-module-interface-path "$build/PackageDescription.swiftinterface" \
-    -emit-private-module-interface-path "$build/PackageDescription.private.swiftinterface" \
-    -module-name PackageDescription \
-    -swift-version 5 \
-    -package-description-version 999.0 \
-    -o "$build/libPackageDescription.so" \
-    ${src}/Sources/PackageDescription/*.swift
-
-  # Same, for the same reason: this module's `@_spi` import of
-  # `PackageDescription` warns whenever the latter carries an interface, which
-  # it now does by design.
-  swiftc \
-    -suppress-warnings \
-    -emit-library -emit-module \
-    -enable-library-evolution \
-    -emit-module-path "$build/CompilerPluginSupport.swiftmodule" \
-    -emit-module-interface-path "$build/CompilerPluginSupport.swiftinterface" \
-    -module-name CompilerPluginSupport \
-    -swift-version 5 \
-    -package-description-version 999.0 \
-    -I "$build" -L "$build" -lPackageDescription \
-    -o "$build/libCompilerPluginSupport.so" \
-    ${src}/Sources/CompilerPluginSupport/*.swift
-
-  # Replacing nixpkgs' PackageDescription, not sitting beside it. Same source
-  # release, so the JSON a manifest serialises is the JSON this SwiftPM
-  # deserialises; a mismatch here would surface as a manifest that compiles and
-  # then describes the wrong package.
-  cp "$build"/libPackageDescription.so "$build"/PackageDescription.swift{module,interface} "$api/"
-  cp "$build"/PackageDescription.private.swiftinterface "$api/"
-  cp "$build"/libCompilerPluginSupport.so "$build"/CompilerPluginSupport.swift{module,interface} "$api/"
-
-  echo "tabula: CompilerPluginSupport installed into $api"
-  ls -1 "$api"
-''
+    echo "tabula: ManifestAPI now holds"
+    ls -1 "$api"
+  '';
+})
