@@ -7,6 +7,20 @@
 ///
 /// So the macro produces a `RawMachine` and calls `buildDesc`. Everything below
 /// runs and is tested with no swift-syntax anywhere.
+/// A happy path: a named route through the matrix, from a state to a state.
+///
+/// Named because a machine may have more than one, and the narrowed calling
+/// surface has to say which it narrows to.
+public struct RawPath {
+    public let name: String
+    public let states: [String]
+
+    public init(name: String, states: [String]) {
+        self.name = name
+        self.states = states
+    }
+}
+
 public struct RawMachine {
     public let machine: String
     public let stateType: String
@@ -21,6 +35,18 @@ public struct RawMachine {
     public let prototypeModifiers: [String]
     public let children: [ChildDesc]
 
+    /// Declared happy paths, in declaration order. See `spec/happy-paths.md`.
+    ///
+    /// Defaulted to empty in the initialiser below, which is the feature's
+    /// constraint expressed as a parameter: a machine without a spine is
+    /// constructed exactly as before, and every existing caller compiles
+    /// untouched.
+    ///
+    /// Read at generation time and discarded. Nothing here reaches `Table`, so
+    /// a machine with a spine and the same machine written longhand produce
+    /// byte-identical `TABLE`, `.grid`, `.lint`, `.cov` and `.mmd`.
+    public let paths: [RawPath]
+
     public init(
         machine: String,
         stateType: String = "S",
@@ -33,7 +59,8 @@ public struct RawMachine {
         effects: [RawVariant] = [],
         rows: [RawRow],
         prototypeModifiers: [String] = [],
-        children: [ChildDesc] = []
+        children: [ChildDesc] = [],
+        paths: [RawPath] = []
     ) {
         self.machine = machine
         self.stateType = stateType
@@ -47,6 +74,7 @@ public struct RawMachine {
         self.rows = rows
         self.prototypeModifiers = prototypeModifiers
         self.children = children
+        self.paths = paths
     }
 }
 
