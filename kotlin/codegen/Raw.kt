@@ -98,6 +98,8 @@ fun buildDesc(raw: RawMachine): MachineDesc {
         )
     }
 
+    validatePaths(raw, stateNames)
+
     // Rows must correspond to states one-to-one, in order. Position is how a
     // row is identified, so an out-of-order row is not a reordering -- it is a
     // row for the wrong state.
@@ -226,5 +228,90 @@ private fun cell(
             "`${c.kind}` in row `$state`, column `$action`. Expected one of: " +
                 "IGNORE, HANDLE, UNREACHABLE, GO, EMIT, DELEGATE."
         )
+    }
+}
+
+/**
+ * Reject a broken happy path before anything derives from it.
+ *
+ * Errors before features, and deliberately so: a default computed from an
+ * invalid spine is worse than no default, because it produces a machine that
+ * compiles and goes somewhere nobody wrote down.
+ *
+ * Runs before the row checks, so a spine is judged against the DECLARED states
+ * rather than against whatever survived them. A machine with both a bad row
+ * and a bad path reports the path first, which is the right order: the path is
+ * the thing the developer added.
+ *
+ * See `spec/happy-paths.md`. Nothing here reaches `MachineDesc` -- these are
+ * rejections, not data.
+ */
+private fun validatePaths(raw: RawMachine, stateNames: List<String>) {
+    val seen = mutableSetOf<String>()
+    for (path in raw.paths) {
+        if (!seen.add(path.name)) {
+            fail(
+                "tabula::path-duplicate",
+                "two paths are named `${path.name}`; a narrowed call site names " +
+                    "the path it narrows to, so names must be unique"
+            )
+        }
+
+        for (state in path.states) {
+            if (state !in stateNames) {
+                fail(
+                    "tabula::path-unknown-state",
+                    "path `${path.name}` names state `$state`, which is not declared. " +
+                        "States: ${stateNames.joinToString(" ")}"
+                )
+            }
+        }
+
+        if (path.states.size < 2) {
+            fail(
+                "tabula::path-broken",
+                "path `${path.name}` has ${path.states.size} state(s); a path is a " +
+                    "route and needs at least two"
+            )
+        }
+
+        // Consecutive states must be connected by a real cell, which is what
+        // keeps the declaration and the matrix from drifting -- the objection
+        // to declaring a route away from the rows it describes.
+        //
+        // A HANDLE counts. Its target is not knowable from the matrix, and
+        // supplying that target is exactly what the path is for; refusing it
+        // here would reject the only cell kind the feature exists to shorten.
+        for (i in 0 until path.states.size - 1) {
+            val from = path.states[i]
+            val to = path.states[i + 1]
+            val row = raw.rows.firstOrNull { it.state == from }
+            val connected = row?.cells?.any { c ->
+                c.kind == "HANDLE" || c.kind == "DELEGATE" ||
+                    (c.kind == "GO" && c.target == to)
+            } ?: false
+            if (!connected) {
+                fail(
+                    "tabula::path-broken",
+                    "path `${path.name}` goes `$from` -> `$to`, and no cell in row " +
+                        "`$from` can reach `$to`"
+                )
+            }
+        }
+
+        // A path that never ends is not a happy path, it is a loop with a name.
+        val last = path.states.last()
+        val lastRow = raw.rows.firstOrNull { it.state == last }
+        val leaves = lastRow?.cells?.any { c ->
+            c.kind == "HANDLE" || c.kind == "DELEGATE" ||
+                (c.kind == "GO" && c.target != last)
+        } ?: false
+        if (leaves) {
+            fail(
+                "tabula::path-unterminated",
+                "path `${path.name}` ends at `$last`, which can still be left; a " +
+                    "path ends where the machine is done"
+            )
+        }
     }
 }
