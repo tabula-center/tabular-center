@@ -77,6 +77,20 @@
           # .#swift-deps` answered "no such attribute" rather than building the
           # thing the error message was about.
           swift-deps = ctx.swiftDeps;
+        }
+        // ctx.lib.optionalAttrs (ctx.swiftpmPluginSupport != null) {
+          # nixpkgs' SwiftPM with `CompilerPluginSupport` added:
+          #
+          #   nix build .#swiftpm-plugin-support
+          #   ls result/lib/swift/pm/ManifestAPI
+          #
+          # A package rather than something the checks pull in, until it is
+          # known to work. Building it through the flake matters: the same
+          # expression evaluated against an ambient `<nixpkgs>` picks a
+          # different Swift with no cached build, and nixpkgs' swift does not
+          # compile from source on a current gcc -- which is a fact about that
+          # channel and nothing to do with this derivation.
+          swiftpm-plugin-support = ctx.swiftpmPluginSupport;
         };
 
         # `nix fmt` formats the flake. Deliberately not a `nix flake check`: a

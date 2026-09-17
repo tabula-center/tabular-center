@@ -56,6 +56,18 @@ let
     then import ./gradle-repo.nix { inherit pkgs lib; lockFile = ../nix/gradle-lock.json; }
     else null;
 
+  # nixpkgs' SwiftPM with `CompilerPluginSupport` added. See the header of
+  # that file; null where there is no Swift to augment.
+  swiftpmPluginSupport =
+    if swiftAvailable && builtins.hasAttr "swiftpm" swiftPkgsSet
+    then
+      import ./swiftpm-plugin-support.nix {
+        inherit pkgs lib swiftPkgsSet;
+        swiftPkgs = swiftBase;
+        swiftLibraryPath = swiftBaseLibraryPath;
+      }
+    else null;
+
   swiftDeps =
     if has.swiftLock
     then import ./swift-deps.nix { inherit pkgs lib; lockFile = ../nix/swift-lock.json; }
@@ -147,12 +159,31 @@ let
     )
   );
 
-  swiftPkgs = lib.optionals swiftAvailable (
+  # Everything needed to COMPILE Swift, minus SwiftPM itself.
+  #
+  # Split out for one reason: `swiftpmPluginSupport` compiles Swift, so it
+  # needs this list, and `swiftPkgs` below CONTAINS its result. Passing the
+  # whole of `swiftPkgs` to it would be an infinite recursion, and passing a
+  # hand-picked subset is what cost four rounds of missing `NIX_CC`, missing
+  # binutils and missing `Foundation`. One list, named, used twice.
+  swiftBase = lib.optionals swiftAvailable (
     [ swiftPkgsSet.swift swiftPkgsSet.binutils swiftPkgsSet.stdenv.cc ]
     ++ swiftCorelibs
-    ++ lib.optionals (builtins.hasAttr "swiftpm" swiftPkgsSet) [ swiftPkgsSet.swiftpm ]
-    ++ lib.optionals (builtins.hasAttr "swift-format" swiftPkgsSet) [ swiftPkgsSet.swift-format ]
   );
+
+  swiftBaseLibraryPath = lib.concatStringsSep ":" (
+    lib.concatMap (p: [ "${p}/lib" "${p}/lib/swift/linux" ]) (swiftBase ++ swiftLibOnly)
+  );
+
+  swiftPkgs = swiftBase
+    # The augmented SwiftPM where there is one, so `import
+    # CompilerPluginSupport` resolves for every check and shell rather than
+    # only for whoever remembered to build the package. `tools/verify
+    # swift-macro-support` reports which is in effect.
+    ++ lib.optionals (builtins.hasAttr "swiftpm" swiftPkgsSet) [
+      (if swiftpmPluginSupport != null then swiftpmPluginSupport else swiftPkgsSet.swiftpm)
+    ]
+    ++ lib.optionals (builtins.hasAttr "swift-format" swiftPkgsSet) [ swiftPkgsSet.swift-format ];
 
   rustInputs = [ rustToolchain pkgs.cargo-expand pkgs.cargo-nextest ];
   kotlinInputs = [ jdk pkgs.gradle pkgs.kotlin pkgs.ktlint ];
@@ -242,6 +273,6 @@ in
     self system pkgs lib has
     rustToolchain jdk swiftAvailable swiftChecked swiftPkgs
     rustInputs kotlinInputs commonInputs
-    swiftLibraryPath gradleRepo swiftDeps
+    swiftLibraryPath gradleRepo swiftDeps swiftpmPluginSupport
     mkCheck mkShell;
 }
