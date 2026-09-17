@@ -1,0 +1,5 @@
+Poll    Arm     Tick    Fire    Reset     Abort
+Idle    HANDLE  IGNORE  IGNORE  IGNORE    IGNORE
+Armed   IGNORE  HANDLE  IGNORE  IGNORE    GO(Idle)
+Firing  IGNORE  IGNORE  HANDLE  IGNORE    IGNORE
+Spent   IGNORE  IGNORE  IGNORE  GO(Idle)  IGNORE

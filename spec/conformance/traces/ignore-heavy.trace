@@ -1,0 +1,21 @@
+trace one-action-per-state
+  # The lint as behaviour: every state answers exactly one action and ignores
+  # the rest. Read as a run it is four machines taking turns, which is what
+  # `consider splitting this machine` means.
+  ctx  limit=0
+  from Idle
+  Tick  => ignored
+  Fire  => ignored
+  Arm   => go Armed
+  Arm   => ignored
+  Tick  => stay
+  Abort => go Idle
+
+trace firing-then-spent
+  ctx  limit=0
+  from Firing
+  Arm   => ignored
+  Reset => ignored
+  Fire  => go Spent
+  Fire  => ignored
+  Reset => go Idle

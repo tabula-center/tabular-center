@@ -44,7 +44,7 @@ same bytes. Across all six fixtures, two codes appear.
 ```fixtures
 tabula::dead-column        dead-column
 tabula::dead-row           nested-delegate retry
-tabula::ignore-heavy       -
+tabula::ignore-heavy       ignore-heavy
 tabula::no-static-entry    -
 tabula::no-static-exit     no-static-exit
 tabula::payload-hoist      payload-hoist

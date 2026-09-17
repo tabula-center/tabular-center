@@ -1,0 +1,26 @@
+# The `tabula::ignore-heavy` fixture: a matrix that is mostly nothing.
+#
+# 15 of 20 cells IGNORE, which is 75% against `ignoreHeavyPercent` (70). The
+# lint's point is that such a machine is usually several machines wearing one
+# name -- each state answers one action and ignores the rest.
+#
+# The shape is forced, which is worth recording. Every row needs a non-IGNORE
+# cell or `dead-row` fires, and every column needs one or `dead-column` does,
+# so with N states and M actions the most IGNORE a clean matrix can hold is
+# roughly (M-1)/M. Three actions caps out at 66% and cannot reach the
+# threshold at all; five actions reach 75%. That is why this fixture is 4x5
+# while every other one is 3x3.
+#
+# Quiet elsewhere: each row has a HANDLE or a GO, no column is all IGNORE, a
+# HANDLE means the matrix is not fully static so `no-static-entry` is gated
+# off, no UNREACHABLE cells, and no payloads at all.
+
+machine Poll
+initial Idle
+states  Idle Armed Firing Spent
+actions Arm Tick Fire Reset Abort
+
+Idle   | HANDLE | IGNORE | IGNORE | IGNORE   | IGNORE
+Armed  | IGNORE | HANDLE | IGNORE | IGNORE   | GO(Idle)
+Firing | IGNORE | IGNORE | HANDLE | IGNORE   | IGNORE
+Spent  | IGNORE | IGNORE | IGNORE | GO(Idle) | IGNORE
