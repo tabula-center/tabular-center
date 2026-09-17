@@ -506,6 +506,18 @@ PROBE
     local rc=$?
     rm -rf "$probe"
 
+    # WHICH ManifestAPI, before anything else.
+    #
+    # `swiftPkgs` carries the augmented SwiftPM, which puts its `bin` on PATH
+    # and does not change where `swift build` looks for the manifest API. The
+    # loader names that directory on every failure, so it is worth naming on
+    # success too -- the alternative is reading `ok` and assuming, which is
+    # what happened: this check reported green against the ORIGINAL SwiftPM for
+    # two rounds, because a skip passes.
+    local api
+    api="$(printf '%s' "$out" | sed -n 's|.*"-I", "\([^"]*ManifestAPI\)".*|\1|p' | head -1)"
+    [ -n "$api" ] && echo "note: manifest API: $api"
+
     if [ "$rc" -eq 0 ]; then
         echo "ok   CompilerPluginSupport is available"
         echo "     The .macro target can be restored: see swift/macros/Package.swift"
@@ -515,6 +527,18 @@ PROBE
 
     case "$out" in
         *"no such module 'CompilerPluginSupport'"*)
+            case "$api" in
+                *plugin-support*)
+                    # The augmented SwiftPM is in use and the module is STILL
+                    # missing. A broken derivation, not a toolchain without the
+                    # feature, and the two must not report alike.
+                    echo "FAIL the augmented SwiftPM is in use and the module is"
+                    echo "     still missing: $api"
+                    echo "     nix build .#swiftpm-plugin-support, then check"
+                    echo "     result/lib/swift/pm/ManifestAPI"
+                    return 1
+                    ;;
+            esac
             echo "skip swift-macro-support (this SwiftPM does not ship"
             echo "     CompilerPluginSupport, so no .macro target can be declared."
             echo "     $("$SWIFT" --version 2>/dev/null | head -1))"
@@ -938,7 +962,22 @@ step_swift_macros() {
     local out
     out="$( (cd swift/macros && "$SWIFT" "${args[@]}" 2>&1) )"
     if [ $? -eq 0 ]; then
-        printf '%s\n' "$out"
+        # SwiftPM probes its shared repository cache before using the
+        # checkouts, and in a sandbox that probe cannot resolve a certificate:
+        #
+        #   warning: 'swift-syntax': skipping cache due to an error:
+        #     fatal: unable to access '...': SSL certificate ... (20)
+        #
+        # It then builds from nix/swift-lock.json exactly as intended, which is
+        # why this is noise rather than a failure -- the cache is an
+        # optimisation and its absence costs nothing here. Dropped on SUCCESS
+        # only: the same lines on a failing build are evidence and are printed
+        # in full below.
+        printf '%s\n' "$out" | grep -v "skipping cache due to an error" \
+            | grep -v "Cloning into bare repository" \
+            | grep -v "unable to access 'https://github.com" \
+            | grep -v "^tabula-check.*Fetching https://" \
+            | grep -v "is not accessible or not writable, disabling user-level cache"
         echo "ok   swift macros"
         # Building is not checking. The package compiled for a long time
         # before anything ran, and `TabulaMacroSyntaxCheck` is where the
