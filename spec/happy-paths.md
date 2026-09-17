@@ -96,6 +96,58 @@ per PLAN line 809.
 | `tabula::path-unknown-state` | a `@Path` names a state the machine does not declare |
 | `tabula::path-duplicate` | two paths share a name |
 
+## Additive, and that is the whole constraint
+
+**Existing code keeps working, unchanged.** A developer who never writes a
+`@Path` sees nothing new: same `step`, same `perform`, same `Cells`, same
+`TABLE`. The spine is opt-in, and what it buys is that the ordinary case reads
+as ordinary and the corner cases sit where corner cases belong.
+
+That rules out the obvious design, which was the first one written here and was
+wrong. Putting `paths` on `Table` would make the spine part of the inert data
+every implementation is guaranteed to carry, and make every `Table(...)` in the
+repository a thing that could now be wrong -- for a feature most machines will
+not use.
+
+### What that means, concretely
+
+- **`@Path` is read at generation time and discarded.** The generator uses it
+  to derive defaults and to emit the narrowed surface. Nothing survives into
+  the runtime types.
+- **`Table` does not change.** No `paths` field, in any of the three cores.
+- **`.tbl` and `.trace` do not change.** A conformance fixture describes the
+  *resolved* matrix, and the spine resolves away before anything a fixture
+  compares. The previous revision of this file concluded `.tbl` needed a `path`
+  line; that followed from the `Table` mistake and goes with it.
+- **A machine with a spine and the same machine written longhand produce
+  byte-identical `TABLE`, `.grid`, `.lint`, `.cov` and `.mmd`.** Nothing
+  downstream can tell which was written, which is the test for whether this
+  stayed additive.
+
+### Two consequences worth stating
+
+**A spine changes generated output, and only generated output.** A `HANDLE` on
+the spine with no declared target becomes a `GO` to the next state along it, so
+that machine's golden shows the derived target -- written by the generator
+rather than by the developer. `TABLE` is the same either way; the dispatcher is
+what the spine shortens.
+
+**The narrowed surface is a second way to call the same machine.** `elvis` is a
+new generated member. `step`, `perform` and `Cells` are untouched, so a caller
+that ignores it compiles exactly as before. Both surfaces exist, deliberately.
+
+## Diagnostics are compile-time, not lints
+
+The four `path-*` codes join the nine existing compile-time diagnostics
+(`row-arity`, `unknown-state` and the rest) rather than the seven runtime
+lints, because a broken spine is rejected by `buildDesc` before a table exists.
+
+That is a much smaller surface than the first revision assumed: compile-fail
+fixtures in `rust/tabula/tests/compile_fail/`,
+`kotlin/ksp/compile-fail/fixtures/` and `swift/macros/fixtures/`, following the
+`//~ EXPECT:` convention all three already share. No conformance fixture, no
+adapters, no goldens.
+
 ## Order of work
 
 Behaviour lands in `spec/conformance` before any implementation
@@ -103,8 +155,14 @@ Behaviour lands in `spec/conformance` before any implementation
 *run* means, so the fixture format itself may need a field, and finding that out
 after three implementations is the expensive version.
 
-- [ ] A conformance fixture with a path, and the question of whether `.tbl` and
-      `.trace` need new fields answered by writing one.
+- [x] Answered: nothing in `Table`, `.tbl` or `.trace` changes. The spine is
+      read at generation time and discarded, so a machine with one is
+      indistinguishable downstream from the same machine written longhand.
+- [ ] `@Path` in the three declaration surfaces, and `RawMachine` carrying it
+      as far as `buildDesc`. Rejected spines first, derived defaults after --
+      the errors are what make the feature safe to use.
+- [ ] The four `path-*` diagnostics, with compile-fail fixtures in all three
+      languages. No conformance fixtures: nothing a fixture compares changes.
 - [ ] The four lints above, with fixtures.
 - [ ] Defaults derived from the spine — the half that motivated the feature, and
       the half that cannot be designed until the two above are settled.

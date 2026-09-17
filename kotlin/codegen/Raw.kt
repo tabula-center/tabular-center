@@ -14,6 +14,14 @@ package codegen
  * So the processor produces a [RawMachine] and calls [buildDesc]. Everything
  * below runs and is tested without KSP.
  */
+/**
+ * A happy path: a named route through the matrix, from a state to a state.
+ *
+ * Named because a machine may have more than one, and the narrowed calling
+ * surface has to say which it narrows to.
+ */
+data class RawPath(val name: String, val states: List<String>)
+
 data class RawMachine(
     val packageName: String,
     val machine: String,
@@ -29,6 +37,19 @@ data class RawMachine(
     val rows: List<RawRow>,
     val prototypeModifiers: List<String> = emptyList(),
     val children: List<ChildDesc> = emptyList(),
+    /**
+     * Declared happy paths, in declaration order. See `spec/happy-paths.md`.
+     *
+     * Defaulted to empty, which is the whole feature's constraint expressed as
+     * a parameter: a machine without a spine is constructed exactly as before,
+     * and every existing caller -- the KSP processor, `MachineSyntax`, the
+     * hand-built descriptions in `Main.kt` -- compiles untouched.
+     *
+     * Read at generation time and discarded. Nothing here reaches `Table`, so
+     * a machine with a spine and the same machine written longhand produce
+     * byte-identical `TABLE`, `.grid`, `.lint`, `.cov` and `.mmd`.
+     */
+    val paths: List<RawPath> = emptyList(),
 )
 
 /** A variant as the processor reads it, before validation. */
