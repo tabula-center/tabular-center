@@ -836,43 +836,52 @@ step_kotlin_ksp() {
     (cd examples/kotlin/06-generated && gradle "${args[@]}" build) || return 1
     echo "ok   generated (ksp)"
 
-    # What the processor EMITTED, not just that it compiled.
+    # Every golden in kotlin/ksp/golden/, not one named file.
     #
-    # The build succeeding proves `Cells` has a member Impl.kt can override and
-    # that `step` type-checks. It proves nothing about the table: rows read in
-    # the wrong order, an effect dropped from a GO cell, `initial` resolved to
-    # the wrong state -- all compile, and `TABLE` and `PAYLOADS` are inert data
-    # the example never reads. Extraction bugs produce a well-formed machine
-    # that says the wrong thing, and that is the whole surface this processor
-    # has: every decision it makes lives in codegen/, which kotlinc already
-    # covers.
+    # It looked for `TurnstileGenerated.kt` by name, so `Gate` -- the suspend
+    # machine that exists to prove prototype modifiers are COPIED rather than
+    # enumerated -- could have been added with a golden nothing compared. A
+    # check that hardcodes what it checks grows stale the moment the thing it
+    # checks grows a sibling.
     #
-    # Located by name rather than by path. KSP's output directory has moved
-    # between versions, and a hardcoded path that stops matching would make
-    # this silently check nothing -- the failure mode the repository keeps
-    # finding. If it is not there, that is a failure, not a skip.
-    local gen
-    gen="$(find examples/kotlin/06-generated/build/generated \
-        -name 'TurnstileGenerated.kt' -type f 2>/dev/null | head -1)"
-    if [ -z "$gen" ]; then
-        echo "FAIL: the build succeeded but no TurnstileGenerated.kt was emitted."
-        echo "      The processor is registered through META-INF/services; if it"
-        echo "      did not run at all, Gradle reports nothing and the example"
-        echo "      would have failed to compile -- so this means KSP wrote"
-        echo "      somewhere unexpected. Look under build/generated/."
-        return 1
-    fi
+    # The build succeeding proves `Cells` has members `Impl.kt` can override
+    # and that `step` type-checks. It proves nothing about the table: rows read
+    # in the wrong order, an effect dropped from a GO cell, `initial` resolved
+    # to the wrong state -- all compile, and `TABLE` and `PAYLOADS` are inert
+    # data the example never reads.
+    local golden name gen bad=0 n=0
+    for golden in kotlin/ksp/golden/*.kt.golden; do
+        [ -e "$golden" ] || continue
+        name="$(basename "$golden" .golden)"
+        n=$((n + 1))
 
-    if diff -u kotlin/ksp/golden/TurnstileGenerated.kt.golden "$gen"; then
-        echo "ok   generated matches golden"
-    else
-        echo
-        echo "FAIL: the processor's output does not match"
-        echo "      kotlin/ksp/golden/TurnstileGenerated.kt.golden."
-        echo "      Read the diff before re-blessing -- see that directory's"
-        echo "      README for which diffs mean what."
-        return 1
+        # Located by name rather than by path: KSP's output directory has moved
+        # between versions, and a hardcoded path that stops matching would make
+        # this silently check nothing.
+        gen="$(find examples/kotlin/06-generated/build/generated \
+            -name "$name" -type f 2>/dev/null | head -1)"
+
+        if [ -z "$gen" ]; then
+            echo "FAIL the build succeeded but no $name was emitted."
+            echo "     Look under build/generated/ -- KSP wrote somewhere"
+            echo "     unexpected, or the machine is no longer declared."
+            bad=1
+        elif diff -u "$golden" "$gen"; then
+            echo "ok   $name matches golden"
+        else
+            echo
+            echo "FAIL $name does not match $golden."
+            echo "     Read the diff before re-blessing -- see that"
+            echo "     directory's README for which diffs mean what."
+            bad=1
+        fi
+    done
+
+    if [ "$n" -eq 0 ]; then
+        echo "FAIL no goldens in kotlin/ksp/golden/; this checked nothing"
+        bad=1
     fi
+    return "$bad"
 }
 
 # Swift builds with SwiftPM. Unlike Kotlin there is no build-system problem
