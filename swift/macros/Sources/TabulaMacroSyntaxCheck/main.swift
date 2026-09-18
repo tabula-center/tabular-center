@@ -288,6 +288,58 @@ do {
     }
 }
 
+// MARK: - A spine that works
+//
+// Every fixture in `fixtures/` is a REJECTION, so none of them reaches
+// `derive` -- the check that turns a HANDLE named by a hop into a GO. Swift's
+// half of that was written with nothing exercising it, which is the blind spot
+// Kotlin had until `SpineGenerated.kt.golden` existed.
+//
+// Asserted through `emit` rather than by matching on `CellDesc`: what a reader
+// cares about is that the cell stopped being a required member, and the
+// emitted surface says so in a way that does not depend on the shape of an
+// enum this file has no other reason to know.
+do {
+    let source = """
+        @Machine
+        @Path("connect", [.idle, .start, .connecting, .ready, .live])
+        enum Spine {
+            enum S { case idle, connecting, live, failed }
+            enum A { case start, ready, drop }
+            enum F {}
+
+            final class Ctx {}
+
+            static let initial = S.idle
+
+            //                                  start     ready     drop
+            @Row(.idle)       static let i = [ .handle,  .ignore,  .ignore ]
+            @Row(.connecting) static let c = [ .ignore,  .handle,  .go(.failed) ]
+            @Row(.live)       static let l = [ .ignore,  .ignore,  .ignore ]
+            @Row(.failed)     static let f = [ .handle,  .ignore,  .ignore ]
+
+            func handle(_ ctx: Ctx, _ state: S, _ action: A) -> Step<S, F> { fatalError() }
+        }
+        """
+    let tree = Parser.parse(source: source)
+    if let decl = tree.statements.compactMap({ $0.item.as(EnumDeclSyntax.self) }).first {
+        do {
+            let desc = try buildDesc(MachineSyntax.read(decl))
+            let out = emit(desc)
+            // On the spine: written HANDLE, generated GO, so no member.
+            check(!out.contains("idleStart"), "a hop's HANDLE stops being a cell member")
+            check(!out.contains("connectingReady"), "and so does the second hop's")
+            // Off the spine: no hop names it, so it stays a member. Without
+            // this the check would pass if `derive` rewrote everything.
+            check(out.contains("failedStart"), "a HANDLE no hop names stays a member")
+        } catch {
+            check(false, "the spine machine is accepted: \(error)")
+        }
+    } else {
+        check(false, "the spine machine parses")
+    }
+}
+
 check(TabulaMacroSyntax.surface == "see SURFACE.md", "the module links")
 
 print("")
