@@ -50,9 +50,43 @@ The spine is the one that earns its keep:
 A separate `@Path`, naming a state sequence. Not a cell kind and not a flag on
 existing kinds.
 
+States and actions **alternate**, starting and ending with a state:
+
 ```kotlin
-@Path("connect", [S.Idle::class, S.Connecting::class, S.Live::class])
+@Path(
+    "connect",
+    [S.Idle::class, A.Start::class, S.Connecting::class, A.Ready::class, S.Live::class],
+)
 ```
+
+A states-only spine was the first design and it does not survive contact with
+the feature it exists for. Defaults are derived by turning a `HANDLE` on the
+spine into a `GO` to the next state -- but a `HANDLE` has no target by
+definition, and a row may hold several. `Connecting` being
+`[HANDLE, HANDLE, IGNORE]` with a spine saying `Connecting -> Live` names no
+cell at all.
+
+Three ways out: refuse rows with more than one `HANDLE` (a fifth diagnostic,
+refusing machines that are fine), derive only where there is exactly one (the
+sugar quietly doing less on some rows than others), or name the action. Naming
+the action is the only one where nothing is refused and nothing is silent.
+
+It buys more than it costs:
+
+- **`tabula::path-broken` becomes precise.** It checks *that* cell rather than
+  *some* cell in the row, which closes the weakness a states-only spine had --
+  a `HANDLE` anywhere made a row connect to anything.
+- **The declaration reads as the run it describes.** `Idle -Start-> Connecting
+  -Ready-> Live` is what a developer would write on a whiteboard, and it is
+  what the narrowed surface will be named after.
+- **It is the anchor for the sugar.** A spine that names actions can generate a
+  method per hop, a "what happens next" the IDE can complete, and an `elvis`
+  whose non-happy parameters are exactly the cells the spine does not pass
+  through. A states-only spine can generate none of those, because it does not
+  know which action it meant.
+
+An even number of elements, or two states adjacent, is `tabula::path-broken`:
+a route is a sequence of hops, and a hop is a state, an action, and a state.
 
 `Kind.HAPPY` reads wrong: happiness is orthogonal to what a cell *does*, and a
 cell is already `GO`, `HANDLE`, `EMIT` or `IGNORE`. A `happy = true` argument on
@@ -91,7 +125,7 @@ per PLAN line 809.
 
 | code | when |
 | --- | --- |
-| `tabula::path-broken` | consecutive states in a `@Path` are not connected by a cell |
+| `tabula::path-broken` | a hop names a cell the matrix does not have, or the elements do not alternate state-action-state |
 | `tabula::path-unterminated` | a path does not reach a state with no outgoing transition |
 | `tabula::path-unknown-state` | a `@Path` names a state the machine does not declare |
 | `tabula::path-duplicate` | two paths share a name |
@@ -158,11 +192,17 @@ after three implementations is the expensive version.
 - [x] Answered: nothing in `Table`, `.tbl` or `.trace` changes. The spine is
       read at generation time and discarded, so a machine with one is
       indistinguishable downstream from the same machine written longhand.
-- [ ] `@Path` in the three declaration surfaces, and `RawMachine` carrying it
-      as far as `buildDesc`. Rejected spines first, derived defaults after --
-      the errors are what make the feature safe to use.
-- [ ] The four `path-*` diagnostics, with compile-fail fixtures in all three
-      languages. No conformance fixtures: nothing a fixture compares changes.
+- [x] `@Path` in the Kotlin and Swift declaration surfaces, `RawMachine`
+      carrying it, and all four `path-*` diagnostics in both `buildDesc`
+      implementations, with eight compile-fail fixtures. Rust follows as a
+      macro arm; see `spec/diagnostics-coverage.md`.
+- [ ] Alternate states and actions, per the decision above. Touches `RawPath`,
+      both validations, both declaration surfaces and the eight fixtures --
+      cheap now, expensive once examples exist.
+- [ ] Derived defaults: a `HANDLE` named by a hop becomes a `GO` to that hop's
+      next state. The additive test is that a spine-derived machine and the
+      longhand one produce byte-identical `TABLE`, `.grid`, `.lint`, `.cov`
+      and `.mmd`.
 - [ ] The four lints above, with fixtures.
 - [ ] Defaults derived from the spine — the half that motivated the feature, and
       the half that cannot be designed until the two above are settled.
