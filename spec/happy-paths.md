@@ -170,6 +170,58 @@ what the spine shortens.
 new generated member. `step`, `perform` and `Cells` are untouched, so a caller
 that ignores it compiles exactly as before. Both surfaces exist, deliberately.
 
+## The narrowed surface: one member per hop
+
+A hop is `(from, action, to)`, and that is exactly the signature of a call a
+developer makes. So the surface is generated per hop, named after both halves:
+
+```kotlin
+// In state Connecting, sending Ready.
+val live: S.Live = cells.connectingReady(ctx, state) elvis (
+    Failed = { showBanner(it) },
+)
+```
+
+Three things fall out of the hop, none of which a states-only spine could give:
+
+- **The happy result is a single, narrowed type.** `S.Live`, not `S`. The hop
+  says where `Ready` goes from `Connecting`, so the caller gets that state and
+  not a `when` over four.
+- **The parameters are the cells the hop does not reach.** From `Connecting`,
+  `Drop` goes to `Failed`, so `Failed` is the one named parameter. `Ready` from
+  anywhere else is not this call's business.
+- **Adding a state adds a parameter.** A new outcome reachable from
+  `Connecting` becomes a new required argument and every call site stops
+  compiling, which is `elvis` rather than `elseIf` and is the whole reason only
+  one of the two is permitted.
+
+### What it is not
+
+**Not a replacement for `step`.** `step`, `perform` and `Cells` are unchanged
+and a caller that ignores the spine sees nothing new. Both surfaces exist.
+
+**Not a path runner.** `connectingReady` advances one hop. A member that ran
+the whole path would have to decide what happens when a corner case interrupts
+it halfway, and there is no answer to that which is not a policy -- which is
+the kind of decision this library pushes back to the developer rather than
+inventing.
+
+**Not available off the spine.** There is no `liveDrop`, because no hop names
+it. A cell the happy path does not pass through is reached through `step`, the
+way everything was before. That asymmetry is the feature: corner cases are
+second-class in the interface because they are second-class in the intent.
+
+### Open, and worth settling before implementation
+
+- **The `elvis` spelling in each language.** Kotlin's named-argument form is
+  `hadilq/happy`'s and reads well. Rust's is `?` over a generated `Result`-alike
+  and probably needs no DSL at all. Swift's is a `throws` overload with `try`,
+  because `guard case ... else` does not reject a missing case.
+- **Whether the effects pump is part of it.** `step` returns a `Step` carrying
+  effects, and this returns a state. Something has to run `perform`, and doing
+  it inside the generated member would hide an effect execution inside what
+  looks like a state transition.
+
 ## Diagnostics are compile-time, not lints
 
 The four `path-*` codes join the nine existing compile-time diagnostics
@@ -206,8 +258,8 @@ after three implementations is the expensive version.
 - [ ] The four lints above, with fixtures.
 - [ ] Defaults derived from the spine — the half that motivated the feature, and
       the half that cannot be designed until the two above are settled.
-- [ ] The narrowed calling surface, `elvis`-shaped, with the two-outcome
-      `elseIf` special case allowed and everything else refused.
+- [ ] The narrowed calling surface: one member per hop, per the section above.
+      The two open questions there are decisions, not implementation.
 - [ ] The Compose and iced examples (PLAN backlog). They are the acceptance
       test: if the sugar does not read well in a `@Composable` or a `view()`,
       the sugar is wrong, not the app.
