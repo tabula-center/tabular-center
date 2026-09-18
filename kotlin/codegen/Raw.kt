@@ -149,7 +149,9 @@ fun buildDesc(raw: RawMachine): MachineDesc {
                     "Expected columns: ${actionNames.joinToString(" ")}"
             )
         }
-        row.cells.mapIndexed { j, c -> cell(raw, c, row.state, actionNames[j], effectNames, stateNames, payloadStates) }
+        row.cells.mapIndexed { j, c ->
+            cell(raw, derive(c, row.state, actionNames[j], raw), row.state, actionNames[j], effectNames, stateNames, payloadStates)
+        }
     }
 
     return MachineDesc(
@@ -347,4 +349,36 @@ private fun validatePaths(
             )
         }
     }
+}
+
+/**
+ * A `HANDLE` named by a hop becomes a `GO` to that hop's next state.
+ *
+ * The half of `spec/happy-paths.md` that motivated the feature: on the happy
+ * path the common case stops being typed at all. A developer declares the
+ * route once and the cells along it are written by the generator.
+ *
+ * Only `HANDLE`. A `GO` already says where it goes, and rewriting it would let
+ * a path silently contradict a cell -- the developer would have written two
+ * answers and been told neither. `tabula::path-broken` already rejects a hop
+ * whose `GO` disagrees, so by the time this runs the two agree or the build
+ * stopped.
+ *
+ * The result is indistinguishable from the longhand machine, which is the
+ * additive test: a derived `GO(to)` and a written `GO(to)` are the same
+ * `CellDesc`, so `TABLE`, `.grid`, `.lint`, `.cov` and `.mmd` are byte-identical
+ * either way. Nothing downstream can tell which was written.
+ *
+ * Runs after `validatePaths`, so a hop is known to name a real cell before
+ * anything is derived from it. Deriving from an invalid spine would produce a
+ * machine that compiles and goes somewhere nobody wrote down.
+ */
+private fun derive(c: RawCell, state: String, action: String, raw: RawMachine): RawCell {
+    if (c.kind != "HANDLE") return c
+    val to = raw.paths
+        .flatMap { it.hops }
+        .firstOrNull { it.first == state && it.second == action }
+        ?.third
+        ?: return c
+    return c.copy(kind = "GO", target = to)
 }
