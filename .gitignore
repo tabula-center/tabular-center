@@ -2,6 +2,21 @@
 /rust/target/
 **/*.rs.bk
 # Kotlin / Gradle
+#
+# Unanchored, because Gradle writes a `.gradle/` beside every build file and
+# this repository now has four: kotlin/ksp, kotlin/ksp/compile-fail,
+# examples/kotlin/06-generated, and whatever comes next. The anchored patterns
+# below reached only the first level, so `kotlin/ksp/.gradle/executionHistory`
+# was committed -- caches, locks and machine-specific paths in git history.
+#
+# Already-tracked copies are not removed by a pattern. That takes
+#
+#   git rm -r --cached kotlin/ksp/.gradle kotlin/ksp/compile-fail/.gradle
+#
+# once, and then they stay out.
+.gradle/
+/kotlin/**/build/
+
 /kotlin/.gradle/
 /kotlin/build/
 /kotlin/codegen/emitted/

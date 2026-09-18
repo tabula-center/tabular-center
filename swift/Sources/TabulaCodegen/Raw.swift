@@ -13,11 +13,33 @@
 /// surface has to say which it narrows to.
 public struct RawPath {
     public let name: String
-    public let states: [String]
 
-    public init(name: String, states: [String]) {
+    /// States and actions, alternating, starting and ending with a state.
+    /// See `spec/happy-paths.md`.
+    public let elements: [String]
+
+    public init(name: String, elements: [String]) {
         self.name = name
-        self.states = states
+        self.elements = elements
+    }
+
+    /// States, at the even positions.
+    public var states: [String] {
+        elements.enumerated().filter { $0.offset % 2 == 0 }.map(\.element)
+    }
+
+    /// Actions, at the odd positions -- one per hop.
+    public var actions: [String] {
+        elements.enumerated().filter { $0.offset % 2 == 1 }.map(\.element)
+    }
+
+    /// Hops, as `(from, action, to)`. Empty when the shape is wrong, so the
+    /// shape check and the hop walk stay independent.
+    public var hops: [(from: String, action: String, to: String)] {
+        guard elements.count >= 3, elements.count % 2 == 1 else { return [] }
+        return (0..<(elements.count / 2)).map {
+            (elements[$0 * 2], elements[$0 * 2 + 1], elements[$0 * 2 + 2])
+        }
     }
 }
 
@@ -151,7 +173,7 @@ public func buildDesc(_ raw: RawMachine) throws -> MachineDesc {
                 + "States: \(stateNames.joined(separator: " "))")
     }
 
-    try validatePaths(raw, stateNames)
+    try validatePaths(raw, stateNames, actionNames)
 
     // Rows correspond to states one-to-one, in order. Position identifies a
     // row, so an out-of-order row is not a reordering — it is a row for the
@@ -291,7 +313,9 @@ private func cell(
 /// messages are identical on purpose -- `spec/diagnostics.md` is normative for
 /// both, and `diagnostics-coverage` fails if one emits a code the other does
 /// not. See `spec/happy-paths.md`.
-private func validatePaths(_ raw: RawMachine, _ stateNames: [String]) throws {
+private func validatePaths(
+    _ raw: RawMachine, _ stateNames: [String], _ actionNames: [String]
+) throws {
     var seen = Set<String>()
     for path in raw.paths {
         if !seen.insert(path.name).inserted {
@@ -308,29 +332,43 @@ private func validatePaths(_ raw: RawMachine, _ stateNames: [String]) throws {
                     + "States: \(stateNames.joined(separator: " "))")
         }
 
-        if path.states.count < 2 {
+        // Shape before content. A route is a sequence of hops, and a hop is a
+        // state, an action and a state, so the elements alternate and the
+        // count is odd and at least three.
+        if path.elements.count < 3 || path.elements.count % 2 == 0 {
             try fail(
                 "tabula::path-broken",
-                "path `\(path.name)` has \(path.states.count) state(s); a path is a "
-                    + "route and needs at least two")
+                "path `\(path.name)` has \(path.elements.count) element(s); a path "
+                    + "alternates state and action, starting and ending with a state, "
+                    + "so the count is odd and at least three")
         }
 
         // A HANDLE counts as a connection. Its target is not knowable from the
         // matrix, and supplying that target is exactly what a path is for;
         // refusing it would reject the only cell kind this feature shortens.
-        for i in 0..<max(0, path.states.count - 1) {
-            let from = path.states[i]
-            let to = path.states[i + 1]
-            let row = raw.rows.first { $0.state == from }
-            let connected = row?.cells.contains { c in
+        for hop in path.hops {
+            guard let col = actionNames.firstIndex(of: hop.action) else {
+                try fail(
+                    "tabula::path-unknown-state",
+                    "path `\(path.name)` names action `\(hop.action)`, which is not "
+                        + "declared. Actions: \(actionNames.joined(separator: " "))")
+                continue
+            }
+            let row = raw.rows.first { $0.state == hop.from }
+            let cell = row?.cells.indices.contains(col) == true ? row?.cells[col] : nil
+            // THAT cell, not some cell in the row. Naming the action is what
+            // makes this precise; a states-only spine could only ask whether
+            // anything in the row reached `to`.
+            let ok = cell.map { c in
                 c.kind == "HANDLE" || c.kind == "DELEGATE"
-                    || (c.kind == "GO" && c.target == to)
+                    || (c.kind == "GO" && c.target == hop.to)
             } ?? false
-            if !connected {
+            if !ok {
                 try fail(
                     "tabula::path-broken",
-                    "path `\(path.name)` goes `\(from)` -> `\(to)`, and no cell in row "
-                        + "`\(from)` can reach `\(to)`")
+                    "path `\(path.name)` goes `\(hop.from)` -`\(hop.action)`-> "
+                        + "`\(hop.to)`, and cell (\(hop.from), \(hop.action)) cannot "
+                        + "reach `\(hop.to)`")
             }
         }
 

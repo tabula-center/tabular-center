@@ -109,7 +109,7 @@ public enum MachineSyntax {
                 else { return nil }
                 return RawPath(
                     name: name,
-                    states: list.elements.compactMap {
+                    elements: list.elements.compactMap {
                         $0.expression.as(MemberAccessExprSyntax.self)?
                             .declName.baseName.text
                     })

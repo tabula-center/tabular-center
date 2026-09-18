@@ -13,7 +13,7 @@
 // accepted with no paths at all -- which is how the first version of this
 // fixture passed nothing while looking correct.
 @Machine
-@Path("gone", [.idle, .gone])
+@Path("gone", [.idle, .start, .gone])
 enum PathUnknownState {
     enum S { case idle, busy, done }
     enum A { case start, stop }

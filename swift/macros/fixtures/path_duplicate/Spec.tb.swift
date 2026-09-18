@@ -13,8 +13,8 @@
 // accepted with no paths at all -- which is how the first version of this
 // fixture passed nothing while looking correct.
 @Machine
-@Path("go", [.idle, .busy, .done])
-@Path("go", [.busy, .done])
+@Path("go", [.idle, .start, .busy, .start, .done])
+@Path("go", [.busy, .start, .done])
 enum PathDuplicate {
     enum S { case idle, busy, done }
     enum A { case start, stop }

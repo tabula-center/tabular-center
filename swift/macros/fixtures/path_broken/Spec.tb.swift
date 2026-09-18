@@ -1,11 +1,11 @@
 //~ EXPECT: tabula::path-broken
 //
-// A route naming a transition the matrix does not have.
+// A hop naming a cell that cannot reach where the hop says.
 //
-// The break is `busy -> idle`: row `busy` goes to `done` and nowhere else. Not
-// the first hop -- `idle`'s only non-IGNORE cell is a `.handle`, which counts
-// as a connection, because supplying a handled cell's target is exactly what a
-// path is for.
+// Cell (busy, start) is `.go(.done)`, and the hop claims `busy -start-> idle`.
+// Because the path names the ACTION, this checks that one cell rather than
+// asking whether anything in row `busy` reaches `idle` -- the imprecision a
+// states-only spine could not avoid.
 //
 // `@Path` sits beside `@Machine`, on the declaration. A path belongs to the
 // machine; `@Row` hangs on a stored property because a row belongs to one
@@ -14,7 +14,7 @@
 // accepted with no paths at all -- which is how the first version of this
 // fixture passed nothing while looking correct.
 @Machine
-@Path("back", [.busy, .idle])
+@Path("back", [.busy, .start, .idle])
 enum PathBroken {
     enum S { case idle, busy, done }
     enum A { case start, stop }
