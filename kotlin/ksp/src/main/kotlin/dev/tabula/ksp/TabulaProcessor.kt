@@ -3,6 +3,7 @@ package dev.tabula.ksp
 import codegen.ChildDesc
 import codegen.RawCell
 import codegen.RawMachine
+import codegen.RawPath
 import codegen.RawRow
 import codegen.RawVariant
 import codegen.TabulaError
@@ -93,6 +94,23 @@ class TabulaProcessor(
             }
             .toList()
 
+        // Happy paths. Same shape as the rows above, which is the point: both
+        // are repeatable annotations on the declaration, and reading them the
+        // same way keeps one pattern rather than two.
+        //
+        // No validation here. `buildDesc` owns all four `path-*` diagnostics,
+        // so a route naming a state that does not exist is rejected there with
+        // the normative message rather than twice with two.
+        val paths = decl.annotations
+            .filter { it.shortName.asString() == PATH_SIMPLE }
+            .map { path ->
+                RawPath(
+                    path.string("name"),
+                    path.classes("states").map { it.simpleName.asString() },
+                )
+            }
+            .toList()
+
         return RawMachine(
             packageName = decl.packageName.asString(),
             machine = machineAnn.string("name").ifBlank { decl.simpleName.asString().removeSuffix("Spec") },
@@ -109,6 +127,7 @@ class TabulaProcessor(
             rows = rows,
             prototypeModifiers = prototypeModifiers(decl),
             children = emptyList(), // DELEGATE support lands with child resolution
+            paths = paths,
         )
     }
 
@@ -227,6 +246,7 @@ class TabulaProcessor(
         const val MACHINE_ANNOTATION = "dev.tabula.Machine"
         const val MACHINE_SIMPLE = "Machine"
         const val ROW_SIMPLE = "Row"
+        const val PATH_SIMPLE = "Path"
     }
 }
 
