@@ -9,8 +9,8 @@
 # this row alive. The two lints subsume in that order on purpose, so a fixture
 # for this one has to have exactly one non-IGNORE cell that goes nowhere.
 #
-# This is also the first fixture in the suite to use EMIT at all. Every parser
-# has supported it since the format existed and none has been asked to.
+# The second fixture to use EMIT, after toggle, and the first where an EMIT is
+# the only live cell in its row -- which is exactly what keeps `dead-row` off.
 #
 # Quiet elsewhere: `Idle` has a HANDLE and `Blinking` a GO, so neither trips
 # this lint; a HANDLE anywhere means the matrix is not fully static, which

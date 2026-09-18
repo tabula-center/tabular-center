@@ -645,9 +645,289 @@ object DeadColumnAdapter : Adapter {
     }
 }
 
+// ---------------------------------------------------------------------------
+// ignore-heavy.tbl
+// ---------------------------------------------------------------------------
+
+/**
+ * The `tabula::ignore-heavy` fixture: 15 of 20 cells `IGNORE` (75%).
+ *
+ * Four states each answering one action. Written the way KSP generates it --
+ * one abstract member per `HANDLE` cell, a `when` with no `else` -- so the
+ * dispatcher is exhaustive over a matrix that is mostly `Step.Ignored`, which
+ * is the shape the lint's "consider splitting this machine" is about.
+ *
+ * 4x5 rather than the suite's usual 3x3 because the shape is forced: see the
+ * note at the top of `ignore-heavy.tbl`. No payloads, so `payload-hoist`
+ * cannot fire, and the `HANDLE`s make the matrix not fully static, which gates
+ * `no-static-entry` off.
+ */
+object ignoreHeavy {
+    sealed interface S {
+        data object Idle : S
+        data object Armed : S
+        data object Firing : S
+        data object Spent : S
+    }
+    sealed interface A {
+        data object Arm : A
+        data object Tick : A
+        data object Fire : A
+        data object Reset : A
+        data object Abort : A
+    }
+
+    /** No effects anywhere in the matrix. */
+    sealed interface F
+
+    object Ctx
+
+    abstract class Machine {
+        abstract fun idleArm(ctx: Ctx, state: S.Idle, action: A.Arm): Step<S, F>
+        abstract fun armedTick(ctx: Ctx, state: S.Armed, action: A.Tick): Step<S, F>
+        abstract fun firingFire(ctx: Ctx, state: S.Firing, action: A.Fire): Step<S, F>
+
+        fun step(ctx: Ctx, s: S, a: A): Step<S, F> = when (s) {
+            is S.Idle -> when (a) {
+                is A.Arm -> idleArm(ctx, s, a)
+                is A.Tick -> Step.Ignored
+                is A.Fire -> Step.Ignored
+                is A.Reset -> Step.Ignored
+                is A.Abort -> Step.Ignored
+            }
+            is S.Armed -> when (a) {
+                is A.Arm -> Step.Ignored
+                is A.Tick -> armedTick(ctx, s, a)
+                is A.Fire -> Step.Ignored
+                is A.Reset -> Step.Ignored
+                is A.Abort -> Step.Go(S.Idle)
+            }
+            is S.Firing -> when (a) {
+                is A.Arm -> Step.Ignored
+                is A.Tick -> Step.Ignored
+                is A.Fire -> firingFire(ctx, s, a)
+                is A.Reset -> Step.Ignored
+                is A.Abort -> Step.Ignored
+            }
+            is S.Spent -> when (a) {
+                is A.Arm -> Step.Ignored
+                is A.Tick -> Step.Ignored
+                is A.Fire -> Step.Ignored
+                is A.Reset -> Step.Go(S.Idle)
+                is A.Abort -> Step.Ignored
+            }
+        }
+
+        companion object {
+            val TABLE = Table(
+                machine = "Poll",
+                states = listOf("Idle", "Armed", "Firing", "Spent"),
+                actions = listOf("Arm", "Tick", "Fire", "Reset", "Abort"),
+                initial = "Idle",
+                cells = listOf(
+                    listOf(Cell.Handle, Cell.Ignore, Cell.Ignore, Cell.Ignore, Cell.Ignore),
+                    listOf(Cell.Ignore, Cell.Handle, Cell.Ignore, Cell.Ignore, Cell.Go("Idle")),
+                    listOf(Cell.Ignore, Cell.Ignore, Cell.Handle, Cell.Ignore, Cell.Ignore),
+                    listOf(Cell.Ignore, Cell.Ignore, Cell.Ignore, Cell.Go("Idle"), Cell.Ignore),
+                ),
+            )
+        }
+    }
+
+    class Impl : Machine() {
+        override fun idleArm(ctx: Ctx, state: S.Idle, action: A.Arm): Step<S, F> =
+            Step.Go(S.Armed)
+
+        /**
+         * `stay`, not `ignored`: the tick is handled and changes nothing.
+         * `one-action-per-state` asserts exactly that, one step after an
+         * `Arm => ignored` from the same state -- the two outcomes side by side.
+         */
+        override fun armedTick(ctx: Ctx, state: S.Armed, action: A.Tick): Step<S, F> =
+            Step.Stay()
+
+        override fun firingFire(ctx: Ctx, state: S.Firing, action: A.Fire): Step<S, F> =
+            Step.Go(S.Spent)
+    }
+}
+
+object IgnoreHeavyAdapter : Adapter {
+    override val name = "ignore-heavy"
+    override val table = ignoreHeavy.Machine.TABLE
+
+    override fun replay(trace: Trace): List<Observed> {
+        val m = ignoreHeavy.Impl()
+        var state: ignoreHeavy.S = stateOf(trace.from)
+        return trace.steps.map { st ->
+            val step = m.step(ignoreHeavy.Ctx, state, actionOf(st.action))
+            val effects = step.effects.map { it.toString() }
+            val expect = when (step) {
+                is Step.Stay -> Expect.Stay
+                is Step.Ignored -> Expect.Ignored
+                is Step.Go -> {
+                    state = step.next
+                    Expect.Go(nameOf(step.next), emptyMap())
+                }
+            }
+            Observed(expect, effects)
+        }
+    }
+
+    private fun stateOf(name: String): ignoreHeavy.S = when (name) {
+        "Idle" -> ignoreHeavy.S.Idle
+        "Armed" -> ignoreHeavy.S.Armed
+        "Firing" -> ignoreHeavy.S.Firing
+        "Spent" -> ignoreHeavy.S.Spent
+        else -> error("ignore-heavy: unknown state `$name`")
+    }
+
+    private fun actionOf(name: String): ignoreHeavy.A = when (name) {
+        "Arm" -> ignoreHeavy.A.Arm
+        "Tick" -> ignoreHeavy.A.Tick
+        "Fire" -> ignoreHeavy.A.Fire
+        "Reset" -> ignoreHeavy.A.Reset
+        "Abort" -> ignoreHeavy.A.Abort
+        else -> error("ignore-heavy: unknown action `$name`")
+    }
+
+    // Exhaustive `when` rather than `toString()`, so a state added to `S`
+    // without a name here fails to compile instead of printing a data-object
+    // rendering the fixture would never match.
+    private fun nameOf(s: ignoreHeavy.S): String = when (s) {
+        is ignoreHeavy.S.Idle -> "Idle"
+        is ignoreHeavy.S.Armed -> "Armed"
+        is ignoreHeavy.S.Firing -> "Firing"
+        is ignoreHeavy.S.Spent -> "Spent"
+    }
+}
+
+// ---------------------------------------------------------------------------
+// no-static-exit.tbl
+// ---------------------------------------------------------------------------
+
+/**
+ * The `tabula::no-static-exit` fixture: `Fault` can be entered and, as far as
+ * the matrix can prove, never left.
+ *
+ * Its row is `[IGNORE, EMIT(Alarm), IGNORE]`. `EMIT` is `stay` plus an effect,
+ * never a transition -- which is why it compiles to `Step.Stay(listOf(...))`
+ * below and not to `Step.Go(S.Fault, ...)`. The `emit-stays-put` trace fails
+ * an implementation that confuses the two.
+ *
+ * `Fault`'s `EMIT` is the only live cell in its row, and that single cell is
+ * what keeps `dead-row` from subsuming this lint.
+ */
+object noStaticExit {
+    sealed interface S {
+        data object Idle : S
+        data object Blinking : S
+        data object Fault : S
+    }
+    sealed interface A {
+        data object Start : A
+        data object Pulse : A
+        data object Clear : A
+    }
+    sealed interface F {
+        data object Flash : F
+        data object Alarm : F
+    }
+
+    object Ctx
+
+    abstract class Machine {
+        abstract fun idleStart(ctx: Ctx, state: S.Idle, action: A.Start): Step<S, F>
+
+        fun step(ctx: Ctx, s: S, a: A): Step<S, F> = when (s) {
+            is S.Idle -> when (a) {
+                is A.Start -> idleStart(ctx, s, a)
+                is A.Pulse -> Step.Ignored
+                is A.Clear -> Step.Ignored
+            }
+            is S.Blinking -> when (a) {
+                is A.Start -> Step.Ignored
+                is A.Pulse -> Step.Stay(listOf(F.Flash))
+                is A.Clear -> Step.Go(S.Idle)
+            }
+            is S.Fault -> when (a) {
+                is A.Start -> Step.Ignored
+                is A.Pulse -> Step.Stay(listOf(F.Alarm))
+                is A.Clear -> Step.Ignored
+            }
+        }
+
+        companion object {
+            val TABLE = Table(
+                machine = "Beacon",
+                states = listOf("Idle", "Blinking", "Fault"),
+                actions = listOf("Start", "Pulse", "Clear"),
+                initial = "Idle",
+                cells = listOf(
+                    listOf(Cell.Handle, Cell.Ignore, Cell.Ignore),
+                    listOf(Cell.Ignore, Cell.Emit(listOf("Flash")), Cell.Go("Idle")),
+                    listOf(Cell.Ignore, Cell.Emit(listOf("Alarm")), Cell.Ignore),
+                ),
+            )
+        }
+    }
+
+    class Impl : Machine() {
+        /**
+         * The only dynamic cell, and the reason the matrix is not fully static
+         * -- which is what keeps `no-static-entry` quiet about `Fault`, a state
+         * nothing in the matrix enters.
+         */
+        override fun idleStart(ctx: Ctx, state: S.Idle, action: A.Start): Step<S, F> =
+            Step.Go(S.Blinking)
+    }
+}
+
+object NoStaticExitAdapter : Adapter {
+    override val name = "no-static-exit"
+    override val table = noStaticExit.Machine.TABLE
+
+    override fun replay(trace: Trace): List<Observed> {
+        val m = noStaticExit.Impl()
+        var state: noStaticExit.S = stateOf(trace.from)
+        return trace.steps.map { st ->
+            val step = m.step(noStaticExit.Ctx, state, actionOf(st.action))
+            val effects = step.effects.map { it.toString() }
+            val expect = when (step) {
+                is Step.Stay -> Expect.Stay
+                is Step.Ignored -> Expect.Ignored
+                is Step.Go -> {
+                    state = step.next
+                    Expect.Go(nameOf(step.next), emptyMap())
+                }
+            }
+            Observed(expect, effects)
+        }
+    }
+
+    private fun stateOf(name: String): noStaticExit.S = when (name) {
+        "Idle" -> noStaticExit.S.Idle
+        "Blinking" -> noStaticExit.S.Blinking
+        "Fault" -> noStaticExit.S.Fault
+        else -> error("no-static-exit: unknown state `$name`")
+    }
+
+    private fun actionOf(name: String): noStaticExit.A = when (name) {
+        "Start" -> noStaticExit.A.Start
+        "Pulse" -> noStaticExit.A.Pulse
+        "Clear" -> noStaticExit.A.Clear
+        else -> error("no-static-exit: unknown action `$name`")
+    }
+
+    private fun nameOf(s: noStaticExit.S): String = when (s) {
+        is noStaticExit.S.Idle -> "Idle"
+        is noStaticExit.S.Blinking -> "Blinking"
+        is noStaticExit.S.Fault -> "Fault"
+    }
+}
+
 /** Every adapter that has landed. A fixture with none is reported as skipped. */
 val adapters: List<Adapter> =
     listOf(
         TimerAdapter, ToggleAdapter, RetryAdapter, JobAdapter, EffectsNeverAdapter,
-        PayloadHoistAdapter, DeadColumnAdapter,
+        PayloadHoistAdapter, DeadColumnAdapter, IgnoreHeavyAdapter, NoStaticExitAdapter,
     )
