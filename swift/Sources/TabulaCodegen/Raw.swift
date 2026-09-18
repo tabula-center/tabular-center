@@ -151,6 +151,8 @@ public func buildDesc(_ raw: RawMachine) throws -> MachineDesc {
                 + "States: \(stateNames.joined(separator: " "))")
     }
 
+    try validatePaths(raw, stateNames)
+
     // Rows correspond to states one-to-one, in order. Position identifies a
     // row, so an out-of-order row is not a reordering — it is a row for the
     // wrong state.
@@ -276,5 +278,75 @@ private func cell(
             "tabula::unknown-cell",
             "`\(c.kind)` in row `\(state)`, column `\(action)`. Expected one of: "
                 + "IGNORE, HANDLE, UNREACHABLE, GO, EMIT, DELEGATE.")
+    }
+}
+
+/// Reject a broken happy path before anything derives from it.
+///
+/// Errors before features: a default computed from an invalid spine is worse
+/// than no default, because it produces a machine that compiles and goes
+/// somewhere nobody wrote down.
+///
+/// The Kotlin twin is `validatePaths` in `kotlin/codegen/Raw.kt`, and the
+/// messages are identical on purpose -- `spec/diagnostics.md` is normative for
+/// both, and `diagnostics-coverage` fails if one emits a code the other does
+/// not. See `spec/happy-paths.md`.
+private func validatePaths(_ raw: RawMachine, _ stateNames: [String]) throws {
+    var seen = Set<String>()
+    for path in raw.paths {
+        if !seen.insert(path.name).inserted {
+            try fail(
+                "tabula::path-duplicate",
+                "two paths are named `\(path.name)`; a narrowed call site names "
+                    + "the path it narrows to, so names must be unique")
+        }
+
+        for state in path.states where !stateNames.contains(state) {
+            try fail(
+                "tabula::path-unknown-state",
+                "path `\(path.name)` names state `\(state)`, which is not declared. "
+                    + "States: \(stateNames.joined(separator: " "))")
+        }
+
+        if path.states.count < 2 {
+            try fail(
+                "tabula::path-broken",
+                "path `\(path.name)` has \(path.states.count) state(s); a path is a "
+                    + "route and needs at least two")
+        }
+
+        // A HANDLE counts as a connection. Its target is not knowable from the
+        // matrix, and supplying that target is exactly what a path is for;
+        // refusing it would reject the only cell kind this feature shortens.
+        for i in 0..<max(0, path.states.count - 1) {
+            let from = path.states[i]
+            let to = path.states[i + 1]
+            let row = raw.rows.first { $0.state == from }
+            let connected = row?.cells.contains { c in
+                c.kind == "HANDLE" || c.kind == "DELEGATE"
+                    || (c.kind == "GO" && c.target == to)
+            } ?? false
+            if !connected {
+                try fail(
+                    "tabula::path-broken",
+                    "path `\(path.name)` goes `\(from)` -> `\(to)`, and no cell in row "
+                        + "`\(from)` can reach `\(to)`")
+            }
+        }
+
+        // A path that never ends is a loop with a name.
+        if let last = path.states.last {
+            let lastRow = raw.rows.first { $0.state == last }
+            let leaves = lastRow?.cells.contains { c in
+                c.kind == "HANDLE" || c.kind == "DELEGATE"
+                    || (c.kind == "GO" && c.target != last)
+            } ?? false
+            if leaves {
+                try fail(
+                    "tabula::path-unterminated",
+                    "path `\(path.name)` ends at `\(last)`, which can still be left; a "
+                        + "path ends where the machine is done")
+            }
+        }
     }
 }

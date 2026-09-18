@@ -22,6 +22,10 @@ tabula::ignore-heavy       rust kotlin swift
 tabula::missing-row        rust kotlin swift
 tabula::no-static-entry    rust kotlin swift
 tabula::no-static-exit     rust kotlin swift
+tabula::path-broken        kotlin swift
+tabula::path-duplicate     kotlin swift
+tabula::path-unknown-state kotlin swift
+tabula::path-unterminated  kotlin swift
 tabula::payload-hoist      rust kotlin swift
 tabula::row-arity          rust kotlin swift
 tabula::unknown-cell       rust kotlin swift
@@ -64,6 +68,17 @@ goldens, and three adapters — the `payload-hoist` shape, five times over.
 
 Listed as `-` rather than silently absent so that closing one is a diff to this
 file, and so nobody rediscovers the gap by finding a bug it would have caught.
+
+## The four `path-*` codes are Kotlin and Swift only, for the same reason
+
+`spec/happy-paths.md` is the feature. Rust has no `RawMachine` and no
+`buildDesc` -- its matrix is `macro_rules!`, expanded straight to types and a
+dispatcher -- so there is no intermediate model for a spine to be validated in.
+`@Path` in Rust is a macro arm, and its rejections are `compile_error!` the way
+`extra-row` already is.
+
+Same guarantee, different mechanism, and the same shape as the four codes
+below.
 
 ## Why Rust emits four fewer, and why that is not a bug
 

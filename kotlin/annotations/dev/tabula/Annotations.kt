@@ -59,3 +59,37 @@ annotation class Machine(
     val initial: KClass<*> = Unit::class,
     val name: String = "",
 )
+
+/**
+ * A happy path: a named route through the matrix. See `spec/happy-paths.md`.
+ *
+ * Purely additive. A machine without one is declared, generated and consumed
+ * exactly as before, and a machine with one produces a byte-identical `TABLE`,
+ * `.grid`, `.lint`, `.cov` and `.mmd`. What it buys is generated sugar: the
+ * ordinary case reads as ordinary, and the corner cases stop being the first
+ * thing a reader meets.
+ *
+ * ```
+ * @Path("connect", [S.Idle::class, S.Connecting::class, S.Live::class])
+ * ```
+ *
+ * `@Repeatable` for the same reason `@Row` is: a machine may have several, and
+ * each is its own declaration rather than an entry in a list-of-lists nobody
+ * can read.
+ *
+ * `SOURCE` retention, like the rest of this file. KSP reads the declaration and
+ * discards it; nothing here exists at run time, which is what keeps the runtime
+ * types unchanged.
+ *
+ * States are `KClass` rather than strings so a rename in the IDE moves the path
+ * with it. `tabula::path-unknown-state` catches what a rename cannot -- a state
+ * that never existed -- and the other three `path-*` codes catch a route that
+ * does not match the rows it describes.
+ */
+@Repeatable
+@Retention(AnnotationRetention.SOURCE)
+@Target(AnnotationTarget.CLASS)
+annotation class Path(
+    val name: String,
+    val states: Array<KClass<*>>,
+)

@@ -236,6 +236,71 @@ arm — `$($g:tt)*` matches zero tokens, so the general arm would otherwise
 swallow it. Another instance of the rule in `ARCHITECTURE.md` §11.1: the useful
 diagnostic has to be emitted earlier than the incidental one.
 
+### Happy-path diagnostics
+
+The four below come from `@Path`, and all four are *declaration* diagnostics
+rather than lints: a broken spine is rejected by `buildDesc` before a `TABLE`
+exists, so there is nothing for a lint to read. See `spec/happy-paths.md`.
+
+Kotlin and Swift emit them. Rust does not, and that is not a gap — Rust has no
+`RawMachine` and no `buildDesc`, so `@Path` there is a macro arm and its
+rejections are `compile_error!`, exactly as `extra-row` already is.
+`spec/diagnostics-coverage.md` records it.
+
+### `tabula::path-broken`
+
+```
+tabula::path-broken: path `connect` goes `Connecting` -> `Live`, and no cell
+in row `Connecting` can reach `Live`.
+```
+
+The check that lets a path be declared away from the rows it describes. Without
+it the objection to a separate `@Path` annotation would stand: a route stated
+somewhere a matrix reader will not look could drift from the matrix silently.
+With it, the two cannot disagree — a spine naming a transition the table does
+not have is not a warning, it is a machine that does not build.
+
+A `HANDLE` counts as a connection. Its target is not knowable from the matrix,
+and supplying that target is the entire point of the path; refusing it would
+reject the only cell kind the feature exists to shorten.
+
+A one-state path reports here too. A route that goes nowhere is broken in the
+same sense, and inventing a fifth code for it would split one idea across two
+pages a reader has to find separately.
+
+### `tabula::path-unterminated`
+
+```
+tabula::path-unterminated: path `connect` ends at `Live`, which can still be
+left; a path ends where the machine is done.
+```
+
+A path that never ends is a loop with a name. The test is the same one
+`tabula::no-static-exit` uses — a `GO` elsewhere, a `HANDLE`, or a `DELEGATE` —
+so the two agree about what "can be left" means rather than each deciding.
+
+### `tabula::path-unknown-state`
+
+```
+tabula::path-unknown-state: path `connect` names state `Livee`, which is not
+declared. States: Idle Connecting Live Failed
+```
+
+Lists the declared states, so a typo is fixed from the message. Separate from
+`tabula::unknown-state`, which is about a cell's target: the two have different
+remedies, and a shared code would mean a shared doc page explaining both.
+
+### `tabula::path-duplicate`
+
+```
+tabula::path-duplicate: two paths are named `connect`; a narrowed call site
+names the path it narrows to, so names must be unique.
+```
+
+The message says why rather than just what. A developer reading it has probably
+copied a `@Path` and edited the states without the name, and the reason names
+must be unique is the thing that makes the fix obvious.
+
 ## `tabula::color-mismatch` (Phase 6)
 
 ```
