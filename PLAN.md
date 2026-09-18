@@ -43,8 +43,8 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 
 93 Rust tests; 30 compile-fail fixtures (10 Rust, 4 Kotlin, 1 Kotlin-codegen,
 11 Kotlin-KSP, 4 Swift); 9 conformance fixtures (77 trace steps), of which
-`ignore-heavy` and `no-static-exit` have a Kotlin adapter only and report
-`skip` in Rust and Swift; 9 each of golden `.grid`, `.mmd`, `.lint`, `.cov`.
+`ignore-heavy` and `no-static-exit` have Kotlin and Rust adapters and report
+`skip` in Swift only; 9 each of golden `.grid`, `.mmd`, `.lint`, `.cov`.
 
 These counts are checked against the tree, not remembered. Regenerate with:
 
@@ -1523,7 +1523,11 @@ Found and **not** fixed in this patch, in priority order:
             three renderers agree on, which also matches the `.lint` line.
             `no-static-exit.tbl` also claimed to be the first fixture using
             EMIT; `toggle` is. Comment corrected; no golden changes.
-      - [ ] Rust adapters.
+      - [x] Rust: `machines/ignore_heavy.rs`, `machines/no_static_exit.rs`.
+            `Poll` is the first 4x5 `transition_matrix!` in the conformance
+            crate; `scale.rs` recorded a recursion-limit cost past ~7x10, well
+            clear of this. Rust now reads the corrected `ignore-heavy.cov`
+            too, so two renderers agree on it rather than one.
       - [ ] Swift adapters.
 - [ ] `no-static-entry` and `unreachable-heavy` still have no fixture.
 - [ ] 4c-old's seven open boxes describe the processor as unwritten; most are
@@ -1953,7 +1957,7 @@ decision anyone made: every fixture happens to sit well under
 - [ ] Five fixtures, each the `payload-hoist` shape: a `.tbl`, `.grid`,
       `.lint`, `.cov`, a trace, and three adapters. Progress: dead-column is
       done in all three; ignore-heavy and no-static-exit have fixture data and
-      Kotlin adapters (see 0f); the other two have nothing yet.
+      Kotlin and Rust adapters (see 0f); the other two have nothing yet.
       - a matrix with a dead column
       - one over 70% `IGNORE`
       - one with enough `UNREACHABLE` cells to pass 25%
