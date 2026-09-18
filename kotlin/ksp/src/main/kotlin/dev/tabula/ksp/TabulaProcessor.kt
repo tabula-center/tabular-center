@@ -118,7 +118,23 @@ class TabulaProcessor(
             // their outer names are the type names a developer already chose.
             stateType = outerOf(machineAnn, "states"),
             actionType = outerOf(machineAnn, "actions"),
-            effectType = outerOf(machineAnn, "effects"),
+            // `F` when there are no effects, not `Unit`.
+            //
+            // The type names are read from the first variant's outer class,
+            // which is right for states and actions -- a machine cannot have
+            // none -- and has no answer for an empty `effects` list.
+            // `outerOf` returned `Unit`, so the generated surface was
+            // `Step<S, Unit>` while the developer had written
+            // `sealed interface F` and implemented against `Step<S, F>`:
+            //
+            //   Return type of 'failedStart' is not a subtype of the return
+            //   type of the overridden member ... Step<S, Unit>
+            //
+            // Every machine before `Spine` declared at least one effect, so
+            // this path had never run. `F` matches the convention SURFACE.md
+            // states and `ChildDesc` already defaults to, and it makes the
+            // `sealed interface F` a developer writes mean something.
+            effectType = outerOf(machineAnn, "effects").takeIf { it != "Unit" } ?: "F",
             ctxType = ctxTypeOf(decl),
             initial = initial,
             states = states,

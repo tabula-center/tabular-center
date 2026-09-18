@@ -636,11 +636,19 @@ step_kotlin_ksp_incremental() {
     first="$( (cd "$ex" && gradle --no-daemon --console=plain build 2>&1) )"
     if [ $? -ne 0 ]; then
         echo "FAIL the first build failed, before any edit was made."
-        echo "     kotlin-ksp builds this example in the source tree, so a"
-        echo "     failure here is about the scratch copy's layout rather than"
-        echo "     about the example."
-        printf '%s\n' "$first" | grep -iE "error|FAILURE|what went wrong" -A3 \
-            | head -20 | sed 's/^/       /'
+        echo "     If kotlin-ksp passed, this is about the scratch copy's"
+        echo "     layout. If kotlin-ksp failed too, it is the example, and"
+        echo "     that check has the better message -- read it first."
+        # `e:` lines first, and separately.
+        #
+        # Kotlin writes its diagnostics as `e: file:line:col: message` and
+        # Gradle writes a summary that says only "Compilation error. See log
+        # for more details". A grep for "error" matches the summary, which is
+        # nearer the end, so `head` kept the useless half and dropped the
+        # useful one -- this check reported a failure whose cause was in the
+        # output it discarded.
+        printf '%s\n' "$first" | grep -E "^\s*(e|w): " | head -15 | sed 's/^/       /'
+        printf '%s\n' "$first" | grep -iE "what went wrong" -A4 | head -8 | sed 's/^/       /'
         rm -rf "$scratch"
         return 1
     fi
@@ -673,8 +681,8 @@ step_kotlin_ksp_incremental() {
         echo "     hierarchy as a dependency of what it writes."
         if [ "$rc" -ne 0 ]; then
             echo "     (the second build also failed, rc=$rc)"
-            printf '%s\n' "$second" | grep -iE "error|what went wrong" -A3 \
-                | head -20 | sed 's/^/       /'
+            printf '%s\n' "$second" | grep -E "^\s*(e|w): " | head -15 | sed 's/^/       /'
+            printf '%s\n' "$second" | grep -iE "what went wrong" -A4 | head -8 | sed 's/^/       /'
         fi
         bad=1
     fi
