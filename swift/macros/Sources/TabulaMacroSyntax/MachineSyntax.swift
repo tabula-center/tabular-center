@@ -72,6 +72,49 @@ public enum MachineSyntax {
             .first { $0.name.text == "handle" }
         let modifiers = prototype.map(prototypeModifiers(of:)) ?? []
 
+        // Happy paths, read the same way rows are. See `spec/happy-paths.md`.
+        //
+        // Attached to the same declaration `@Machine` is, so they come off
+        // `decl.attributes` rather than out of the members -- `@Row` hangs on
+        // a stored property because a row belongs to one state, and a path
+        // belongs to the machine.
+        //
+        // No validation. `buildDesc` owns all four `path-*` codes, so a route
+        // naming a state that does not exist is rejected there with the
+        // normative message rather than twice with two.
+        // Bound with an explicit type, which is not decoration.
+        //
+        // `decl.attributes.compactMap { $0.as(AttributeSyntax.self) }` on its
+        // own infers `[AttributeSyntax]` -- `row()` below does exactly that and
+        // compiles -- but chaining `.filter` and `.compactMap` straight onto it
+        // gives the inferencer enough room to keep the element optional:
+        //
+        //   error: value of optional type 'AttributeSyntax?' must be unwrapped
+        //   to refer to member 'attributeName'
+        //
+        // Naming the type ends the argument in one line rather than sprinkling
+        // `?` through a chain that was already correct.
+        let attrs: [AttributeSyntax] = decl.attributes.compactMap {
+            $0.as(AttributeSyntax.self)
+        }
+        let paths = attrs
+            .filter { $0.attributeName.trimmedDescription == "Path" }
+            .compactMap { attr -> RawPath? in
+                guard case let .argumentList(args)? = attr.arguments,
+                    args.count >= 2,
+                    let name = args.first?.expression
+                        .as(StringLiteralExprSyntax.self)
+                        .flatMap(literalText),
+                    let list = Array(args)[1].expression.as(ArrayExprSyntax.self)
+                else { return nil }
+                return RawPath(
+                    name: name,
+                    states: list.elements.compactMap {
+                        $0.expression.as(MemberAccessExprSyntax.self)?
+                            .declName.baseName.text
+                    })
+            }
+
         return RawMachine(
             machine: machine,
             initial: initial,
@@ -80,8 +123,28 @@ public enum MachineSyntax {
             effects: effects,
             rows: rows,
             prototypeModifiers: modifiers,
-            children: children(rows)
+            children: children(rows),
+            paths: paths
         )
+    }
+
+    /// The text of a plain string literal, or nil if it is not one.
+    ///
+    /// `representedLiteralValue` does this in one call and is swift-syntax 510;
+    /// `nix/swift-lock.json` pins 509.1.1, so the segments are read directly.
+    ///
+    /// Returning nil for an interpolated literal is the correct answer rather
+    /// than a limitation. `@Path("connect", ...)` names a path, and a name
+    /// assembled at run time cannot be one -- the generator emits a member
+    /// called after it, at compile time. A literal is the only thing that can
+    /// work, so anything else is not a path this file can read.
+    static func literalText(_ lit: StringLiteralExprSyntax) -> String? {
+        var out = ""
+        for segment in lit.segments {
+            guard let piece = segment.as(StringSegmentSyntax.self) else { return nil }
+            out += piece.content.text
+        }
+        return out
     }
 
     // MARK: - Pieces

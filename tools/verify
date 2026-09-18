@@ -1150,6 +1150,23 @@ step_swift_macros() {
             echo "        ./tools/verify swift-macro-support for the detail."
             return 1
             ;;
+        *".swift:"*"error:"*)
+            # A compile error in our own source, matched BEFORE the network
+            # patterns. SwiftPM's shared-cache probe puts
+            # `fatal: unable to access 'https://...'` into the output of every
+            # run, so the network case matches whatever the real failure was --
+            # it has now reported "reached the network despite a locked
+            # checkout set" for a compiler that cannot declare macros and for a
+            # type error in MachineSyntax.swift.
+            #
+            # Ordering is the fix rather than a cleverer pattern: a line naming
+            # a `.swift` file and an `error:` is a compile failure whatever else
+            # is in the log.
+            printf '%s\n' "$out" | grep -E "\.swift:[0-9]+:[0-9]+: error:" -A2 \
+                | head -20
+            echo "FAILED: swift-macros -- compile error, see above"
+            return 1
+            ;;
         *"Network is unreachable"*|*"Could not resolve"*|*"failed to resolve"*|*"fatal: unable to access"*)
             # Matched LAST on purpose. SwiftPM's shared-cache probe puts
             # `fatal: unable to access 'https://...'` into the output of every
