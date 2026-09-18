@@ -1,16 +1,16 @@
 # tabula-ksp
 
-KSP is a Maven artifact. The environment this was developed in cannot reach
-Maven, and the jars are not published as GitHub release assets either (checked).
-So `TabulaProcessor.kt` is unverified, while **everything it feeds into is
-covered**.
+KSP is a Maven artifact. The environment this was first written in could not
+reach Maven, so `TabulaProcessor.kt` was written unverified while **everything
+it feeds into was already covered**. It now runs under `nix flake check` against
+the artifact set pinned in `nix/gradle-lock.json` (see below).
 
-That is a deliberate arrangement, not a shrug. The work went into making this
-file as small and as dumb as possible:
+The arrangement is kept because it paid: the work went into making this file as
+small and as dumb as possible.
 
 | | where | verified |
 |---|---|---|
-| `KSP API -> RawMachine` | `ksp/` | **no** — this file |
+| `KSP API -> RawMachine` | `ksp/` | `kotlin-ksp` (goldens), `kotlin-ksp-compile-fail`, `kotlin-ksp-incremental` |
 | validation + every declaration diagnostic | `codegen/Raw.kt` | yes, 14 cases |
 | source emission | `codegen/Emit.kt` | yes: golden, then compiled |
 | the emitted code still enforces the guarantee | `codegen/compile_fail/` | yes |
@@ -24,8 +24,14 @@ subtly wrong generated code.
 `gradle build` in `examples/kotlin/06-generated` succeeded. The processor read
 `@Machine` and `@Row` off `Machine.tb.kt`, built a `MachineDesc`, handed it to
 `TabulaCodegen`, and the emitted dispatcher compiled — with `Impl.kt`
-satisfying a `Cells` interface that did not exist until the build ran, and the
-behavioural checks passing against it.
+satisfying a `Cells` interface that did not exist until the build ran.
+
+This file used to add "and the behavioural checks passing against it". They
+were compiled and never executed: `test/*.kt` are `main` functions, and
+Gradle's `test` task is a JUnit runner that found nothing to run and passed.
+`build.gradle.kts` now registers one `JavaExec` per check and hangs them off
+`check`, so `gradle build` runs `GeneratedTestKt` and `GateTestKt` and fails if
+either does.
 
 This file used to hold four predictions about what would break first. Keeping
 score, because the scoring is the useful part:
@@ -101,5 +107,7 @@ Regenerating the lock needs network and is not a derivation:
 ```
 
 Run it after changing a version in either `build.gradle.kts`, and commit the
-result. `ci.yml`'s `check-no-nix` job runs `--check` — the only job with
-network, and so the only one that can notice a lock going stale.
+result. `ci.yml`'s `check` job runs `nix run .#gradle-lock -- --check`: `nix
+run` is not sandboxed, so that job has both the flake's pinned Gradle and a
+network, which is what the question needs. (It used to be `check-no-nix`,
+whose own Gradle version would have reported version skew as staleness.)

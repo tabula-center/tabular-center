@@ -41,16 +41,19 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 8 Introspection & tooling | **done (Rust half)** |
 | 9 Runtime / drivers | **done (Rust half)** |
 
-95 Rust tests; 18 compile-fail fixtures (9 Rust, 4 Kotlin, 1 Kotlin-codegen,
-4 Swift); 5 conformance fixtures (34 trace steps); 5 golden `.grid`, 5 `.lint`,
-5 `.cov` snapshots.
+93 Rust tests; 30 compile-fail fixtures (10 Rust, 4 Kotlin, 1 Kotlin-codegen,
+11 Kotlin-KSP, 4 Swift); 9 conformance fixtures (77 trace steps), of which
+`ignore-heavy` and `no-static-exit` have no adapter in any language yet and
+report `skip`; 9 each of golden `.grid`, `.mmd`, `.lint`, `.cov`.
 
 These counts are checked against the tree, not remembered. Regenerate with:
 
 ```
 grep -rho '#\[test\]' rust/ | wc -l
 ls rust/tabula/tests/compile_fail/*.rs | grep -vc _prelude
+ls -d kotlin/ksp/compile-fail/fixtures/*/ | wc -l
 grep -h '=>' spec/conformance/traces/*.trace | wc -l
+ls spec/conformance/*.tbl | wc -l
 ```
 
 ### Phase 7: the grammar change, made
@@ -95,9 +98,10 @@ into `ARCHITECTURE.md`.
 
 ## Open decisions
 
-### 0b. Two runs are needed, both needing network
+### 0b. Two runs are needed, both needing network — done
 
-Neither can be done from a sandbox, and both are one command:
+Both have been run: `flake.lock` pins `nixos-26.05`, and `nix/gradle-lock.json`
+is committed (108 artifacts, produced by gradle 8.14.4). Kept for the record:
 
 1. **`nix flake update`.** `flake.nix` now asks for `nixos-26.05` instead of
    `nixos-25.05`, to get a Swift whose SwiftPM ships `CompilerPluginSupport` —
@@ -242,8 +246,8 @@ what the check builds.
       skew rather than on a stale lock. `nix run` is not sandboxed, so the
       `check` job has both the flake's toolchain and a network -- the only
       place the question can be asked honestly.
-- [ ] **`nix run .#gradle-lock` once, on a machine with network, and commit
-      `nix/gradle-lock.json`.** The one remaining out-of-band step, and the
+- [x] **`nix run .#gradle-lock` once, on a machine with network, and commit
+      `nix/gradle-lock.json`.** Done; the lock is in the tree. The one remaining out-of-band step, and the
       same kind of thing as `nix flake update` in 0b above: nix cannot pin a
       hash it has never seen. After it, `nix flake check` fetches every
       artifact itself and the KSP example runs in the sandbox like everything
@@ -417,9 +421,12 @@ owner.
       product had shipped in the manifest without a single consumer outside the
       library.
 
-### 4. The KSP adapter has never run
+### 4. The KSP adapter has never run — superseded
 
-`kotlin/ksp/` is the only code in the repository that has never executed —
+It runs now: see 0d, and 0f below. The rest of this entry is the history of
+getting there.
+
+`kotlin/ksp/` was the only code in the repository that had never executed —
 there is no Gradle, and KSP is a Maven artifact this environment cannot reach.
 `kotlin/ksp/README.md` records what will break first, re-read against the code
 rather than remembered. The headline: `getDeclaredFunctions` cannot compile as
@@ -1456,6 +1463,63 @@ from an older toolchain -- and the lock is the whole remaining job.
 - [ ] `MachineMacro` itself, once the package builds offline.
 - [ ] Restore `pending/Machine.swift` and the `.macro` target on a SwiftPM
       that ships `CompilerPluginSupport`. Only `Package.swift` changes.
+
+## 0f. Kotlin under `nix flake check`: one compiler, and checks that run
+
+An audit of the tree against this file and `ARCHITECTURE.md`, with Kotlin
+under the flake as the priority. Two defects, both of the shape this file
+keeps recording -- something that looked checked and was not compared against
+anything.
+
+**The flake's kotlinc floated.** `kotlinInputs` took `pkgs.kotlin`, whatever
+the channel ships. Every other place names 2.1.20: both `build.gradle.kts`
+files, the KSP pair `2.1.20-1.0.32`, `ci.yml`'s check-no-nix download, and
+`kotlin/README.md`. The bump from `nixos-25.05` to `nixos-26.05` -- made for
+Swift -- therefore changed the Kotlin compiler too, silently, and the four
+`kotlin/compile_fail/` fixtures plus `codegen/compile_fail/` match kotlinc's
+own message text, which a compiler release is free to reword. Same shape as
+0c: a change to one language's toolchain landing in another's checks.
+
+- [x] `kotlinc` owned in `nix/context.nix` (`kotlinVersion`), fetched from the
+      JetBrains release by hash and wrapped with the flake's JDK. Not
+      `pkgs.kotlin.overrideAttrs`, which would depend on nixpkgs' installPhase
+      for a release it was not written for.
+- [x] `tools/verify` prints a `note:` from the two text-matching steps when the
+      kotlinc on PATH is not the version `06-generated` names. A note, not a
+      failure -- the same call `kotlin-ksp` makes on Gradle version skew.
+
+**`06-generated`'s checks were compiled and never run.** `test/GeneratedTest.kt`
+and `test/GateTest.kt` are `main` functions; `gradle build` compiled them and
+its JUnit `test` task found nothing to discover and passed. `kotlin/ksp/README.md`
+said "the behavioural checks passing against it". They had never executed --
+including `GateTest`, the only check on the suspend machine driven by
+`SuspendDriver`.
+
+- [x] One `JavaExec` per check, hung off `check`, so `gradle build` runs them.
+      The JUnit task is disabled: nothing to discover, and from Gradle 9 an
+      empty discovery is a failure rather than a pass.
+- [x] `GateImpl.chime`'s doc described a follow-up the code does not return.
+
+**Docs that had fallen behind the tree**, corrected in the same patch:
+`ARCHITECTURE` 12/13 and `kotlin/README.md` still said KSP had never run and
+that 06-generated is skipped under nix; `kotlin/ksp/build.gradle.kts` was
+headed UNVERIFIED; the 0b and 0d boxes above were open for work that is in
+the tree; the status counts were a release behind.
+
+Found and **not** fixed in this patch, in priority order:
+
+- [ ] `ignore-heavy` and `no-static-exit` have fixtures (`.tbl`, goldens,
+      traces) and no adapter in **any** language, so all three harnesses report
+      them as `skip`. `diagnostics-coverage.md`'s `fixtures` table already
+      credits them, which is true of the goldens and not of any
+      implementation's output. Kotlin adapters first.
+- [ ] `no-static-entry` and `unreachable-heavy` still have no fixture.
+- [ ] 4c-old's seven open boxes describe the processor as unwritten; most are
+      now either done by `TabulaProcessor.kt` or superseded by `codegen/`.
+      Needs a pass against the processor source rather than a guess.
+- [ ] `Kind` has no `EXPAND` although 4b lists it. `spec/cells.md` calls
+      `EXPAND` a row directive and not a cell kind, so the checkbox is what is
+      wrong -- confirm and correct it.
 
 ## Skips are named, everywhere
 

@@ -1,9 +1,9 @@
-// UNVERIFIED. Written from the KSP documentation, never run -- Gradle needs
-// Maven Central and this environment cannot reach it. See README.md.
+// The processor's build. It runs: `nix flake check` builds it as an included
+// build of examples/kotlin/06-generated (the `kotlin-ksp` check), resolving
+// from the artifact set pinned in nix/gradle-lock.json. See README.md.
 //
-// Reviewed once against the tree without running it, in the same pass that
-// reviewed the processor. One near-certain bug came out of that and is fixed
-// below; the rest is still documentation-shaped rather than evidence-shaped.
+// Written from the KSP documentation before it could run, and reviewed by
+// reading first; the one bug that review found is recorded below.
 plugins {
     kotlin("jvm") version "2.1.20"
 }

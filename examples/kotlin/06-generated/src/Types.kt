@@ -1,19 +1,18 @@
 /**
  * **6. A machine whose dispatcher is generated, not written.**
  *
- * Every other Kotlin example hand-writes its `step`, because there is no
- * annotation processor in this environment to write one. This one does not:
- * its dispatcher is produced at build time by the same emitter the KSP
- * processor calls, from the same `MachineDesc` the processor builds.
+ * Every other Kotlin example hand-writes its `step`. This one does not: the
+ * KSP processor reads the annotations in `Machine.tb.kt` and writes the
+ * dispatcher at build time, into `build/generated/ksp/`.
  *
  * It is the only example that needs Gradle, because KSP is a Maven artifact.
- * Where Gradle is absent it is **skipped**, not failed and not faked: there is
- * no `Cells` interface for `Impl.kt` to implement until the processor has run,
- * and standing in for it with a hand-written `MachineDesc` would be committing
- * by hand exactly what this example exists to generate.
+ * `nix flake check` builds it offline against `nix/gradle-lock.json`; without
+ * nix and without network it is **skipped**, not faked: there is no `Cells`
+ * interface for `Impl.kt` to implement until the processor has run.
  *
  * The types a developer writes. The dispatcher, the `Cells` interface and the
- * effect-handler surface are generated from these plus the rows in `gen/`.
+ * effect-handler surface are generated from these plus the rows in
+ * `Machine.tb.kt`.
  */
 package generated.turnstile
 

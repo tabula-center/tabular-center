@@ -57,6 +57,35 @@ dependencies {
 
 kotlin { jvmToolchain(21) }
 
+// The checks are `main` functions, so RUN them.
+//
+// `gradle build` compiled test/ and executed none of it. Its `test` task is a
+// JUnit runner, and there is no JUnit here -- deliberately, the same four-
+// function harness every other Kotlin example uses -- so it scanned the test
+// classes, found no test methods, and passed. `GeneratedTest` and `GateTest`
+// were compiled on every `nix flake check` and run by nothing, while
+// kotlin/ksp/README.md reported "the behavioural checks passing against it".
+// A compiled check is not a passing one; tools/verify runs `java -cp ... MainKt`
+// for examples 01-05 and this build had no equivalent.
+//
+// One JavaExec per file, because each `main` is its own class (`<File>Kt`) and
+// `Check.report` exits non-zero on the first failing file. Wired into `check`,
+// so `build` -- the only task tools/verify asks for -- runs them.
+val exampleChecks = listOf("GeneratedTestKt", "GateTestKt").map { mainClassName ->
+    tasks.register<JavaExec>("run$mainClassName") {
+        group = "verification"
+        description = "Runs the $mainClassName checks against the generated dispatcher."
+        classpath = sourceSets["test"].runtimeClasspath
+        mainClass.set(mainClassName)
+    }
+}
+tasks.named("check") { dependsOn(exampleChecks) }
+
+// And stop the JUnit task pretending. It has nothing to discover, and from
+// Gradle 9 a test task that discovers nothing in a non-empty source set is a
+// failure rather than a pass -- which would be red for the wrong reason.
+tasks.named<Test>("test") { enabled = false }
+
 // The generated sources land in build/generated/ksp/ and are compiled from
 // there. Nothing in that tree is committed, which is the point: `Impl.kt`
 // implements an interface that does not exist until this runs, so a stale

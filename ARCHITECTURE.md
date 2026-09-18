@@ -840,7 +840,7 @@ tabula/
 │   ├── annotations/dev/tabula/  # @Machine, @Row, cell markers
 │   ├── testing/dev/tabula/testing/
 │   ├── codegen/                 # MachineDesc -> String, + golden/ and compile_fail/
-│   ├── ksp/                     # JVM processor — written, never run
+│   ├── ksp/                     # JVM processor — Gradle, offline via nix/gradle-lock.json
 │   ├── test/                    # reference machine + harness
 │   ├── conformance/
 │   └── compile_fail/
@@ -871,11 +871,14 @@ Three things about this layout are decisions rather than accidents.
 steps in a sandbox and CI runs the flake, so all three paths execute the same
 commands. A new check goes in `tools/verify`, never directly into the workflow.
 
-**Kotlin has no build system.** Gradle needs Maven Central for the stdlib and
-the sandbox cannot reach it, so `kotlinc` is driven directly. That is not a
-workaround to be tidied up later: compiling each artifact against only its
-declared classpath is what enforces the zero-runtime-dependency rule by
-construction rather than by a dependency report.
+**The Kotlin library has no build system.** `kotlinc` is driven directly, and
+that is not a workaround to be tidied up later: compiling each artifact against
+only its declared classpath is what enforces the zero-runtime-dependency rule
+by construction rather than by a dependency report. Gradle exists only where
+KSP needs it — `kotlin/ksp` and `examples/kotlin/06-generated` — and resolves
+offline from `nix/gradle-lock.json`. The flake pins `kotlinc` to the same
+2.1.20 those builds name, so a nixpkgs bump cannot move the compiler whose
+messages the compile-fail fixtures match.
 
 **Examples sit outside every workspace.** They depend on the library by path,
 the way a user would. That is the only place the public API is exercised from
@@ -904,15 +907,15 @@ plus the cross-language conformance runner.
 ```
 nix develop              # everything
 nix develop .#rust       # rustc + cargo + clippy + rust-analyzer
-nix develop .#kotlin     # JDK 21 + Gradle
+nix develop .#kotlin     # JDK 21 + kotlinc 2.1.20 (pinned) + Gradle + ktlint
 nix develop .#swift      # Swift 5.10 (Linux and Darwin; checks run on both)
 nix flake check          # fmt + lint + test, all three + conformance
 nix run .#conformance    # cross-language conformance runner
 ```
 
 **Swift is checked on Linux, not merely available there.** That was not always
-true and the reasons it was not are worth keeping: the pinned nixpkgs 25.05
-ships Swift 5.8, below the 5.9 macros require, and its SwiftPM is sensitive to
+true and the reasons it was not are worth keeping: the then-pinned nixpkgs 25.05
+shipped Swift 5.8, below the 5.9 macros require, and its SwiftPM is sensitive to
 how the C toolchain is supplied — adding `stdenv.cc` to satisfy the setup-hook
 changes swiftc's default target triple and breaks the stdlib lookup.
 
@@ -928,20 +931,19 @@ the corelibs packaging was untangled and became stale the moment it was — the
 kind of temporary exemption that outlives its reason unless someone goes back
 for it.
 
-**Two things still do not run here, and neither is a choice.**
+**One thing still does not run here, and it is not a choice.**
 
-`swift/macros` cannot be built by this toolchain at all: its SwiftPM does not
-ship `CompilerPluginSupport`, so the manifest fails to *compile* before any
-dependency resolution. Vendoring swift-syntax would not help. It needs a
-SwiftPM that ships the module, which in practice means Darwin.
+`swift/macros` cannot declare a `.macro` target with nixpkgs' SwiftPM, which
+ships no `CompilerPluginSupport`; `nix/swiftpm-plugin-support.nix` and the
+`swift-macro-support` probe track how far that has been pushed. It reports
+`skip` with its reason rather than passing quietly.
 
-`examples/kotlin/06-generated` needs Gradle to reach Maven for KSP, and the Nix
-sandbox has no network. It is covered by the `check-no-nix` CI job instead,
-which is where the annotation processor runs at all.
-
-Both report `skip` with their reason rather than passing quietly, and both are
-blocked on an environment rather than on work. Everything else in the
-repository runs in the Linux sandbox.
+`examples/kotlin/06-generated` used to be the second item here. It is not any
+more: Gradle resolves from `nix/gradle-repo.nix`, a directory nix assembles
+from `nix/gradle-lock.json` with one `fetchurl` per artifact, so the
+annotation processor runs in the sandbox (`kotlin-ksp`,
+`kotlin-ksp-compile-fail`, `kotlin-ksp-incremental`). `check-no-nix` still
+builds it online, which is the no-nix claim tested rather than asserted.
 
 `flake.nix` itself is a table of contents. Toolchains, shells, checks, apps,
 and publication live in `nix/`, because a flake that grows past a screen stops

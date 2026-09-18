@@ -287,6 +287,29 @@ KOTLINC="${KOTLINC:-kotlinc}"
 
 kotlin_available() { command -v "$KOTLINC" >/dev/null 2>&1; }
 
+# Say so when kotlinc is not the version the rest of the tree is written for.
+#
+# The compile-fail steps match kotlinc's OWN message text, which a compiler
+# release is free to reword. The flake pins kotlinc to the version the Gradle
+# builds name (nix/context.nix, `kotlinVersion`), so under nix this is silent;
+# a developer with a different kotlinc on PATH gets told why a fixture that
+# matched in CI does not match for them, instead of reading a FAIL that looks
+# like a regression. A note, not a failure: the same call `kotlin-ksp` makes
+# for a Gradle that differs from the one the lock was produced with.
+kotlin_version_note() {
+    local want have
+    want="$(sed -n 's|.*kotlin("jvm") version "\([^"]*\)".*|\1|p' \
+        examples/kotlin/06-generated/build.gradle.kts 2>/dev/null | head -1)"
+    have="$("$KOTLINC" -version 2>&1 | grep -oE 'kotlinc-jvm [0-9][0-9A-Za-z.-]*' \
+        | awk '{print $2}' | head -1)"
+    [ -n "$want" ] && [ -n "$have" ] || return 0
+    if [ "$want" != "$have" ]; then
+        echo "note: kotlinc is $have; the tree is written for $want."
+        echo "      Fixtures below match kotlinc's own wording, which can change"
+        echo "      between releases. 'nix develop .#kotlin' has the pinned one."
+    fi
+}
+
 # Compile each published artifact against ONLY its declared dependencies.
 #
 # This is the boundary check, not just a build. `tabula-core` compiled with an
@@ -1761,6 +1784,7 @@ step_kotlin_codegen() {
     out="$(mktemp -d)"
     gen="$out/emitted"
     local rc=0
+    kotlin_version_note
 
     (
         require_dir kotlin || exit 1
@@ -1822,6 +1846,7 @@ step_kotlin_compile_fail() {
     local out bad f exp err raw rc
     out="$(mktemp -d)"
     bad=0
+    kotlin_version_note
 
     (cd kotlin && kotlin_artifacts "$out") || return 1
     KCP="$(kotlin_cp "$out")"

@@ -183,8 +183,56 @@ let
     ]
     ++ lib.optionals (builtins.hasAttr "swift-format" swiftPkgsSet) [ swiftPkgsSet.swift-format ];
 
+  # kotlinc, pinned to the SAME version as everything else Kotlin here.
+  #
+  # This was `pkgs.kotlin`, which is whatever the nixpkgs channel ships. The
+  # rest of the repository says 2.1.20 in four places -- both Gradle builds'
+  # `kotlin("jvm")`, the KSP pair `2.1.20-1.0.32`, ci.yml's check-no-nix
+  # download, and kotlin/README.md's "verified against kotlinc 2.1.20" -- and
+  # the flake alone floated. Moving `nixpkgs` from 25.05 to 26.05 for Swift
+  # therefore moved the Kotlin compiler as a side effect, which is the exact
+  # shape 0c warned about: a change to one language's toolchain landing in
+  # another's checks.
+  #
+  # It matters more for Kotlin than for most compilers because four fixtures
+  # assert on kotlinc's own message text (`//~ EXPECT:` in compile_fail/), and
+  # that text is the compiler's, not ours -- spec/diagnostics.md says so and
+  # says it must not be normalised. A compiler upgrade is allowed to reword
+  # it; the fixtures should move when WE move the compiler, on purpose.
+  #
+  # Owned rather than overridden: `pkgs.kotlin.overrideAttrs` would depend on
+  # the shape of nixpkgs' installPhase for a release it was not written for.
+  # The distribution is a zip of shell scripts and jars; wrapping it is five
+  # lines. Bump `kotlinVersion` and the hash together, and the two Gradle
+  # builds and ci.yml with them.
+  kotlinVersion = "2.1.20";
+  kotlinc = pkgs.stdenvNoCC.mkDerivation {
+    pname = "kotlinc";
+    version = kotlinVersion;
+    src = pkgs.fetchurl {
+      url = "https://github.com/JetBrains/kotlin/releases/download/v${kotlinVersion}/kotlin-compiler-${kotlinVersion}.zip";
+      hash = "sha256-oRgZew3lX/qyvI1c0DpeOQM8+1M4PWkxvHYd7AeEiRo=";
+    };
+    nativeBuildInputs = [ pkgs.unzip pkgs.makeWrapper ];
+    dontConfigure = true;
+    dontBuild = true;
+    installPhase = ''
+      runHook preInstall
+      rm -f bin/*.bat
+      mkdir -p "$out"
+      cp -r . "$out/"
+      # The scripts find java through JAVA_HOME or PATH. mkCheck sets
+      # JAVA_HOME already; --set-default keeps a dev shell with its own
+      # JAVA_HOME in charge, and gives a bare `nix shell` a working default.
+      for p in "$out"/bin/*; do
+        wrapProgram "$p" --set-default JAVA_HOME "${jdk}" --prefix PATH : "${jdk}/bin"
+      done
+      runHook postInstall
+    '';
+  };
+
   rustInputs = [ rustToolchain pkgs.cargo-expand pkgs.cargo-nextest ];
-  kotlinInputs = [ jdk pkgs.gradle pkgs.kotlin pkgs.ktlint ];
+  kotlinInputs = [ jdk pkgs.gradle kotlinc pkgs.ktlint ];
   commonInputs = [ pkgs.git pkgs.jq pkgs.just pkgs.graphviz pkgs.nixpkgs-fmt ];
 
   # `runCommand` gives no writable HOME, and cargo wants one for its registry
@@ -269,7 +317,7 @@ in
 {
   inherit
     self system pkgs lib has
-    rustToolchain jdk swiftAvailable swiftChecked swiftPkgs
+    rustToolchain jdk kotlinc kotlinVersion swiftAvailable swiftChecked swiftPkgs
     rustInputs kotlinInputs commonInputs
     swiftLibraryPath gradleRepo swiftDeps swiftpmPluginSupport
     mkCheck mkShell;

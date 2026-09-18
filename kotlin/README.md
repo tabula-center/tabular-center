@@ -29,26 +29,36 @@ author. That is why the matrix lives in annotations rather than in a function
 body, and it converts what was Kotlin's weakest guarantee into one as strong as
 Rust's.
 
-## Why there is no Gradle build yet
+## Why the library has no Gradle build
 
-Gradle needs Maven Central for the Kotlin stdlib, and the environment this was
-developed in cannot reach it. Shipping a build file that has never run would
-repeat the mistake of shipping unverified code.
-
-`kotlinc` alone is enough to prove the thing that matters, so that is what runs:
+The library is compiled with `kotlinc` directly, on purpose (ARCHITECTURE
+11.2): with no build system there is no classpath but the stdlib, so the
+zero-runtime-dependency rule holds by construction.
 
 ```sh
 ./tools/verify kotlin
 ./tools/verify kotlin-compile-fail
 ./tools/verify kotlin-conformance
+./tools/verify kotlin-codegen
+./tools/verify kotlin-examples
 ```
 
-Both compile into a temporary directory, never into the tree. Building by hand
-writes wherever you point `-d`, so prefer the script — a stray `kotlinc ... -d
-out` put 59 class files and a 4.7 MB jar into a commit once already.
+All of them compile into a temporary directory, never into the tree. Building
+by hand writes wherever you point `-d`, so prefer the script — a stray
+`kotlinc ... -d out` put 59 class files and a 4.7 MB jar into a commit once
+already.
 
-Both are wired into `nix flake check`. Gradle, KSP, and Maven publication come
-next, and the `@Row` annotation shape they will read is already validated here.
+Every one is a `nix flake check` check. Gradle appears in exactly two places,
+both for KSP: `ksp/` (the processor) and `examples/kotlin/06-generated` (its
+consumer), resolved offline from `nix/gradle-lock.json`. Maven publication is
+still to come (`RELEASING.md`).
+
+**One compiler version, everywhere: 2.1.20.** The flake pins `kotlinc` to it
+(`kotlinVersion` in `nix/context.nix`) rather than taking whatever the nixpkgs
+channel ships, because the compile-fail fixtures match kotlinc's own wording
+and the Gradle builds and KSP (`2.1.20-1.0.32`) are tied to it. Bump it in
+`nix/context.nix`, both `build.gradle.kts` files, `ci.yml` and this line
+together; `tools/verify` prints a `note:` when the `kotlinc` on PATH differs.
 
 A side effect worth keeping: with no build system there is no classpath but the
 stdlib, so the zero-runtime-dependency rule is enforced by construction rather
@@ -73,11 +83,11 @@ ship an unrunnable processor, the generator is split:
 - **`codegen/`** turns a `MachineDesc` into Kotlin source. Pure — no KSP, no
   compiler plugin — and therefore testable here.
 - **`ksp/`** reads annotations, builds a `RawMachine`, and calls `buildDesc` +
-  `emit`. Mechanical, ~200 lines, and **the only file in the repository that
-  has never been run** — see `ksp/README.md` for what to expect on the first
-  attempt.
+  `emit`. Mechanical, ~270 lines, written before it could run and now exercised
+  by `kotlin-ksp`, `kotlin-ksp-compile-fail` and `kotlin-ksp-incremental` —
+  see `ksp/README.md`.
 
-Worth keeping even once KSP runs: a code generator whose logic can only be
+Worth keeping now that KSP runs: a code generator whose logic can only be
 exercised through a compiler plugin is a generator nobody refactors.
 
 `./tools/verify kotlin-codegen` does four things, and the last two are the
@@ -102,7 +112,7 @@ core/               tabula-core        runtime; compiles against nothing
 annotations/        tabula-annotations compile-time only
 testing/            tabula-testing     fixture parser; needs only core
 codegen/            tabula-codegen     validation and the emitter
-ksp/                tabula-ksp         the processor (unverified; needs Maven)
+ksp/                tabula-ksp         the processor (Gradle; artifacts from nix/gradle-lock.json)
 test/               the reference machine (KSP's specification) and its tests
 conformance/        the shared spec/conformance fixtures, run against Kotlin
 compile_fail/       one fixture per guarantee
@@ -112,9 +122,6 @@ The directory split is the artifact split — see `RELEASING.md`. `tools/verify
 kotlin` compiles each against **only** its declared dependencies, so
 `tabula-core` building with an empty classpath is the zero-runtime-dependency
 rule enforced by construction rather than asserted.
-
-```
-```
 
 `test/Composition.kt` holds a parent machine delegating to a child. Its shape
 is the composition property in one line — `interface Cells : retry.Cells` — so
