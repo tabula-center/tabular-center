@@ -214,7 +214,7 @@ public func buildDesc(_ raw: RawMachine) throws -> MachineDesc {
         for (j, c) in row.cells.enumerated() {
             out.append(
                 try cell(
-                    raw, c, row.state, actionNames[j],
+                    raw, derive(c, row.state, actionNames[j], raw), row.state, actionNames[j],
                     effectNames: effectNames, stateNames: stateNames,
                     payloadStates: payloadStates))
         }
@@ -387,4 +387,40 @@ private func validatePaths(
             }
         }
     }
+}
+
+/// A `HANDLE` named by a hop becomes a `GO` to that hop's next state.
+///
+/// The half of `spec/happy-paths.md` that motivated the feature: on the happy
+/// path the common case stops being typed. The Kotlin twin is `derive` in
+/// `kotlin/codegen/Raw.kt`.
+///
+/// Only `HANDLE`. A `GO` already says where it goes, and rewriting it would let
+/// a path silently contradict a cell -- the developer would have written two
+/// answers and been told neither. `tabula::path-broken` rejects a hop whose
+/// `GO` disagrees, so by the time this runs the two agree or the build stopped.
+///
+/// The result is indistinguishable from the longhand machine, which is the
+/// additive test: a derived `GO(to)` and a written `GO(to)` are the same
+/// `CellDesc`, so `TABLE`, `.grid`, `.lint`, `.cov` and `.mmd` are identical
+/// either way.
+///
+/// Runs after `validatePaths`, so a hop is known to name a real cell before
+/// anything is derived from it.
+private func derive(
+    _ c: RawCell, _ state: String, _ action: String, _ raw: RawMachine
+) -> RawCell {
+    guard c.kind == "HANDLE" else { return c }
+    for path in raw.paths {
+        for hop in path.hops where hop.from == state && hop.action == action {
+            // Constructed rather than copy-and-mutate: `RawCell`'s fields are
+            // `let`, which is right for a value that represents what someone
+            // wrote. The other fields come from `c` so a HANDLE carrying
+            // effects keeps them.
+            return RawCell(
+                "GO", target: hop.to, args: c.args,
+                effects: c.effects, child: c.child)
+        }
+    }
+    return c
 }
