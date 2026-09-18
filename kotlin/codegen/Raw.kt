@@ -20,7 +20,20 @@ package codegen
  * Named because a machine may have more than one, and the narrowed calling
  * surface has to say which it narrows to.
  */
-data class RawPath(val name: String, val states: List<String>)
+data class RawPath(val name: String, val elements: List<String>) {
+    /** States, at the even positions. */
+    val states: List<String> get() = elements.filterIndexed { i, _ -> i % 2 == 0 }
+
+    /** Actions, at the odd positions -- one per hop. */
+    val actions: List<String> get() = elements.filterIndexed { i, _ -> i % 2 == 1 }
+
+    /** Hops, as `(from, action, to)`. Empty when the shape is wrong. */
+    val hops: List<Triple<String, String, String>>
+        get() = if (elements.size < 3 || elements.size % 2 == 0) emptyList()
+        else (0 until elements.size / 2).map {
+            Triple(elements[it * 2], elements[it * 2 + 1], elements[it * 2 + 2])
+        }
+}
 
 data class RawMachine(
     val packageName: String,
@@ -98,7 +111,7 @@ fun buildDesc(raw: RawMachine): MachineDesc {
         )
     }
 
-    validatePaths(raw, stateNames)
+    validatePaths(raw, stateNames, actionNames)
 
     // Rows must correspond to states one-to-one, in order. Position is how a
     // row is identified, so an out-of-order row is not a reordering -- it is a
@@ -246,7 +259,11 @@ private fun cell(
  * See `spec/happy-paths.md`. Nothing here reaches `MachineDesc` -- these are
  * rejections, not data.
  */
-private fun validatePaths(raw: RawMachine, stateNames: List<String>) {
+private fun validatePaths(
+    raw: RawMachine,
+    stateNames: List<String>,
+    actionNames: List<String>,
+) {
     val seen = mutableSetOf<String>()
     for (path in raw.paths) {
         if (!seen.add(path.name)) {
@@ -267,11 +284,16 @@ private fun validatePaths(raw: RawMachine, stateNames: List<String>) {
             }
         }
 
-        if (path.states.size < 2) {
+        // Shape before content. A route is a sequence of hops, and a hop is a
+        // state, an action and a state -- so the elements alternate and the
+        // count is odd and at least three. Checking this first means the hop
+        // walk below can index without guarding.
+        if (path.elements.size < 3 || path.elements.size % 2 == 0) {
             fail(
                 "tabula::path-broken",
-                "path `${path.name}` has ${path.states.size} state(s); a path is a " +
-                    "route and needs at least two"
+                "path `${path.name}` has ${path.elements.size} element(s); a path " +
+                    "alternates state and action, starting and ending with a state, " +
+                    "so the count is odd and at least three"
             )
         }
 
@@ -282,19 +304,30 @@ private fun validatePaths(raw: RawMachine, stateNames: List<String>) {
         // A HANDLE counts. Its target is not knowable from the matrix, and
         // supplying that target is exactly what the path is for; refusing it
         // here would reject the only cell kind the feature exists to shorten.
-        for (i in 0 until path.states.size - 1) {
-            val from = path.states[i]
-            val to = path.states[i + 1]
+        for ((from, action, to) in path.hops) {
+            val col = actionNames.indexOf(action)
+            if (col < 0) {
+                fail(
+                    "tabula::path-unknown-state",
+                    "path `${path.name}` names action `$action`, which is not " +
+                        "declared. Actions: ${actionNames.joinToString(" ")}"
+                )
+            }
             val row = raw.rows.firstOrNull { it.state == from }
-            val connected = row?.cells?.any { c ->
-                c.kind == "HANDLE" || c.kind == "DELEGATE" ||
-                    (c.kind == "GO" && c.target == to)
-            } ?: false
-            if (!connected) {
+            val cell = row?.cells?.getOrNull(col)
+            // THAT cell, not some cell in the row. A states-only spine could
+            // only ask whether anything in the row reached `to`, so a HANDLE
+            // anywhere made the row connect to anything. Naming the action is
+            // what makes this precise.
+            val ok = cell != null && (
+                cell.kind == "HANDLE" || cell.kind == "DELEGATE" ||
+                    (cell.kind == "GO" && cell.target == to)
+                )
+            if (!ok) {
                 fail(
                     "tabula::path-broken",
-                    "path `${path.name}` goes `$from` -> `$to`, and no cell in row " +
-                        "`$from` can reach `$to`"
+                    "path `${path.name}` goes `$from` -`$action`-> `$to`, and cell " +
+                        "($from, $action) cannot reach `$to`"
                 )
             }
         }

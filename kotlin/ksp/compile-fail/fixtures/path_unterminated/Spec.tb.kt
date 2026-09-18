@@ -19,7 +19,7 @@ import dev.tabula.Step
     effects = [],
     initial = S.Idle::class,
 )
-@Path("half", [S.Idle::class, S.Busy::class])
+@Path("half", [S.Idle::class, A.Start::class, S.Busy::class])
 //                     Start                                        Stop
 @Row(S.Idle::class,  [CellSpec(Kind.HANDLE),                       CellSpec(Kind.IGNORE)])
 @Row(S.Busy::class,  [CellSpec(Kind.GO, to = S.Done::class),       CellSpec(Kind.IGNORE)])

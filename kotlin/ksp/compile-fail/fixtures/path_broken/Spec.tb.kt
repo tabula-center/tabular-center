@@ -1,10 +1,11 @@
 //~ EXPECT: tabula::path-broken
 //
-// A route naming a transition the matrix does not have.
+// A hop naming a cell that cannot reach where the hop says.
 //
-// `Idle` reaches `Busy` through no cell -- its only non-IGNORE cell is a
-// HANDLE, which counts as a connection, so the break is `Busy -> Idle`: row
-// `Busy` goes to `Done` and nowhere else.
+// Cell (Busy, Start) is `GO(Done)`, and the hop claims `Busy -Start-> Idle`.
+// Because the path names the ACTION, this checks that one cell rather than
+// asking whether anything in row `Busy` reaches `Idle` -- the imprecision a
+// states-only spine could not avoid.
 //
 // This is the check that lets a path be declared away from the rows it
 // describes. Without it the objection to a separate `@Path` annotation would
@@ -25,7 +26,7 @@ import dev.tabula.Step
     effects = [],
     initial = S.Idle::class,
 )
-@Path("back", [S.Busy::class, S.Idle::class])
+@Path("back", [S.Busy::class, A.Start::class, S.Idle::class])
 //                     Start                                        Stop
 @Row(S.Idle::class,  [CellSpec(Kind.HANDLE),                       CellSpec(Kind.IGNORE)])
 @Row(S.Busy::class,  [CellSpec(Kind.GO, to = S.Done::class),       CellSpec(Kind.IGNORE)])
