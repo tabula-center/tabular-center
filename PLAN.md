@@ -35,16 +35,17 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 2 `transition_matrix!` | **done** |
 | 3 The spec | **done** |
 | 4 Kotlin core + KSP | **done**; KSP adapter now runs — `examples/kotlin/06-generated` builds green |
-| 5 Swift | core, reference, compile-fail, testing, conformance, examples, **codegen**; macros to come |
+| 5 Swift | core, reference, compile-fail, testing, conformance, examples, **codegen**, `MachineSyntax`; macro expansion to come |
 | 6 Composition | **done (all three)** |
 | 7 Effects surface | **done (Rust half)** |
 | 8 Introspection & tooling | **done (Rust half)** |
 | 9 Runtime / drivers | **done (Rust half)** |
 
-93 Rust tests; 30 compile-fail fixtures (10 Rust, 4 Kotlin, 1 Kotlin-codegen,
-11 Kotlin-KSP, 4 Swift); 9 conformance fixtures (77 trace steps), of which
-`ignore-heavy` and `no-static-exit` have Kotlin and Rust adapters and report
-`skip` in Swift only; 9 each of golden `.grid`, `.mmd`, `.lint`, `.cov`.
+93 Rust tests; 41 compile-fail fixtures (10 Rust, 4 Kotlin, 1 Kotlin-codegen,
+11 Kotlin-KSP, 4 Swift, 11 Swift macro-syntax); 9 conformance fixtures (77
+trace steps), of which `ignore-heavy` and `no-static-exit` have Kotlin and Rust
+adapters and report `skip` in Swift only; 9 each of golden `.grid`, `.mmd`,
+`.lint`, `.cov`.
 
 These counts are checked against the tree, not remembered. Regenerate with:
 
@@ -52,6 +53,7 @@ These counts are checked against the tree, not remembered. Regenerate with:
 grep -rho '#\[test\]' rust/ | wc -l
 ls rust/tabula/tests/compile_fail/*.rs | grep -vc _prelude
 ls -d kotlin/ksp/compile-fail/fixtures/*/ | wc -l
+ls -d swift/macros/fixtures/*/ | wc -l
 grep -h '=>' spec/conformance/traces/*.trace | wc -l
 ls spec/conformance/*.tbl | wc -l
 ```
@@ -723,7 +725,10 @@ the build with a comprehensible message; the developer's source file contains no
 
 **4b. Annotations**
 - [x] `@Machine`, `@Row`, cell markers (`HANDLE`, `IGNORE`, `GO`, `EMIT`,
-      `DELEGATE`, `UNREACHABLE`, `EXPAND`)
+      `DELEGATE`, `UNREACHABLE`). **Not `EXPAND`**, which this box used to
+      list: `spec/cells.md` section 3 makes it a *row* directive, so it has no
+      place in `Kind`, and it is implemented in no language yet. See the
+      `EXPAND` entry under 0f.
 - [x] Nested-annotation shape that survives Kotlin's array-of-annotation limits.
       Spiked first, as planned, and it held: `@Row(S.Idle::class, [CellSpec(...)])`
       compiles with `KClass` cells. The `.tabula`-file fallback was not needed
@@ -772,16 +777,41 @@ exercised through a compiler plugin is a generator nobody refactors.
       there is no classpath but the stdlib. `SuspendDriver` needs only the
       `suspend` keyword, proven by driving it with `kotlin.coroutines`
       intrinsics in `test/RunSuspend.kt`.
-- [ ] Resolve sealed hierarchies to ordered variant lists
-- [ ] Read the `handle` prototype: `suspend`, annotations, context parameters,
-      extension receiver, visibility
-- [ ] Emit abstract class: cell members with copied modifiers + narrowed types
-- [ ] Emit nested `when` dispatcher, **no `else`**, relying on smart casts
-- [ ] Emit `TABLE` companion
-- [ ] Diagnostics per `spec/diagnostics.md`, via `KSPLogger.error` with node
-      positions
-- [ ] Incremental-processing correctness (dependency tracking on sealed
-      hierarchies — a change to `S` must reprocess dependent machines)
+Re-read against `kotlin/ksp/src/main/kotlin/dev/tabula/ksp/TabulaProcessor.kt`
+and `kotlin/ksp/golden/`, not guessed (0f asked for exactly this pass):
+
+- [x] ~~Resolve sealed hierarchies to ordered variant lists~~ — **superseded.**
+      Order is declared, not discovered: `@Machine(states = [...], actions =
+      [...], effects = [...])` and the processor reads those lists. Row
+      identity is position, so an order a refactor of the sealed hierarchy
+      could silently change is the wrong source for it.
+- [x] Read the `handle` prototype: `suspend` and annotations, copied verbatim
+      (`prototypeModifiers`).
+- [ ] Read the rest of the prototype: context parameters, extension receiver,
+      visibility. `prototypeModifiers` reads none of the three today, so a
+      `context(clock: Clock)` prototype generates uncolored cells — ARCHITECTURE
+      5's headline Kotlin example is the one the processor cannot yet produce.
+- [x] ~~Emit abstract class~~ — **superseded** by `codegen/Emit.kt`: the
+      surface is `interface Cells` (Phase 6's Kotlin finding: a class extends
+      one parent, so abstract members would cap composition at one child),
+      with copied modifiers and narrowed types. Pinned by `ksp/golden/`.
+- [x] Nested `when` dispatcher, **no `else`** — `codegen/Emit.kt`, golden-diffed
+      and compiled.
+- [x] `TABLE` — a top-level `val` beside `step` rather than a companion, for
+      the same reason as the interface.
+- [x] Diagnostics per `spec/diagnostics.md`, via `KSPLogger.error`, authored in
+      `codegen/Raw.kt` and exercised by the 11 `kotlin-ksp-compile-fail`
+      fixtures.
+- [ ] Diagnostic *positions*. `logger.error(e.message, decl)` points at the
+      annotated interface, not at the `@Row` or the `CellSpec` at fault.
+      ARCHITECTURE 3 shows `row-arity` pointing at the row's line. Same
+      trade-off Phase 5 accepts for Swift (row-level in v1); here it is
+      declaration-level, one step coarser.
+- [x] Incremental-processing correctness: `kotlin-ksp-incremental` edits
+      `Types.kt` (not the annotated file) and requires the regenerated output
+      to change. The processor declares only the annotated file as a
+      dependency, so this rests on KSP's own reference tracking — which is
+      why the check exists rather than the argument.
 
 **4d. Conformance**
 - [x] Kotlin harness green on all five fixtures. It started green on `timer`
@@ -1222,8 +1252,10 @@ adopted later without moving any code: only `nix/` changes.
       a labelled-tuple draft was rejected because labels make every row a
       different width, and a matrix whose rows do not line up is just a list of
       transitions.
-- [ ] `MachineMacro` itself: **SwiftSyntax nodes to a `RawMachine`**, and
-      nothing else. Everything downstream exists — `TabulaCodegen` validates a
+- [x] `MachineMacro` itself: **SwiftSyntax nodes to a `RawMachine`**, and
+      nothing else. Landed as `TabulaMacroSyntax.MachineSyntax`, a library
+      rather than a `.macro` target, for the reason in 0e; the expansion glue
+      waits in `pending/TabulaMacros/MachineMacro.swift`. Everything downstream exists — `TabulaCodegen` validates a
       `RawMachine` into a `MachineDesc` with every diagnostic and emits the
       source. That split is why this package is small, and why the Kotlin side
       survived KSP being unrunnable.
@@ -1454,15 +1486,25 @@ from an older toolchain -- and the lock is the whole remaining job.
       Swift-syntax resolved at 509.1.1 on the way past, which is the version a
       lock will pin.
 
-- [ ] `tools/swift-lock` and `nix/swift-deps.nix`. Now the right next step
-      rather than a premature one: with the manifest compiling, the *only*
+- [x] `tools/swift-lock` and `nix/swift-deps.nix`, `nix run .#swift-lock`,
+      and the lock itself — `nix/swift-lock.json` pins swift-syntax 509.1.1.
+      `swift-macros` resolves offline from `TABULA_SWIFT_DEPS` when nix has
+      built the checkout set. Kept for the record, the reasoning that made it
+      the right next step rather than a premature one: with the manifest compiling, the *only*
       thing between `swift-macros` and running under `nix flake check` is that
       swift-syntax is remote. `Package.resolved` already pins it; the shape is
       `gradle-lock`'s, one artifact one hash, generated once with network by
       `nix run .#swift-lock` and committed.
-- [ ] `MachineMacro` itself, once the package builds offline.
+- [x] The half of `MachineMacro` that needs no plugin wiring:
+      `Sources/TabulaMacroSyntax/MachineSyntax.swift`, SwiftSyntax to
+      `RawMachine`, checked by `TabulaMacroSyntaxCheck` against the 11
+      rejection fixtures in `swift/macros/fixtures/`.
 - [ ] Restore `pending/Machine.swift` and the `.macro` target on a SwiftPM
       that ships `CompilerPluginSupport`. Only `Package.swift` changes.
+      `nix/swiftpm-plugin-support.nix` now builds the module; what remains, per
+      the note at the top of `swift/macros/Package.swift`, is that
+      `swift build` still loads nixpkgs' original ManifestAPI rather than the
+      augmented one. `tools/verify swift-macro-support` reports which.
 
 ## 0f. Kotlin under `nix flake check`: one compiler, and checks that run
 
@@ -1530,12 +1572,17 @@ Found and **not** fixed in this patch, in priority order:
             too, so two renderers agree on it rather than one.
       - [ ] Swift adapters.
 - [ ] `no-static-entry` and `unreachable-heavy` still have no fixture.
-- [ ] 4c-old's seven open boxes describe the processor as unwritten; most are
+- [x] 4c-old's seven open boxes describe the processor as unwritten; most are
       now either done by `TabulaProcessor.kt` or superseded by `codegen/`.
-      Needs a pass against the processor source rather than a guess.
-- [ ] `Kind` has no `EXPAND` although 4b lists it. `spec/cells.md` calls
-      `EXPAND` a row directive and not a cell kind, so the checkbox is what is
-      wrong -- confirm and correct it.
+      Done: five closed or superseded, with the reason beside each. Two stay
+      open and are real — the prototype's context parameters / receiver /
+      visibility are not read, and diagnostics point at the declaration
+      rather than the row.
+- [x] `Kind` has no `EXPAND` although 4b lists it. Confirmed: the checkbox was
+      wrong and is corrected. The finding underneath it is larger than the
+      box, though — `EXPAND` is implemented **nowhere**: no language parses
+      it, no fixture uses it, and ARCHITECTURE 6 R5 described it in the
+      present tense. R5 now says so; the work itself is not scheduled.
 
 ## Skips are named, everywhere
 
@@ -1549,8 +1596,9 @@ So the harness that exists to make missing coverage visible was invisible to
 the tool that exists to make skips visible. All three now name each fixture on
 its own `skip <name> (no <lang> adapter)` line.
 
-Nothing is skipped today — `payload-hoist` closed the last gap — which is
-exactly when this was worth fixing. The next fixture added before its adapters
+When this landed nothing was skipped — `payload-hoist` had closed the last
+gap. That stopped being true when `ignore-heavy` and `no-static-exit` arrived
+with Kotlin and Rust adapters only (0f), and the ledger is how that shows. The next fixture added before its adapters
 is the one that would have gone quiet.
 
 ## Backlog — happy paths
@@ -1647,21 +1695,31 @@ That is not ceremony here: a happy path changes what a *run* means, so the
 fixture format itself may need a field, and finding that out after three
 implementations is how the expensive version of this goes.
 
+**`spec/happy-paths.md` is now the source of truth for this feature** and
+carries its own checklist; the boxes below track it rather than duplicate it.
+
 - [ ] Read `hadilq/happy`'s processor, `happy-processor-common`, for what the
       generated DSL actually looks like once nested cases are involved — the
       naming scheme there (`SituationOneOptionTwo`) is the part that got
       thought about, and matrix cells have the same flattening problem.
-- [ ] Decide spine-vs-cell and the declaration syntax, in `spec/`, before any
-      implementation.
-- [ ] A conformance fixture with a happy path, and the question of whether
-      `.tbl` needs a new field answered by writing one.
-- [ ] Lints that only exist once a spine does: a happy path that does not reach
-      a terminal state, a happy cell that no run can arrive at, a spine that
-      leaves the matrix through an `IGNORE`.
+- [x] Decide spine-vs-cell and the declaration syntax, in `spec/`, before any
+      implementation. A spine, declared by a separate `@Path` whose elements
+      alternate state and action.
+- [x] ~~A conformance fixture with a happy path~~ — answered without one:
+      `.tbl` needs no field, because the spine resolves away before anything
+      a fixture compares. Coverage is compile-fail fixtures instead.
+- [x] Checks that only exist once a spine does — as compile-time diagnostics,
+      not lints: `path-broken` (covers a spine leaving through an `IGNORE`),
+      `path-unterminated`, `path-unknown-state`, `path-duplicate`, in Kotlin
+      and Swift, with four fixtures each. **Not Rust**, where `@Path` does not
+      exist yet.
 - [ ] The narrowed calling surface, `elvis`-shaped, with the two-outcome
       `elseIf` special case allowed and everything else refused.
-- [ ] Defaults derived from the spine, which is the half the user asked for and
-      the half that cannot be designed until the two above are settled.
+- [x] Defaults derived from the spine: a `HANDLE` named by a hop becomes a
+      `GO` (`derive` in `codegen/Raw.kt` and `TabulaCodegen/Raw.swift`), shown
+      by `examples/kotlin/06-generated/src/Spine.tb.kt` and pinned by
+      `ksp/golden/SpineGenerated.kt.golden`.
+- [ ] Rust: `@Path` as a `transition_matrix!` arm.
 
 ## PlantUML — removed
 
@@ -1900,7 +1958,9 @@ Nothing compared them. `tools/docs --check` verified every code in
 behaviour — and each implementation's own tests checked its own messages. No
 check asked whether the three emit the same set.
 
-They do not. Rust emits twelve codes; Kotlin and Swift emit sixteen. Rust omits
+They do not. Rust emits twelve codes; Kotlin and Swift emit sixteen. (Twenty
+since, with the four `path-*` codes, which Rust also lacks — see
+`spec/diagnostics-coverage.md`.) Rust omits
 `tabula::go-target`, `tabula::unknown-state`, `tabula::unknown-effect` and
 `tabula::unknown-child`, and `tabula::color-mismatch` has a section in the spec
 and no implementation at all.

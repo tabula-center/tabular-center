@@ -7,7 +7,8 @@ fails on any disagreement in either direction.
 
 It exists because nothing compared the three. The divergence below was found by
 looking, not by a check, after this file's absence had let it sit: Rust emits
-twelve of the sixteen codes and Kotlin and Swift emit all sixteen. The gap is
+twelve of the twenty-one codes, and Kotlin and Swift emit twenty -- every code
+but `tabula::color-mismatch`, which nobody emits (see the last section). The gap is
 defensible — see the notes — but "defensible" and "nobody noticed" are
 different states, and only one of them survives a refactor.
 
@@ -43,7 +44,8 @@ different and worse question.
 
 The `.lint` goldens are the only cross-language check on lint behaviour: each
 implementation renders `report(table, payloads)` and all three must produce the
-same bytes. Across all six fixtures, two codes appear.
+same bytes. When this section was written, two codes appeared across all six
+fixtures; across today's nine, five do.
 
 ```fixtures
 tabula::dead-column        dead-column
@@ -55,16 +57,17 @@ tabula::payload-hoist      payload-hoist
 tabula::unreachable-heavy  -
 ```
 
-Three of the seven runtime lints are implemented three times and tripped zero
-times; `dead-column` and `no-static-exit` were among them until their fixtures landed. Each implementation's own unit tests cover them; nothing compares the
-three. That is exactly the gap the `.lint` golden exists to close, left open
-because no fixture happened to cross a threshold — every fixture sits well
-under `ignoreHeavyPercent`, and none has an `UNREACHABLE` cell at all.
+Two of the seven runtime lints are implemented three times and tripped zero
+times; `dead-column`, `ignore-heavy` and `no-static-exit` were among them until
+their fixtures landed. Each implementation's own unit tests cover the two;
+nothing compares the three. That is exactly the gap the `.lint` golden exists
+to close, left open because no fixture happens to cross the line -- none is
+fully static with an unreached state, and only `toggle` has an `UNREACHABLE`
+cell at all, one of six.
 
-Closing it is fixtures, not code: a matrix with a dead column, one over 70%
-`IGNORE`, one with an unreachable-heavy grid, one fully static with an
-unreachable state, and one row that cannot be left. Each needs a `.tbl`, its
-goldens, and three adapters — the `payload-hoist` shape, five times over.
+Closing it is fixtures, not code: one fully static matrix with an unreachable
+state, and one with an unreachable-heavy grid. Each needs a `.tbl`, its
+goldens, and three adapters — the `payload-hoist` shape, twice more.
 
 Listed as `-` rather than silently absent so that closing one is a diff to this
 file, and so nobody rediscovers the gap by finding a bug it would have caught.

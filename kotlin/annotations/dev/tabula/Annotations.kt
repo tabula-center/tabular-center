@@ -70,8 +70,16 @@ annotation class Machine(
  * thing a reader meets.
  *
  * ```
- * @Path("connect", [S.Idle::class, S.Connecting::class, S.Live::class])
+ * @Path(
+ *     "connect",
+ *     [S.Idle::class, A.Start::class, S.Connecting::class, A.Ready::class, S.Live::class],
+ * )
  * ```
+ *
+ * States and actions **alternate**, starting and ending with a state: each
+ * `state, action, state` triple is one hop, naming the exact cell it passes
+ * through. The parameter is called `states` for historical reasons -- it
+ * predates the alternating form -- and holds both.
  *
  * `@Repeatable` for the same reason `@Row` is: a machine may have several, and
  * each is its own declaration rather than an entry in a list-of-lists nobody
@@ -81,7 +89,7 @@ annotation class Machine(
  * discards it; nothing here exists at run time, which is what keeps the runtime
  * types unchanged.
  *
- * States are `KClass` rather than strings so a rename in the IDE moves the path
+ * Elements are `KClass` rather than strings so a rename in the IDE moves the path
  * with it. `tabula::path-unknown-state` catches what a rename cannot -- a state
  * that never existed -- and the other three `path-*` codes catch a route that
  * does not match the rows it describes.

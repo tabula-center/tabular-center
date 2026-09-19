@@ -50,16 +50,18 @@ same way adding a state breaks every matrix.
 | 1 | Rust core, hand-written reference | done |
 | 2 | `transition_matrix!` | done |
 | 3 | Cross-language conformance spec | done |
-| 4 | Kotlin core + KSP | **M2 passed**; core done, processor next |
-| 5 | Swift core + macro | everything but the macro |
-| 6 | Composition | done (Rust + Kotlin) |
+| 4 | Kotlin core + KSP | done; the processor runs under `nix flake check` |
+| 5 | Swift core + macro | everything but macro expansion; `MachineSyntax` reads the surface |
+| 6 | Composition | done (all three) |
 | 7 | Effects surface | done (Rust) |
-| 8 | Introspection, lints, golden snapshots | done (Rust) |
+| 8 | Introspection, lints, golden snapshots | done (Rust); shared goldens read by all three |
 | 9a | Driver and mailbox | done (Rust) |
 
 See `ARCHITECTURE.md` for the design, `PLAN.md` for the task breakdown, and
-`examples/` for four worked machines — the same four in every language,
-ordered by what each one adds.
+`examples/` for the worked machines — the same four core examples in every
+language, ordered by what each one adds, plus a few that exist in only one
+(a suspend driver and a KSP-generated machine in Kotlin, `ObservableStore` and
+`TabulaTesting` in Swift).
 
 ## Development
 

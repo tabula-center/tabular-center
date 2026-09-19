@@ -212,6 +212,11 @@ maintained. The prototype is the extension point.
 | Kotlin | `suspend`, annotations (`@Composable`, `@RestrictsSuspension`, custom plugin annotations), context parameters, extension receiver, visibility |
 | Swift | effect specifiers `async` / `throws` / `async throws`, attributes `@MainActor`, `@Sendable`, isolation clauses |
 
+> **Status.** This table is the design. The KSP processor captures `suspend`
+> and annotations today; context parameters, extension receiver and visibility
+> are not read yet (PLAN, 4c-old), so the `context(clock: Clock)` example above
+> is not yet something the processor produces.
+
 ### The rule that has to be stated loudly
 
 > **A color cannot be passed as a parameter. It must be on the cell's own
@@ -330,6 +335,10 @@ EXPAND(Running)   // generates one sub-row per direct subvariant of Running
 Defaulting to flatten would let the matrix explode without the declaration
 visibly growing, which is precisely the failure mode this library exists to
 prevent. `EXPAND` is one level deep; nest it if you mean it.
+
+> **Status.** Designed, specified (`spec/cells.md` section 3), and implemented
+> in no language. Until it is, a nested sealed hierarchy is one row, which is
+> the non-flattening default this rule asks for anyway.
 
 ---
 
@@ -798,7 +807,11 @@ tabula/
 │   ├── context.nix              # toolchains, per-system
 │   ├── shells.nix               # devShells
 │   ├── checks.nix               # nix flake check — every entry calls tools/verify
-│   ├── apps.nix                 # nix run .#conformance, .#table-diff, .#verify
+│   ├── apps.nix                 # nix run .#conformance, .#table-diff, .#verify,
+│   │                            #   .#gradle-lock, .#swift-lock
+│   ├── gradle-lock.json  gradle-repo.nix     # Maven artifacts for KSP, offline
+│   ├── swift-lock.json   swift-deps.nix      # swift-syntax checkouts, offline
+│   ├── swiftpm-plugin-support.nix            # CompilerPluginSupport for macros
 │   └── publish.nix              # release + publish, allowed to touch the network
 ├── justfile                     # thin aliases over tools/verify
 ├── VERSION                      # single source of truth; every manifest derives
@@ -809,6 +822,10 @@ tabula/
 ├── spec/
 │   ├── cells.md                 # normative semantics of the six cell kinds
 │   ├── diagnostics.md           # normative error codes + message text
+│   ├── diagnostics-coverage.md  # which implementation emits which code; checked
+│   ├── happy-paths.md           # `@Path` spines: design + status
+│   ├── matrix-files.md          # the `*.tb.*` convention
+│   ├── tabula-fmt.md            # the formatter's contract (tool not written)
 │   └── conformance/
 │       ├── README.md            # the .tbl and .trace formats
 │       ├── timer.tbl            # ── shared fixtures ──
@@ -837,7 +854,7 @@ tabula/
 │
 ├── kotlin/                      # built by kotlinc directly — no Gradle, no Maven
 │   ├── core/dev/tabula/         # Step, Cell, Table, Export, Lint, Driver
-│   ├── annotations/dev/tabula/  # @Machine, @Row, cell markers
+│   ├── annotations/dev/tabula/  # @Machine, @Row, @Path, cell markers
 │   ├── testing/dev/tabula/testing/
 │   ├── codegen/                 # MachineDesc -> String, + golden/ and compile_fail/
 │   ├── ksp/                     # JVM processor — Gradle, offline via nix/gradle-lock.json
@@ -852,7 +869,10 @@ tabula/
 │   ├── Sources/TabulaCodegen/   # the emitter; no SwiftSyntax, so it builds offline
 │   ├── Sources/TabulaCheck/     # reference machine + harness (no XCTest available)
 │   ├── Sources/TabulaConformance/
-│   └── compile_fail/
+│   ├── compile_fail/
+│   └── macros/                  # separate package: the only one linking
+│                                 #   swift-syntax. MachineSyntax + fixtures/;
+│                                 #   the .macro target waits in pending/
 │
 ├── examples/                    # outside every workspace, on purpose: the only
 │   ├── rust/                    #   place the public API is used from outside
@@ -862,6 +882,8 @@ tabula/
 └── tools/
     ├── verify                   # the single definition of green
     ├── compile-fail             # diagnostic fixtures; bash, not trybuild
+    ├── gradle-lock  swift-lock  # write the offline dependency locks (network)
+    ├── docs                     # renders the Pages site; not committed
     └── swift-probe              # toolchain triage for the Linux Swift path
 ```
 

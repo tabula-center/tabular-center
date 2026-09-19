@@ -1,6 +1,7 @@
 # Happy paths
 
-**Status: design. Nothing implements this yet.**
+**Status: declaration, validation and derived defaults implemented in Kotlin
+and Swift. The narrowed calling surface is not. Rust has none of it yet.**
 
 A machine's success case reads differently from its failures, and a `when` over
 every outcome flattens that back out. Kotlin's null-safety is loved for the same
@@ -119,9 +120,9 @@ that PLAN 9b's rendering surface sits behind, not in the core.
 
 ## Diagnostics this introduces
 
-Provisional, and normative once implemented. Each needs a section in
-`spec/diagnostics.md`, a row in `spec/diagnostics-coverage.md`, and a UI test
-per PLAN line 809.
+Normative: all four are implemented in Kotlin and Swift. Each has a section in
+`spec/diagnostics.md`, a row in `spec/diagnostics-coverage.md`, and a UI test,
+per PLAN's cross-cutting rule that every diagnostic gets one.
 
 | code | when |
 | --- | --- |
@@ -248,16 +249,21 @@ after three implementations is the expensive version.
       carrying it, and all four `path-*` diagnostics in both `buildDesc`
       implementations, with eight compile-fail fixtures. Rust follows as a
       macro arm; see `spec/diagnostics-coverage.md`.
-- [ ] Alternate states and actions, per the decision above. Touches `RawPath`,
-      both validations, both declaration surfaces and the eight fixtures --
-      cheap now, expensive once examples exist.
-- [ ] Derived defaults: a `HANDLE` named by a hop becomes a `GO` to that hop's
-      next state. The additive test is that a spine-derived machine and the
-      longhand one produce byte-identical `TABLE`, `.grid`, `.lint`, `.cov`
-      and `.mmd`.
-- [ ] The four lints above, with fixtures.
-- [ ] Defaults derived from the spine — the half that motivated the feature, and
-      the half that cannot be designed until the two above are settled.
+- [x] Alternate states and actions, per the decision above. `RawPath.hops`
+      in both generators; the fixtures and `Spine.tb.kt` use the alternating
+      form.
+- [x] Derived defaults: a `HANDLE` named by a hop becomes a `GO` to that hop's
+      next state (`derive` in `kotlin/codegen/Raw.kt` and
+      `swift/Sources/TabulaCodegen/Raw.swift`).
+- [ ] The additive test for the above, stated but not checked: a
+      spine-derived machine and the longhand one producing byte-identical
+      `TABLE`, `.grid`, `.lint`, `.cov` and `.mmd`. `SpineGenerated.kt.golden`
+      pins the derived output; nothing yet compares it to a longhand twin.
+- [x] The four `path-*` diagnostics above, with four compile-fail fixtures each
+      in Kotlin and Swift. Compile-time rejections rather than lints — see
+      the section below.
+- [ ] Rust: `@Path` as a `transition_matrix!` arm, and the four codes as
+      `compile_error!` arms.
 - [ ] The narrowed calling surface: one member per hop, per the section above.
       The two open questions there are decisions, not implementation.
 - [ ] The Compose and iced examples (PLAN backlog). They are the acceptance

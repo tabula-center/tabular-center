@@ -24,12 +24,14 @@ import com.google.devtools.ksp.symbol.Modifier
 import java.io.OutputStreamWriter
 
 /**
- * **The one file that has never been run.**
+ * **Written before it could be run; now run on every `nix flake check`.**
  *
- * KSP is a Maven artifact and the environment this was developed in cannot
- * reach Maven, so this adapter is unverified while everything it feeds into is
- * covered. That is deliberate rather than resigned: the work went into making
- * this file as small and as dumb as possible.
+ * KSP is a Maven artifact and the environment this was first developed in
+ * could not reach Maven, so this adapter was written unverified while
+ * everything it feeds into was covered. It now runs against the artifact set
+ * pinned in `nix/gradle-lock.json` (`kotlin-ksp`, `kotlin-ksp-compile-fail`,
+ * `kotlin-ksp-incremental`). The arrangement is kept because it paid: the work
+ * went into making this file as small and as dumb as possible.
  *
  * Its entire job is `KSP API -> RawMachine`. Reading annotation arguments into
  * strings is mechanical and reviewable by eye. Every decision, every

@@ -10,11 +10,11 @@
 # Usage:  tools/verify [step ...]      (default: all)
 # Steps:  version docs fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
-#         kotlin-examples kotlin-ksp kotlin-ksp-compile-fail kotlin-matrix-stable
-#         rust-matrix-stable
+#         kotlin-examples kotlin-ksp kotlin-ksp-compile-fail
+#         kotlin-ksp-incremental kotlin-matrix-stable rust-matrix-stable
 #         matrix-covered swift-format-config diagnostics-coverage fixtures-complete
 #         swift swift-compile-fail swift-conformance swift-macros
-#         swift-examples swift-codegen
+#         swift-macro-support swift-examples swift-codegen
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
