@@ -255,10 +255,12 @@ after three implementations is the expensive version.
 - [x] Derived defaults: a `HANDLE` named by a hop becomes a `GO` to that hop's
       next state (`derive` in `kotlin/codegen/Raw.kt` and
       `swift/Sources/TabulaCodegen/Raw.swift`).
-- [ ] The additive test for the above, stated but not checked: a
-      spine-derived machine and the longhand one producing byte-identical
-      `TABLE`, `.grid`, `.lint`, `.cov` and `.mmd`. `SpineGenerated.kt.golden`
-      pins the derived output; nothing yet compares it to a longhand twin.
+- [x] The additive test for the above: a spine-derived machine and the
+      longhand one produce equal descriptions and byte-identical emitted
+      source, `TABLE` included -- and so identical `.grid`, `.lint`, `.cov`
+      and `.mmd`, which are functions of it. `runAdditiveTest` in
+      `kotlin/codegen/Tests.kt` and its twin in `TabulaCodegenCheck`, each
+      with a control showing the path is what makes the difference.
 - [x] The four `path-*` diagnostics above, with four compile-fail fixtures each
       in Kotlin and Swift. Compile-time rejections rather than lints — see
       the section below.

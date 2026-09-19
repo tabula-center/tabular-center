@@ -155,19 +155,6 @@ in
         exit 1
       '';
 }
-// lib.optionalAttrs has.kotlinGradle {
-  # Guards the zero-runtime-dependency rule. Only meaningful once Gradle can
-  # resolve; until then the rule is enforced by kotlinc seeing no classpath but
-  # the stdlib. See ARCHITECTURE 11.2.
-  kotlin-no-runtime-deps = mkCheck "kotlin-no-runtime-deps" kotlinInputs ''
-    cd kotlin
-    gradle --offline --no-daemon :tabula-core:dependencies \
-      --configuration runtimeClasspath > deps.txt
-    if grep -qE 'kotlinx|org[.]jetbrains[.]compose' deps.txt; then
-      echo "tabula-core acquired a runtime dependency:"; cat deps.txt; exit 1
-    fi
-  '';
-}
 // lib.optionalAttrs (has.swift && !swiftChecked) {
   # The Swift checks are NOT here, and this check exists to say so out loud.
   #
@@ -201,8 +188,8 @@ in
   '';
 }
 // lib.optionalAttrs (has.swift && swiftChecked) {
-  # Darwin only. See the note on `swiftChecked` in context.nix: on Linux this
-  # is `nix develop .#swift` followed by `./tools/verify swift`.
+  # Wherever a Swift toolchain exists, Linux included: `swiftChecked` is
+  # `swiftAvailable` (see context.nix and ARCHITECTURE 13).
   #
   # The runtime path is exported here rather than left to the script, for the
   # same reason as the dev shell: nix knows where the libraries are and the
@@ -232,16 +219,14 @@ in
     ./tools/verify swift-codegen
   '';
 
-  # The macro package. Expected to skip rather than pass: the sandbox has no
-  # network, and the pinned SwiftPM cannot declare a `.macro` target at all.
-  # It is a check anyway so the skip is printed by CI instead of being
-  # something a developer discovers by running `swift build` in the wrong
-  # directory and reading a manifest error.
   # Reports whether this toolchain can declare a `.macro` target at all. Not a
   # pass/fail question -- no commit can change the answer -- so it prints and
   # succeeds, and the ledger carries it when the answer is no.
   swift-macro-support = verify "swift-macro-support" swiftPkgs;
 
+  # The macro package. The pinned SwiftPM cannot declare a `.macro` target, so
+  # this builds `TabulaMacroSyntax` against the offline swift-syntax checkout
+  # set and skips, out loud, whatever still needs the plugin.
   swift-macros = mkCheck "swift-macros" swiftPkgs ''
     export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     ${lib.optionalString (swiftDeps != null) ''

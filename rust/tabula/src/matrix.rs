@@ -881,10 +881,12 @@ macro_rules! __tabula_row {
 
     // DELEGATE!(child_module)
     //
-    // Runs the child's `step` and folds the result back through the lens. A
-    // colored child inside a colorless parent fails here, because the `.await`
-    // the colored form emits is illegal in a non-async fn -- color flows one
-    // way by construction, with no check to write.
+    // Runs the child's `step` and folds the result back through the lens.
+    //
+    // No `.await`: the macro has no prototype colors yet, so every `step` is
+    // uncolored and one-way color flow holds only vacuously. When colors land,
+    // this call is where the child's color must meet the parent's. See PLAN,
+    // September 2026 audit.
     (@go m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$ca:ident $($carest:ident)*]

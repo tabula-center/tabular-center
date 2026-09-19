@@ -37,9 +37,13 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 4 Kotlin core + KSP | **done**; KSP adapter now runs — `examples/kotlin/06-generated` builds green |
 | 5 Swift | core, reference, compile-fail, testing, conformance, examples, **codegen**, `MachineSyntax`; macro expansion to come |
 | 6 Composition | **done (all three)** |
-| 7 Effects surface | **done (Rust half)** |
-| 8 Introspection & tooling | **done (Rust half)** |
-| 9 Runtime / drivers | **done (Rust half)** |
+| 7 Effects surface | **done (all three)** |
+| 8 Introspection & tooling | **done (all three)** |
+| 9a Driver and mailbox | **done (all three)**; 9b (rendering surface) not started |
+
+One exception to the table, found by the audit below: **Rust has no prototype
+colors.** Phase 2 and Phase 6 had them ticked; `transition_matrix!` has no
+`prototype` clause and every generated `fn` is uncolored.
 
 93 Rust tests; 41 compile-fail fixtures (10 Rust, 4 Kotlin, 1 Kotlin-codegen,
 11 Kotlin-KSP, 4 Swift, 11 Swift macro-syntax); 11 conformance fixtures (96
@@ -95,6 +99,77 @@ Kotlin's weakest guarantee into one as strong as Rust's.
 **Go.** The design is sound in both languages.
 Findings from each phase are recorded in its commit message and folded back
 into `ARCHITECTURE.md`.
+
+---
+
+## Audit, September 2026: the tree against this file
+
+Everything in the status block above was re-derived from the tree rather than
+read from here: the counts, an adapter for every fixture in every language, and
+Phases 7, 8 and 9a in Kotlin and Swift (`perform` in both generators, mermaid,
+DOT, lint and coverage in both cores, both drivers non-reentrant with a fixed
+mailbox). Those three phases had been "Rust half" in this file and in the
+README for some time after they stopped being true -- a status that undersold
+the tree, which is the harmless direction.
+
+The other direction, in priority order:
+
+- **Rust prototype colors do not exist.** Phase 2 ticked `prototype` in the
+  grammar, a `$($color:tt)*` capture, and color splatting with `$(.await)?`;
+  Phase 6 ticked one-way color flow as "enforced by construction in Rust".
+  `transition_matrix!`'s entry arm has no `prototype` clause, `Handle` is a
+  library trait with one uncolored `fn handle`, and the `DELEGATE` arm calls
+  `$ch::step(..)` with no `.await` -- while its comment, `delegate.rs`'s module
+  doc and `spec/cells.md` 2.5 all described the `.await` it would emit. The
+  color-flow property held vacuously: nothing can be colored, so nothing can
+  mismatch. Reopened below, with the design question it raises: colors are
+  copied, never enumerated (ARCHITECTURE 5), but `Handle` is a *library* trait
+  and has no declaration to copy them onto.
+- **`kotlin-no-runtime-deps` could never exist.** It was gated on
+  `kotlin/settings.gradle.kts`, which ARCHITECTURE 12 says the library will
+  never have, ran `:tabula-core` from a Gradle build that does not exist, and
+  bypassed `tools/verify`. A permanently absent check -- the shape 0c and 0d
+  both warn about -- guarding a rule the `kotlin` step already enforces by
+  compiling `tabula-core` against an empty classpath. Removed. `has.kotlinGradle`
+  stays: `nix/publish.nix` gates Maven publication on it, which is a real
+  future build rather than a check that cannot run.
+- **Swift codegen does not produce compilable Swift for a realistic
+  machine, and nothing notices.** `TabulaCodegen.emit` calls a `narrow(..)`
+  defined nowhere where `ReferenceTimer.swift` binds payloads with
+  `case let (.running(since), .tick(now))`; calls `delegateTo<Child>(..)`
+  without emitting it; names effect payloads `F.StopClock`, which a Swift enum
+  case is not; and writes no `try`/`await` at call sites for a colored
+  prototype. `codegen-golden/` has never held a golden, so `swift-codegen`
+  reports `skip timer` on every run, and unlike `kotlin-codegen` the emitted
+  source is never compiled. `./tools/verify swift-codegen -- --bless` cannot
+  work either: `run` passes the step no arguments, and `--bless` parses as a
+  step name. Phase 5's "narrowed types" and "payload binding, no
+  `default:`" boxes are therefore *emitter* work, and not blocked on the
+  macro, which would only call `emit`.
+- **Three boxes open for work in the tree:** the `payload-hoist` fixture
+  (section 1), `matrix-covered` ("a check that every `.tb.` file is covered"),
+  and a record-only paragraph in Phase 3 written as a checkbox.
+- **Smaller overclaims.** The payload-free fast path's *index dispatch* was
+  never written (`TABLE` is a `const` `[[Cell; M]; N]` for every machine, and
+  dispatch is a `match` for every machine); `UNREACHABLE` is counted by
+  `Table::coverage`, not "in build output", which stable `macro_rules!` cannot
+  write to; Phase 0 said Swift 6 where the flake pins 5.10.1; ARCHITECTURE 9
+  named a Kotlin `Machine` class that is `Driver` and an `@Observable`
+  `ObservableStore` that conforms by hand.
+
+- [x] Docs, comments and boxes corrected; the Gradle report check removed
+- [ ] Rust prototype colors. Decide the shape first: `Handle` cannot carry a
+      copied color, so this is either a generated per-machine cell trait (the
+      surface Kotlin and Swift already have, at the cost of identifiers
+      `macro_rules!` cannot build), or colored library traits chosen by the
+      prototype, which enumerates colors -- the thing ARCHITECTURE 5 rejects.
+      Blocks the `color-mismatch` decision below, since that decision rests
+      on what each language enforces by construction
+- [ ] Swift emitter to the shape of `ReferenceTimer.swift`: payload binding,
+      effect payloads, the `delegateTo<Child>` helper, `try`/`await` from the
+      prototype. Then a committed golden, and a `swift-codegen` stage that
+      compiles the emitted source against a complete and an incomplete
+      implementation, as `kotlin-codegen` does. Unblocked
 
 ---
 
@@ -321,7 +396,7 @@ one state* and that holds at every width.
 - [x] `canonical_type` / `canonicalType` in all three lints, with tests. Kotlin
       had **no** `payload-hoist` tests at all before this — Rust and Swift had
       three each — which is how a lint ends up agreeing by coincidence.
-- [ ] The `payload-hoist` fixture itself, now unblocked
+- [x] The `payload-hoist` fixture itself -- landed; see Phase 3
 
 ### 2. The Swift tools-version floor — decided: 5.9
 
@@ -473,7 +548,8 @@ without KSP, so what is unverified is the adapter, not the logic.
 **Exit criterion:** `nix develop` works on Linux and macOS; empty test suites
 green in CI for all three languages.
 
-- [x] `flake.nix`: nixpkgs pin, `rust-overlay`, JDK 21, Swift 6
+- [x] `flake.nix`: nixpkgs pin, `rust-overlay`, JDK 21, Swift (5.10.1 today,
+      from the `nixpkgs-swift` input; see ARCHITECTURE 13)
 - [x] Per-language dev shells (`.#rust`, `.#kotlin`, `.#swift`) + combined default
 - [x] `nix flake check` wired to all three (empty suites for now)
 - [x] Repo skeleton per ARCHITECTURE §12
@@ -523,18 +599,25 @@ cheaply.
 byte-equivalent behaviour and its `cargo expand` output is reviewably close to
 the hand-written version.
 
-- [x] Grammar: `machine` / `context` / `prototype` / `states` / `actions` /
-      `effects` / rows
-- [x] Row parsing with positional cells; `$($color:tt)*` capture from prototype
+- [x] Grammar: `machine` / `context` / `state` / `action` / `effects` /
+      `initial` / `states` / `actions` / rows
+- [ ] `prototype` in the grammar. Ticked until the September 2026 audit; the
+      entry arm has no such clause
+- [x] Row parsing with positional cells
 - [x] Static cell kinds: `IGNORE`, `GO!`, `EMIT`
 - [x] `HANDLE` → trait method emission with **narrowed argument types**
-- [x] `UNREACHABLE` → trap, counted in build output
+- [x] `UNREACHABLE` → trap, counted by `Table::coverage` (stable
+      `macro_rules!` cannot write to build output)
 - [x] Dispatcher emission with **no wildcard arm** (so `rustc` catches missing rows)
 - [x] Row-arity validation with a readable error
 - [x] `TABLE` const emission
-- [x] Payload-free fast path: `[[Cell; M]; N]` + index dispatch
-- [x] Color splatting: `async` / `unsafe` / `const` / `extern`, with `$(.await)?`
-      at call sites
+- [x] `TABLE` as a `const` `[[Cell; M]; N]` -- for every machine, not only
+      payload-free ones
+- [ ] Index dispatch for payload-free machines. Never written: dispatch is a
+      `match` for every machine. Whether it would buy anything is the Phase 10
+      benchmark's question, not this one's
+- [ ] Color splatting: `async` / `unsafe` / `const` / `extern`, with `$(.await)?`
+      at call sites. Ticked until the September 2026 audit; see there
 - [x] `EMIT!()` rejected as `tabula::empty-emit`. Found by the audit, not by
       the conformance suite, which cannot find this class of bug: it compares
       behaviour, and no fixture writes a cell the spec forbids. Kotlin and
@@ -661,7 +744,7 @@ could be written from it without reading the Rust source.
       until theirs land, which is the designed behaviour for a fixture without
       an adapter and is now visible in `tools/verify`'s skip ledger rather
       than silent.
-- [ ] Stale, kept for the record: the reason recorded here was **not** the
+- *Superseded, kept for the record (not a task):* the reason recorded here was **not** the
       one recorded here before. Every implementation already has both the lint
       and a `Payloads` type; the adapters now supply them. The blocker is that
       the lint prints the field's *type*, which each language spells itself —
@@ -715,8 +798,10 @@ the build with a comprehensible message; the developer's source file contains no
 - [x] Suspend driver taking `suspend () -> A` (stdlib `suspend` only, **no**
       `kotlinx.coroutines` dependency). Enforced by construction rather than by
       a dependency report: with no build system there is no classpath but the
-      stdlib. The report check is wired up but gated on `has.kotlinGradle`, so
-      it stays dormant until Gradle can resolve.
+      stdlib, and the `kotlin` step compiles `tabula-core` against an empty
+      one. A Gradle dependency-report check once sat in `nix/checks.nix`,
+      gated on a `kotlin/settings.gradle.kts` the library will never have;
+      removed by the September 2026 audit.
 - [x] `SuspendDriver` exercised. It was not, until after Swift's `AsyncDriver`
       turned out to have the same gap — the blocking driver had checks from the
       day it was written and its twin had none. Both sides now assert the two
@@ -860,7 +945,9 @@ four fixtures pass, with the same golden `.grid` and `.lint` files.
 - [x] Reference machine and compile-fail suite, the counterparts of
       `reference_timer.rs` and `kotlin/compile_fail/`
 - [x] `Sources/TabulaCodegen`: the same `MachineDesc -> String` split Kotlin
-      took, with a golden diff and 13 declaration diagnostics. Split for the
+      took, with a golden diff and 13 declaration diagnostics. *The golden was
+      never committed, and the emitted source is never compiled; see the
+      September 2026 audit.* Split for the
       same reason and it paid the same way — the generator's logic is testable
       without the macro that does not exist yet.
 - [x] `Store` and `actor AsyncStore`. A `Driver` takes its two closures on
@@ -885,8 +972,10 @@ four fixtures pass, with the same golden `.grid` and `.lint` files.
 - [ ] Validate `matrix` literal shape at expansion; row-arity diagnostics at
       correct source positions
 - [ ] Prototype capture: `async`, `throws`, `@MainActor`, `@Sendable`, isolation
-- [ ] Emit protocol requirements with narrowed types
-- [ ] Emit exhaustive `switch (state, action)` with payload binding, **no `default:`**
+- [ ] Emit protocol requirements with narrowed types -- `TabulaCodegen`'s job,
+      not the macro's, and unblocked (September 2026 audit)
+- [ ] Emit exhaustive `switch (state, action)` with payload binding, **no
+      `default:`** -- same
 - [ ] Conformance harness green
 
 **Risk:** macro diagnostics at accurate source locations inside a dictionary
@@ -921,10 +1010,14 @@ color-mismatch is a build error in all three.
 - [x] `nested-delegate` and `retry` conformance fixtures. The child is
       conformant **on its own**: being composed does not change it, and a child
       that only works inside its parent is not a reusable machine.
-- [x] One-way color flow — enforced **by construction** in Rust: a colored
-      child inside a colorless parent emits `.await` in a non-`async` `fn`,
-      which rustc rejects. No check to write and nothing to circumvent. Kotlin
-      and Swift will need the explicit `tabula::color-mismatch` diagnostic.
+- [ ] One-way color flow. Ticked until the September 2026 audit as
+      "enforced by construction in Rust"; it held only vacuously, because
+      Rust has no colors to mismatch. In Kotlin it is by construction: the
+      generated `delegateTo<Child>` carries the *parent's* modifiers and calls
+      the child's `step`, so a suspending child under a plain parent is a
+      kotlinc error. Swift's generator does **not** do the same yet: it calls
+      a `delegateTo<Child>` it never emits (see the audit). No fixture proves
+      color flow in any language
 - [x] Kotlin half. `interface Cells : retry.Cells` — interfaces are Kotlin's
       trait bounds — with `compile_fail/child_hole_breaks_parent.kt` proving the
       property.
@@ -1938,9 +2031,10 @@ check cannot cover three.
       `examples/swift-examples/Sources/SpecCheck/Turnstile.tb.swift` has no
       formatter guarding it — and no formatter running over it either, so
       nothing has broken it. That is luck, not a design.
-- [ ] A check that every `.tb.` file in the tree is covered by one of the
-      three. The scans are per-language and a fourth language, or a matrix in
-      an unexpected directory, would be outside all of them without saying so.
+- [x] A check that every `.tb.` file in the tree is covered by one of the
+      three: `matrix-covered`. It enumerates the files that exist and asks
+      which scan reaches each, and reports `.tb.swift` through the skip ledger
+      until `swift-matrix-stable` exists.
 
 ## swift-matrix-stable — the cost, and what stands in until it is paid
 
@@ -2017,7 +2111,9 @@ is one a refactor closes or widens without anyone deciding to.
       than enumerated, so a mismatch is a type error before any check runs,
       which suggests it is unimplementable by design and the spec should say
       so. Until someone answers, a documented diagnostic no implementation
-      emits is a promise to a reader that nothing keeps.
+      emits is a promise to a reader that nothing keeps. **Blocked on Rust
+      prototype colors** (September 2026 audit): the by-construction argument
+      is only as good as the construction, and in Rust there is none yet.
 
 ## Five of seven lints are never tripped by a fixture
 

@@ -34,6 +34,10 @@ let
   # is off; that is what makes this class of bug expensive.
   has = {
     kotlin = builtins.pathExists ../kotlin/core/dev/tabula/Step.kt;
+    # Read by nix/publish.nix only: Maven publication needs a Gradle build the
+    # library does not have yet (RELEASING.md). No CHECK gates on this -- the
+    # zero-runtime-dependency rule is enforced by the `kotlin` step compiling
+    # tabula-core against an empty classpath, not by a dependency report.
     kotlinGradle = builtins.pathExists ../kotlin/settings.gradle.kts;
     swift = builtins.pathExists ../swift/Package.swift;
     rustConformance = builtins.pathExists ../rust/tabula-conformance/Cargo.toml;

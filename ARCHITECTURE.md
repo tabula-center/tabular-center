@@ -212,6 +212,11 @@ maintained. The prototype is the extension point.
 | Kotlin | `suspend`, annotations (`@Composable`, `@RestrictsSuspension`, custom plugin annotations), context parameters, extension receiver, visibility |
 | Swift | effect specifiers `async` / `throws` / `async throws`, attributes `@MainActor`, `@Sendable`, isolation clauses |
 
+> **Status (Rust).** Not implemented. `transition_matrix!` has no `prototype`
+> clause and `Handle` is a library trait with one uncolored `fn handle`, so
+> there is no generated declaration for a copied color to land on. PLAN,
+> September 2026 audit, carries the open design question.
+
 > **Status.** The KSP processor captures `suspend`, annotations and the
 > extension receiver. Visibility is taken from the annotated declaration rather
 > than the prototype (the generated surface cannot be more visible than the
@@ -421,7 +426,11 @@ column. You can see at a glance which cells delegate. A parent does not get to
 say "everything else goes to the child."
 
 **Color flows one way.** A colorless child composes into a colored parent. A
-colored child into a colorless parent is a generator error naming the child:
+colored child into a colorless parent is a build error. Whether tabula names
+it (below) or the language compiler does is PLAN's open `color-mismatch`
+decision; today Kotlin gets it from kotlinc, because the generated delegate
+helper carries the parent's modifiers, and Rust has no colors to mismatch.
+The design, as specified:
 
 ```
 error[tabula::color-mismatch]: machine `Timer` (prototype: `fun handle`)
@@ -486,8 +495,8 @@ determines their color too.
 | Language | Generated driver |
 |---|---|
 | Rust | `Machine<C>` owning state + mailbox; `run` colored by prototype |
-| Kotlin | plain `Machine` class; suspend variant takes `suspend () -> A` as source (no `kotlinx.coroutines` dependency) |
-| Swift | `Store` (sync), `actor AsyncStore` (structured concurrency), `@MainActor @Observable ObservableStore` |
+| Kotlin | plain `Driver` class; `SuspendDriver` takes `suspend () -> A` as source (no `kotlinx.coroutines` dependency) |
+| Swift | `Store` (sync), `actor AsyncStore` (structured concurrency), `@MainActor ObservableStore` (conforms to `Observable` by hand; Darwin only) |
 
 Kotlin's suspend driver depends on the `suspend` keyword only — a stdlib
 feature — not on `kotlinx.coroutines`. Keeping the event source as
@@ -631,7 +640,8 @@ is caught by `rustc`'s own exhaustiveness checker rather than by our macro. The
 second is free and more trustworthy than anything we could write.
 
 Color is a `$($color:tt)*` capture splatted onto each generated `fn`, with
-`$(.await)?` at call sites gated on the same capture.
+`$(.await)?` at call sites gated on the same capture. *Design, not yet
+implementation: see §5's Rust status note.*
 
 AFIT is not `dyn`-compatible; irrelevant, since we monomorphize. A boxed variant
 sits behind a `dyn` feature flag.

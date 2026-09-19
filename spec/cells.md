@@ -214,9 +214,11 @@ prism — mapping a parent action to a child action — is per cell. A second
 child reaching its terminal state is usually the parent's cue to leave.
 
 **Color flows one way.** A colorless child composes into a colored parent; the
-reverse is an error. In Rust this is by construction — the generated arm would
-need `.await` inside a non-`async` `step` and the compiler rejects it. Where a
-language cannot enforce it structurally, emit `tabula::color-mismatch`.
+reverse is an error. Where the generated delegate arm carries the parent's
+color and calls the child's colored `step`, the language compiler rejects it by
+construction — Kotlin's generator does exactly this. Where a language cannot
+enforce it structurally, emit `tabula::color-mismatch`. (Rust has no prototype
+colors yet, so the rule is vacuous there; see PLAN, September 2026 audit.)
 
 ---
 

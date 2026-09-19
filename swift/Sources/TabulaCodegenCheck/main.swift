@@ -168,6 +168,58 @@ let timerRaw = RawMachine(
     ]
 )
 
+// MARK: - Happy paths: the additive test
+//
+// `spec/happy-paths.md`, checked rather than stated. A machine whose `HANDLE`
+// cells a spine turns into `GO`s, and the same machine with those `GO`s written
+// by hand, must be indistinguishable downstream. Equal emitted source is the
+// strong form: `TABLE` is a literal inside it, and every golden is a pure
+// function of `TABLE`. Kotlin's twin is `runAdditiveTest` in
+// `kotlin/codegen/Tests.kt`, on the same machine.
+
+let spineQuiet = [RawCell("IGNORE"), RawCell("IGNORE"), RawCell("IGNORE")]
+
+func spineConn(_ rows: [RawRow], paths: [RawPath]) -> RawMachine {
+    RawMachine(
+        machine: "Conn", initial: "Idle",
+        states: [RawVariant("Idle"), RawVariant("Connecting"), RawVariant("Live"), RawVariant("Failed")],
+        actions: [RawVariant("Start"), RawVariant("Ready"), RawVariant("Drop")],
+        effects: [RawVariant("Go")], rows: rows, paths: paths)
+}
+
+// Idle -Start-> Connecting -Ready-> Live, and Live is terminal. Drop from
+// Connecting is a HANDLE the spine does not name, so it must survive.
+let spineConnect = RawPath(name: "connect", elements: ["Idle", "Start", "Connecting", "Ready", "Live"])
+let spineRows = [
+    RawRow("Idle", [RawCell("HANDLE"), RawCell("IGNORE"), RawCell("IGNORE")]),
+    RawRow("Connecting", [RawCell("IGNORE"), RawCell("HANDLE"), RawCell("HANDLE")]),
+    RawRow("Live", spineQuiet),
+    RawRow("Failed", spineQuiet),
+]
+let spineLonghandRows = [
+    RawRow("Idle", [RawCell("GO", target: "Connecting"), RawCell("IGNORE"), RawCell("IGNORE")]),
+    RawRow("Connecting", [RawCell("IGNORE"), RawCell("GO", target: "Live"), RawCell("HANDLE")]),
+    RawRow("Live", spineQuiet),
+    RawRow("Failed", spineQuiet),
+]
+
+do {
+    let derived = try buildDesc(spineConn(spineRows, paths: [spineConnect]))
+    let longhand = try buildDesc(spineConn(spineLonghandRows, paths: []))
+    let underived = try buildDesc(spineConn(spineRows, paths: []))
+
+    check("a spine-derived machine equals its longhand twin", derived.rows == longhand.rows)
+    check("... and emits byte-identical source, TABLE included", emit(derived) == emit(longhand))
+    // The control: without it, a `derive` that did nothing would still pass the
+    // two checks above whenever the longhand twin was written wrong.
+    check("without the path, the same rows are a different machine", underived.rows != longhand.rows)
+    check("a HANDLE no hop names is left alone", derived.rows[1][2] == .handle)
+} catch {
+    checks += 1
+    failures += 1
+    print("FAIL additive test: \(error)")
+}
+
 let goldenDir = CommandLine.arguments.dropFirst().first { !$0.hasPrefix("--") } ?? "codegen-golden"
 let bless = CommandLine.arguments.contains("--bless")
 

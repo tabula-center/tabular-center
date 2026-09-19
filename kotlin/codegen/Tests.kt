@@ -182,9 +182,61 @@ fun runValidationTests(): Int {
         ).isEmpty()
     )
 
+    runAdditiveTest()
+
     if (failures == 0) println("ok   codegen validation ($checks checks)")
     else println("FAIL codegen validation ($failures of $checks checks failed)")
     return failures
+}
+
+/**
+ * The additive test from `spec/happy-paths.md`, checked rather than stated.
+ *
+ * A machine whose `HANDLE` cells are turned into `GO`s by a spine, and the same
+ * machine with those `GO`s written out by hand, must be indistinguishable to
+ * everything downstream. Comparing the whole [MachineDesc] and the whole emitted
+ * file is stronger than comparing `TABLE` alone: `TABLE` is a literal inside
+ * that file, and `.grid`, `.lint`, `.cov` and `.mmd` are pure functions of it,
+ * so equal source means equal goldens.
+ *
+ * `Swift`'s twin is in `TabulaCodegenCheck/main.swift`, on the same machine.
+ */
+private fun runAdditiveTest() {
+    val quiet = listOf(RawCell("IGNORE"), RawCell("IGNORE"), RawCell("IGNORE"))
+    fun conn(rows: List<RawRow>, paths: List<RawPath>) = raw(
+        states = listOf(
+            RawVariant("Idle"), RawVariant("Connecting"), RawVariant("Live"), RawVariant("Failed"),
+        ),
+        actions = listOf(RawVariant("Start"), RawVariant("Ready"), RawVariant("Drop")),
+        rows = rows,
+    ).copy(paths = paths)
+
+    // Idle -Start-> Connecting -Ready-> Live, and Live is terminal. Drop from
+    // Connecting is a HANDLE the spine does not name, so it must survive.
+    val connect = RawPath("connect", listOf("Idle", "Start", "Connecting", "Ready", "Live"))
+    val spineRows = listOf(
+        RawRow("Idle", listOf(RawCell("HANDLE"), RawCell("IGNORE"), RawCell("IGNORE"))),
+        RawRow("Connecting", listOf(RawCell("IGNORE"), RawCell("HANDLE"), RawCell("HANDLE"))),
+        RawRow("Live", quiet),
+        RawRow("Failed", quiet),
+    )
+    val longhandRows = listOf(
+        RawRow("Idle", listOf(RawCell("GO", target = "Connecting"), RawCell("IGNORE"), RawCell("IGNORE"))),
+        RawRow("Connecting", listOf(RawCell("IGNORE"), RawCell("GO", target = "Live"), RawCell("HANDLE"))),
+        RawRow("Live", quiet),
+        RawRow("Failed", quiet),
+    )
+
+    val derived = buildDesc(conn(spineRows, listOf(connect)))
+    val longhand = buildDesc(conn(longhandRows, emptyList()))
+    val underived = buildDesc(conn(spineRows, emptyList()))
+
+    check("a spine-derived machine equals its longhand twin", derived == longhand)
+    check("... and emits byte-identical source, TABLE included", emit(derived) == emit(longhand))
+    // The control. Without it, a `derive` that did nothing would still pass
+    // the two checks above whenever the longhand twin was written wrong.
+    check("without the path, the same rows are a different machine", underived != longhand)
+    check("a HANDLE no hop names is left alone", derived.rows[1][2] == CellDesc.Handle)
 }
 
 /** `timerDesc`, as a KSP processor would hand it over. */

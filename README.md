@@ -48,14 +48,14 @@ same way adding a state breaks every matrix.
 |---|---|---|
 | 0 | Foundations, flake, CI | done |
 | 1 | Rust core, hand-written reference | done |
-| 2 | `transition_matrix!` | done |
+| 2 | `transition_matrix!` | done, except prototype colors (see PLAN, September 2026 audit) |
 | 3 | Cross-language conformance spec | done |
 | 4 | Kotlin core + KSP | done; the processor runs under `nix flake check` |
-| 5 | Swift core + macro | everything but macro expansion; `MachineSyntax` reads the surface |
+| 5 | Swift core + macro | everything but macro expansion; `MachineSyntax` reads the surface; the emitter does not yet produce compilable Swift for payloads, effects or delegation |
 | 6 | Composition | done (all three) |
-| 7 | Effects surface | done (Rust) |
-| 8 | Introspection, lints, golden snapshots | done (Rust); shared goldens read by all three |
-| 9a | Driver and mailbox | done (Rust) |
+| 7 | Effects surface | done (all three) |
+| 8 | Introspection, lints, golden snapshots | done (all three); shared goldens read by all three |
+| 9a | Driver and mailbox | done (all three) |
 
 See `ARCHITECTURE.md` for the design, `PLAN.md` for the task breakdown, and
 `examples/` for the worked machines — the same four core examples in every
