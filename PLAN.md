@@ -42,9 +42,10 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 9 Runtime / drivers | **done (Rust half)** |
 
 93 Rust tests; 41 compile-fail fixtures (10 Rust, 4 Kotlin, 1 Kotlin-codegen,
-11 Kotlin-KSP, 4 Swift, 11 Swift macro-syntax); 9 conformance fixtures (77
-trace steps), every one with an adapter in all three languages; 9 each of
-golden `.grid`, `.mmd`, `.lint`, `.cov`.
+11 Kotlin-KSP, 4 Swift, 11 Swift macro-syntax); 11 conformance fixtures (96
+trace steps), every one with an adapter in all three languages; 11 each of
+golden `.grid`, `.mmd`, `.lint`, `.cov`. Every runtime lint is tripped by at
+least one fixture.
 
 These counts are checked against the tree, not remembered. Regenerate with:
 
@@ -1573,7 +1574,16 @@ Found and **not** fixed in this patch, in priority order:
             `NoStaticExitAdapter` over `BEACON_TABLE`. With them the third
             renderer reads both goldens, so `ignore-heavy.cov` — the one found
             typed rather than blessed — is now agreed on by all three.
-- [ ] `no-static-entry` and `unreachable-heavy` still have no fixture.
+- [x] `no-static-entry` and `unreachable-heavy` still have no fixture.
+      - [x] `no-static-entry`: `Door`, the first **fully static** fixture —
+            no `HANDLE`, so no cell surface at all in any language. Pins the
+            reachability gate open, where `effects-never` pins it shut, and
+            puts an `EMIT` in the unreached row so an implementation counting
+            `EMIT` as a self-transition goes silent and fails.
+      - [x] `unreachable-heavy`: `Link`, three `UNREACHABLE` of twelve —
+            25%, the threshold exactly, so `>` for `>=` fails it the way
+            `payload-hoist` pins its own boundary. Traces never visit a
+            trapping cell; the claim is carried by the table and goldens.
 - [x] 4c-old's seven open boxes describe the processor as unwritten; most are
       now either done by `TabulaProcessor.kt` or superseded by `codegen/`.
       Done: five closed or superseded, with the reason beside each. Two stay
@@ -2017,10 +2027,10 @@ decision anyone made: every fixture happens to sit well under
       learn to ignore — so it catches movement instead: a fixture that stops
       tripping a lint, or a lint that gains coverage the table did not notice.
       Closing a gap is then a diff to that file.
-- [ ] Five fixtures, each the `payload-hoist` shape: a `.tbl`, `.grid`,
+- [x] Five fixtures, each the `payload-hoist` shape: a `.tbl`, `.grid`,
       `.lint`, `.cov`, a trace, and three adapters. Progress: dead-column,
-      ignore-heavy and no-static-exit are done in all three; no-static-entry
-      and unreachable-heavy have nothing yet.
+      ignore-heavy, no-static-exit, no-static-entry and unreachable-heavy are
+      done in all three. All seven lints are now compared across languages.
       - a matrix with a dead column
       - one over 70% `IGNORE`
       - one with enough `UNREACHABLE` cells to pass 25%

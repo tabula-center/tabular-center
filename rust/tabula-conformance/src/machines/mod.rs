@@ -12,10 +12,12 @@ pub mod compose;
 pub mod dead_column;
 pub mod effects_never;
 pub mod ignore_heavy;
+pub mod no_static_entry;
 pub mod no_static_exit;
 pub mod payload_hoist;
 pub mod timer;
 pub mod toggle;
+pub mod unreachable_heavy;
 
 use crate::{Expect, Spec, Trace};
 
@@ -91,5 +93,7 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
         Box::new(dead_column::DeadColumnAdapter),
         Box::new(ignore_heavy::IgnoreHeavyAdapter),
         Box::new(no_static_exit::NoStaticExitAdapter),
+        Box::new(no_static_entry::NoStaticEntryAdapter),
+        Box::new(unreachable_heavy::UnreachableHeavyAdapter),
     ]
 }

@@ -1,0 +1,1 @@
+warning[tabula::no-static-entry]: Door: nothing can transition into `Jammed`; every cell in this matrix is static, so it is genuinely unreachable

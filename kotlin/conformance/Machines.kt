@@ -925,9 +925,248 @@ object NoStaticExitAdapter : Adapter {
     }
 }
 
+// ---------------------------------------------------------------------------
+// no-static-entry.tbl
+// ---------------------------------------------------------------------------
+
+/**
+ * The `tabula::no-static-entry` fixture: `Jammed` has a row and a way out, and
+ * nothing in the matrix leads in.
+ *
+ * The matrix is **fully static** -- no `HANDLE`, `DELEGATE` or `UNREACHABLE`
+ * -- which is the gate the lint needs before it may speak. `effects-never`
+ * pins that gate shut; this pins it open. It also means [Machine] has no
+ * abstract members at all: every cell is one word, and there is nothing for
+ * [Impl] to write.
+ *
+ * `Jammed`'s `EMIT(Thud)` compiles to `Step.Stay(listOf(F.Thud))`, not to a
+ * `Go` into `Jammed` -- a reachability walk that counted it as an incoming
+ * edge would go silent on this fixture.
+ */
+object noStaticEntry {
+    sealed interface S {
+        data object Closed : S
+        data object Open : S
+        data object Jammed : S
+    }
+    sealed interface A {
+        data object Push : A
+        data object Pull : A
+        data object Kick : A
+    }
+    sealed interface F {
+        data object Thud : F
+    }
+
+    object Ctx
+
+    abstract class Machine {
+        fun step(ctx: Ctx, s: S, a: A): Step<S, F> = when (s) {
+            is S.Closed -> when (a) {
+                is A.Push -> Step.Go(S.Open)
+                is A.Pull -> Step.Ignored
+                is A.Kick -> Step.Ignored
+            }
+            is S.Open -> when (a) {
+                is A.Push -> Step.Ignored
+                is A.Pull -> Step.Go(S.Closed)
+                is A.Kick -> Step.Ignored
+            }
+            is S.Jammed -> when (a) {
+                is A.Push -> Step.Stay(listOf(F.Thud))
+                is A.Pull -> Step.Ignored
+                is A.Kick -> Step.Go(S.Closed)
+            }
+        }
+
+        companion object {
+            val TABLE = Table(
+                machine = "Door",
+                states = listOf("Closed", "Open", "Jammed"),
+                actions = listOf("Push", "Pull", "Kick"),
+                initial = "Closed",
+                cells = listOf(
+                    listOf(Cell.Go("Open"), Cell.Ignore, Cell.Ignore),
+                    listOf(Cell.Ignore, Cell.Go("Closed"), Cell.Ignore),
+                    listOf(Cell.Emit(listOf("Thud")), Cell.Ignore, Cell.Go("Closed")),
+                ),
+            )
+        }
+    }
+
+    /** Nothing to implement: every cell is static. */
+    class Impl : Machine()
+}
+
+object NoStaticEntryAdapter : Adapter {
+    override val name = "no-static-entry"
+    override val table = noStaticEntry.Machine.TABLE
+
+    override fun replay(trace: Trace): List<Observed> {
+        val m = noStaticEntry.Impl()
+        var state: noStaticEntry.S = stateOf(trace.from)
+        return trace.steps.map { st ->
+            val step = m.step(noStaticEntry.Ctx, state, actionOf(st.action))
+            val effects = step.effects.map { it.toString() }
+            val expect = when (step) {
+                is Step.Stay -> Expect.Stay
+                is Step.Ignored -> Expect.Ignored
+                is Step.Go -> {
+                    state = step.next
+                    Expect.Go(nameOf(step.next), emptyMap())
+                }
+            }
+            Observed(expect, effects)
+        }
+    }
+
+    private fun stateOf(name: String): noStaticEntry.S = when (name) {
+        "Closed" -> noStaticEntry.S.Closed
+        "Open" -> noStaticEntry.S.Open
+        "Jammed" -> noStaticEntry.S.Jammed
+        else -> error("no-static-entry: unknown state `$name`")
+    }
+
+    private fun actionOf(name: String): noStaticEntry.A = when (name) {
+        "Push" -> noStaticEntry.A.Push
+        "Pull" -> noStaticEntry.A.Pull
+        "Kick" -> noStaticEntry.A.Kick
+        else -> error("no-static-entry: unknown action `$name`")
+    }
+
+    private fun nameOf(s: noStaticEntry.S): String = when (s) {
+        is noStaticEntry.S.Closed -> "Closed"
+        is noStaticEntry.S.Open -> "Open"
+        is noStaticEntry.S.Jammed -> "Jammed"
+    }
+}
+
+// ---------------------------------------------------------------------------
+// unreachable-heavy.tbl
+// ---------------------------------------------------------------------------
+
+/**
+ * The `tabula::unreachable-heavy` fixture: three `UNREACHABLE` cells of twelve,
+ * which is `UNREACHABLE_HEAVY_PERCENT` exactly -- on the boundary, so `>` in
+ * place of `>=` fails it.
+ *
+ * `UNREACHABLE` generates no member and compiles to a trap with the normative
+ * message from `spec/cells.md`. The traces never reach one; the fixture's
+ * claim about them is carried by the table and the goldens.
+ */
+object unreachableHeavy {
+    sealed interface S {
+        data object Down : S
+        data object Dialing : S
+        data object Up : S
+    }
+    sealed interface A {
+        data object Dial : A
+        data object Ack : A
+        data object Hangup : A
+        data object Ping : A
+    }
+    sealed interface F {
+        data object Pong : F
+    }
+
+    class Ctx(val accept: Boolean)
+
+    abstract class Machine {
+        abstract fun dialingAck(ctx: Ctx, state: S.Dialing, action: A.Ack): Step<S, F>
+
+        fun step(ctx: Ctx, s: S, a: A): Step<S, F> = when (s) {
+            is S.Down -> when (a) {
+                is A.Dial -> Step.Go(S.Dialing)
+                is A.Ack -> error("tabula: Down x Ack was declared UNREACHABLE but occurred")
+                is A.Hangup -> Step.Ignored
+                is A.Ping -> Step.Ignored
+            }
+            is S.Dialing -> when (a) {
+                is A.Dial -> error("tabula: Dialing x Dial was declared UNREACHABLE but occurred")
+                is A.Ack -> dialingAck(ctx, s, a)
+                is A.Hangup -> Step.Go(S.Down)
+                is A.Ping -> Step.Ignored
+            }
+            is S.Up -> when (a) {
+                is A.Dial -> error("tabula: Up x Dial was declared UNREACHABLE but occurred")
+                is A.Ack -> Step.Ignored
+                is A.Hangup -> Step.Go(S.Down)
+                is A.Ping -> Step.Stay(listOf(F.Pong))
+            }
+        }
+
+        companion object {
+            val TABLE = Table(
+                machine = "Link",
+                states = listOf("Down", "Dialing", "Up"),
+                actions = listOf("Dial", "Ack", "Hangup", "Ping"),
+                initial = "Down",
+                cells = listOf(
+                    listOf(Cell.Go("Dialing"), Cell.Unreachable, Cell.Ignore, Cell.Ignore),
+                    listOf(Cell.Unreachable, Cell.Handle, Cell.Go("Down"), Cell.Ignore),
+                    listOf(Cell.Unreachable, Cell.Ignore, Cell.Go("Down"), Cell.Emit(listOf("Pong"))),
+                ),
+            )
+        }
+    }
+
+    class Impl : Machine() {
+        /** `stay`, not `ignored`, when refused: the cell ran and chose not to move. */
+        override fun dialingAck(ctx: Ctx, state: S.Dialing, action: A.Ack): Step<S, F> =
+            if (ctx.accept) Step.Go(S.Up) else Step.Stay()
+    }
+}
+
+object UnreachableHeavyAdapter : Adapter {
+    override val name = "unreachable-heavy"
+    override val table = unreachableHeavy.Machine.TABLE
+
+    override fun replay(trace: Trace): List<Observed> {
+        val m = unreachableHeavy.Impl()
+        val ctx = unreachableHeavy.Ctx((trace.ctx["accept"] ?: 0L) != 0L)
+        var state: unreachableHeavy.S = stateOf(trace.from)
+        return trace.steps.map { st ->
+            val step = m.step(ctx, state, actionOf(st.action))
+            val effects = step.effects.map { it.toString() }
+            val expect = when (step) {
+                is Step.Stay -> Expect.Stay
+                is Step.Ignored -> Expect.Ignored
+                is Step.Go -> {
+                    state = step.next
+                    Expect.Go(nameOf(step.next), emptyMap())
+                }
+            }
+            Observed(expect, effects)
+        }
+    }
+
+    private fun stateOf(name: String): unreachableHeavy.S = when (name) {
+        "Down" -> unreachableHeavy.S.Down
+        "Dialing" -> unreachableHeavy.S.Dialing
+        "Up" -> unreachableHeavy.S.Up
+        else -> error("unreachable-heavy: unknown state `$name`")
+    }
+
+    private fun actionOf(name: String): unreachableHeavy.A = when (name) {
+        "Dial" -> unreachableHeavy.A.Dial
+        "Ack" -> unreachableHeavy.A.Ack
+        "Hangup" -> unreachableHeavy.A.Hangup
+        "Ping" -> unreachableHeavy.A.Ping
+        else -> error("unreachable-heavy: unknown action `$name`")
+    }
+
+    private fun nameOf(s: unreachableHeavy.S): String = when (s) {
+        is unreachableHeavy.S.Down -> "Down"
+        is unreachableHeavy.S.Dialing -> "Dialing"
+        is unreachableHeavy.S.Up -> "Up"
+    }
+}
+
 /** Every adapter that has landed. A fixture with none is reported as skipped. */
 val adapters: List<Adapter> =
     listOf(
         TimerAdapter, ToggleAdapter, RetryAdapter, JobAdapter, EffectsNeverAdapter,
         PayloadHoistAdapter, DeadColumnAdapter, IgnoreHeavyAdapter, NoStaticExitAdapter,
+        NoStaticEntryAdapter, UnreachableHeavyAdapter,
     )

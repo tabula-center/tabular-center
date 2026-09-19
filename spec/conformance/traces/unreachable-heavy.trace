@@ -1,0 +1,19 @@
+trace dial-and-talk
+  ctx  accept=1
+  from Down
+  Hangup => ignored
+  Ping   => ignored
+  Dial   => go Dialing
+  Ack    => go Up
+  Ping   => stay       ! Pong
+  Ack    => ignored
+  Hangup => go Down
+
+trace refused
+  # `Ack` is HANDLE and decides at run time. Refused, it stays: `stay`, not
+  # `ignored`, because the cell ran and chose not to move.
+  ctx  accept=0
+  from Dialing
+  Ack    => stay
+  Ping   => ignored
+  Hangup => go Down

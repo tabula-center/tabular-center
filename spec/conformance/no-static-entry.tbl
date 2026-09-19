@@ -1,0 +1,29 @@
+# The `tabula::no-static-entry` fixture: a state no run can reach.
+#
+# `Jammed` is declared, has a row, and can even be left -- but no cell in the
+# matrix transitions into it, and `Closed` is the initial state. In a matrix
+# that is FULLY static that is a proof, not a guess: there is no HANDLE whose
+# body might go there, so the state is dead code.
+#
+# The fully-static gate is the point. `effects-never.tbl` pins the other side
+# of it -- `Open` there is reached only from a HANDLE, and the lint must stay
+# silent. This fixture has no HANDLE, no DELEGATE and no UNREACHABLE at all, so
+# the gate opens and the lint must speak. The two together pin the gate from
+# both directions.
+#
+# The second thing it pins: `Jammed`'s own EMIT(Thud) is `stay` plus an
+# effect, not a transition into `Jammed`. An implementation that counted an
+# EMIT as a self-GO would find an incoming edge here and stay silent.
+#
+# Quiet elsewhere: every row has a GO, so no `no-static-exit` and no `dead-row`;
+# every column has a live cell; 5 of 9 IGNORE is 55%; no UNREACHABLE; no
+# payloads.
+
+machine Door
+initial Closed
+states  Closed Open Jammed
+actions Push Pull Kick
+
+Closed | GO(Open)   | IGNORE     | IGNORE
+Open   | IGNORE     | GO(Closed) | IGNORE
+Jammed | EMIT(Thud) | IGNORE     | GO(Closed)

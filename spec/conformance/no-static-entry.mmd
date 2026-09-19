@@ -1,0 +1,6 @@
+stateDiagram-v2
+    [*] --> Closed
+    Closed --> Open: Push
+    Open --> Closed: Pull
+    Jammed --> Jammed: Push / Thud
+    Jammed --> Closed: Kick

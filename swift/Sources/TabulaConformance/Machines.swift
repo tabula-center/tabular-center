@@ -454,3 +454,116 @@ struct BeaconImpl: BeaconCells {
         .go(.blinking, effects: [])
     }
 }
+
+// MARK: - no-static-entry.tbl — the only coverage for `tabula::no-static-entry`
+
+/// `Jammed` has a row and a way out, and nothing in the matrix leads in.
+///
+/// The matrix is **fully static** — no `handle`, `delegate` or `unreachable` —
+/// which is the gate the lint needs before it may speak. `effects-never` pins
+/// that gate shut; this pins it open. It is also why `DoorCells` has no
+/// requirements: every cell is one word, and there is nothing to implement.
+///
+/// `Jammed`'s `EMIT(Thud)` dispatches to `.stay`, not to `.go(.jammed, ...)` —
+/// a reachability walk that counted it as an incoming edge would go silent.
+enum DoorS: Equatable { case closed, open, jammed }
+enum DoorA: Equatable { case push, pull, kick }
+enum DoorF: Equatable { case thud }
+
+struct DoorCtx {}
+
+/// Empty on purpose. The protocol still exists because the generated shape
+/// always has one, and a fully static machine is that shape with no members.
+protocol DoorCells {}
+
+func doorStep(
+    _ c: DoorCells, _ ctx: DoorCtx, _ s: DoorS, _ a: DoorA
+) -> Step<DoorS, DoorF> {
+    switch (s, a) {
+    case (.closed, .push): return .go(.open, effects: [])
+    case (.closed, .pull): return .ignored
+    case (.closed, .kick): return .ignored
+    case (.open, .push): return .ignored
+    case (.open, .pull): return .go(.closed, effects: [])
+    case (.open, .kick): return .ignored
+    case (.jammed, .push): return .stay(effects: [.thud])
+    case (.jammed, .pull): return .ignored
+    case (.jammed, .kick): return .go(.closed, effects: [])
+    }
+}
+
+let DOOR_TABLE = Table(
+    machine: "Door",
+    states: ["Closed", "Open", "Jammed"],
+    actions: ["Push", "Pull", "Kick"],
+    cells: [
+        [.go(target: "Open", effects: []), .ignore, .ignore],
+        [.ignore, .go(target: "Closed", effects: []), .ignore],
+        [.emit(effects: ["Thud"]), .ignore, .go(target: "Closed", effects: [])],
+    ],
+    initial: "Closed"
+)
+
+struct DoorImpl: DoorCells {}
+
+// MARK: - unreachable-heavy.tbl — the only coverage for `tabula::unreachable-heavy`
+
+/// Three `unreachable` cells of twelve, which is `unreachableHeavyPercent`
+/// exactly — on the boundary, so `>` in place of `>=` fails it.
+///
+/// `unreachable` generates no requirement and compiles to a trap with the
+/// normative message from `spec/cells.md`, as in `toggleStep`. The traces
+/// never reach one; the fixture's claim about them is carried by the table
+/// and the goldens.
+enum LinkS: Equatable { case down, dialing, up }
+enum LinkA: Equatable { case dial, ack, hangup, ping }
+enum LinkF: Equatable { case pong }
+
+struct LinkCtx {
+    let accept: Bool
+}
+
+protocol LinkCells {
+    func dialingAck(_ ctx: LinkCtx) -> Step<LinkS, LinkF>
+}
+
+func linkStep(
+    _ c: LinkCells, _ ctx: LinkCtx, _ s: LinkS, _ a: LinkA
+) -> Step<LinkS, LinkF> {
+    switch (s, a) {
+    case (.down, .dial): return .go(.dialing, effects: [])
+    case (.down, .ack):
+        fatalError("tabula: Down x Ack was declared UNREACHABLE but occurred")
+    case (.down, .hangup): return .ignored
+    case (.down, .ping): return .ignored
+    case (.dialing, .dial):
+        fatalError("tabula: Dialing x Dial was declared UNREACHABLE but occurred")
+    case (.dialing, .ack): return c.dialingAck(ctx)
+    case (.dialing, .hangup): return .go(.down, effects: [])
+    case (.dialing, .ping): return .ignored
+    case (.up, .dial):
+        fatalError("tabula: Up x Dial was declared UNREACHABLE but occurred")
+    case (.up, .ack): return .ignored
+    case (.up, .hangup): return .go(.down, effects: [])
+    case (.up, .ping): return .stay(effects: [.pong])
+    }
+}
+
+let LINK_TABLE = Table(
+    machine: "Link",
+    states: ["Down", "Dialing", "Up"],
+    actions: ["Dial", "Ack", "Hangup", "Ping"],
+    cells: [
+        [.go(target: "Dialing", effects: []), .unreachable, .ignore, .ignore],
+        [.unreachable, .handle, .go(target: "Down", effects: []), .ignore],
+        [.unreachable, .ignore, .go(target: "Down", effects: []), .emit(effects: ["Pong"])],
+    ],
+    initial: "Down"
+)
+
+struct LinkImpl: LinkCells {
+    /// `.stay`, not `.ignored`, when refused: the cell ran and chose not to move.
+    func dialingAck(_ ctx: LinkCtx) -> Step<LinkS, LinkF> {
+        ctx.accept ? .go(.up, effects: []) : .stay(effects: [])
+    }
+}

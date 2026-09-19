@@ -1,0 +1,4 @@
+Door    Push        Pull        Kick
+Closed  GO(Open)    IGNORE      IGNORE
+Open    IGNORE      GO(Closed)  IGNORE
+Jammed  EMIT(Thud)  IGNORE      GO(Closed)

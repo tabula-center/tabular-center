@@ -1,0 +1,4 @@
+Link     Dial         Ack          Hangup    Ping
+Down     GO(Dialing)  UNREACHABLE  IGNORE    IGNORE
+Dialing  UNREACHABLE  HANDLE       GO(Down)  IGNORE
+Up       UNREACHABLE  IGNORE       GO(Down)  EMIT(Pong)

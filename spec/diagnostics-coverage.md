@@ -45,29 +45,27 @@ different and worse question.
 The `.lint` goldens are the only cross-language check on lint behaviour: each
 implementation renders `report(table, payloads)` and all three must produce the
 same bytes. When this section was written, two codes appeared across all six
-fixtures; across today's nine, five do.
+fixtures; across today's eleven, all seven runtime lints do.
 
 ```fixtures
 tabula::dead-column        dead-column
 tabula::dead-row           nested-delegate retry
 tabula::ignore-heavy       ignore-heavy
-tabula::no-static-entry    -
+tabula::no-static-entry    no-static-entry
 tabula::no-static-exit     no-static-exit
 tabula::payload-hoist      payload-hoist
-tabula::unreachable-heavy  -
+tabula::unreachable-heavy  unreachable-heavy
 ```
 
-Two of the seven runtime lints are implemented three times and tripped zero
-times; `dead-column`, `ignore-heavy` and `no-static-exit` were among them until
-their fixtures landed. Each implementation's own unit tests cover the two;
-nothing compares the three. That is exactly the gap the `.lint` golden exists
-to close, left open because no fixture happens to cross the line -- none is
-fully static with an unreached state, and only `toggle` has an `UNREACHABLE`
-cell at all, one of six.
+No runtime lint is now implemented three times and compared never. Five were
+-- `dead-column`, `ignore-heavy`, `no-static-exit`, `no-static-entry` and
+`unreachable-heavy` -- each covered by its implementation's own unit tests
+and by nothing that compared the three, because no fixture happened to cross
+its line. Each closed the same way: a fixture shaped so that its lint is the
+only finding, a `.tbl`, four goldens, a trace, and three adapters.
 
-Closing it is fixtures, not code: one fully static matrix with an unreachable
-state, and one with an unreachable-heavy grid. Each needs a `.tbl`, its
-goldens, and three adapters — the `payload-hoist` shape, twice more.
+The table stays, because what it catches now is regression: a fixture edited
+so that it stops tripping its lint, or starts tripping a second one.
 
 Listed as `-` rather than silently absent so that closing one is a diff to this
 file, and so nobody rediscovers the gap by finding a bug it would have caught.

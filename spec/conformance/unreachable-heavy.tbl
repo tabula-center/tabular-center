@@ -1,0 +1,32 @@
+# The `tabula::unreachable-heavy` fixture: a matrix a quarter made of claims
+# that something cannot happen.
+#
+# Three UNREACHABLE cells of twelve is 25%, which is `unreachableHeavyPercent`
+# exactly. The fixture sits on the boundary on purpose, as `payload-hoist` does
+# for its threshold: an implementation comparing with `>` rather than `>=`
+# passes every other fixture and fails this one.
+#
+# Each claim is individually reasonable -- the dialer UI disables `Dial` once
+# a call is up, and an `Ack` cannot arrive before anything was dialled. That is
+# the lint's point. One or two such assertions are what the cell kind is for
+# (`toggle` has one and must stay silent); a quarter of the matrix says the
+# action alphabet is describing a different machine from the one declared.
+#
+# The traces never visit an UNREACHABLE cell. Doing so traps, in every
+# language, by design (`spec/cells.md`), and the trace format has no outcome
+# for "this aborts the process".
+#
+# Quiet elsewhere: every row has a GO, so no `no-static-exit`; no row or
+# column is all IGNORE (`Ping` lives on Up's EMIT); 4 of 12 IGNORE is 33%;
+# a HANDLE and the UNREACHABLE cells make the matrix not fully static, so
+# `no-static-entry` stays gated even though `Up` is reached only by the
+# HANDLE; no payloads.
+
+machine Link
+initial Down
+states  Down Dialing Up
+actions Dial Ack Hangup Ping
+
+Down    | GO(Dialing) | UNREACHABLE | IGNORE   | IGNORE
+Dialing | UNREACHABLE | HANDLE      | GO(Down) | IGNORE
+Up      | UNREACHABLE | IGNORE      | GO(Down) | EMIT(Pong)

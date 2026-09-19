@@ -1493,8 +1493,9 @@ step_diagnostics_coverage() {
 
     # And the fixture table: which runtime lints a `.lint` golden trips.
     #
-    # Recorded rather than required, because five of seven are `-` today and a
-    # check that fails on a known gap is a check people learn to ignore. What
+    # Recorded rather than required: when this was written five of seven were
+    # `-`, and a check that fails on a known gap is a check people learn to
+    # ignore. None are `-` now, and the check is kept for what it catches. What
     # it catches is movement in either direction: a fixture that stops tripping
     # a lint it used to, and a lint that gains coverage without the table
     # noticing. Closing a gap is then a diff here, which is the point.

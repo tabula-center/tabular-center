@@ -1,0 +1,19 @@
+trace no-run-reaches-jammed
+  # The lint as behaviour: from the initial state, every action either
+  # ignores or moves between Closed and Open. Kick is the only column that
+  # mentions Jammed's exit, and nothing leads in.
+  from Closed
+  Kick => ignored
+  Push => go Open
+  Kick => ignored
+  Pull => go Closed
+  Pull => ignored
+
+trace jammed-can-be-left
+  # Starts in Jammed because no run can get there. The state is not a trap --
+  # `no-static-exit` would be the lint for that -- it is unreachable.
+  from Jammed
+  Push => stay ! Thud
+  Pull => ignored
+  Kick => go Closed
+  Push => go Open

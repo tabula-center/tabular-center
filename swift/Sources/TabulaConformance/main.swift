@@ -477,12 +477,133 @@ struct NoStaticExitAdapter: Adapter {
     }
 }
 
+struct NoStaticEntryAdapter: Adapter {
+    let name = "no-static-entry"
+    let table = DOOR_TABLE
+
+    /// See `TimerAdapter.effectName`.
+    static func effectName(_ f: DoorF) -> String {
+        switch f {
+        case .thud: return "Thud"
+        }
+    }
+
+    func replay(_ trace: Trace) throws -> [Observed] {
+        let cells = DoorImpl()
+        var state = try stateOf(trace.from)
+        var out: [Observed] = []
+
+        for st in trace.steps {
+            let step = doorStep(cells, DoorCtx(), state, try actionOf(st.action))
+            let effects = step.effects.map(Self.effectName)
+            let expect: Expect
+            switch step {
+            case .stay: expect = .stay
+            case .ignored: expect = .ignored
+            case let .go(next, _):
+                state = next
+                expect = .go(state: nameOf(next), fields: [:])
+            }
+            out.append(Observed(expect: expect, effects: effects))
+        }
+        return out
+    }
+
+    private func stateOf(_ name: String) throws -> DoorS {
+        switch name {
+        case "Closed": return .closed
+        case "Open": return .open
+        case "Jammed": return .jammed
+        default: throw SpecError("no-static-entry: unknown state `\(name)`")
+        }
+    }
+
+    private func actionOf(_ name: String) throws -> DoorA {
+        switch name {
+        case "Push": return .push
+        case "Pull": return .pull
+        case "Kick": return .kick
+        default: throw SpecError("no-static-entry: unknown action `\(name)`")
+        }
+    }
+
+    private func nameOf(_ s: DoorS) -> String {
+        switch s {
+        case .closed: return "Closed"
+        case .open: return "Open"
+        case .jammed: return "Jammed"
+        }
+    }
+}
+
+struct UnreachableHeavyAdapter: Adapter {
+    let name = "unreachable-heavy"
+    let table = LINK_TABLE
+
+    /// See `TimerAdapter.effectName`.
+    static func effectName(_ f: LinkF) -> String {
+        switch f {
+        case .pong: return "Pong"
+        }
+    }
+
+    func replay(_ trace: Trace) throws -> [Observed] {
+        let ctx = LinkCtx(accept: (trace.ctx["accept"] ?? 0) != 0)
+        let cells = LinkImpl()
+        var state = try stateOf(trace.from)
+        var out: [Observed] = []
+
+        for st in trace.steps {
+            let step = linkStep(cells, ctx, state, try actionOf(st.action))
+            let effects = step.effects.map(Self.effectName)
+            let expect: Expect
+            switch step {
+            case .stay: expect = .stay
+            case .ignored: expect = .ignored
+            case let .go(next, _):
+                state = next
+                expect = .go(state: nameOf(next), fields: [:])
+            }
+            out.append(Observed(expect: expect, effects: effects))
+        }
+        return out
+    }
+
+    private func stateOf(_ name: String) throws -> LinkS {
+        switch name {
+        case "Down": return .down
+        case "Dialing": return .dialing
+        case "Up": return .up
+        default: throw SpecError("unreachable-heavy: unknown state `\(name)`")
+        }
+    }
+
+    private func actionOf(_ name: String) throws -> LinkA {
+        switch name {
+        case "Dial": return .dial
+        case "Ack": return .ack
+        case "Hangup": return .hangup
+        case "Ping": return .ping
+        default: throw SpecError("unreachable-heavy: unknown action `\(name)`")
+        }
+    }
+
+    private func nameOf(_ s: LinkS) -> String {
+        switch s {
+        case .down: return "Down"
+        case .dialing: return "Dialing"
+        case .up: return "Up"
+        }
+    }
+}
+
 /// Every adapter that has landed. A fixture with none is reported as skipped,
 /// never as passed.
 let adapters: [Adapter] = [
     TimerAdapter(), ToggleAdapter(), RetryAdapter(), JobAdapter(),
     EffectsNeverAdapter(), PayloadHoistAdapter(), DeadColumnAdapter(),
-    IgnoreHeavyAdapter(), NoStaticExitAdapter(),
+    IgnoreHeavyAdapter(), NoStaticExitAdapter(), NoStaticEntryAdapter(),
+    UnreachableHeavyAdapter(),
 ]
 
 // MARK: - Runner
