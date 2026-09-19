@@ -320,3 +320,137 @@ struct VendImpl: VendCells {
         s.credit >= ctx.price ? .go(.dispensing, effects: []) : .stay(effects: [])
     }
 }
+
+// MARK: - ignore-heavy.tbl — the only coverage for `tabula::ignore-heavy`
+
+/// Four states, each answering one action and ignoring the other four.
+///
+/// 15 of 20 cells `.ignore`, which is 75% against `ignoreHeavyPercent` (70).
+/// 4x5 rather than the suite's usual 3x3 because the shape is forced: every row
+/// and every column needs a live cell or `dead-row` / `dead-column` fire
+/// instead, and three actions cannot get past 66%. See the `.tbl`.
+///
+/// No payloads, so `payload-hoist` cannot fire, and the `handle` cells make the
+/// matrix not fully static, which gates `no-static-entry` off.
+enum PollS: Equatable { case idle, armed, firing, spent }
+enum PollA: Equatable { case arm, tick, fire, reset, abort }
+
+/// No effects anywhere in the matrix, like `GateF`.
+enum PollF {}
+
+struct PollCtx {}
+
+protocol PollCells {
+    func idleArm(_ ctx: PollCtx) -> Step<PollS, PollF>
+    func armedTick(_ ctx: PollCtx) -> Step<PollS, PollF>
+    func firingFire(_ ctx: PollCtx) -> Step<PollS, PollF>
+}
+
+func pollStep(
+    _ c: PollCells, _ ctx: PollCtx, _ s: PollS, _ a: PollA
+) -> Step<PollS, PollF> {
+    switch (s, a) {
+    case (.idle, .arm): return c.idleArm(ctx)
+    case (.idle, .tick): return .ignored
+    case (.idle, .fire): return .ignored
+    case (.idle, .reset): return .ignored
+    case (.idle, .abort): return .ignored
+    case (.armed, .arm): return .ignored
+    case (.armed, .tick): return c.armedTick(ctx)
+    case (.armed, .fire): return .ignored
+    case (.armed, .reset): return .ignored
+    case (.armed, .abort): return .go(.idle, effects: [])
+    case (.firing, .arm): return .ignored
+    case (.firing, .tick): return .ignored
+    case (.firing, .fire): return c.firingFire(ctx)
+    case (.firing, .reset): return .ignored
+    case (.firing, .abort): return .ignored
+    case (.spent, .arm): return .ignored
+    case (.spent, .tick): return .ignored
+    case (.spent, .fire): return .ignored
+    case (.spent, .reset): return .go(.idle, effects: [])
+    case (.spent, .abort): return .ignored
+    }
+}
+
+let POLL_TABLE = Table(
+    machine: "Poll",
+    states: ["Idle", "Armed", "Firing", "Spent"],
+    actions: ["Arm", "Tick", "Fire", "Reset", "Abort"],
+    cells: [
+        [.handle, .ignore, .ignore, .ignore, .ignore],
+        [.ignore, .handle, .ignore, .ignore, .go(target: "Idle", effects: [])],
+        [.ignore, .ignore, .handle, .ignore, .ignore],
+        [.ignore, .ignore, .ignore, .go(target: "Idle", effects: []), .ignore],
+    ],
+    initial: "Idle"
+)
+
+struct PollImpl: PollCells {
+    func idleArm(_ ctx: PollCtx) -> Step<PollS, PollF> { .go(.armed, effects: []) }
+
+    /// `.stay`, not `.ignored`: the tick is handled and changes nothing.
+    /// `one-action-per-state` asserts exactly that, one step after an
+    /// `Arm => ignored` from the same state -- the two outcomes side by side.
+    func armedTick(_ ctx: PollCtx) -> Step<PollS, PollF> { .stay(effects: []) }
+
+    func firingFire(_ ctx: PollCtx) -> Step<PollS, PollF> { .go(.spent, effects: []) }
+}
+
+// MARK: - no-static-exit.tbl — the only coverage for `tabula::no-static-exit`
+
+/// `Fault` can be entered and, as far as the matrix can prove, never left.
+///
+/// Its row is `[.ignore, .emit([Alarm]), .ignore]`. `EMIT` is `stay` plus an
+/// effect, never a transition -- which is why it dispatches to `.stay` below
+/// and not to `.go(.fault, ...)`. The `emit-stays-put` trace fails an
+/// implementation that confuses the two.
+///
+/// That single `EMIT` is also what keeps `dead-row` from subsuming the lint:
+/// `dead-row` needs every cell in the row to be `.ignore`.
+enum BeaconS: Equatable { case idle, blinking, fault }
+enum BeaconA: Equatable { case start, pulse, clear }
+enum BeaconF: Equatable { case flash, alarm }
+
+struct BeaconCtx {}
+
+protocol BeaconCells {
+    func idleStart(_ ctx: BeaconCtx) -> Step<BeaconS, BeaconF>
+}
+
+func beaconStep(
+    _ c: BeaconCells, _ ctx: BeaconCtx, _ s: BeaconS, _ a: BeaconA
+) -> Step<BeaconS, BeaconF> {
+    switch (s, a) {
+    case (.idle, .start): return c.idleStart(ctx)
+    case (.idle, .pulse): return .ignored
+    case (.idle, .clear): return .ignored
+    case (.blinking, .start): return .ignored
+    case (.blinking, .pulse): return .stay(effects: [.flash])
+    case (.blinking, .clear): return .go(.idle, effects: [])
+    case (.fault, .start): return .ignored
+    case (.fault, .pulse): return .stay(effects: [.alarm])
+    case (.fault, .clear): return .ignored
+    }
+}
+
+let BEACON_TABLE = Table(
+    machine: "Beacon",
+    states: ["Idle", "Blinking", "Fault"],
+    actions: ["Start", "Pulse", "Clear"],
+    cells: [
+        [.handle, .ignore, .ignore],
+        [.ignore, .emit(effects: ["Flash"]), .go(target: "Idle", effects: [])],
+        [.ignore, .emit(effects: ["Alarm"]), .ignore],
+    ],
+    initial: "Idle"
+)
+
+struct BeaconImpl: BeaconCells {
+    /// The only dynamic cell, and the reason the matrix is not fully static --
+    /// which is what keeps `no-static-entry` quiet about `Fault`, a state
+    /// nothing in the matrix enters.
+    func idleStart(_ ctx: BeaconCtx) -> Step<BeaconS, BeaconF> {
+        .go(.blinking, effects: [])
+    }
+}

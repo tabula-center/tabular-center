@@ -202,7 +202,7 @@ exists because there are three implementations:
 Rust owns `--bless`; Kotlin and Swift read and never bless, so a renderer that
 drifts by one space fails rather than quietly rewriting the shared snapshot.
 
-All four fixtures now have Swift adapters. `Sources/TabulaConformance/Compose.swift`
+Every fixture in `spec/conformance` has a Swift adapter. `Sources/TabulaConformance/Compose.swift`
 holds the composition reference — a `job` machine delegating to a `retry` one —
 and its shape is the composition property in one line:
 

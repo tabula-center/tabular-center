@@ -357,11 +357,132 @@ struct DeadColumnAdapter: Adapter {
     }
 }
 
+struct IgnoreHeavyAdapter: Adapter {
+    let name = "ignore-heavy"
+    let table = POLL_TABLE
+
+    func replay(_ trace: Trace) throws -> [Observed] {
+        let cells = PollImpl()
+        var state = try stateOf(trace.from)
+        var out: [Observed] = []
+
+        for st in trace.steps {
+            let step = pollStep(cells, PollCtx(), state, try actionOf(st.action))
+            // Always empty: `PollF` has no cases. See EffectsNeverAdapter for
+            // why this is a literal rather than a map.
+            let effects: [String] = []
+            let expect: Expect
+            switch step {
+            case .stay: expect = .stay
+            case .ignored: expect = .ignored
+            case let .go(next, _):
+                state = next
+                expect = .go(state: nameOf(next), fields: [:])
+            }
+            out.append(Observed(expect: expect, effects: effects))
+        }
+        return out
+    }
+
+    private func stateOf(_ name: String) throws -> PollS {
+        switch name {
+        case "Idle": return .idle
+        case "Armed": return .armed
+        case "Firing": return .firing
+        case "Spent": return .spent
+        default: throw SpecError("ignore-heavy: unknown state `\(name)`")
+        }
+    }
+
+    private func actionOf(_ name: String) throws -> PollA {
+        switch name {
+        case "Arm": return .arm
+        case "Tick": return .tick
+        case "Fire": return .fire
+        case "Reset": return .reset
+        case "Abort": return .abort
+        default: throw SpecError("ignore-heavy: unknown action `\(name)`")
+        }
+    }
+
+    /// Exhaustive, so a state added to `PollS` without a name here is a build
+    /// error rather than a rendering the fixture never matches.
+    private func nameOf(_ s: PollS) -> String {
+        switch s {
+        case .idle: return "Idle"
+        case .armed: return "Armed"
+        case .firing: return "Firing"
+        case .spent: return "Spent"
+        }
+    }
+}
+
+struct NoStaticExitAdapter: Adapter {
+    let name = "no-static-exit"
+    let table = BEACON_TABLE
+
+    /// See `TimerAdapter.effectName`.
+    static func effectName(_ f: BeaconF) -> String {
+        switch f {
+        case .flash: return "Flash"
+        case .alarm: return "Alarm"
+        }
+    }
+
+    func replay(_ trace: Trace) throws -> [Observed] {
+        let cells = BeaconImpl()
+        var state = try stateOf(trace.from)
+        var out: [Observed] = []
+
+        for st in trace.steps {
+            let step = beaconStep(cells, BeaconCtx(), state, try actionOf(st.action))
+            let effects = step.effects.map(Self.effectName)
+            let expect: Expect
+            switch step {
+            case .stay: expect = .stay
+            case .ignored: expect = .ignored
+            case let .go(next, _):
+                state = next
+                expect = .go(state: nameOf(next), fields: [:])
+            }
+            out.append(Observed(expect: expect, effects: effects))
+        }
+        return out
+    }
+
+    private func stateOf(_ name: String) throws -> BeaconS {
+        switch name {
+        case "Idle": return .idle
+        case "Blinking": return .blinking
+        case "Fault": return .fault
+        default: throw SpecError("no-static-exit: unknown state `\(name)`")
+        }
+    }
+
+    private func actionOf(_ name: String) throws -> BeaconA {
+        switch name {
+        case "Start": return .start
+        case "Pulse": return .pulse
+        case "Clear": return .clear
+        default: throw SpecError("no-static-exit: unknown action `\(name)`")
+        }
+    }
+
+    private func nameOf(_ s: BeaconS) -> String {
+        switch s {
+        case .idle: return "Idle"
+        case .blinking: return "Blinking"
+        case .fault: return "Fault"
+        }
+    }
+}
+
 /// Every adapter that has landed. A fixture with none is reported as skipped,
 /// never as passed.
 let adapters: [Adapter] = [
     TimerAdapter(), ToggleAdapter(), RetryAdapter(), JobAdapter(),
     EffectsNeverAdapter(), PayloadHoistAdapter(), DeadColumnAdapter(),
+    IgnoreHeavyAdapter(), NoStaticExitAdapter(),
 ]
 
 // MARK: - Runner
