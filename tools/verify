@@ -1261,20 +1261,86 @@ step_swift_codegen() {
     fi
     require_dir swift || return 1
 
-    local scratch out rc
+    local scratch out rc gen bless=""
     scratch="$(mktemp -d)"
     swift_home "$scratch"
+    gen="$scratch/emitted"
 
-    # `--bless` is forwarded, so `./tools/verify swift-codegen -- --bless`
-    # accepts new output after an intended change. Flags before the executable
-    # name are SwiftPM's; arguments after it are the program's.
+    # Blessing is an environment variable, not an argument. `run` calls every
+    # step with none, and the step list treats each argument as a step name,
+    # so the `-- --bless` this used to advertise could never have reached here.
+    [ -n "${TABULA_BLESS:-}" ] && bless="--bless"
+
+    # 1. validation, the additive test, and the golden diff -- and write the
+    #    emitted source out for the stages below.
     # shellcheck disable=SC2046
     out="$( (cd swift && "$SWIFT" run -c release $(swift_paths "$scratch") \
-        tabula-codegen-check codegen-golden "$@") 2>&1 )"
+        tabula-codegen-check codegen-golden "--emit=$gen" $bless) 2>&1 )"
     rc=$?
     printf '%s\n' "$out"
+    if [ "$rc" -ne 0 ]; then rm -rf "$scratch"; return "$rc"; fi
+
+    # The emitted source imports `Tabula`, which `swift run` of the check
+    # does not build. Same module lookup as swift-compile-fail.
+    local build bin modules
+    # shellcheck disable=SC2046
+    build="$( (cd swift && "$SWIFT" build -c release $(swift_paths "$scratch")) 2>&1 )" || {
+        echo "the package failed to build:"
+        printf '%s\n' "$build" | tail -20
+        rm -rf "$scratch"
+        return 1
+    }
+    # shellcheck disable=SC2046
+    bin="$( (cd swift && "$SWIFT" build -c release $(swift_paths "$scratch") \
+        --show-bin-path) 2>/dev/null )"
+    modules="$bin/Modules"
+    [ -d "$modules" ] || modules="$bin"
+
+    # 2. The emitted source must compile, with a complete implementation.
+    #    A golden proves the emitter is deterministic; this proves its output
+    #    is Swift. Each machine on its own: they share file-scope names.
+    #    Emitted files are `<m>.emitted.swift` because swiftc rejects two
+    #    inputs with one base name -- `complete/<m>.swift` is the other.
+    local sup=swift/codegen-support m src f exp err bad=0
+    for f in "$sup"/complete/*.swift; do
+        m="$(basename "$f" .swift)"
+        src="$gen/$m.emitted.swift"
+        if [ ! -f "$src" ]; then
+            echo "FAIL $m: the check emitted nothing at $src"
+            bad=1
+            continue
+        fi
+        if err="$("$SWIFTC" -typecheck -I "$modules" "$sup/TimerTypes.swift" "$src" "$f" 2>&1)"; then
+            echo "ok   $m: emitted source compiles with a complete implementation"
+        else
+            echo "FAIL $m: emitted source and a complete implementation do not compile"
+            printf '%s\n' "$err" | grep -E "error:" | head -5 | sed 's/^/       /'
+            bad=1
+        fi
+    done
+
+    # 3. An incomplete or miscolored caller must NOT compile -- the guarantee,
+    #    after generation. Refused, and refused for the expected reason.
+    for f in "$sup"/compile_fail/*.swift; do
+        m="$(basename "$f" .swift)"
+        m="${m%%_*}"
+        exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
+        err="$("$SWIFTC" -typecheck -I "$modules" "$sup/TimerTypes.swift" "$gen/$m.emitted.swift" "$f" 2>&1)"; rc=$?
+        if [ "$rc" -eq 0 ]; then
+            echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
+            bad=1
+        elif printf '%s' "$err" | grep -qF -- "$exp"; then
+            echo "ok   $(basename "$f")"
+        else
+            echo "FAIL $(basename "$f")"
+            echo "     expected: $exp"
+            printf '%s\n' "$err" | grep -E "error:" | head -3 | sed 's/^/       /'
+            bad=1
+        fi
+    done
+
     rm -rf "$scratch"
-    return "$rc"
+    return "$bad"
 }
 
 step_swift_conformance() {

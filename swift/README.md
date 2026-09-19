@@ -261,7 +261,7 @@ is the piece that needs Maven.
 
 ```sh
 ./tools/verify swift-codegen                # 13 diagnostics + a golden diff
-./tools/verify swift-codegen -- --bless     # accept new emitted source
+TABULA_BLESS=1 ./tools/verify swift-codegen # accept new emitted source
 ```
 
 **`TabulaMacros` is not written yet**, and swift-syntax has to be solved first:

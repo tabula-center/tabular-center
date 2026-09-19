@@ -138,36 +138,6 @@ expectError("an undeclared initial state", "tabula::unknown-state") {
     _ = try buildDesc(raw(initial: "Nope"))
 }
 
-// MARK: - Golden emitted source
-
-/// `timer.tbl`, as the macro would build it from syntax.
-let timerRaw = RawMachine(
-    machine: "Timer",
-    initial: "Idle",
-    states: [
-        RawVariant("Idle"),
-        RawVariant("Running", hasPayload: true, fields: [(name: "since", type: "Int")]),
-        RawVariant("Done"),
-    ],
-    actions: [
-        RawVariant("Start"),
-        RawVariant("Tick", hasPayload: true, fields: [(name: "now", type: "Int")]),
-        RawVariant("Cancel"),
-    ],
-    effects: [RawVariant("StartClock"), RawVariant("StopClock")],
-    rows: [
-        RawRow("Idle", [RawCell("HANDLE"), RawCell("IGNORE"), RawCell("IGNORE")]),
-        RawRow("Running", [
-            RawCell("IGNORE"), RawCell("HANDLE"),
-            RawCell("GO", target: "Idle", effects: ["StopClock"]),
-        ]),
-        RawRow("Done", [
-            RawCell("GO", target: "Running", args: "(since: 0)", effects: ["StartClock"]),
-            RawCell("IGNORE"), RawCell("IGNORE"),
-        ]),
-    ]
-)
-
 // MARK: - Happy paths: the additive test
 //
 // `spec/happy-paths.md`, checked rather than stated. A machine whose `HANDLE`
@@ -220,43 +190,105 @@ do {
     print("FAIL additive test: \(error)")
 }
 
+// MARK: - Golden emitted source
+
+/// `timer.tbl`, as the macro would build it from syntax -- plus `Note`, an
+/// effect no static cell names, so the payload-carrying handler is emitted and
+/// compiled. `codegen-support/TimerTypes.swift` declares the types it names.
+func timerMachine(_ name: String, modifiers: [String] = []) -> RawMachine {
+    RawMachine(
+        machine: name,
+        initial: "Idle",
+        states: [
+            RawVariant("Idle"),
+            RawVariant("Running", hasPayload: true, fields: [(name: "since", type: "Int")]),
+            RawVariant("Done"),
+        ],
+        actions: [
+            RawVariant("Start"),
+            RawVariant("Tick", hasPayload: true, fields: [(name: "now", type: "Int")]),
+            RawVariant("Cancel"),
+        ],
+        effects: [
+            RawVariant("StartClock"),
+            RawVariant("StopClock"),
+            RawVariant("Note", hasPayload: true, fields: [(name: "text", type: "String")]),
+        ],
+        rows: [
+            RawRow("Idle", [RawCell("HANDLE"), RawCell("IGNORE"), RawCell("IGNORE")]),
+            RawRow("Running", [
+                RawCell("IGNORE"), RawCell("HANDLE"),
+                RawCell("GO", target: "Idle", effects: ["StopClock"]),
+            ]),
+            RawRow("Done", [
+                RawCell("GO", target: "Running", args: "(since: 0)", effects: ["StartClock"]),
+                RawCell("IGNORE"), RawCell("IGNORE"),
+            ]),
+        ],
+        prototypeModifiers: modifiers
+    )
+}
+
+let timerRaw = timerMachine("Timer")
+
+/// The same machine, colored. `async throws` must land after the parameter
+/// list and put `try await` on every call into a cell -- the emitter used to
+/// splat both before `func`, which is not Swift.
+let timerAsyncRaw = timerMachine("TimerAsync", modifiers: ["async", "throws"])
+
 let goldenDir = CommandLine.arguments.dropFirst().first { !$0.hasPrefix("--") } ?? "codegen-golden"
 let bless = CommandLine.arguments.contains("--bless")
+/// Where to write the emitted source for `tools/verify` to compile, if asked.
+let emitDir = CommandLine.arguments
+    .first { $0.hasPrefix("--emit=") }
+    .map { String($0.dropFirst("--emit=".count)) }
 
-do {
-    let source = emit(try buildDesc(timerRaw))
-    let path = "\(goldenDir)/timer.swift.golden"
-    if bless {
-        try source.write(toFile: path, atomically: true, encoding: .utf8)
-        print("blessed timer")
-    } else if let want = try? String(contentsOfFile: path, encoding: .utf8) {
-        checks += 1
-        if source == want {
-            print("ok   timer")
-        } else {
-            failures += 1
-            print("FAIL timer: emitted source differs from \(path)")
-            let g = source.split(separator: "\n", omittingEmptySubsequences: false)
-            let w = want.split(separator: "\n", omittingEmptySubsequences: false)
-            for n in 0..<min(g.count, w.count) where g[n] != w[n] {
-                print("       line \(n): got    |\(g[n])|")
-                print("       line \(n): golden |\(w[n])|")
-            }
+if let dir = emitDir {
+    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+}
+
+for (name, machine) in [("timer", timerRaw), ("timer-async", timerAsyncRaw)] {
+    do {
+        let source = emit(try buildDesc(machine))
+        if let dir = emitDir {
+            // `.emitted.swift`, not `.swift`: swiftc refuses two inputs with the
+            // same base name even from different directories, and the complete
+            // implementation it is compiled with is `complete/<name>.swift`.
+            try source.write(toFile: "\(dir)/\(name).emitted.swift", atomically: true, encoding: .utf8)
         }
-    } else {
-        // A missing golden is a SKIP, not a failure. The first one can only be
-        // written by running this, and shipping a check that must fail once
-        // before it can pass is a good way to teach people to ignore it.
-        //
-        // Visible rather than silent, the same way a conformance fixture with
-        // no adapter is reported.
-        print("skip timer: no golden yet at \(path)")
-        print("     ./tools/verify swift-codegen -- --bless   (then commit it)")
+        let path = "\(goldenDir)/\(name).swift.golden"
+        if bless {
+            try source.write(toFile: path, atomically: true, encoding: .utf8)
+            print("blessed \(name)")
+        } else if let want = try? String(contentsOfFile: path, encoding: .utf8) {
+            checks += 1
+            if source == want {
+                print("ok   \(name)")
+            } else {
+                failures += 1
+                print("FAIL \(name): emitted source differs from \(path)")
+                let g = source.split(separator: "\n", omittingEmptySubsequences: false)
+                let w = want.split(separator: "\n", omittingEmptySubsequences: false)
+                for n in 0..<min(g.count, w.count) where g[n] != w[n] {
+                    print("       line \(n): got    |\(g[n])|")
+                    print("       line \(n): golden |\(w[n])|")
+                }
+            }
+        } else {
+            // A missing golden is a SKIP, not a failure. The first one can only
+            // be written by running this, and shipping a check that must fail
+            // once before it can pass teaches people to ignore it.
+            //
+            // Visible rather than silent, the same way a conformance fixture
+            // with no adapter is reported.
+            print("skip \(name): no golden yet at \(path)")
+            print("     TABULA_BLESS=1 ./tools/verify swift-codegen   (then commit it)")
+        }
+    } catch {
+        checks += 1
+        failures += 1
+        print("FAIL \(name): \(error)")
     }
-} catch {
-    checks += 1
-    failures += 1
-    print("FAIL timer: \(error)")
 }
 
 if failures == 0 {

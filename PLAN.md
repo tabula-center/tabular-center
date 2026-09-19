@@ -165,11 +165,33 @@ The other direction, in priority order:
       prototype, which enumerates colors -- the thing ARCHITECTURE 5 rejects.
       Blocks the `color-mismatch` decision below, since that decision rests
       on what each language enforces by construction
-- [ ] Swift emitter to the shape of `ReferenceTimer.swift`: payload binding,
-      effect payloads, the `delegateTo<Child>` helper, `try`/`await` from the
-      prototype. Then a committed golden, and a `swift-codegen` stage that
-      compiles the emitted source against a complete and an incomplete
-      implementation, as `kotlin-codegen` does. Unblocked
+- [x] Swift emitter to the shape of `ReferenceTimer.swift`, first half:
+      payload binding (`case let (.running(since), .tick(now))`, building
+      the narrowed structs), effect payloads (one field passes its value, as
+      the reference's `Reason`; several pass a labelled tuple), and color
+      split by where Swift wants it -- attributes before `func`, `async` /
+      `throws` after the parameters, `try await` at every call into a cell.
+      What it cannot emit yet it refuses with `#error` at the top of the
+      file: payload fields it was not given, and a GO/EMIT naming an effect
+      that carries a payload
+- [x] `swift-codegen` compiles the emitted source, as `kotlin-codegen` does:
+      `codegen-support/` holds the types, a complete implementation per
+      color, and three fixtures that must be refused -- a missing cell, a
+      missing effect handler, and an uncolored caller of a colored `step`.
+      Blessing is `TABULA_BLESS=1`; the advertised `-- --bless` never reached
+      the step
+- [ ] Commit the first Swift goldens. They are blessed by running the
+      emitter, never typed, so they land from a machine with a Swift
+      toolchain: `TABULA_BLESS=1 ./tools/verify swift-codegen`
+- [ ] Swift emitter, second half: emit `delegateTo<Child>` (the arm calls it
+      and nothing defines it), then a delegating machine in
+      `codegen-support/`. And file-scope names: `step`, `perform`, `TABLE`
+      and `PAYLOADS` collide between two emitted machines in one module,
+      which the macro's `extension Timer` placement (ARCHITECTURE 11.3) will
+      answer and the emitter does not yet
+- [ ] Effect arguments in GO/EMIT. `RawCell.effects` holds names, so a
+      static cell cannot emit `.stopClock(reason: .cancelled)` in any
+      generator's model. Refused loudly in Swift for now
 
 ---
 
@@ -971,11 +993,16 @@ four fixtures pass, with the same golden `.grid` and `.lint` files.
 - [ ] Synthesize payload-free `Tag` enums for table indexing
 - [ ] Validate `matrix` literal shape at expansion; row-arity diagnostics at
       correct source positions
-- [ ] Prototype capture: `async`, `throws`, `@MainActor`, `@Sendable`, isolation
-- [ ] Emit protocol requirements with narrowed types -- `TabulaCodegen`'s job,
-      not the macro's, and unblocked (September 2026 audit)
-- [ ] Emit exhaustive `switch (state, action)` with payload binding, **no
-      `default:`** -- same
+- [ ] Prototype capture: `async`, `throws`, `@MainActor`, `@Sendable`, isolation.
+      Captured by `MachineSyntax`, and now *placed* correctly by the emitter
+      (attributes before `func`, specifiers after the parameters), with
+      `async throws` compiled end to end. `@MainActor` and isolation are
+      emitted but not yet compiled by any check
+- [x] Emit protocol requirements with narrowed types -- `TabulaCodegen`'s
+      job, not the macro's. Compiled by `swift-codegen` against
+      `codegen-support/`
+- [x] Emit exhaustive `switch (state, action)` with payload binding, **no
+      `default:`** -- same. Delegation is the remaining gap; see the audit
 - [ ] Conformance harness green
 
 **Risk:** macro diagnostics at accurate source locations inside a dictionary
