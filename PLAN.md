@@ -787,10 +787,25 @@ and `kotlin/ksp/golden/`, not guessed (0f asked for exactly this pass):
       could silently change is the wrong source for it.
 - [x] Read the `handle` prototype: `suspend` and annotations, copied verbatim
       (`prototypeModifiers`).
-- [ ] Read the rest of the prototype: context parameters, extension receiver,
-      visibility. `prototypeModifiers` reads none of the three today, so a
-      `context(clock: Clock)` prototype generates uncolored cells — ARCHITECTURE
-      5's headline Kotlin example is the one the processor cannot yet produce.
+- [x] Extension receiver: `fun Clock.handle` makes every cell, handler,
+      `step` and `perform` an extension on `Clock` (qualified in the output).
+      `Stopwatch` in `06-generated`, with a KSP golden byte-identical to its
+      `codegen/golden/` twin. A receiver on a machine with `DELEGATE` cells is
+      refused in `MachineDesc` rather than emitted half-right.
+- [x] Visibility — read from the **annotated declaration**, not the prototype:
+      the generated surface names the machine's types, so it can be no more
+      visible than they are. `internal` is carried to `Cells`, `step`,
+      `perform`, `TABLE` and `PAYLOADS`; `private`/`protected` are refused,
+      since the generated file is another file. Found on the way: before this,
+      an `internal` machine could not compile at all (a public `Cells` over
+      internal types).
+- [ ] Context parameters. **Blocked on the compiler, not on work**: they
+      arrived in Kotlin 2.2.0 as a preview behind `-Xcontext-parameters` and
+      are stable only from 2.4, and the flake pins kotlinc 2.1.20, where the
+      syntax does not parse. Bumping it moves the message text the
+      `kotlin/compile_fail/` fixtures match (0f), and KSP with it — a decision
+      of its own. Once made, this is one more branch in `prototypeModifiers`
+      and a `-Xcontext-parameters` in the example build.
 - [x] ~~Emit abstract class~~ — **superseded** by `codegen/Emit.kt`: the
       surface is `interface Cells` (Phase 6's Kotlin finding: a class extends
       one parent, so abstract members would cap composition at one child),

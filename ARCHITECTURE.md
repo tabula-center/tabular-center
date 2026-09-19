@@ -212,10 +212,12 @@ maintained. The prototype is the extension point.
 | Kotlin | `suspend`, annotations (`@Composable`, `@RestrictsSuspension`, custom plugin annotations), context parameters, extension receiver, visibility |
 | Swift | effect specifiers `async` / `throws` / `async throws`, attributes `@MainActor`, `@Sendable`, isolation clauses |
 
-> **Status.** This table is the design. The KSP processor captures `suspend`
-> and annotations today; context parameters, extension receiver and visibility
-> are not read yet (PLAN, 4c-old), so the `context(clock: Clock)` example above
-> is not yet something the processor produces.
+> **Status.** The KSP processor captures `suspend`, annotations and the
+> extension receiver. Visibility is taken from the annotated declaration rather
+> than the prototype (the generated surface cannot be more visible than the
+> types it names). Context parameters are not read: they need Kotlin 2.2+ and
+> the toolchain is pinned to 2.1.20, so the `context(clock: Clock)` example
+> above is the design, not yet something the processor produces (PLAN, 4c-old).
 
 ### The rule that has to be stated loudly
 

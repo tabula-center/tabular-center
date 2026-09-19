@@ -35,3 +35,17 @@ this file and `codegen/golden/*`, and if only one moved, the interesting
 question is why. A diff confined to `TABLE`, `PAYLOADS` or the order of members
 is the extraction path drifting — which is the failure this file exists to
 catch, and not one to paper over by copying the new output on top.
+
+## `StopwatchGenerated.kt.golden`
+
+Byte-identical to `codegen/golden/stopwatch.kt.golden`, on purpose: the same
+machine reached through KSP and through a hand-built `MachineDesc`. It is the
+first golden where the two front-ends are compared on the SAME machine rather
+than on the same emitter, and it covers the two things extraction used to drop
+without a sound -- the prototype's extension receiver (qualified, because the
+generated file imports nothing but `dev.tabula`) and the annotated
+declaration's `internal`.
+
+If this one diffs and `codegen/golden/stopwatch.kt.golden` does not, the
+processor read the declaration differently from how the description states
+it. That is the bug, not the golden.

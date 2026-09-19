@@ -64,7 +64,36 @@ val toggleDesc = MachineDesc(
     ),
 )
 
-private val all = mapOf("timer" to timerDesc, "toggle" to toggleDesc)
+/**
+ * A receiver-colored, internal machine: the two prototype properties the other
+ * two leave at their defaults. The same machine as
+ * `examples/kotlin/06-generated/src/Stopwatch.tb.kt`, so this golden and
+ * `ksp/golden/StopwatchGenerated.kt.golden` are byte-identical -- the
+ * processor's extraction and this hand-built description must agree.
+ */
+val stopwatchDesc = MachineDesc(
+    packageName = "generated.stopwatch",
+    machine = "Stopwatch",
+    stateType = "S",
+    actionType = "A",
+    effectType = "F",
+    ctxType = "Ctx",
+    initial = "Idle",
+    prototypeReceiver = "generated.stopwatch.Clock",
+    visibility = "internal",
+    states = listOf(
+        Variant("Idle"),
+        Variant("Running", hasPayload = true, fields = listOf("since" to "Long")),
+    ),
+    actions = listOf(Variant("Start"), Variant("Stop")),
+    effects = listOf(Variant("Beep")),
+    rows = listOf(
+        listOf(CellDesc.Handle, CellDesc.Ignore),
+        listOf(CellDesc.Ignore, CellDesc.Handle),
+    ),
+)
+
+private val all = mapOf("timer" to timerDesc, "toggle" to toggleDesc, "stopwatch" to stopwatchDesc)
 
 fun main(args: Array<String>) {
     if (runValidationTests() > 0) kotlin.system.exitProcess(1)

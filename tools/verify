@@ -1800,7 +1800,10 @@ step_kotlin_codegen() {
         java -cp "$out/cg.jar:$KCP" codegen.MainKt codegen/golden "--emit=$gen" || exit 1
 
         # 2. the emitted source must compile
+        # StopwatchTypes.kt carries its own implementation: that machine is
+        # `internal`, so it has to be implemented in the same compilation.
         "$KOTLINC" -cp "$KCP" codegen/support/TimerTypes.kt codegen/support/ToggleTypes.kt \
+            codegen/support/StopwatchTypes.kt \
             "$gen"/*.kt -d "$out/gen" 2>&1 | grep -v "^info:" || true
         [ -d "$out/gen" ] || { echo "emitted source does not compile"; exit 1; }
         echo "ok   emitted source compiles"

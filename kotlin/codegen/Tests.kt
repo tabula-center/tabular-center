@@ -54,6 +54,15 @@ private fun raw(
 fun runValidationTests(): Int {
     check("a well-formed machine builds", buildDesc(raw()).rows.size == 2)
 
+    // Carried, not interpreted: buildDesc owns no rule about either, and
+    // dropping one here would emit a public, uncolored surface with no error.
+    check(
+        "receiver and visibility reach the description",
+        buildDesc(raw().copy(prototypeReceiver = "x.Clock", visibility = "internal")).let {
+            it.prototypeReceiver == "x.Clock" && it.visibility == "internal"
+        },
+    )
+
     expectError("row with too few cells", "tabula::row-arity") {
         buildDesc(raw(rows = listOf(
             RawRow("Idle", listOf(RawCell("HANDLE"))),

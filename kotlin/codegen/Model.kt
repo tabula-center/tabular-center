@@ -36,10 +36,35 @@ data class MachineDesc(
     val prototypeModifiers: List<String> = emptyList(),
     /** Child machines reached by `DELEGATE`, in first-appearance order. */
     val children: List<ChildDesc> = emptyList(),
+    /**
+     * The prototype's extension receiver, as a type, or empty for none.
+     *
+     * Part of the color, like [prototypeModifiers]: `fun Clock.handle(...)`
+     * makes every cell member, every effect handler, `step` and `perform`
+     * extensions on `Clock`, so a cell body can call the receiver's members
+     * and a caller must have one in scope to dispatch at all. See
+     * ARCHITECTURE §5.
+     */
+    val prototypeReceiver: String = "",
+    /**
+     * Visibility of every generated top-level declaration: empty for public,
+     * or `internal`.
+     *
+     * Read from the annotated declaration, not the prototype. The generated
+     * surface names the machine's own types, so it can be no more visible than
+     * they are -- a public `Cells` over internal `S` is `exposes its internal
+     * parameter type`, a compile error in generated code the user never wrote.
+     */
+    val visibility: String = "",
 ) {
     init {
         require(rows.size == states.size) {
             "tabula::missing-row: ${rows.size} rows for ${states.size} states"
+        }
+        require(prototypeReceiver.isEmpty() || children.isEmpty()) {
+            "tabula: a prototype extension receiver on a machine with DELEGATE " +
+                "cells is not supported yet; the child's step would need the same " +
+                "receiver threaded through the lens"
         }
         rows.forEachIndexed { i, row ->
             require(row.size == actions.size) {

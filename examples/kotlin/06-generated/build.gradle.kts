@@ -71,7 +71,7 @@ kotlin { jvmToolchain(21) }
 // One JavaExec per file, because each `main` is its own class (`<File>Kt`) and
 // `Check.report` exits non-zero on the first failing file. Wired into `check`,
 // so `build` -- the only task tools/verify asks for -- runs them.
-val exampleChecks = listOf("GeneratedTestKt", "GateTestKt").map { mainClassName ->
+val exampleChecks = listOf("GeneratedTestKt", "GateTestKt", "StopwatchTestKt").map { mainClassName ->
     tasks.register<JavaExec>("run$mainClassName") {
         group = "verification"
         description = "Runs the $mainClassName checks against the generated dispatcher."

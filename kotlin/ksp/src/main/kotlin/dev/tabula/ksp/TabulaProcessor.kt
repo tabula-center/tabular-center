@@ -10,6 +10,7 @@ import codegen.TabulaError
 import codegen.buildDesc
 import codegen.emit
 import com.google.devtools.ksp.getDeclaredFunctions
+import com.google.devtools.ksp.getVisibility
 import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.processing.KSPLogger
@@ -21,6 +22,8 @@ import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.Modifier
+import com.google.devtools.ksp.symbol.Variance
+import com.google.devtools.ksp.symbol.Visibility
 import java.io.OutputStreamWriter
 
 /**
@@ -146,6 +149,8 @@ class TabulaProcessor(
             prototypeModifiers = prototypeModifiers(decl),
             children = emptyList(), // DELEGATE support lands with child resolution
             paths = paths,
+            prototypeReceiver = prototypeReceiver(decl),
+            visibility = visibilityOf(decl),
         )
     }
 
@@ -171,6 +176,62 @@ class TabulaProcessor(
             if (Modifier.SUSPEND in proto.modifiers) add("suspend")
             proto.annotations.forEach { add("@" + it.shortName.asString()) }
         }
+    }
+
+    /**
+     * The prototype's extension receiver, fully qualified, or empty.
+     *
+     * Qualified because the generated file imports nothing but `dev.tabula`,
+     * and the receiver -- unlike `S`, `A` and `Ctx` -- is usually a type from
+     * somewhere else: a clock, a scope, a logger.
+     *
+     * Context parameters are the other half of ARCHITECTURE §5's Kotlin row
+     * and are not read here: they need Kotlin 2.2 (`-Xcontext-parameters`),
+     * and the toolchain is pinned to 2.1.20, where the syntax does not parse.
+     * A prototype that uses them fails in the user's own file before this
+     * processor runs, so there is nothing to read yet.
+     */
+    private fun prototypeReceiver(decl: KSClassDeclaration): String {
+        val proto = decl.getDeclaredFunctions().firstOrNull { it.simpleName.asString() == "handle" }
+            ?: return ""
+        return proto.extensionReceiver?.resolve()?.render() ?: ""
+    }
+
+    /**
+     * `internal` or public, from the annotated declaration.
+     *
+     * Not from the prototype: an interface member's visibility is not the
+     * question. The generated `Cells`, `step`, `perform`, `TABLE` and
+     * `PAYLOADS` name the machine's own types, so they can be at most as
+     * visible as the declaration that owns those types.
+     *
+     * `private` and `protected` are refused rather than mapped. The generated
+     * file is a different file, so a file-private `Cells` is one the user's
+     * implementation could never see; widening it to `internal` silently would
+     * be the generator deciding something the developer wrote the opposite of.
+     */
+    private fun visibilityOf(decl: KSClassDeclaration): String = when (decl.getVisibility()) {
+        Visibility.PUBLIC -> ""
+        Visibility.INTERNAL -> "internal"
+        else -> error(
+            "@Machine on a ${decl.getVisibility().name.lowercase()} declaration: the " +
+                "generated surface lives in another file, so it can only be public or " +
+                "internal. Declare `${decl.simpleName.asString()}` internal.",
+        )
+    }
+
+    /** A resolved type as source text: qualified, with arguments and `?`. */
+    private fun KSType.render(): String {
+        val base = declaration.qualifiedName?.asString() ?: declaration.simpleName.asString()
+        val args = if (arguments.isEmpty()) "" else arguments.joinToString(", ", "<", ">") { arg ->
+            when (arg.variance) {
+                Variance.STAR -> "*"
+                Variance.CONTRAVARIANT -> "in " + (arg.type?.resolve()?.render() ?: "*")
+                Variance.COVARIANT -> "out " + (arg.type?.resolve()?.render() ?: "*")
+                else -> arg.type?.resolve()?.render() ?: "*"
+            }
+        }
+        return base + args + if (isMarkedNullable) "?" else ""
     }
 
     private fun ctxTypeOf(decl: KSClassDeclaration): String {

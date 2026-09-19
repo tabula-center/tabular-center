@@ -63,6 +63,10 @@ data class RawMachine(
      * byte-identical `TABLE`, `.grid`, `.lint`, `.cov` and `.mmd`.
      */
     val paths: List<RawPath> = emptyList(),
+    /** See [MachineDesc.prototypeReceiver]. */
+    val prototypeReceiver: String = "",
+    /** See [MachineDesc.visibility]. */
+    val visibility: String = "",
 )
 
 /** A variant as the processor reads it, before validation. */
@@ -168,6 +172,8 @@ fun buildDesc(raw: RawMachine): MachineDesc {
         rows = rows,
         prototypeModifiers = raw.prototypeModifiers,
         children = raw.children,
+        prototypeReceiver = raw.prototypeReceiver,
+        visibility = raw.visibility,
     )
 }
 
