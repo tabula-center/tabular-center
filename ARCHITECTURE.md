@@ -431,11 +431,12 @@ column. You can see at a glance which cells delegate. A parent does not get to
 say "everything else goes to the child."
 
 **Color flows one way.** A colorless child composes into a colored parent. A
-colored child into a colorless parent is a build error. Whether tabula names
-it (below) or the language compiler does is PLAN's open `color-mismatch`
-decision; today Kotlin gets it from kotlinc, because the generated delegate
-helper carries the parent's modifiers, and Rust has no colors to mismatch.
-The design, as specified:
+colored child into a colorless parent is a build error — from the language, not
+from tabula. Every generator puts the parent's color on the call into the
+child, so rustc, kotlinc and swiftc each refuse it by construction, and
+`tabula::color-mismatch` is reserved and emitted by nobody (decided September
+2026; `spec/diagnostics.md` lists the three fixtures). The message a generator
+would otherwise print:
 
 ```
 error[tabula::color-mismatch]: machine `Timer` (prototype: `fun handle`)

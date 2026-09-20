@@ -118,7 +118,7 @@ class TabulaProcessor(
 
         return RawMachine(
             packageName = decl.packageName.asString(),
-            machine = machineAnn.string("name").ifBlank { decl.simpleName.asString().removeSuffix("Spec") },
+            machine = machineNameOf(decl),
             // The sealed hierarchies are nested in the annotated interface, so
             // their outer names are the type names a developer already chose.
             stateType = outerOf(machineAnn, "states"),
@@ -147,7 +147,7 @@ class TabulaProcessor(
             effects = effects,
             rows = rows,
             prototypeModifiers = prototypeModifiers(decl),
-            children = emptyList(), // DELEGATE support lands with child resolution
+            children = childrenOf(decl),
             paths = paths,
             prototypeReceiver = prototypeReceiver(decl),
             visibility = visibilityOf(decl),
@@ -159,8 +159,73 @@ class TabulaProcessor(
         target = a.classes("to").firstOrNull()?.simpleName?.asString()?.takeIf { it != "Unit" } ?: "",
         targetArgs = a.string("args"),
         effects = a.classes("emit").map { it.simpleName.asString() },
-        child = a.classes("child").firstOrNull()?.simpleName?.asString()?.takeIf { it != "Unit" } ?: "",
+        // A DELEGATE cell names the child's annotated declaration; the
+        // matrix carries the alias the parent's members are built from, and
+        // `childrenOf` carries everything else about it.
+        child = a.childDecl()?.let { aliasOf(it) } ?: "",
     )
+
+    /** The child a DELEGATE cell names, or null for every other kind. */
+    private fun KSAnnotation.childDecl(): KSClassDeclaration? =
+        classes("child").firstOrNull()?.takeIf { it.simpleName.asString() != "Unit" }
+
+    /**
+     * The machine's own name: `@Machine(name = ..)`, or the declaration's,
+     * less a `Spec` suffix.
+     */
+    private fun machineNameOf(decl: KSClassDeclaration): String =
+        decl.annotation(MACHINE_SIMPLE)?.string("name")?.ifBlank { null }
+            ?: decl.simpleName.asString().removeSuffix("Spec")
+
+    /**
+     * The alias a parent names a child by: the child's machine name,
+     * decapitalized.
+     *
+     * It is an identifier, not a package: the parent's generated members are
+     * built from it (`retryChildState`, `delegateToRetry`), while every
+     * reference to the child's own types goes through
+     * [ChildDesc.packageName]. `Emit.kt` keeps the two apart, and
+     * `runChildPackageTest` pins that.
+     */
+    private fun aliasOf(decl: KSClassDeclaration): String =
+        machineNameOf(decl).replaceFirstChar { it.lowercase() }
+
+    /**
+     * One [ChildDesc] per distinct child named by a DELEGATE cell.
+     *
+     * Everything the parent needs is read from the child's own declaration --
+     * the package its generated code lands in (the same package the developer
+     * declared it in), its type names, its context -- with the same helpers
+     * this file uses for the machine it is processing. A parent therefore
+     * declares nothing about its child but the class itself.
+     *
+     * The child must be in this compilation: `@Machine` is `SOURCE`-retention,
+     * so a child from a prebuilt module has no annotation left to read. That
+     * is the case `tabula::unknown-child` names here.
+     */
+    private fun childrenOf(decl: KSClassDeclaration): List<ChildDesc> = decl.annotations
+        .filter { it.shortName.asString() == ROW_SIMPLE }
+        .flatMap { it.annotations("cells").asSequence() }
+        .mapNotNull { it.childDecl() }
+        .distinctBy { it.qualifiedName?.asString() ?: it.simpleName.asString() }
+        .map { child ->
+            val ann = child.annotation(MACHINE_SIMPLE) ?: throw TabulaError(
+                "tabula::unknown-child",
+                "tabula::unknown-child: `${child.simpleName.asString()}` is named by a DELEGATE " +
+                    "cell but is not a machine. A child must carry @Machine, and must be compiled " +
+                    "together with its parent: @Machine is SOURCE-retention, so a child from " +
+                    "another module has no annotation left to read.",
+            )
+            ChildDesc(
+                alias = aliasOf(child),
+                packageName = child.packageName.asString(),
+                stateType = outerOf(ann, "states"),
+                actionType = outerOf(ann, "actions"),
+                effectType = outerOf(ann, "effects").takeIf { it != "Unit" } ?: "F",
+                ctxType = ctxTypeOf(child),
+            )
+        }
+        .toList()
 
     /**
      * The prototype's modifiers, copied verbatim onto every generated member.

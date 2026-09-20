@@ -138,7 +138,16 @@ fun retryDesc(pkg: String, mods: List<String> = emptyList()) = MachineDesc(
  * The parent: its `Retrying` state holds the child's state, and two of its
  * cells delegate to the child.
  */
-fun jobDesc(pkg: String, child: String, mods: List<String> = emptyList()) = MachineDesc(
+fun jobDesc(
+    pkg: String,
+    child: String,
+    mods: List<String> = emptyList(),
+    // How the child's state type is spelled in the parent's payload. KSP reads
+    // a field's type as its SIMPLE name, so the twin says `S` where the
+    // hand-built description says `generated.retry.S`. It feeds
+    // `tabula::payload-hoist` and nothing else.
+    childField: String = "generated.$child.S",
+) = MachineDesc(
     packageName = pkg,
     machine = "Job",
     stateType = "S",
@@ -148,7 +157,7 @@ fun jobDesc(pkg: String, child: String, mods: List<String> = emptyList()) = Mach
     initial = "Idle",
     states = listOf(
         Variant("Idle"),
-        Variant("Retrying", hasPayload = true, fields = listOf("child" to "generated.$child.S")),
+        Variant("Retrying", hasPayload = true, fields = listOf("child" to childField)),
         Variant("Done"),
     ),
     actions = listOf(Variant("Run"), Variant("Tick"), Variant("Cancel")),
@@ -267,6 +276,14 @@ val kspTwins: Map<String, MachineDesc> = mapOf(
     // The same machine as `stopwatchDesc`, reached through KSP: extension
     // receiver and `internal` included. One description, two front-ends.
     "StopwatchGenerated" to stopwatchDesc,
+    // Composition through annotations: `Retry.tb.kt` and `Job.tb.kt` in the
+    // KSP example declare the same two machines the compile stage above
+    // builds by hand, so these twins are those descriptions. If the processor
+    // resolves a child differently from `childrenOf`'s contract -- a wrong
+    // package, an alias that is not the child's machine name -- the parent's
+    // emitted source says so here.
+    "RetryGenerated" to retryDesc("generated.retry"),
+    "JobGenerated" to jobDesc("generated.job", "retry", childField = "S"),
 )
 
 fun main(args: Array<String>) {

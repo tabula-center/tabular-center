@@ -218,8 +218,9 @@ reverse is an error. Where the generated delegate arm carries the parent's
 color and calls the child's colored `step`, the language compiler rejects it by
 construction — Kotlin's and Swift's generators both do exactly this, and so
 does Rust's, where an async parent awaits its child and a plain one cannot.
-Each language has a compile-fail fixture proving it. Where a language cannot
-enforce it structurally, emit `tabula::color-mismatch`.
+Each language has a compile-fail fixture proving it, so `tabula::color-mismatch`
+is reserved and emitted by nobody — it is the answer for a generator that
+cannot put the parent's color on the call, and none of the three is that.
 
 ---
 

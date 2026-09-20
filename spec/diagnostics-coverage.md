@@ -8,7 +8,8 @@ fails on any disagreement in either direction.
 It exists because nothing compared the three. The divergence below was found by
 looking, not by a check, after this file's absence had let it sit: Rust emits
 twelve of the twenty-one codes, and Kotlin and Swift emit twenty -- every code
-but `tabula::color-mismatch`, which nobody emits (see the last section). The gap is
+but `tabula::color-mismatch`, which nobody emits by decision (see the last
+section). The gap is
 defensible — see the notes — but "defensible" and "nobody noticed" are
 different states, and only one of them survives a refactor.
 
@@ -108,14 +109,16 @@ So the absence is the language doing the work, which is the same argument
 `RELEASING.md` makes for Rust being one crate where Kotlin is five. What it is
 not is an accident, and the table is what keeps it from becoming one.
 
-## `tabula::color-mismatch` is emitted by nobody
+## `tabula::color-mismatch` is emitted by nobody, by decision
 
-It has a section in `spec/diagnostics.md` and no implementation. Prototype
-modifiers are copied rather than enumerated, so a mismatch between a
-prototype's color and a handler's is a type error before any check runs — the
-same argument as above, in all three languages this time.
+It has a section in `spec/diagnostics.md` and no implementation. That was an
+open question here until September 2026: either unimplementable by design, or
+a case none of the three covers.
 
-Either it is unimplementable by design and the spec should say so, or there is
-a case none of the three covers. Listed as `-` until somebody answers that,
-because a documented diagnostic no implementation emits is a promise to a
-reader that nothing keeps.
+It is the first. Every generator puts the **parent's** color on the delegate
+call, so a colored child under a colorless parent is refused by the language —
+rustc, kotlinc, swiftc — before any check of ours could run. Each of the three
+now has a compile-fail fixture proving it, listed in `spec/diagnostics.md`.
+The `-` is no longer a question mark: it is the entry that would change if a
+generator ever stopped carrying the color, and the fixtures are what would
+fail first.

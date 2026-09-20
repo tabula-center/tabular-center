@@ -45,8 +45,8 @@ One exception to the table, found by the audit below: Rust had no prototype
 colors. It has one now, `async`, composing in both directions the rule
 allows (see the audit's Rust-colors items).
 
-101 Rust tests; 51 compile-fail fixtures (13 Rust, 4 Kotlin, 3 Kotlin-codegen,
-11 Kotlin-KSP, 4 Swift, 11 Swift macro-syntax, 5 Swift-codegen); 11
+101 Rust tests; 52 compile-fail fixtures (13 Rust, 4 Kotlin, 3 Kotlin-codegen,
+12 Kotlin-KSP, 4 Swift, 11 Swift macro-syntax, 5 Swift-codegen); 11
 conformance fixtures (96
 trace steps), every one with an adapter in all three languages; 11 each of
 golden `.grid`, `.mmd`, `.lint`, `.cov`. Every runtime lint is tripped by at
@@ -218,10 +218,20 @@ The other direction, in priority order:
       moved to `generated.retry`; `runChildPackageTest` pins the rule with a
       package whose last segment is NOT the alias, the one case the compile
       stage cannot tell apart
-- [ ] The KSP processor builds no `ChildDesc`: `@Machine` has no way to
-      declare a child, so DELEGATE is reachable through `MachineDesc` but not
-      through annotations. A surface decision first (how a `.tb.kt` names a
-      child machine and its package), then extraction, then a `kspTwins` entry
+- [x] The KSP processor builds `ChildDesc`s, so DELEGATE is reachable through
+      annotations. The surface needed no new annotation: `CellSpec.child`
+      already took a `KClass`, and it names the child's annotated
+      declaration -- `child = RetrySpec::class`. Everything else is read from
+      that class with the helpers the processor already had: its package (the
+      same one its generated code lands in), its machine name decapitalized
+      for the alias, its `S` / `A` / `F` from `@Machine`, its `Ctx` from the
+      `handle` prototype. So a parent declares one thing about its child.
+      `Retry.tb.kt` and `Job.tb.kt` in the KSP example are the pair, compiled
+      by `JobImpl` against the generated `Cells`, and both have `kspTwins`
+      entries -- the same descriptions the codegen compile stage builds by
+      hand, so the two front ends are diffed against one statement.
+      `tabula::unknown-child` now also names the KSP case: a child must be
+      compiled with its parent, since `@Machine` is `SOURCE`-retention
 - [x] **Generated code is not committed** -- as source or as a golden. The
       emitted-source goldens (`kotlin/codegen/golden/`, `kotlin/ksp/golden/`,
       `swift/codegen-golden/`) are gone, and each guarantee they carried is
@@ -2225,14 +2235,16 @@ is one a refactor closes or widens without anyone deciding to.
 - [x] Quoted matches only. `tabula::lint::report` is a module path, and
       counting it would have credited Rust with three codes it does not have —
       the check would have passed by measuring the wrong thing.
-- [ ] Decide `tabula::color-mismatch`. Prototype modifiers are copied rather
-      than enumerated, so a mismatch is a type error before any check runs,
-      which suggests it is unimplementable by design and the spec should say
-      so. Until someone answers, a documented diagnostic no implementation
-      emits is a promise to a reader that nothing keeps. **Unblocked**
-      (September 2026 audit): all three languages now refuse a colored child
-      under a colorless parent by construction, each with a compile-fail
-      fixture proving it, and none of them through tabula's own diagnostic.
+- [x] `tabula::color-mismatch` decided: **reserved, emitted by nobody.** Not
+      unimplementable in principle, but unnecessary in all three, and for one
+      reason -- every generator puts the PARENT's color on the call into the
+      child, so the language refuses a colored child under a colorless parent
+      before any check of ours could run. Each language now has a fixture
+      proving it, and `spec/diagnostics.md` lists all three. Kept in the spec
+      rather than deleted: it is the answer for a generator that cannot carry
+      the color onto the call and would have to compare colors instead. The
+      `-` row stays, and now means "by decision" rather than "nobody has
+      looked".
 
 ## Five of seven lints are never tripped by a fixture
 

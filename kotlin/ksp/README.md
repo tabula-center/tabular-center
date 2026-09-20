@@ -45,8 +45,17 @@ score, because the scoring is the useful part:
    shape it cannot read rather than dropping it silently, so if a future KSP
    version changes the shape it will say so instead of producing a machine with
    no states.
-4. **`DELEGATE` is not wired.** Still true, still deliberate: `children` is
-   passed empty, so a `DELEGATE` cell fails with `tabula::unknown-child`.
+4. **`DELEGATE` is not wired.** Was true until September 2026, when
+   `childrenOf` landed. A cell names the child's annotated declaration --
+   `CellSpec(Kind.DELEGATE, child = RetrySpec::class)` -- and the processor
+   reads the rest from that class: the package its generated code lands in,
+   the alias the parent's members are named from, its types, its context. A
+   parent declares nothing else about its child. `Retry.tb.kt` and `Job.tb.kt`
+   in the example are the pair, and `kspTwins` diffs both.
+
+   One limit, named by `tabula::unknown-child`: a child must be compiled with
+   its parent, because `@Machine` is `SOURCE`-retention and a child from a
+   prebuilt module has no annotation left to read.
 
 The two bugs that actually stopped it were in `build.gradle.kts`, not the
 processor — `files()` where sources were meant, and undeclared source sets —

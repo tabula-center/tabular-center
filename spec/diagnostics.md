@@ -187,7 +187,7 @@ test rather than living in code that needs Maven to run.
 | `tabula::unknown-cell` | a cell is not one of the six kinds |
 | `tabula::unknown-state` | `GO` targets, or `initial` names, an undeclared state |
 | `tabula::unknown-effect` | a cell emits an undeclared effect |
-| `tabula::unknown-child` | `DELEGATE` names an undeclared child |
+| `tabula::unknown-child` | `DELEGATE` names an undeclared child, or (KSP) one that is not a machine |
 | `tabula::go-target` | `GO` targets a payload state with no literal arguments |
 | `tabula::empty-emit` | `EMIT` lists no effects; use `IGNORE` or `HANDLE` |
 | `tabula::unsupported-color` | a Rust prototype other than `fn handle` or `async fn handle` |
@@ -318,13 +318,37 @@ The message says why rather than just what. A developer reading it has probably
 copied a `@Path` and edited the states without the name, and the reason names
 must be unique is the thing that makes the fix obvious.
 
-## `tabula::color-mismatch` (Phase 6)
+## `tabula::color-mismatch` — reserved, emitted by nobody
+
+**Decided (September 2026): no implementation emits this, and none should.**
+The message a generator would print is the one above the decision:
 
 ```
 tabula::color-mismatch: machine `Timer` (prototype: `fun handle`) delegates to
 `Retry` (prototype: `suspend fun handle`). A suspending child cannot be driven
 from a non-suspending parent.
 ```
+
+Nothing prints it, because every generator refuses the case earlier and by
+construction — the generated delegate arm carries the **parent's** color and
+calls the child's `step`, so a colored child under a colorless parent is a
+call the language itself will not accept:
+
+| | what refuses it | fixture |
+|---|---|---|
+| Rust | an async child's `step` is a future where a `Step` is required | `rust/tabula/tests/compile_fail/async_child_in_plain_parent.rs` |
+| Kotlin | a `suspend` call from a plain function | `kotlin/codegen/compile_fail/jobmixed_colored_child_in_uncolored_parent.kt` |
+| Swift | an `async` call in a function that does not support concurrency | `swift/codegen-support/compile_fail/job-mixed_colored_child_in_uncolored_parent.swift` |
+
+Treated like a missing implementation, which this file also leaves to the
+compiler: a check that fired first would replace a message about the
+developer's own code with one about generated code they never wrote, and would
+have to be kept correct forever beside a compiler that is already right.
+
+The code stays reserved rather than deleted. It is the answer for a language
+whose generator cannot put the parent's color on the call — where color would
+have to be compared rather than carried. None of the three is that language,
+and the table above is what would notice if one became it.
 
 ---
 
