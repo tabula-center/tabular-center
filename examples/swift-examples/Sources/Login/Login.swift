@@ -101,18 +101,6 @@ private func delegate(
     }
 }
 
-let SESSION_TABLE = Table(
-    machine: "Session",
-    states: ["LoggedOut", "Active", "Banned"],
-    actions: ["Credentials", "StartOver", "Logout"],
-    cells: [
-        [.delegate(child: "auth"), .delegate(child: "auth"), .ignore],
-        [.ignore, .ignore, .go(target: "Banned", effects: ["Audit"])],
-        [.ignore, .ignore, .ignore],
-    ],
-    initial: "LoggedOut"
-)
-
 /// One type satisfying both machines' surfaces.
 struct LoginImpl: SessionCells {
     func awaitingSubmit(

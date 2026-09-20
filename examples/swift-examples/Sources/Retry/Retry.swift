@@ -49,18 +49,6 @@ enum Retry {
         }
     }
 
-    static let TABLE = Table(
-        machine: "Retry",
-        states: ["Ready", "Waiting", "Exhausted"],
-        actions: ["Attempt", "Elapsed", "Abort"],
-        cells: [
-            [.handle, .ignore, .go(target: "Exhausted", effects: [])],
-            [.ignore, .handle, .go(target: "Exhausted", effects: [])],
-            [.ignore, .ignore, .ignore],
-        ],
-        initial: "Ready"
-    )
-
     struct Impl: Cells {
         func readyAttempt(_ ctx: Ctx) -> Step<S, F> {
             .go(.waiting(attempt: 1), effects: [.sleep(ms: 100)])

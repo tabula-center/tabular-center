@@ -123,7 +123,11 @@ Two examples carry it, one per language that can:
   `auth.TABLE` and `session.TABLE` still name them. `kotlin-matrix-stable`
   checks every `.tb.kt`, `Cell.` rows included, and fails one with no rows.
 - `examples/swift-examples/Sources/SpecCheck/Turnstile.tb.swift` — the `Table`
-  literal, moved out of `Turnstile.swift` into an extension.
+  literal, moved out of `Turnstile.swift` into an extension. `TrafficLight`,
+  `Retry`, `ObservableCounter` and `Timer` the same way; `Login`'s table was
+  a top-level `SESSION_TABLE` and stays one, in `Login.tb.swift`. None is
+  checked for formatter stability yet: `swift-matrix-stable` waits on
+  swift-format, and `matrix-covered` lists each in the skip ledger.
 - `examples/rust/01-traffic-light/src/machine.tb.rs` — the
   `transition_matrix!` invocation, reached with `#[path]`. Every Rust example
   now: `02-timer` and `03-retry` the same way, and `04-login`'s two matrices

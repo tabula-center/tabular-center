@@ -67,15 +67,4 @@ enum Counter {
             return .go(.counting(n: next), effects: [])
         }
     }
-
-    static let TABLE = Table(
-        machine: "Counter",
-        states: ["Counting", "Full"],
-        actions: ["Bump", "Reset"],
-        cells: [
-            [.handle, .go(target: "Counting", effects: [])],
-            [.ignore, .go(target: "Counting", effects: [])],
-        ],
-        initial: "Counting"
-    )
 }

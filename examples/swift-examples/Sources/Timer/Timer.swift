@@ -53,18 +53,6 @@ enum Timer {
         }
     }
 
-    static let TABLE = Table(
-        machine: "Timer",
-        states: ["Idle", "Running", "Done"],
-        actions: ["Start", "Tick", "Cancel"],
-        cells: [
-            [.handle, .ignore, .ignore],
-            [.ignore, .handle, .go(target: "Idle", effects: ["StopClock"])],
-            [.go(target: "Running", effects: ["StartClock"]), .ignore, .ignore],
-        ],
-        initial: "Idle"
-    )
-
     struct Impl: Cells {
         func idleStart(_ ctx: Ctx) -> Step<S, F> {
             .go(.running(since: 0), effects: [.startClock])

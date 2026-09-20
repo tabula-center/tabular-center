@@ -1481,14 +1481,17 @@ extension narrows that to exactly the files that need it.
       `transition_matrix!` generates the state and action types, so the split
       moves the crate's namespace rather than just text. `#[rustfmt::skip]` on
       the invocation is the stable exemption.
-- [ ] The hand-written examples in all three languages still keep their matrix
-      and their handlers in one file. **Rust done**: every example's matrix is
-      in a `.tb.rs` (`04-login` has two). **Kotlin done**: `01`-`05` each
-      hold their `Table` literal in a `.tb.kt`, and `kotlin-matrix-stable`
-      now checks every `.tb.kt` -- it used to check only annotated files,
-      while `matrix-covered` counted every `.tb.kt` as covered by it. Swift
-      (`Login`, `TrafficLight`, `Retry`, `ObservableCounter`, `SpecCheck`,
-      `Timer`) remains
+- [x] The hand-written examples in all three languages kept their matrix and
+      their handlers in one file. All three done. **Rust**: every example's
+      matrix is in a `.tb.rs` (`04-login` has two). **Kotlin**: `01`-`05`
+      each hold their `Table` literal in a `.tb.kt`, and
+      `kotlin-matrix-stable` now checks every `.tb.kt` -- it used to check
+      only annotated files, while `matrix-covered` counted every `.tb.kt` as
+      covered by it. **Swift**: `TrafficLight`, `Retry`, `ObservableCounter`
+      and `Timer` hold their `Table` in an extension in a `.tb.swift`, as
+      `SpecCheck` did; `Login`'s top-level `SESSION_TABLE` moved as it was.
+      Six `.tb.swift` files now sit in `matrix-covered`'s skip ledger until
+      `swift-matrix-stable` exists
 - [x] `spec/tabula-fmt.md`: the contract. Written first for the reason
       `SURFACE.md` was — a formatter's contract is almost all of its risk, and
       it is the part reviewable by reading.

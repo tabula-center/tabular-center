@@ -30,18 +30,6 @@ enum TrafficLight {
         }
     }
 
-    static let TABLE = Table(
-        machine: "TrafficLight",
-        states: ["Red", "Green", "Amber"],
-        actions: ["Advance", "Fault"],
-        cells: [
-            [.go(target: "Green", effects: []), .go(target: "Red", effects: [])],
-            [.go(target: "Amber", effects: []), .go(target: "Red", effects: [])],
-            [.handle, .go(target: "Red", effects: [])],
-        ],
-        initial: "Red"
-    )
-
     struct Controller: Cells {
         /// The one cell with a decision in it.
         ///
