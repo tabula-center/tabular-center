@@ -342,14 +342,16 @@ for (name, machine, refused) in emitted {
                 }
             }
         } else {
-            // A missing golden is a SKIP, not a failure. The first one can only
-            // be written by running this, and shipping a check that must fail
-            // once before it can pass teaches people to ignore it.
-            //
-            // Visible rather than silent, the same way a conformance fixture
-            // with no adapter is reported.
-            print("skip \(name): no golden yet at \(path)")
-            print("     TABULA_BLESS=1 ./tools/verify swift-codegen   (then commit it)")
+            // A missing golden FAILS, as it does in Kotlin's codegen check and
+            // Rust's conformance harness. It was a skip while no Swift golden
+            // existed; a skip verifies nothing, and every machine here has a
+            // golden now. The usual cause in nix is an untracked file rather
+            // than a missing one -- see the note at the top of tools/verify.
+            checks += 1
+            failures += 1
+            print("FAIL \(name): no golden at \(path)")
+            print("     if it exists, `git add` it; if not, bless it:")
+            print("     cd swift && swift run tabula-codegen-check codegen-golden --bless")
         }
     } catch {
         checks += 1

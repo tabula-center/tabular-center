@@ -13,6 +13,7 @@
 #         kotlin-examples kotlin-ksp kotlin-ksp-compile-fail
 #         kotlin-ksp-incremental kotlin-matrix-stable rust-matrix-stable
 #         matrix-covered swift-format-config diagnostics-coverage fixtures-complete
+#         no-bless
 #         swift swift-compile-fail swift-conformance swift-macros
 #         swift-macro-support swift-examples swift-codegen
 set -uo pipefail
@@ -1261,21 +1262,21 @@ step_swift_codegen() {
     fi
     require_dir swift || return 1
 
-    local scratch out rc gen bless=""
+    local scratch out rc gen
     scratch="$(mktemp -d)"
     swift_home "$scratch"
     gen="$scratch/emitted"
 
-    # Blessing is an environment variable, not an argument. `run` calls every
-    # step with none, and the step list treats each argument as a step name,
-    # so the `-- --bless` this used to advertise could never have reached here.
-    [ -n "${TABULA_BLESS:-}" ] && bless="--bless"
+    # Never blesses. This script is the definition of green, and a definition
+    # of green that can rewrite what it compares against is not one. Goldens
+    # are blessed by calling the tool directly, as Rust's and Kotlin's are --
+    # see swift/codegen-golden/README.md.
 
     # 1. validation, the additive test, and the golden diff -- and write the
     #    emitted source out for the stages below.
     # shellcheck disable=SC2046
     out="$( (cd swift && "$SWIFT" run -c release $(swift_paths "$scratch") \
-        tabula-codegen-check codegen-golden "--emit=$gen" $bless) 2>&1 )"
+        tabula-codegen-check codegen-golden "--emit=$gen") 2>&1 )"
     rc=$?
     printf '%s\n' "$out"
     if [ "$rc" -ne 0 ]; then rm -rf "$scratch"; return "$rc"; fi
@@ -1455,6 +1456,35 @@ KTLINT="${KTLINT:-ktlint}"
 #
 # GOLDEN_EXTS is the list either way, so this asks the same question earlier
 # and without a toolchain: for each `.tbl`, does every extension exist?
+# This script never blesses.
+#
+# It is the single definition of green, and a definition of green that can
+# rewrite what it compares against is not one: a step run with a bless flag
+# passes by construction. Goldens are blessed by calling each tool directly --
+# `cargo run -p tabula-conformance -- --bless`, `codegen/Main.kt --bless`,
+# `swift run tabula-codegen-check codegen-golden --bless` -- and the result is
+# read and committed by a person.
+#
+# Not hypothetical: swift-codegen briefly took a TABULA_BLESS variable. So
+# this fails on any COMMAND in tools/verify or nix/ that mentions a bless flag
+# or variable. Comments and printed advice ("run with --bless") are allowed;
+# that is how the other steps tell a person what to do.
+#
+# The patterns are split so this function does not match itself.
+step_no_bless() {
+    local flag='--bl''ess' var='BL''ESS' hits
+    hits="$(grep -nE -- "$flag|$var" tools/verify nix/*.nix \
+        | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' \
+        | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(echo|printf)[[:space:]]')"
+    if [ -n "$hits" ]; then
+        echo "FAIL a check can bless -- tools/verify must only compare:"
+        printf '%s\n' "$hits" | sed 's/^/       /'
+        echo "     bless by calling the tool directly; see the note above step_no_bless"
+        return 1
+    fi
+    echo "ok   no check blesses; every golden is compared, never written"
+}
+
 step_fixtures_complete() {
     local d=spec/conformance
     require_dir "$d" || return 1
@@ -1968,7 +1998,7 @@ steps=("$@")
            kotlin-examples kotlin-ksp kotlin-ksp-compile-fail kotlin-ksp-incremental \
            kotlin-matrix-stable rust-matrix-stable \
            matrix-covered swift-format-config diagnostics-coverage \
-           fixtures-complete \
+           fixtures-complete no-bless \
            swift swift-compile-fail swift-conformance swift-examples \
            swift-codegen swift-macros)
 
@@ -1997,6 +2027,7 @@ for s in "${steps[@]}"; do
         swift-format-config) run swift-format-config step_swift_format_config ;;
         diagnostics-coverage) run diagnostics-coverage step_diagnostics_coverage ;;
         fixtures-complete)   run fixtures-complete   step_fixtures_complete ;;
+        no-bless)            run no-bless            step_no_bless ;;
         swift)               run swift               step_swift ;;
         swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
         swift-conformance)   run swift-conformance   step_swift_conformance ;;

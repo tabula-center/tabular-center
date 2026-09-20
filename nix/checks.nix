@@ -58,6 +58,10 @@ in
   # adapters, so an incomplete fixture is invisible until one exists -- and
   # every fixture here has been added a patch or more ahead of its adapters.
   fixtures-complete = verify "fixtures-complete" [ ];
+
+  # tools/verify only compares. A step that can bless passes by construction,
+  # which is what swift-codegen's TABULA_BLESS briefly made it. Text only.
+  no-bless = verify "no-bless" [ ];
 }
 // lib.optionalAttrs has.rustConformance {
   rust-conformance = verify "conformance" rustInputs;

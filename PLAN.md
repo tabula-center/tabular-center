@@ -178,8 +178,15 @@ The other direction, in priority order:
       `codegen-support/` holds the types, a complete implementation per
       color, and three fixtures that must be refused -- a missing cell, a
       missing effect handler, and an uncolored caller of a colored `step`.
-      Blessing is `TABULA_BLESS=1`; the advertised `-- --bless` never reached
-      the step
+      Blessing is a direct call, `swift run tabula-codegen-check
+      codegen-golden --bless`, as in Rust and Kotlin; `tools/verify` never
+      blesses. (Briefly it did, through a `TABULA_BLESS` variable, after the
+      advertised `-- --bless` turned out never to reach the step. Removed:
+      the definition of green does not rewrite what it compares against.)
+      A missing golden now fails, as in Kotlin, rather than skipping
+- [x] `no-bless`: `tools/verify` fails if any command in it or in `nix/`
+      mentions a bless flag or variable. Comments and printed advice are
+      allowed. Proven against the commit that had `TABULA_BLESS`
 - [x] Commit the first Swift goldens, blessed by running the emitter.
       Re-blessed when the second half changed every emitted file
 - [x] Swift emitter, second half. Generated members live in
