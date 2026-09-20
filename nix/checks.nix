@@ -62,6 +62,10 @@ in
   # tools/verify only compares. A step that can bless passes by construction,
   # which is what swift-codegen's TABULA_BLESS briefly made it. Text only.
   no-bless = verify "no-bless" [ ];
+
+  # Generated code is not committed, as source or as a golden: emitted source
+  # is compiled and compared at check time instead. Text only.
+  no-generated = verify "no-generated" [ ];
 }
 // lib.optionalAttrs has.rustConformance {
   rust-conformance = verify "conformance" rustInputs;

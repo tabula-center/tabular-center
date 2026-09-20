@@ -3,15 +3,25 @@ package codegen
 import java.io.File
 
 /**
- * Emits the reference machines and checks them against committed golden files.
+ * Emits the reference machines for `tools/verify` to compile.
  *
- * `--bless` rewrites the goldens after an intended change.
+ * Generated code is never committed -- not as source, not as a golden. What
+ * a golden diff proved, something else proves here, from source alone:
  *
- * The golden diff is only half the test. `tools/verify kotlin-codegen` then
- * **compiles** the emitted source, and compiles a deliberately incomplete
- * implementation against it, so what is verified is not "the emitter produces
- * the expected characters" but "the emitter produces valid Kotlin that still
- * enforces the guarantee".
+ * - **That the output is Kotlin, and still enforces the guarantee.**
+ *   `tools/verify kotlin-codegen` compiles every emitted machine, a complete
+ *   implementation against it, and deliberately incomplete ones that must be
+ *   refused. That was always the half that mattered; a golden only ever
+ *   proved the characters had not moved.
+ * - **That emission is deterministic.** Checked below, by emitting twice.
+ * - **That KSP extracts what the annotations say.** [kspTwins] states, by
+ *   hand, the description each example machine should extract to;
+ *   `tools/verify kotlin-ksp` emits those and diffs them against what KSP just
+ *   generated. Both sides are produced at check time. This is what
+ *   `kotlin/ksp/golden/` did, with the expected side as reviewable source
+ *   instead of committed output.
+ *
+ * Writes nothing unless given `--emit=<dir>`.
  */
 
 /** `timer.tbl`, as the KSP processor would build it from annotations. */
@@ -67,9 +77,9 @@ val toggleDesc = MachineDesc(
 /**
  * A receiver-colored, internal machine: the two prototype properties the other
  * two leave at their defaults. The same machine as
- * `examples/kotlin/06-generated/src/Stopwatch.tb.kt`, so this golden and
- * `ksp/golden/StopwatchGenerated.kt.golden` are byte-identical -- the
- * processor's extraction and this hand-built description must agree.
+ * `examples/kotlin/06-generated/src/Stopwatch.tb.kt`, so it doubles as that
+ * machine's KSP twin in [kspTwins] -- the processor's extraction and this
+ * hand-built description must emit the same characters.
  */
 val stopwatchDesc = MachineDesc(
     packageName = "generated.stopwatch",
@@ -180,49 +190,113 @@ private val refused = mapOf(
     "jobmixed" to jobDesc("generated.jobmixed", "retrysuspend"),
 )
 
+/**
+ * What the KSP processor must extract from each machine in
+ * `examples/kotlin/06-generated/src`, keyed by the file KSP writes.
+ *
+ * Stated by hand, deliberately. Extraction is the one step between the
+ * annotations and `emit` that nothing else checks: the example compiling
+ * proves `Cells` has members `Impl.kt` can override and that `step`
+ * type-checks, and nothing about the table. Rows read in the wrong order, an
+ * effect dropped from a GO cell, `initial` resolved to the wrong state -- all
+ * compile, and `TABLE` is inert data the example never reads.
+ *
+ * So if `tools/verify kotlin-ksp` reports a diff, the question is which side
+ * is wrong. A diff in `TABLE`, `PAYLOADS` or member order is the extraction
+ * path drifting -- the failure this exists to catch. Change a twin only when
+ * the annotations it restates changed.
+ */
+val kspTwins: Map<String, MachineDesc> = mapOf(
+    "TurnstileGenerated" to MachineDesc(
+        packageName = "generated.turnstile",
+        machine = "Turnstile",
+        stateType = "S",
+        actionType = "A",
+        effectType = "F",
+        ctxType = "Ctx",
+        initial = "Locked",
+        states = listOf(Variant("Locked"), Variant("Unlocked")),
+        actions = listOf(Variant("Coin"), Variant("Push")),
+        effects = listOf(Variant("Click")),
+        rows = listOf(
+            listOf(CellDesc.Go("Unlocked", effects = listOf("Click")), CellDesc.Ignore),
+            listOf(CellDesc.Ignore, CellDesc.Handle),
+        ),
+    ),
+    // The machine that proves prototype modifiers are COPIED, not enumerated.
+    "GateGenerated" to MachineDesc(
+        packageName = "generated.gate",
+        machine = "Gate",
+        stateType = "S",
+        actionType = "A",
+        effectType = "F",
+        ctxType = "Ctx",
+        initial = "Closed",
+        states = listOf(Variant("Closed"), Variant("Opening"), Variant("Open")),
+        actions = listOf(Variant("Request"), Variant("Arrived")),
+        effects = listOf(Variant("Chime")),
+        rows = listOf(
+            listOf(CellDesc.Handle, CellDesc.Ignore),
+            listOf(CellDesc.Ignore, CellDesc.Go("Open", effects = listOf("Chime"))),
+            listOf(CellDesc.Go("Closed"), CellDesc.Ignore),
+        ),
+        prototypeModifiers = listOf("suspend"),
+    ),
+    // Through `buildDesc`, as the processor goes: the spine's HANDLEs become
+    // GOs there, and the twin must restate the annotations, not the result.
+    "SpineGenerated" to buildDesc(
+        RawMachine(
+            packageName = "generated.spine",
+            machine = "Spine",
+            stateType = "S",
+            actionType = "A",
+            effectType = "F",
+            ctxType = "Ctx",
+            initial = "Idle",
+            states = listOf(RawVariant("Idle"), RawVariant("Connecting"), RawVariant("Live"), RawVariant("Failed")),
+            actions = listOf(RawVariant("Start"), RawVariant("Ready"), RawVariant("Drop")),
+            effects = emptyList(),
+            rows = listOf(
+                RawRow("Idle", listOf(RawCell("HANDLE"), RawCell("IGNORE"), RawCell("IGNORE"))),
+                RawRow("Connecting", listOf(RawCell("IGNORE"), RawCell("HANDLE"), RawCell("GO", target = "Failed"))),
+                RawRow("Live", listOf(RawCell("IGNORE"), RawCell("IGNORE"), RawCell("IGNORE"))),
+                RawRow("Failed", listOf(RawCell("HANDLE"), RawCell("IGNORE"), RawCell("IGNORE"))),
+            ),
+            paths = listOf(RawPath("connect", listOf("Idle", "Start", "Connecting", "Ready", "Live"))),
+        ),
+    ),
+    // The same machine as `stopwatchDesc`, reached through KSP: extension
+    // receiver and `internal` included. One description, two front-ends.
+    "StopwatchGenerated" to stopwatchDesc,
+)
+
 fun main(args: Array<String>) {
     if (runValidationTests() > 0) kotlin.system.exitProcess(1)
 
-    val bless = args.contains("--bless")
-    val dir = File(args.firstOrNull { !it.startsWith("--") } ?: "codegen/golden")
-    dir.mkdirs()
+    val machines = all + refused + kspTwins
 
+    // Deterministic: the same description emits the same characters. What a
+    // golden diff checked implicitly, minus the committed output.
     var failed = 0
-    for ((name, desc) in all + refused) {
-        val got = emit(desc)
-        val golden = File(dir, "$name.kt.golden")
-        if (bless) {
-            golden.writeText(got)
-            println("blessed $name")
-            continue
-        }
-        if (!golden.exists()) {
-            println("FAIL $name: no golden at ${golden.path}; run with --bless")
-            failed++
-            continue
-        }
-        val want = golden.readText()
-        if (got == want) {
-            println("ok   $name")
+    for ((name, desc) in machines) {
+        if (emit(desc) == emit(desc)) {
+            println("ok   $name emits deterministically")
         } else {
-            println("FAIL $name: emitted source differs from ${golden.path}")
-            got.lines().zip(want.lines()).forEachIndexed { n, (g, w) ->
-                if (g != w) {
-                    println("       line $n: got    |$g|")
-                    println("       line $n: golden |$w|")
-                }
-            }
+            println("FAIL $name: two emissions of one description differ")
             failed++
         }
     }
 
-    // Emit into a scratch directory for the compile step that follows.
-    val outDir = File(args.firstOrNull { it.startsWith("--emit=") }?.removePrefix("--emit=") ?: "")
-    if (outDir.path.isNotEmpty()) {
-        outDir.mkdirs()
-        for ((name, desc) in all) File(outDir, "$name.kt").writeText(emit(desc))
-        val refusedDir = File(outDir, "refused").apply { mkdirs() }
+    // Emit into a scratch directory for the compile stages that follow, and
+    // for kotlin-ksp's comparison. Never into the tree.
+    val out = args.firstOrNull { it.startsWith("--emit=") }?.removePrefix("--emit=")
+    if (out != null) {
+        val dir = File(out).apply { mkdirs() }
+        for ((name, desc) in all) File(dir, "$name.kt").writeText(emit(desc))
+        val refusedDir = File(dir, "refused").apply { mkdirs() }
         for ((name, desc) in refused) File(refusedDir, "$name.kt").writeText(emit(desc))
+        val twinsDir = File(dir, "ksp-twins").apply { mkdirs() }
+        for ((name, desc) in kspTwins) File(twinsDir, "$name.kt").writeText(emit(desc))
     }
 
     if (failed > 0) kotlin.system.exitProcess(1)

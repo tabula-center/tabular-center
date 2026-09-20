@@ -260,8 +260,8 @@ than only the macro's. The same reasoning produced the Kotlin split, where KSP
 is the piece that needs Maven.
 
 ```sh
-./tools/verify swift-codegen                # 13 diagnostics + a golden diff
-(cd swift && swift run tabula-codegen-check codegen-golden --bless)  # accept new emitted source
+./tools/verify swift-codegen   # the diagnostics, determinism, and the emitted
+                               # source compiled against codegen-support/
 ```
 
 **`TabulaMacros` is not written yet**, and swift-syntax has to be solved first:

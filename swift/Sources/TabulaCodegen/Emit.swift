@@ -2,7 +2,7 @@
 ///
 /// The shape is fixed by `Sources/TabulaCheck/ReferenceTimer.swift`, which is
 /// hand-written and kept building forever. This emitter has to reproduce it,
-/// `codegen-golden/` pins what it produces, and `tools/verify swift-codegen`
+/// generated code is never committed, and `tools/verify swift-codegen`
 /// compiles that output against `codegen-support/` -- a golden alone proves
 /// only determinism, not that the output is Swift.
 ///

@@ -293,7 +293,7 @@ do {
 // Every fixture in `fixtures/` is a REJECTION, so none of them reaches
 // `derive` -- the check that turns a HANDLE named by a hop into a GO. Swift's
 // half of that was written with nothing exercising it, which is the blind spot
-// Kotlin had until `SpineGenerated.kt.golden` existed.
+// Kotlin had until KSP's Spine output was compared against a stated twin.
 //
 // Asserted through `emit` rather than by matching on `CellDesc`: what a reader
 // cares about is that the cell stopped being a required member, and the

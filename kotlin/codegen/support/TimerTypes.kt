@@ -1,7 +1,7 @@
 /**
  * The hand-written half of a generated machine: the sealed hierarchies and the
- * context. A developer writes these; `codegen/golden/timer.kt.golden` is what
- * the generator adds.
+ * context. A developer writes these; `emit(timerDesc)` is what the generator
+ * adds, compiled beside this file by `tools/verify kotlin-codegen`.
  *
  * Kept separate so the emitted source can be compiled on its own, which is the
  * point of the `kotlin-codegen` verify step.

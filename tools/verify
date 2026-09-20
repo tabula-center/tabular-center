@@ -13,7 +13,7 @@
 #         kotlin-examples kotlin-ksp kotlin-ksp-compile-fail
 #         kotlin-ksp-incremental kotlin-matrix-stable rust-matrix-stable
 #         matrix-covered swift-format-config diagnostics-coverage fixtures-complete
-#         no-bless
+#         no-bless no-generated
 #         swift swift-compile-fail swift-conformance swift-macros
 #         swift-macro-support swift-examples swift-codegen
 set -uo pipefail
@@ -885,51 +885,87 @@ step_kotlin_ksp() {
     (cd examples/kotlin/06-generated && gradle "${args[@]}" build) || return 1
     echo "ok   generated (ksp)"
 
-    # Every golden in kotlin/ksp/golden/, not one named file.
-    #
-    # It looked for `TurnstileGenerated.kt` by name, so `Gate` -- the suspend
-    # machine that exists to prove prototype modifiers are COPIED rather than
-    # enumerated -- could have been added with a golden nothing compared. A
-    # check that hardcodes what it checks grows stale the moment the thing it
-    # checks grows a sibling.
+    # Extraction, checked against hand-stated twins rather than committed
+    # output.
     #
     # The build succeeding proves `Cells` has members `Impl.kt` can override
     # and that `step` type-checks. It proves nothing about the table: rows read
     # in the wrong order, an effect dropped from a GO cell, `initial` resolved
     # to the wrong state -- all compile, and `TABLE` and `PAYLOADS` are inert
     # data the example never reads.
-    local golden name gen bad=0 n=0
-    for golden in kotlin/ksp/golden/*.kt.golden; do
-        [ -e "$golden" ] || continue
-        name="$(basename "$golden" .golden)"
+    #
+    # So `kotlin/codegen/Main.kt` states, by hand, what each example machine
+    # should extract to (`kspTwins`), and this emits those and diffs them
+    # against what KSP just generated. Both sides are produced here; nothing
+    # generated is committed. That replaced `kotlin/ksp/golden/`, which held
+    # the expected side as committed generator output.
+    #
+    # Both directions are enumerated, not named: a KSP output with no twin is
+    # extraction nobody checks, and a twin KSP never produced is a machine the
+    # example stopped declaring. Either is a failure, never a skip.
+    local twins gen name twin bad=0 n=0
+    twins="$(mktemp -d)"
+    # Built exactly as kotlin-codegen builds it: against tabula-core. The
+    # codegen check's tests reach `dev.tabula` by qualified name with no
+    # import, so a build without the classpath fails there -- which is how
+    # this step first failed. From `kotlin/`, because the helpers are.
+    local built
+    built="$( (
+        cd kotlin || exit 1
+        kotlin_artifacts "$twins" || exit 1
+        tcp="$(kotlin_cp "$twins")"
+        "$KOTLINC" -cp "$tcp" codegen/*.kt -include-runtime -d "$twins/cg.jar" 2>&1 \
+            | grep -v "^info:" || true
+        [ -f "$twins/cg.jar" ] || { echo "the codegen check failed to compile"; exit 1; }
+        java -cp "$twins/cg.jar:$tcp" codegen.MainKt "--emit=$twins/out"
+    ) 2>&1 )" || {
+        echo "FAIL could not build or run the codegen check that states the twins:"
+        printf '%s\n' "$built" | tail -20 | sed 's/^/       /'
+        rm -rf "$twins"
+        return 1
+    }
+
+    # Located by name rather than by path: KSP's output directory has moved
+    # between versions, and a hardcoded path that stops matching would make
+    # this silently check nothing.
+    while IFS= read -r gen; do
+        [ -n "$gen" ] || continue
+        name="$(basename "$gen" .kt)"
         n=$((n + 1))
-
-        # Located by name rather than by path: KSP's output directory has moved
-        # between versions, and a hardcoded path that stops matching would make
-        # this silently check nothing.
-        gen="$(find examples/kotlin/06-generated/build/generated \
-            -name "$name" -type f 2>/dev/null | head -1)"
-
-        if [ -z "$gen" ]; then
-            echo "FAIL the build succeeded but no $name was emitted."
-            echo "     Look under build/generated/ -- KSP wrote somewhere"
-            echo "     unexpected, or the machine is no longer declared."
+        twin="$twins/out/ksp-twins/$name.kt"
+        if [ ! -f "$twin" ]; then
+            echo "FAIL KSP emitted $name.kt, and kspTwins in kotlin/codegen/Main.kt"
+            echo "     states no twin for it: its extraction is unchecked"
             bad=1
-        elif diff -u "$golden" "$gen"; then
-            echo "ok   $name matches golden"
+        elif diff -u "$twin" "$gen"; then
+            echo "ok   $name: KSP extracted what its twin states"
         else
             echo
-            echo "FAIL $name does not match $golden."
-            echo "     Read the diff before re-blessing -- see that"
-            echo "     directory's README for which diffs mean what."
+            echo "FAIL $name: KSP's output differs from its twin (above: - twin, + KSP)."
+            echo "     A diff in TABLE, PAYLOADS or member order is extraction"
+            echo "     drifting. Change the twin only if the annotations changed."
+            bad=1
+        fi
+    done < <(find examples/kotlin/06-generated/build/generated -name '*Generated.kt' \
+        -type f 2>/dev/null | sort)
+
+    for twin in "$twins/out/ksp-twins"/*.kt; do
+        [ -e "$twin" ] || continue
+        name="$(basename "$twin")"
+        if [ -z "$(find examples/kotlin/06-generated/build/generated -name "$name" \
+            -type f 2>/dev/null | head -1)" ]; then
+            echo "FAIL kspTwins states $name, and KSP generated no such file."
+            echo "     Look under build/generated/, or drop the twin if the"
+            echo "     example no longer declares the machine."
             bad=1
         fi
     done
 
     if [ "$n" -eq 0 ]; then
-        echo "FAIL no goldens in kotlin/ksp/golden/; this checked nothing"
+        echo "FAIL KSP generated no *Generated.kt; this checked nothing"
         bad=1
     fi
+    rm -rf "$twins"
     return "$bad"
 }
 
@@ -1267,16 +1303,15 @@ step_swift_codegen() {
     swift_home "$scratch"
     gen="$scratch/emitted"
 
-    # Never blesses. This script is the definition of green, and a definition
-    # of green that can rewrite what it compares against is not one. Goldens
-    # are blessed by calling the tool directly, as Rust's and Kotlin's are --
-    # see swift/codegen-golden/README.md.
+    # Never blesses (see step_no_bless), and has nothing to bless: the emitted
+    # source is compiled, not compared to committed output (step_no_generated).
 
-    # 1. validation, the additive test, and the golden diff -- and write the
-    #    emitted source out for the stages below.
+    # 1. validation, the additive test, and determinism -- and write the
+    #    emitted source to scratch for the stages below. Generated code is
+    #    not committed, so there is no golden; stages 2 and 3 prove the output.
     # shellcheck disable=SC2046
     out="$( (cd swift && "$SWIFT" run -c release $(swift_paths "$scratch") \
-        tabula-codegen-check codegen-golden "--emit=$gen") 2>&1 )"
+        tabula-codegen-check "--emit=$gen") 2>&1 )"
     rc=$?
     printf '%s\n' "$out"
     if [ "$rc" -ne 0 ]; then rm -rf "$scratch"; return "$rc"; fi
@@ -1460,10 +1495,10 @@ KTLINT="${KTLINT:-ktlint}"
 #
 # It is the single definition of green, and a definition of green that can
 # rewrite what it compares against is not one: a step run with a bless flag
-# passes by construction. Goldens are blessed by calling each tool directly --
-# `cargo run -p tabula-conformance -- --bless`, `codegen/Main.kt --bless`,
-# `swift run tabula-codegen-check codegen-golden --bless` -- and the result is
-# read and committed by a person.
+# passes by construction. The one golden set left -- spec/conformance/, the
+# cross-language contract -- is blessed by calling Rust's harness directly,
+# `cargo run -p tabula-conformance -- --bless`, and read and committed by a
+# person. Emitted source has no goldens at all; see step_no_generated.
 #
 # Not hypothetical: swift-codegen briefly took a TABULA_BLESS variable. So
 # this fails on any COMMAND in tools/verify or nix/ that mentions a bless flag
@@ -1483,6 +1518,36 @@ step_no_bless() {
         return 1
     fi
     echo "ok   no check blesses; every golden is compared, never written"
+}
+
+# Generated code is not committed.
+#
+# Not as source, and not as a golden. A committed golden of emitted source is
+# a second copy of the generator's output that has to be re-blessed on every
+# emitter change, and it proves only that the characters did not move. What
+# the emitted source must satisfy is checked from source instead: it compiles
+# (kotlin-codegen, swift-codegen), a complete implementation satisfies it, an
+# incomplete one is refused, emission is deterministic, and KSP's extraction
+# matches hand-stated twins (kotlin-ksp).
+#
+# spec/conformance/ is deliberately outside this: `.grid`, `.mmd`, `.lint`
+# and `.cov` are the cross-language contract, rendered data every
+# implementation is held to, not code any build consumes.
+#
+# Build and dependency directories are skipped; nix never copies them in.
+step_no_generated() {
+    local hits
+    hits="$(find . \( -name .git -o -name build -o -name .build -o -name target \
+            -o -name .gradle -o -name node_modules \) -prune -o \
+        -type f \( -name '*.golden' -o -name '*Generated.kt' -o -name '*.emitted.swift' \) \
+        -print 2>/dev/null | sort)"
+    if [ -n "$hits" ]; then
+        echo "FAIL generated code is committed -- verify from source, not from output:"
+        printf '%s\n' "$hits" | sed 's/^/       /'
+        echo "     see the note above step_no_generated for what replaces a golden"
+        return 1
+    fi
+    echo "ok   no generated code in the tree"
 }
 
 step_fixtures_complete() {
@@ -1900,8 +1965,10 @@ step_kotlin_codegen() {
             | grep -v "^info:" || true
         [ -f "$out/cg.jar" ] || { echo "emitter failed to compile"; exit 1; }
 
-        # 1. emit, and diff against the committed golden source
-        java -cp "$out/cg.jar:$KCP" codegen.MainKt codegen/golden "--emit=$gen" || exit 1
+        # 1. validate, check determinism, and emit -- into scratch, never the
+        #    tree. Generated code is not committed, so there is no golden to
+        #    diff; stages 2-4 are what prove the output is right.
+        java -cp "$out/cg.jar:$KCP" codegen.MainKt "--emit=$gen" || exit 1
 
         # 2. the emitted source must compile
         # StopwatchTypes.kt carries its own implementation: that machine is
@@ -2014,7 +2081,7 @@ steps=("$@")
            kotlin-examples kotlin-ksp kotlin-ksp-compile-fail kotlin-ksp-incremental \
            kotlin-matrix-stable rust-matrix-stable \
            matrix-covered swift-format-config diagnostics-coverage \
-           fixtures-complete no-bless \
+           fixtures-complete no-bless no-generated \
            swift swift-compile-fail swift-conformance swift-examples \
            swift-codegen swift-macros)
 
@@ -2044,6 +2111,7 @@ for s in "${steps[@]}"; do
         diagnostics-coverage) run diagnostics-coverage step_diagnostics_coverage ;;
         fixtures-complete)   run fixtures-complete   step_fixtures_complete ;;
         no-bless)            run no-bless            step_no_bless ;;
+        no-generated)        run no-generated        step_no_generated ;;
         swift)               run swift               step_swift ;;
         swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
         swift-conformance)   run swift-conformance   step_swift_conformance ;;

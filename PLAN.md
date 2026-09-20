@@ -195,6 +195,19 @@ The other direction, in priority order:
       as a member name. `ChildDesc.packageName` exists and is unused. Emit
       imports from it, or qualify with it, so a child can live in
       `com.example.retry`; and have the KSP processor build `ChildDesc` at all
+- [x] **Generated code is not committed** -- as source or as a golden. The
+      emitted-source goldens (`kotlin/codegen/golden/`, `kotlin/ksp/golden/`,
+      `swift/codegen-golden/`) are gone, and each guarantee they carried is
+      checked from source instead. That the output is valid and enforces the
+      guarantee: the compile stages of `kotlin-codegen` and `swift-codegen`,
+      which were always the half that mattered. Determinism: each check emits
+      twice. KSP extraction: `kspTwins` in `kotlin/codegen/Main.kt` states
+      what each example machine must extract to, and `kotlin-ksp` diffs the
+      twins' output against what KSP generated -- both produced at check
+      time, both directions enumerated. `no-generated` fails on `*.golden`,
+      `*Generated.kt` or `*.emitted.swift` in the tree. `spec/conformance/` is
+      deliberately outside it: rendered data, the cross-language contract,
+      not code any build consumes
 - [x] `no-bless`: `tools/verify` fails if any command in it or in `nix/`
       mentions a bless flag or variable. Comments and printed advice are
       allowed. Proven against the commit that had `TABULA_BLESS`

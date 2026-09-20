@@ -1,4 +1,4 @@
-//~ EXPECT: should be called only from a coroutine or another suspend function
+//~ EXPECT: can only be called from a coroutine or another suspend function
 //
 // COLOR FLOWS ONE WAY.
 //
@@ -8,6 +8,10 @@
 // refuses it. By construction: tabula emits no diagnostic of its own, and
 // there is nothing to circumvent. The reverse direction is
 // support/CompleteJobSuspend.kt, which must compile.
+//
+// The expected text is kotlinc 2.x's (K2): "can only be called from a
+// coroutine". K1 said "should be called only from", which is what this line
+// first guessed and why it failed once.
 //
 // The error is in the emitted `refused/jobmixed.kt`, which tools/verify
 // compiles with this file because the check marks the machine refused. This

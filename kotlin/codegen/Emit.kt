@@ -5,7 +5,8 @@ package codegen
  *
  * The shape is fixed by `test/ReferenceTimer.kt` and `test/Composition.kt`.
  * Those files are hand-written and kept building forever; this emitter has to
- * reproduce them, and `codegen/golden/` holds the proof.
+ * reproduce them, and `tools/verify kotlin-codegen` holds the proof by
+ * compiling what it emits against `codegen/support/`.
  */
 fun emit(d: MachineDesc): String = buildString {
     val mods = if (d.prototypeModifiers.isEmpty()) "" else d.prototypeModifiers.joinToString(" ") + " "

@@ -1,7 +1,7 @@
 import Foundation
 import TabulaCodegen
 
-/// Tests for the validation layer, plus a golden diff of the emitted source.
+/// Tests for the validation layer, plus a determinism check of the emitted source.
 ///
 /// Every diagnostic in `spec/diagnostics.md` that concerns the *declaration*
 /// has a case here — which is the point of `buildDesc` existing at all. They
@@ -302,9 +302,10 @@ let emitted: [(name: String, raw: RawMachine, refused: Bool)] = [
     ("job-mixed", jobMachine("JobMixed", child: "retryAsync"), true),
 ]
 
-let goldenDir = CommandLine.arguments.dropFirst().first { !$0.hasPrefix("--") } ?? "codegen-golden"
-let bless = CommandLine.arguments.contains("--bless")
 /// Where to write the emitted source for `tools/verify` to compile, if asked.
+/// Never into the tree: generated code is not committed, as source or as a
+/// golden. The compile stages prove the output is Swift; this file proves
+/// what a golden diff also implied, that emission is deterministic.
 let emitDir = CommandLine.arguments
     .first { $0.hasPrefix("--emit=") }
     .map { String($0.dropFirst("--emit=".count)) }
@@ -315,43 +316,15 @@ if let dir = emitDir {
 
 for (name, machine, refused) in emitted {
     do {
-        let source = emit(try buildDesc(machine))
+        let desc = try buildDesc(machine)
+        let source = emit(desc)
+        check("\(name) emits deterministically", source == emit(desc))
         if let dir = emitDir {
             // `.emitted.swift`, not `.swift`: swiftc refuses two inputs with the
             // same base name even from different directories, and the complete
             // implementation it is compiled with is `complete/<name>.swift`.
             let sub = refused ? "\(dir)/refused" : dir
             try source.write(toFile: "\(sub)/\(name).emitted.swift", atomically: true, encoding: .utf8)
-        }
-        let path = "\(goldenDir)/\(name).swift.golden"
-        if bless {
-            try source.write(toFile: path, atomically: true, encoding: .utf8)
-            print("blessed \(name)")
-        } else if let want = try? String(contentsOfFile: path, encoding: .utf8) {
-            checks += 1
-            if source == want {
-                print("ok   \(name)")
-            } else {
-                failures += 1
-                print("FAIL \(name): emitted source differs from \(path)")
-                let g = source.split(separator: "\n", omittingEmptySubsequences: false)
-                let w = want.split(separator: "\n", omittingEmptySubsequences: false)
-                for n in 0..<min(g.count, w.count) where g[n] != w[n] {
-                    print("       line \(n): got    |\(g[n])|")
-                    print("       line \(n): golden |\(w[n])|")
-                }
-            }
-        } else {
-            // A missing golden FAILS, as it does in Kotlin's codegen check and
-            // Rust's conformance harness. It was a skip while no Swift golden
-            // existed; a skip verifies nothing, and every machine here has a
-            // golden now. The usual cause in nix is an untracked file rather
-            // than a missing one -- see the note at the top of tools/verify.
-            checks += 1
-            failures += 1
-            print("FAIL \(name): no golden at \(path)")
-            print("     if it exists, `git add` it; if not, bless it:")
-            print("     cd swift && swift run tabula-codegen-check codegen-golden --bless")
         }
     } catch {
         checks += 1

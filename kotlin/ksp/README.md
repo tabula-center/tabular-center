@@ -86,10 +86,12 @@ Two notes, one of which stopped being a note:
   KSP releases are tied to a specific Kotlin compiler build, so this pair moves
   together or not at all.
 
-The first useful signal is whether `codegen/golden/timer.kt.golden` comes back
-out of the processor unchanged when it is pointed at
-`test/TimerSpec.tb.kt`'s annotations. That single comparison exercises the
-whole path.
+What the processor must extract is stated by hand in `kspTwins`
+(`codegen/Main.kt`), one description per example machine, and
+`tools/verify kotlin-ksp` diffs the twins' emitted source against what KSP
+generated -- both produced at check time. Generated code is not committed;
+this replaced `ksp/golden/`, which held the same expectation as committed
+output.
 
 ## Where the artifacts come from
 
