@@ -180,15 +180,24 @@ The other direction, in priority order:
       missing effect handler, and an uncolored caller of a colored `step`.
       Blessing is `TABULA_BLESS=1`; the advertised `-- --bless` never reached
       the step
-- [ ] Commit the first Swift goldens. They are blessed by running the
-      emitter, never typed, so they land from a machine with a Swift
-      toolchain: `TABULA_BLESS=1 ./tools/verify swift-codegen`
-- [ ] Swift emitter, second half: emit `delegateTo<Child>` (the arm calls it
-      and nothing defines it), then a delegating machine in
-      `codegen-support/`. And file-scope names: `step`, `perform`, `TABLE`
-      and `PAYLOADS` collide between two emitted machines in one module,
-      which the macro's `extension Timer` placement (ARCHITECTURE 11.3) will
-      answer and the emitter does not yet
+- [x] Commit the first Swift goldens, blessed by running the emitter.
+      Re-blessed when the second half changed every emitted file
+- [x] Swift emitter, second half. Generated members live in
+      `extension <Machine>` and every type is qualified by the machine's enum
+      (`Timer.S`, `Timer.Running`), matching ARCHITECTURE 11.3's nesting; the
+      cell protocol stays at file scope so a parent can refine it. Two
+      machines now share a module, and `swift-codegen` compiles all seven in
+      one on purpose. `.delegate(.retry)` reaches `Retry.step` through that
+      namespace; `delegateTo<Child>` is emitted with the parent's color, as
+      Kotlin's is; the prism is narrowed like a HANDLE cell and the lens takes
+      the whole parent state, as in Kotlin. `codegen-support/` gains Retry,
+      Job in both colors, and two refusals: a hole in the child's surface,
+      and a colored child under an uncolored parent
+- [ ] Effect field types are copied as written, and the cell protocol sits at
+      file scope, so a payload type nested in the machine's enum
+      (`case stopClock(reason: Reason)` with `Timer.Reason`) does not resolve
+      in the protocol. Qualify it in `MachineSyntax`, where the declaration
+      is visible, or nest the protocol (Swift 5.10, SE-0404)
 - [ ] Effect arguments in GO/EMIT. `RawCell.effects` holds names, so a
       static cell cannot emit `.stopClock(reason: .cancelled)` in any
       generator's model. Refused loudly in Swift for now
@@ -1042,9 +1051,11 @@ color-mismatch is a build error in all three.
       Rust has no colors to mismatch. In Kotlin it is by construction: the
       generated `delegateTo<Child>` carries the *parent's* modifiers and calls
       the child's `step`, so a suspending child under a plain parent is a
-      kotlinc error. Swift's generator does **not** do the same yet: it calls
-      a `delegateTo<Child>` it never emits (see the audit). No fixture proves
-      color flow in any language
+      kotlinc error. Swift's generator does the same since the audit, and
+      `codegen-support/compile_fail/job-mixed_*.swift` proves it: an uncolored
+      parent over an `async throws` child is refused by swiftc, and
+      `complete/job-async.swift` shows the reverse compiles. Kotlin has no
+      fixture yet; Rust has no colors
 - [x] Kotlin half. `interface Cells : retry.Cells` — interfaces are Kotlin's
       trait bounds — with `compile_fail/child_hole_breaks_parent.kt` proving the
       property.

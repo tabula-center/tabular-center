@@ -17,6 +17,8 @@ The shape these files must reproduce is fixed by
 building forever.
 
 Bless outside the nix sandbox -- inside it the tree is a read-only copy -- and
-commit what it writes: `timer.swift.golden` and `timer-async.swift.golden`.
+commit what it writes: one `<machine>.swift.golden` per machine in
+`TabulaCodegenCheck`, the refused `job-mixed` included -- a refused machine's
+output is pinned like any other.
 A golden says the output did not change; `../codegen-support/` is what says
 the output is Swift, by compiling it.

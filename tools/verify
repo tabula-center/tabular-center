@@ -1296,36 +1296,44 @@ step_swift_codegen() {
     modules="$bin/Modules"
     [ -d "$modules" ] || modules="$bin"
 
-    # 2. The emitted source must compile, with a complete implementation.
+    # 2. The emitted source must compile, with complete implementations.
     #    A golden proves the emitter is deterministic; this proves its output
-    #    is Swift. Each machine on its own: they share file-scope names.
+    #    is Swift. Every machine in ONE module, on purpose: the emitter
+    #    namespaces what it generates, and machines that could not share a
+    #    module would be a generator bug that separate compiles would hide.
     #    Emitted files are `<m>.emitted.swift` because swiftc rejects two
     #    inputs with one base name -- `complete/<m>.swift` is the other.
-    local sup=swift/codegen-support m src f exp err bad=0
-    for f in "$sup"/complete/*.swift; do
-        m="$(basename "$f" .swift)"
-        src="$gen/$m.emitted.swift"
-        if [ ! -f "$src" ]; then
-            echo "FAIL $m: the check emitted nothing at $src"
-            bad=1
-            continue
-        fi
-        if err="$("$SWIFTC" -typecheck -I "$modules" "$sup/TimerTypes.swift" "$src" "$f" 2>&1)"; then
-            echo "ok   $m: emitted source compiles with a complete implementation"
-        else
-            echo "FAIL $m: emitted source and a complete implementation do not compile"
-            printf '%s\n' "$err" | grep -E "error:" | head -5 | sed 's/^/       /'
-            bad=1
-        fi
-    done
+    local sup=swift/codegen-support m f exp err bad=0
+    local emitted=( "$gen"/*.emitted.swift )
+    if [ ! -e "${emitted[0]}" ]; then
+        echo "FAIL the check emitted nothing to $gen"
+        rm -rf "$scratch"
+        return 1
+    fi
+    if err="$("$SWIFTC" -typecheck -I "$modules" "$sup/Types.swift" "${emitted[@]}" \
+        "$sup"/complete/*.swift 2>&1)"; then
+        echo "ok   ${#emitted[@]} emitted machines compile in one module, with complete implementations"
+    else
+        echo "FAIL the emitted machines and complete implementations do not compile together"
+        printf '%s\n' "$err" | grep -E "error:" | head -8 | sed 's/^/       /'
+        bad=1
+    fi
 
-    # 3. An incomplete or miscolored caller must NOT compile -- the guarantee,
-    #    after generation. Refused, and refused for the expected reason.
+    # 3. An incomplete or miscolored program must NOT compile -- the
+    #    guarantee, after generation. Refused, and for the expected reason.
+    #    A fixture for a machine the check marks refused also gets that
+    #    machine, whose own generated code is what must be refused.
+    local extra
     for f in "$sup"/compile_fail/*.swift; do
         m="$(basename "$f" .swift)"
         m="${m%%_*}"
+        extra=()
+        [ -f "$gen/refused/$m.emitted.swift" ] && extra=("$gen/refused/$m.emitted.swift")
         exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
-        err="$("$SWIFTC" -typecheck -I "$modules" "$sup/TimerTypes.swift" "$gen/$m.emitted.swift" "$f" 2>&1)"; rc=$?
+        # `${extra[@]+...}`: an empty array is "unbound" under `set -u` in the
+        # bash versions macOS still ships.
+        err="$("$SWIFTC" -typecheck -I "$modules" "$sup/Types.swift" "${emitted[@]}" \
+            ${extra[@]+"${extra[@]}"} "$f" 2>&1)"; rc=$?
         if [ "$rc" -eq 0 ]; then
             echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
             bad=1

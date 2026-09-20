@@ -7,9 +7,9 @@
 import Tabula
 
 final class Incomplete: TimerCells {
-    func idleStart(_ ctx: Ctx) -> Step<S, F> { .ignored }
+    func idleStart(_ ctx: Timer.Ctx) -> Step<Timer.S, Timer.F> { .ignored }
     // runningTick is missing.
-    func startClock(_ ctx: Ctx) -> A? { nil }
-    func stopClock(_ ctx: Ctx) -> A? { nil }
-    func note(_ ctx: Ctx, _ effect: String) -> A? { nil }
+    func startClock(_ ctx: Timer.Ctx) -> Timer.A? { nil }
+    func stopClock(_ ctx: Timer.Ctx) -> Timer.A? { nil }
+    func note(_ ctx: Timer.Ctx, _ effect: String) -> Timer.A? { nil }
 }

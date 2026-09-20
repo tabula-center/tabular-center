@@ -216,7 +216,8 @@ child reaching its terminal state is usually the parent's cue to leave.
 **Color flows one way.** A colorless child composes into a colored parent; the
 reverse is an error. Where the generated delegate arm carries the parent's
 color and calls the child's colored `step`, the language compiler rejects it by
-construction — Kotlin's generator does exactly this. Where a language cannot
+construction — Kotlin's and Swift's generators both do exactly this, and
+Swift's has a compile-fail fixture proving it. Where a language cannot
 enforce it structurally, emit `tabula::color-mismatch`. (Rust has no prototype
 colors yet, so the rule is vacuous there; see PLAN, September 2026 audit.)
 

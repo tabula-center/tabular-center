@@ -194,7 +194,7 @@ do {
 
 /// `timer.tbl`, as the macro would build it from syntax -- plus `Note`, an
 /// effect no static cell names, so the payload-carrying handler is emitted and
-/// compiled. `codegen-support/TimerTypes.swift` declares the types it names.
+/// compiled. `codegen-support/Types.swift` declares the types it names.
 func timerMachine(_ name: String, modifiers: [String] = []) -> RawMachine {
     RawMachine(
         machine: name,
@@ -236,6 +236,72 @@ let timerRaw = timerMachine("Timer")
 /// splat both before `func`, which is not Swift.
 let timerAsyncRaw = timerMachine("TimerAsync", modifiers: ["async", "throws"])
 
+/// The child in `Compose.swift`: a retry machine, written knowing nothing
+/// about any parent.
+func retryMachine(_ name: String, modifiers: [String] = []) -> RawMachine {
+    RawMachine(
+        machine: name,
+        initial: "Ready",
+        states: [
+            RawVariant("Ready"),
+            RawVariant("Waiting", hasPayload: true, fields: [(name: "attempt", type: "Int")]),
+            RawVariant("Exhausted"),
+        ],
+        actions: [RawVariant("Attempt"), RawVariant("Elapsed"), RawVariant("Abort")],
+        effects: [RawVariant("Sleep"), RawVariant("GiveUp")],
+        rows: [
+            RawRow("Ready", [RawCell("HANDLE"), RawCell("IGNORE"), RawCell("GO", target: "Exhausted")]),
+            RawRow("Waiting", [RawCell("IGNORE"), RawCell("HANDLE"), RawCell("GO", target: "Exhausted")]),
+            RawRow("Exhausted", [RawCell("IGNORE"), RawCell("IGNORE"), RawCell("IGNORE")]),
+        ],
+        prototypeModifiers: modifiers
+    )
+}
+
+/// The parent in `Compose.swift`: its `Retrying` state holds the child's
+/// state, and two of its cells delegate to the child.
+func jobMachine(_ name: String, child: String, modifiers: [String] = []) -> RawMachine {
+    RawMachine(
+        machine: name,
+        initial: "Idle",
+        states: [
+            RawVariant("Idle"),
+            // The child's namespace is spelled by the alias: `.retry` is `Retry`.
+            RawVariant("Retrying", hasPayload: true, fields: [
+                (name: "child", type: String(child.prefix(1)).uppercased() + String(child.dropFirst()) + ".S"),
+            ]),
+            RawVariant("Done"),
+        ],
+        actions: [RawVariant("Run"), RawVariant("Tick"), RawVariant("Cancel")],
+        effects: [RawVariant("Log")],
+        rows: [
+            RawRow("Idle", [RawCell("HANDLE"), RawCell("IGNORE"), RawCell("IGNORE")]),
+            RawRow("Retrying", [
+                RawCell("DELEGATE", child: child), RawCell("DELEGATE", child: child),
+                RawCell("GO", target: "Done", effects: ["Log"]),
+            ]),
+            RawRow("Done", [RawCell("IGNORE"), RawCell("IGNORE"), RawCell("IGNORE")]),
+        ],
+        prototypeModifiers: modifiers,
+        children: [ChildDesc(alias: child, stateType: "S", actionType: "A", effectType: "F", ctxType: "Ctx")]
+    )
+}
+
+/// Every machine the check emits. `refused` ones must NOT compile, and are
+/// written apart so `tools/verify` compiles them only with the fixture that
+/// names them.
+let emitted: [(name: String, raw: RawMachine, refused: Bool)] = [
+    ("timer", timerRaw, false),
+    ("timer-async", timerAsyncRaw, false),
+    ("retry", retryMachine("Retry"), false),
+    ("retry-async", retryMachine("RetryAsync", modifiers: ["async", "throws"]), false),
+    ("job", jobMachine("Job", child: "retry"), false),
+    // Colorless child in a colored parent: allowed, and compiled.
+    ("job-async", jobMachine("JobAsync", child: "retry", modifiers: ["async", "throws"]), false),
+    // Colored child in a colorless parent: color flows one way, so refused.
+    ("job-mixed", jobMachine("JobMixed", child: "retryAsync"), true),
+]
+
 let goldenDir = CommandLine.arguments.dropFirst().first { !$0.hasPrefix("--") } ?? "codegen-golden"
 let bless = CommandLine.arguments.contains("--bless")
 /// Where to write the emitted source for `tools/verify` to compile, if asked.
@@ -244,17 +310,18 @@ let emitDir = CommandLine.arguments
     .map { String($0.dropFirst("--emit=".count)) }
 
 if let dir = emitDir {
-    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    try? FileManager.default.createDirectory(atPath: "\(dir)/refused", withIntermediateDirectories: true)
 }
 
-for (name, machine) in [("timer", timerRaw), ("timer-async", timerAsyncRaw)] {
+for (name, machine, refused) in emitted {
     do {
         let source = emit(try buildDesc(machine))
         if let dir = emitDir {
             // `.emitted.swift`, not `.swift`: swiftc refuses two inputs with the
             // same base name even from different directories, and the complete
             // implementation it is compiled with is `complete/<name>.swift`.
-            try source.write(toFile: "\(dir)/\(name).emitted.swift", atomically: true, encoding: .utf8)
+            let sub = refused ? "\(dir)/refused" : dir
+            try source.write(toFile: "\(sub)/\(name).emitted.swift", atomically: true, encoding: .utf8)
         }
         let path = "\(goldenDir)/\(name).swift.golden"
         if bless {

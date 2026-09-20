@@ -8,13 +8,20 @@ enforces the guarantee.
 
 | file | role |
 |---|---|
-| `TimerTypes.swift` | the enums and narrowed structs a developer declares; every emitted timer names them |
-| `complete/<machine>.swift` | a complete implementation. Must compile with `<machine>.swift` |
+| `Types.swift` | the enums and narrowed structs developers declare, each machine's in its own enum |
+| `complete/*.swift` | complete implementations. Compiled **together**, with every emitted machine |
 | `compile_fail/<machine>_*.swift` | must be **refused** with the text on its `//~ EXPECT:` line |
 
+Every emitted machine is compiled in one module with every complete
+implementation. That is deliberate: the emitter namespaces what it generates
+(`extension Timer { static func step ... }`), and two machines that could not
+share a module would be a generator bug that compiling them one at a time
+would hide.
+
 A fixture names its machine by the part of its file name before the first
-`_`, so `timer-async_missing_effect_handler.swift` is compiled against the
-emitted `timer-async.emitted.swift` -- a suffix, because swiftc refuses two
-inputs with the same base name, and `complete/timer-async.swift` is one. Each emitted machine is compiled on its own: the
-emitter still writes `step`, `perform` and `TABLE` at file scope, so two
-machines in one module collide (PLAN, September 2026 audit).
+`_`. Machines the check marks *refused* are written to `refused/` and compiled
+only with a fixture naming them: `job-mixed_*.swift` gets
+`job-mixed.emitted.swift`, whose own generated code is the thing refused.
+
+Emitted files are `<machine>.emitted.swift`, because swiftc refuses two inputs
+with the same base name even from different directories.

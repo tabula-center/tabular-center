@@ -8,15 +8,17 @@
 import Tabula
 
 final class Cells: TimerAsyncCells {
-    func idleStart(_ ctx: Ctx) async throws -> Step<S, F> { .ignored }
-    func runningTick(_ ctx: Ctx, _ state: Running, _ action: Tick) async throws -> Step<S, F> { .ignored }
-    func startClock(_ ctx: Ctx) async throws -> A? { nil }
-    func stopClock(_ ctx: Ctx) async throws -> A? { nil }
-    func note(_ ctx: Ctx, _ effect: String) async throws -> A? { nil }
+    func idleStart(_ ctx: TimerAsync.Ctx) async throws -> Step<TimerAsync.S, TimerAsync.F> { .ignored }
+    func runningTick(
+        _ ctx: TimerAsync.Ctx, _ state: TimerAsync.Running, _ action: TimerAsync.Tick
+    ) async throws -> Step<TimerAsync.S, TimerAsync.F> { .ignored }
+    func startClock(_ ctx: TimerAsync.Ctx) async throws -> TimerAsync.A? { nil }
+    func stopClock(_ ctx: TimerAsync.Ctx) async throws -> TimerAsync.A? { nil }
+    func note(_ ctx: TimerAsync.Ctx, _ effect: String) async throws -> TimerAsync.A? { nil }
 }
 
 // `throws` and `try`, so the one thing missing is `async`: the error this
 // fixture expects is then the only one, rather than one of two.
-func uncolored() throws -> Step<S, F> {
-    try step(Cells(), Ctx(), .idle, .start)
+func uncolored() throws -> Step<TimerAsync.S, TimerAsync.F> {
+    try TimerAsync.step(Cells(), TimerAsync.Ctx(), .idle, .start)
 }

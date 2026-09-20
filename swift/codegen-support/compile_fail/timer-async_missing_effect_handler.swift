@@ -6,9 +6,11 @@
 import Tabula
 
 final class Incomplete: TimerAsyncCells {
-    func idleStart(_ ctx: Ctx) async throws -> Step<S, F> { .ignored }
-    func runningTick(_ ctx: Ctx, _ state: Running, _ action: Tick) async throws -> Step<S, F> { .ignored }
-    func startClock(_ ctx: Ctx) async throws -> A? { nil }
-    func stopClock(_ ctx: Ctx) async throws -> A? { nil }
+    func idleStart(_ ctx: TimerAsync.Ctx) async throws -> Step<TimerAsync.S, TimerAsync.F> { .ignored }
+    func runningTick(
+        _ ctx: TimerAsync.Ctx, _ state: TimerAsync.Running, _ action: TimerAsync.Tick
+    ) async throws -> Step<TimerAsync.S, TimerAsync.F> { .ignored }
+    func startClock(_ ctx: TimerAsync.Ctx) async throws -> TimerAsync.A? { nil }
+    func stopClock(_ ctx: TimerAsync.Ctx) async throws -> TimerAsync.A? { nil }
     // note is missing.
 }
