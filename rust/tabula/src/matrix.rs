@@ -791,6 +791,21 @@ macro_rules! __tabula_handle_call {
     };
 }
 
+/// A DELEGATE cell's call into the child, in the PARENT's color.
+///
+/// Only the parent's color is known here -- the child's is not visible at
+/// this expansion -- and it is enough: see `IntoFuture for Step`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __tabula_delegate_step {
+    (Plain; $($call:tt)*) => {
+        $($call)*
+    };
+    (Async; $($call:tt)*) => {
+        $($call)*.await
+    };
+}
+
 /// A machine's effect surface in its color: the `Handlers` bound and the
 /// `perform` pump.
 ///
@@ -1036,11 +1051,11 @@ macro_rules! __tabula_row {
     //
     // Runs the child's `step` and folds the result back through the lens.
     //
-    // No `.await`, in either color: a plain child composes into an async
-    // parent as an ordinary call, and an async child's `step` is a future
-    // where a `Step` is expected, which rustc refuses -- one-way color flow
-    // by construction, but also refusing an async child under an async
-    // parent. See PLAN, September 2026 audit.
+    // In an async parent the child's `step` is awaited whatever the child's
+    // color: a plain child's `Step` is `IntoFuture` and ready at once, an
+    // async child's future is awaited for real. A plain parent does not
+    // await, so an async child's future lands where a `Step` is required and
+    // rustc refuses it: one-way color flow, by construction.
     (@go c=$c:tt m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$ca:ident $($carest:ident)*]
@@ -1065,7 +1080,8 @@ macro_rules! __tabula_row {
                             <C as $crate::Lens<$m, $st, $ch::Marker>>::child_state($bc, &$bsv);
                         let __cx =
                             <C as $crate::Lens<$m, $st, $ch::Marker>>::child_ctx($bc, $bx);
-                        let __cstep = $ch::step($bc, __cx, __cs, __ca);
+                        let __cstep =
+                            $crate::__tabula_delegate_step!($c; $ch::step($bc, __cx, __cs, __ca));
                         let mut __out = match __cstep.outcome {
                             $crate::Outcome::Go(__next) => $crate::Step::go(
                                 <C as $crate::Lens<$m, $st, $ch::Marker>>::embed($bc, $bsv, __next),

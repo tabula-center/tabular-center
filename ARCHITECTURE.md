@@ -218,8 +218,9 @@ maintained. The prototype is the extension point.
 > so an async machine requires `AsyncHandle` / `AsyncPerform` instead. That
 > enumerates colors, which this section rejects in general; in Rust the list is
 > the language's, since `async` is the only color a trait method can carry on
-> stable. Any other prototype is `tabula::unsupported-color`. Delegating to an
-> async child is not yet supported -- PLAN, September 2026 audit.
+> stable. Any other prototype is `tabula::unsupported-color`. An async parent
+> delegates to a child of either color by awaiting it -- `Step` is
+> `IntoFuture` -- and a plain parent over an async child is refused by rustc.
 
 > **Status.** The KSP processor captures `suspend`, annotations and the
 > extension receiver. Visibility is taken from the annotated declaration rather

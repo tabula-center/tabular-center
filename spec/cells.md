@@ -216,11 +216,10 @@ child reaching its terminal state is usually the parent's cue to leave.
 **Color flows one way.** A colorless child composes into a colored parent; the
 reverse is an error. Where the generated delegate arm carries the parent's
 color and calls the child's colored `step`, the language compiler rejects it by
-construction — Kotlin's and Swift's generators both do exactly this, and
-Swift's has a compile-fail fixture proving it. Where a language cannot
-enforce it structurally, emit `tabula::color-mismatch`. (In Rust an async child
-is refused under either parent for now, since the DELEGATE arm does not await;
-see PLAN, September 2026 audit.)
+construction — Kotlin's and Swift's generators both do exactly this, and so
+does Rust's, where an async parent awaits its child and a plain one cannot.
+Each language has a compile-fail fixture proving it. Where a language cannot
+enforce it structurally, emit `tabula::color-mismatch`.
 
 ---
 

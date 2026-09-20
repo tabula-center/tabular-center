@@ -257,6 +257,24 @@ impl<S, F, const K: usize> Step<S, F, K> {
     }
 }
 
+/// A `Step` is a value already decided, so awaiting it yields it at once.
+///
+/// This is what lets an async parent delegate to a child of either color with
+/// one `.await`: a plain child's `step` returns a `Step`, ready immediately;
+/// an async child's returns a future, awaited for real. The parent's
+/// expansion cannot see which color the child has, and with this it does not
+/// need to. A plain parent writes no `.await`, so an async child's future
+/// lands where a `Step` is required, which rustc refuses -- one-way color
+/// flow, by construction.
+impl<S, F, const K: usize> core::future::IntoFuture for Step<S, F, K> {
+    type Output = Self;
+    type IntoFuture = core::future::Ready<Self>;
+
+    fn into_future(self) -> Self::IntoFuture {
+        core::future::ready(self)
+    }
+}
+
 impl<S: fmt::Debug, F: fmt::Debug, const K: usize> fmt::Debug for Step<S, F, K> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Step")

@@ -42,10 +42,10 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 9a Driver and mailbox | **done (all three)**; 9b (rendering surface) not started |
 
 One exception to the table, found by the audit below: Rust had no prototype
-colors. It has one now, `async` (see the audit's Rust-colors item); delegating
-to an async child is the part still open.
+colors. It has one now, `async`, composing in both directions the rule
+allows (see the audit's Rust-colors items).
 
-99 Rust tests; 50 compile-fail fixtures (12 Rust, 4 Kotlin, 3 Kotlin-codegen,
+101 Rust tests; 51 compile-fail fixtures (13 Rust, 4 Kotlin, 3 Kotlin-codegen,
 11 Kotlin-KSP, 4 Swift, 11 Swift macro-syntax, 5 Swift-codegen); 11
 conformance fixtures (96
 trace steps), every one with an adapter in all three languages; 11 each of
@@ -174,15 +174,19 @@ The other direction, in priority order:
       as one token and used in four places: `step`, `perform`, the per-cell
       bound, and the HANDLE call. `tests/async_prototype.rs` proves `step`
       really awaits its cells (a suspending cell makes it poll twice)
-- [ ] Rust colors, second increment: delegating to an async child. Today a
-      DELEGATE arm calls the child's `step` without `.await` in either color,
-      so a plain child composes into either parent -- the allowed direction --
-      and an async child is refused in both: its `step` is a future where a
-      `Step` is expected. Refusing it under a plain parent is the rule;
-      refusing it under an async parent is too strict. Needs the child's color
-      at the parent's expansion, which `macro_rules!` cannot see; a `Marker`
-      associated type or constant is the likely route. Then the
-      `color-mismatch` decision below can be made on all three languages
+- [x] Rust colors, second increment: delegating to an async child. The
+      parent's expansion cannot see the child's color, and no longer needs
+      to: `Step` implements `IntoFuture` (ready at once), so an async parent
+      awaits whatever the child's `step` returns -- a plain child's `Step`
+      or an async child's future. A plain parent does not await, so an async
+      child is a future where a `Step` is required: refused by rustc, by
+      construction. Chosen over a per-child exported macro carrying the
+      color, which would have broken delegation across crates.
+      `tests/async_composition.rs` shows both allowed directions (one poll
+      over a plain child, two over a suspending async one);
+      `compile_fail/async_child_in_plain_parent.rs` the refused one. That
+      unblocks the `color-mismatch` decision below: all three languages now
+      enforce one-way color flow by construction
 - [x] Swift emitter to the shape of `ReferenceTimer.swift`, first half:
       payload binding (`case let (.running(since), .tick(now))`, building
       the narrowed structs), effect payloads (one field passes its value, as
@@ -1111,10 +1115,10 @@ color-mismatch is a build error in all three.
       that only works inside its parent is not a reusable machine.
 - [ ] One-way color flow. Ticked until the September 2026 audit as
       "enforced by construction in Rust"; it held only vacuously, because
-      Rust had no colors to mismatch. Rust has `async` now, and a plain parent
-      over an async child is refused -- but so, for now, is an async parent
-      over one; see the second Rust-colors increment. In Kotlin it is by
-      construction: the
+      Rust had no colors to mismatch. Rust has `async` now: a plain parent
+      over an async child is refused by rustc, and an async parent over
+      either child compiles (`compile_fail/async_child_in_plain_parent.rs`,
+      `tests/async_composition.rs`). In Kotlin it is by construction: the
       generated `delegateTo<Child>` carries the *parent's* modifiers and calls
       the child's `step`, so a suspending child under a plain parent is a
       kotlinc error. Swift's generator does the same since the audit, and
@@ -2225,9 +2229,10 @@ is one a refactor closes or widens without anyone deciding to.
       than enumerated, so a mismatch is a type error before any check runs,
       which suggests it is unimplementable by design and the spec should say
       so. Until someone answers, a documented diagnostic no implementation
-      emits is a promise to a reader that nothing keeps. **Blocked on Rust
-      prototype colors** (September 2026 audit): the by-construction argument
-      is only as good as the construction, and in Rust there is none yet.
+      emits is a promise to a reader that nothing keeps. **Unblocked**
+      (September 2026 audit): all three languages now refuse a colored child
+      under a colorless parent by construction, each with a compile-fail
+      fixture proving it, and none of them through tabula's own diagnostic.
 
 ## Five of seven lints are never tripped by a fixture
 

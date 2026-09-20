@@ -53,15 +53,14 @@
 //! real performance and Swift has no native case key paths. Here they are
 //! trait methods, which monomorphise to nothing.
 //!
-//! # Color flows one way -- by construction, and for now too strictly
+//! # Color flows one way, by construction
 //!
-//! The rule is that a colorless child composes into a colored parent and the
-//! reverse is refused. A DELEGATE arm calls the child's `step` without
-//! `.await`, in either color: a plain child's `step` is an ordinary call
-//! inside an async parent, which is the allowed direction; an async child's
-//! `step` is a future where a `Step` is expected, which rustc refuses. That
-//! refusal also catches an async child under an async parent, which the rule
-//! allows -- see PLAN, September 2026 audit.
+//! A colorless child composes into a colored parent; the reverse is refused.
+//! An async parent's DELEGATE arm awaits the child's `step` whatever the
+//! child's color -- a plain child's `Step` is `IntoFuture`, ready at once --
+//! so both children compose into it. A plain parent does not await, so an
+//! async child's `step` is a future where a `Step` is required, and rustc
+//! refuses it. No check of tabula's own, and nothing to circumvent.
 
 use crate::machine::Machine;
 
