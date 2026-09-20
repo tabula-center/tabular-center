@@ -36,7 +36,7 @@ fun emit(d: MachineDesc): String = buildString {
     appendLine(" * composes: a class extends one parent, so abstract members would cap")
     appendLine(" * composition at a single child. Interfaces are Kotlin's trait bounds.")
     appendLine(" */")
-    val supers = d.children.joinToString("") { " ${it.alias}.Cells," }
+    val supers = d.children.joinToString("") { " ${it.packageName}.Cells," }
     appendLine("${vis}interface Cells${if (supers.isEmpty()) "" else " :${supers.dropLast(1)}"} {")
 
     forEachCell(d) { i, j, cell ->
@@ -51,7 +51,7 @@ fun emit(d: MachineDesc): String = buildString {
                 appendLine(
                     "    ${mods}fun ${member(d, i, j)}ToChild(ctx: ${d.ctxType}, " +
                         "state: ${d.stateType}.${d.states[i].name}, " +
-                        "action: ${d.actionType}.${d.actions[j].name}): ${c.alias}.${c.actionType}?"
+                        "action: ${d.actionType}.${d.actions[j].name}): ${c.packageName}.${c.actionType}?"
                 )
             }
             else -> {}
@@ -63,10 +63,12 @@ fun emit(d: MachineDesc): String = buildString {
     for (c in d.children) {
         appendLine()
         appendLine("    // Lens onto `${c.alias}`. Per child, not per cell.")
-        appendLine("    fun ${c.alias}ChildState(state: ${d.stateType}): ${c.alias}.${c.stateType}")
-        appendLine("    fun ${c.alias}Embed(state: ${d.stateType}, child: ${c.alias}.${c.stateType}): ${d.stateType}")
-        appendLine("    fun ${c.alias}Lift(effect: ${c.alias}.${c.effectType}): ${d.effectType}")
-        appendLine("    fun ${c.alias}ChildCtx(ctx: ${d.ctxType}): ${c.alias}.${c.ctxType}")
+        // Member names from the alias; types from the child's package.
+        val p = c.packageName
+        appendLine("    fun ${c.alias}ChildState(state: ${d.stateType}): $p.${c.stateType}")
+        appendLine("    fun ${c.alias}Embed(state: ${d.stateType}, child: $p.${c.stateType}): ${d.stateType}")
+        appendLine("    fun ${c.alias}Lift(effect: $p.${c.effectType}): ${d.effectType}")
+        appendLine("    fun ${c.alias}ChildCtx(ctx: ${d.ctxType}): $p.${c.ctxType}")
     }
 
     if (d.effects.isNotEmpty()) {
@@ -109,11 +111,11 @@ fun emit(d: MachineDesc): String = buildString {
         appendLine(" */")
         appendLine(
             "private ${mods}fun delegateTo${cap(c.alias)}(cells: Cells, ctx: ${d.ctxType}, " +
-                "s: ${d.stateType}, childAction: ${c.alias}.${c.actionType}?): " +
+                "s: ${d.stateType}, childAction: ${c.packageName}.${c.actionType}?): " +
                 "Step<${d.stateType}, ${d.effectType}> {"
         )
         appendLine("    if (childAction == null) return Step.Ignored")
-        appendLine("    val childStep = ${c.alias}.step(")
+        appendLine("    val childStep = ${c.packageName}.step(")
         appendLine("        cells, cells.${c.alias}ChildCtx(ctx), cells.${c.alias}ChildState(s), childAction,")
         appendLine("    )")
         appendLine("    val effects = childStep.effects.map(cells::${c.alias}Lift)")

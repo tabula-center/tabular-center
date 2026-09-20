@@ -89,7 +89,21 @@ data class Variant(
     val fields: List<Pair<String, String>> = emptyList(),
 )
 
-/** A child machine referenced by one or more `DELEGATE` cells. */
+/**
+ * A child machine referenced by one or more `DELEGATE` cells.
+ *
+ * Two names, for two jobs. [alias] is what a `DELEGATE` cell names and what
+ * the parent's generated MEMBERS are built from -- `retryChildState`,
+ * `delegateToRetry` -- so it must be an identifier. [packageName] is where the
+ * child's generated surface lives, and every reference to it is qualified by
+ * it: `generated.retry.Cells`, `generated.retry.step`, `generated.retry.S`.
+ *
+ * Qualified rather than imported: the generated file imports only
+ * `dev.tabula`, so it cannot collide with anything the parent's package
+ * declares. Until the September 2026 audit the emitter qualified with the
+ * alias, which only worked for a child in a root package named exactly like
+ * the alias, and [packageName] went unused.
+ */
 data class ChildDesc(
     val alias: String,
     val packageName: String,

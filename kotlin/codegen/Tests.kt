@@ -183,6 +183,7 @@ fun runValidationTests(): Int {
     )
 
     runAdditiveTest()
+    runChildPackageTest()
 
     if (failures == 0) println("ok   codegen validation ($checks checks)")
     else println("FAIL codegen validation ($failures of $checks checks failed)")
@@ -237,6 +238,31 @@ private fun runAdditiveTest() {
     // the two checks above whenever the longhand twin was written wrong.
     check("without the path, the same rows are a different machine", underived != longhand)
     check("a HANDLE no hop names is left alone", derived.rows[1][2] == CellDesc.Handle)
+}
+
+/**
+ * A child is reached through its PACKAGE, and named through its ALIAS.
+ *
+ * The compile stage of `kotlin-codegen` cannot tell the two apart: its child
+ * lives in `generated.retry` with the alias `retry`, so an emitter that
+ * qualified by the alias and one that qualified by the package both write
+ * `...retry.Cells`. That is exactly how the alias-as-package bug went unseen.
+ * Here the package's last segment is not the alias, so the two differ.
+ */
+private fun runChildPackageTest() {
+    val deep = "com.example.backoff"
+    val parent = jobDesc("com.example.job", "retry").copy(
+        children = listOf(ChildDesc("retry", deep, "S", "A", "F", "Ctx")),
+    )
+    val out = emit(parent)
+    check("the parent refines the child's Cells through its package", out.contains("$deep.Cells"))
+    check("the child's step is called through its package", out.contains("$deep.step("))
+    check("the child's types are qualified by its package", out.contains("$deep.S"))
+    check("members are still named from the alias", out.contains("fun retryChildState("))
+    check(
+        "the alias is never used as a package",
+        !Regex("""(?<![.\w])retry\.""").containsMatchIn(out),
+    )
 }
 
 /** `timerDesc`, as a KSP processor would hand it over. */

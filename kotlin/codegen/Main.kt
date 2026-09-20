@@ -107,10 +107,9 @@ val stopwatchDesc = MachineDesc(
  * The child in `test/Composition.kt`: a retry machine, written knowing nothing
  * about any parent.
  *
- * Its package is a ROOT package named like the alias a parent delegates
- * through, because the emitter reaches a child as `<alias>.Cells` and
- * `<alias>.step` -- fully qualified names, with no import. So the alias is
- * both an identifier and a package, and `retry` has to be both.
+ * In an ordinary nested package, and reached by its parent through
+ * [ChildDesc.packageName]. Until the audit the emitter reached a child
+ * through its alias, so this had to be a root package called `retry`.
  */
 fun retryDesc(pkg: String, mods: List<String> = emptyList()) = MachineDesc(
     packageName = pkg,
@@ -149,7 +148,7 @@ fun jobDesc(pkg: String, child: String, mods: List<String> = emptyList()) = Mach
     initial = "Idle",
     states = listOf(
         Variant("Idle"),
-        Variant("Retrying", hasPayload = true, fields = listOf("child" to "$child.S")),
+        Variant("Retrying", hasPayload = true, fields = listOf("child" to "generated.$child.S")),
         Variant("Done"),
     ),
     actions = listOf(Variant("Run"), Variant("Tick"), Variant("Cancel")),
@@ -160,7 +159,7 @@ fun jobDesc(pkg: String, child: String, mods: List<String> = emptyList()) = Mach
         listOf(CellDesc.Ignore, CellDesc.Ignore, CellDesc.Ignore),
     ),
     prototypeModifiers = mods,
-    children = listOf(ChildDesc(child, child, "S", "A", "F", "Ctx")),
+    children = listOf(ChildDesc(child, "generated.$child", "S", "A", "F", "Ctx")),
 )
 
 /**
@@ -172,8 +171,8 @@ private val all = mapOf(
     "timer" to timerDesc,
     "toggle" to toggleDesc,
     "stopwatch" to stopwatchDesc,
-    "retry" to retryDesc("retry"),
-    "retrysuspend" to retryDesc("retrysuspend", listOf("suspend")),
+    "retry" to retryDesc("generated.retry"),
+    "retrysuspend" to retryDesc("generated.retrysuspend", listOf("suspend")),
     "job" to jobDesc("generated.job", "retry"),
     // A colorless child in a colored parent: allowed, and compiled.
     "jobsuspend" to jobDesc("generated.jobsuspend", "retry", listOf("suspend")),

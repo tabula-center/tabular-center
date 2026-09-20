@@ -190,11 +190,16 @@ The other direction, in priority order:
       were read rather than verified. `kotlin-codegen` now emits and compiles
       a child, a parent in both colors, a hole in the child, and a colored
       child under a plain parent that must be refused
-- [ ] Kotlin's child alias doubles as a root package: the emitter writes
-      `<alias>.Cells` and `<alias>.step` with no import, and `<alias>ChildState`
-      as a member name. `ChildDesc.packageName` exists and is unused. Emit
-      imports from it, or qualify with it, so a child can live in
-      `com.example.retry`; and have the KSP processor build `ChildDesc` at all
+- [x] Kotlin reaches a child through `ChildDesc.packageName`, and names its
+      members through the alias. It used the alias for both, so a child could
+      only live in a root package spelled like its alias. The test children
+      moved to `generated.retry`; `runChildPackageTest` pins the rule with a
+      package whose last segment is NOT the alias, the one case the compile
+      stage cannot tell apart
+- [ ] The KSP processor builds no `ChildDesc`: `@Machine` has no way to
+      declare a child, so DELEGATE is reachable through `MachineDesc` but not
+      through annotations. A surface decision first (how a `.tb.kt` names a
+      child machine and its package), then extraction, then a `kspTwins` entry
 - [x] **Generated code is not committed** -- as source or as a golden. The
       emitted-source goldens (`kotlin/codegen/golden/`, `kotlin/ksp/golden/`,
       `swift/codegen-golden/`) are gone, and each guarantee they carried is

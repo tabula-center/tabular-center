@@ -1,11 +1,11 @@
 /**
  * The same child as RetryTypes.kt, generated `suspend`: the colored child.
  *
- * A root package named `retry` because a parent reaches its child through the
- * alias as a fully qualified name -- `retry.Cells`, `retry.step` -- so the
- * alias and the package are the same word. See `retryDesc` in Main.kt.
+ * Reached by `generated.jobmixed` through `ChildDesc.packageName`, as
+ * `generated.retrysuspend.step` -- a `suspend` call from a plain helper, which
+ * is what that fixture exists to have refused.
  */
-package retrysuspend
+package generated.retrysuspend
 
 sealed interface S {
     data object Ready : S

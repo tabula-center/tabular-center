@@ -1,11 +1,11 @@
 /**
  * The hand-written half of the generated Retry machine: the child.
  *
- * A root package named `retry` because a parent reaches its child through the
- * alias as a fully qualified name -- `retry.Cells`, `retry.step` -- so the
- * alias and the package are the same word. See `retryDesc` in Main.kt.
+ * An ordinary nested package. The parent reaches it through
+ * `ChildDesc.packageName` -- `generated.retry.Cells`, `generated.retry.step`
+ * -- and names its members through the alias, `retry`.
  */
-package retry
+package generated.retry
 
 sealed interface S {
     data object Ready : S

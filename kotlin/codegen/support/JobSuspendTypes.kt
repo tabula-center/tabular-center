@@ -7,7 +7,7 @@ package generated.jobsuspend
 
 sealed interface S {
     data object Idle : S
-    data class Retrying(val child: retry.S) : S
+    data class Retrying(val child: generated.retry.S) : S
     data object Done : S
 }
 
@@ -21,4 +21,4 @@ sealed interface F {
     data object Log : F
 }
 
-class Ctx(val retry: retry.Ctx)
+class Ctx(val retry: generated.retry.Ctx)
