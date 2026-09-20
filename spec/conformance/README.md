@@ -86,14 +86,24 @@ trace reaches-done
   `Step::stay()` where the trace says `ignored` fails, and should — the
   distinction is load-bearing for the reachability linter.
 
-## What the goldens prove
+## What the renderings prove
 
-`<name>.grid`, `<name>.mmd`, `<name>.lint` and `<name>.cov` are written by the
-Rust harness (`--bless`) and **read** by every other implementation. Neither
-Kotlin nor Swift blesses: a renderer or a lint that drifts by a single space
-fails there rather than quietly rewriting the shared file.
+`<name>.grid`, `<name>.mmd`, `<name>.lint` and `<name>.cov` are **not
+committed**. Every implementation renders its own from the `.tbl` at check
+time, into a scratch directory, and `tools/verify renderings-agree` diffs them
+against each other. What is asserted is that three implementations produce the
+same bytes.
 
-The lint golden matters more than it looks. The lints hold the most
+They were committed until September 2026: Rust blessed them and the other two
+compared against them. That made one implementation's output the expectation
+for the other two, and every renderer change meant re-blessing a file that was
+a second copy of what the code already said. The property under test was never
+"matches this file"; it was "all three agree", and that is what is checked now.
+
+What is lost, and worth naming: a change in lint wording or coverage no longer
+shows up as a diff in review. It shows up as agreement or disagreement.
+
+The lints matter more than they look. The lints hold the most
 per-language logic in the project — the 70% and 25% thresholds, `dead-row`
 subsuming `no-static-exit`, the fully-static gate on reachability — and until
 this existed the three implementations printed their warnings side by side with
@@ -148,23 +158,25 @@ uncompared is the **generated source** — deliberately, since Rust names cells
 by trait bound and the other two by identifier, so there is nothing to compare.
 The compile-fail suites are the substitute, and they are per-language.
 
-`tools/verify` checks that every `<name>.tbl` has all four siblings before it
-runs any harness. That guard exists because the harness's own "no golden X; run
-with --bless" is the wrong advice in the common case: the file usually does
-exist and is merely untracked, so nix left it out of the build, and blessing
-would have regenerated files already sitting in the tree.
+`fixtures-complete` checks that every `<name>.tbl` has a trace, and that none
+of the four renderings is committed beside it. A committed rendering is a
+golden nobody asked for: it would be read by nothing and would drift in
+silence.
 
-`effects-never.cov` is the one that pins the gate deliberately rather than by
-accident: its `Open` state is reachable only through a `HANDLE` cell, so any
-implementation that drops the fully-static gate announces `Open` as unreachable
-and the golden fails.
+`renderings-agree` needs two implementations to compare. A run finding only one
+FAILS rather than passing, because one implementation agreeing with itself
+asserts nothing.
+
+`effects-never` is the fixture that pins the fully-static gate deliberately
+rather than by accident: its `Open` state is reachable only through a `HANDLE`
+cell, so an implementation that drops the gate announces `Open` as unreachable
+— and disagrees with the other two, in its `.cov` and `.lint`.
 
 ## Adding a fixture
 
-1. Write `<name>.tbl` and `traces/<name>.trace`. Run the Rust harness with
-   `--bless` to create `<name>.grid`, `<name>.mmd`, `<name>.lint` and
-   `<name>.cov`; never write those by hand, since the whole value of a golden
-   is that a machine wrote it.
+1. Write `<name>.tbl` and `traces/<name>.trace`. That is the whole fixture:
+   the renderings are produced by each implementation at check time, and none
+   of them is committed.
 2. Add an adapter in each language mapping action names and payload fields to
    real values. The adapter is the only per-fixture code; everything else is
    shared.

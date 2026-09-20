@@ -1,7 +1,0 @@
-stateDiagram-v2
-    [*] --> Idle
-    Idle --> Idle: Arm / ?handle
-    Armed --> Armed: Tick / ?handle
-    Armed --> Idle: Abort
-    Firing --> Firing: Fire / ?handle
-    Spent --> Idle: Reset

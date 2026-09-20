@@ -59,6 +59,22 @@ in
   # every fixture here has been added a patch or more ahead of its adapters.
   fixtures-complete = verify "fixtures-complete" [ ];
 
+  # The one check that must see more than one implementation at a time: the
+  # renderings are not committed, so agreement is asserted by rendering from
+  # each toolchain present and diffing. Rust and Kotlin are always here;
+  # Swift joins where it exists. It fails rather than passes if fewer than
+  # two are present, so it cannot agree with itself.
+  renderings-agree =
+    let
+      swiftEnv = lib.optionalString swiftChecked
+        ''export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"'';
+    in
+    mkCheck "renderings-agree"
+      (rustInputs ++ kotlinInputs ++ lib.optionals swiftChecked swiftPkgs) ''
+        ${swiftEnv}
+        ./tools/verify renderings-agree
+      '';
+
   # tools/verify only compares. A step that can bless passes by construction,
   # which is what swift-codegen's TABULA_BLESS briefly made it. Text only.
   no-bless = verify "no-bless" [ ];
@@ -205,6 +221,14 @@ in
   swift = mkCheck "swift" swiftPkgs ''
     export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     ./tools/verify swift
+  '';
+
+  # swift-format comes from the same pin as swift itself (context.nix), so
+  # this needed no lock entry: the version question is answered by the pin
+  # that answers Swift's.
+  swift-matrix-stable = mkCheck "swift-matrix-stable" swiftPkgs ''
+    export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    ./tools/verify swift-matrix-stable
   '';
 
   swift-compile-fail = mkCheck "swift-compile-fail" swiftPkgs ''

@@ -54,7 +54,7 @@ same way adding a state breaks every matrix.
 | 5 | Swift core + macro | everything but macro expansion; `MachineSyntax` reads the surface, and the emitter's output is compiled by `swift-codegen` |
 | 6 | Composition | done (all three) |
 | 7 | Effects surface | done (all three) |
-| 8 | Introspection, lints, golden snapshots | done (all three); shared goldens read by all three |
+| 8 | Introspection, lints, renderings | done (all three); renderings produced by each and diffed (`renderings-agree`) |
 | 9a | Driver and mailbox | done (all three) |
 
 See `ARCHITECTURE.md` for the design, `PLAN.md` for the task breakdown, and

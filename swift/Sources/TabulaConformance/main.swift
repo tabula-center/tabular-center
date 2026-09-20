@@ -10,10 +10,10 @@ import TabulaTesting
 ///
 /// 1. The generated table, cell by cell.
 /// 2. Traces: outcomes and effects, step by step.
-/// 3. The golden `.grid` file, **byte for byte**. Rust writes these with
-///    `--bless`; Kotlin and Swift read and never bless, so a renderer that
-///    drifts by a single space fails rather than quietly rewriting the shared
-///    snapshot.
+/// 3. Nothing else here: the renderings (`.grid`, `.mmd`, `.lint`, `.cov`) are
+///    written out with `--emit=<dir>` and diffed against the other two
+///    implementations' by `tools/verify renderings-agree`, rather than each
+///    being compared against a committed copy of one implementation's output.
 ///
 /// Foundation is imported here and nowhere in `TabulaTesting`: the runner needs
 /// file IO, and a published library should not put Foundation on every
@@ -620,6 +620,16 @@ let root = CommandLine.arguments
     .dropFirst()
     .first { !$0.hasPrefix("--") } ?? "../spec/conformance"
 
+/// Where to write renderings, if anywhere.
+let emitDir: String? = CommandLine.arguments
+    .first { $0.hasPrefix("--emit=") }
+    .map { String($0.dropFirst("--emit=".count)) }
+    .map { dir in
+        try? FileManager.default.createDirectory(
+            atPath: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
 func read(_ path: String) throws -> String {
     guard let s = try? String(contentsOfFile: path, encoding: .utf8) else {
         throw SpecError("cannot read \(path)")
@@ -627,25 +637,15 @@ func read(_ path: String) throws -> String {
     return s
 }
 
-/// Compare a generated artifact against its committed golden file.
+/// Write one rendering out, when asked with `--emit=<dir>`.
 ///
-/// Never blesses: Rust owns `--bless`, so a Swift renderer or lint that drifts
-/// fails here rather than quietly rewriting the shared snapshot.
-func checkGolden(_ name: String, _ ext: String, _ got: String) -> [String] {
-    let path = "\(root)/\(name).\(ext)"
-    guard let want = try? String(contentsOfFile: path, encoding: .utf8) else {
-        return ["no golden \(ext) at \(path)"]
-    }
-    if got == want { return [] }
-
-    var errs = ["\(ext) differs from \(path):"]
-    let g = got.split(separator: "\n", omittingEmptySubsequences: false)
-    let w = want.split(separator: "\n", omittingEmptySubsequences: false)
-    for n in 0..<min(g.count, w.count) where g[n] != w[n] {
-        errs.append("  line \(n): swift  |\(g[n])|")
-        errs.append("  line \(n): golden |\(w[n])|")
-    }
-    return errs
+/// Nothing is compared here, and nothing is committed: `.tbl` and `.trace` are
+/// the contract, and the renderings of it are produced by all three
+/// implementations at check time and diffed against each other by
+/// `tools/verify renderings-agree`.
+func emit(_ dir: String?, _ name: String, _ ext: String, _ got: String) {
+    guard let dir else { return }
+    try? got.write(toFile: "\(dir)/\(name).\(ext)", atomically: true, encoding: .utf8)
 }
 
 var failed = 0
@@ -663,15 +663,15 @@ for adapter in adapters {
     }
 
     errs += checkTable(adapter.table, spec)
-    errs += checkGolden(adapter.name, "grid", Export.toGrid(adapter.table))
+    emit(emitDir, adapter.name, "grid", Export.toGrid(adapter.table))
     // The lints carry the most per-language logic there is -- thresholds, the
     // dead-row/no-static-exit subsumption, the fully-static gate on
     // reachability -- and nothing compared them across languages until now.
-    errs += checkGolden(adapter.name, "mmd", Export.toMermaid(adapter.table))
-    errs += checkGolden(adapter.name, "lint", report(adapter.table, payloads: adapter.payloads))
+    emit(emitDir, adapter.name, "mmd", Export.toMermaid(adapter.table))
+    emit(emitDir, adapter.name, "lint", report(adapter.table, payloads: adapter.payloads))
     // The diagram. Three renderers agreeing on edge ORDER, not just on the
     // edge set -- which is the thing that had already drifted.
-    errs += checkGolden(adapter.name, "cov", Export.toCoverageReport(adapter.table))
+    emit(emitDir, adapter.name, "cov", Export.toCoverageReport(adapter.table))
 
     var traces: [Trace] = []
     do {

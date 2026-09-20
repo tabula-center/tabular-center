@@ -1,3 +1,0 @@
-Gate    Unlock  Lock        Push
-Locked  HANDLE  IGNORE      IGNORE
-Open    IGNORE  GO(Locked)  HANDLE

@@ -19,7 +19,10 @@ import java.io.File
  *    drift silently until someone diffed a snapshot by hand.
  */
 fun main(args: Array<String>) {
-    val root = File(args.getOrElse(0) { "../spec/conformance" })
+    val root = File(args.firstOrNull { !it.startsWith("--") } ?: "../spec/conformance")
+    val emitDir = args.firstOrNull { it.startsWith("--emit=") }
+        ?.removePrefix("--emit=")
+        ?.let { File(it).apply { mkdirs() } }
     if (!root.isDirectory) {
         System.err.println("no spec/conformance at ${root.absolutePath}")
         kotlin.system.exitProcess(2)
@@ -42,15 +45,15 @@ fun main(args: Array<String>) {
         val traces = parseTraces(File(root, "traces/$name.trace").readText(), "$name.trace")
 
         errs += checkTable(adapter.table, spec)
-        errs += checkGolden(root, name, "grid", Export.toGrid(adapter.table))
+        emit(emitDir, name, "grid", Export.toGrid(adapter.table))
         // The lints carry the most per-language logic there is -- thresholds,
         // the dead-row/no-static-exit subsumption, the fully-static gate on
         // reachability -- and nothing compared them across languages until now.
-        errs += checkGolden(root, name, "mmd", Export.toMermaid(adapter.table))
-        errs += checkGolden(root, name, "lint", report(adapter.table, adapter.payloads))
+        emit(emitDir, name, "mmd", Export.toMermaid(adapter.table))
+        emit(emitDir, name, "lint", report(adapter.table, adapter.payloads))
         // The diagram. Two renderers agreeing on edge ORDER, not just on the
         // edge set -- which is the thing that had already drifted.
-        errs += checkGolden(root, name, "cov", Export.toCoverageReport(adapter.table))
+        emit(emitDir, name, "cov", Export.toCoverageReport(adapter.table))
 
         for (t in traces) {
             steps += t.steps.size
@@ -106,23 +109,13 @@ fun main(args: Array<String>) {
 }
 
 /**
- * Compare a generated artifact against its committed golden file.
+ * Write one rendering out, when asked with `--emit=<dir>`.
  *
- * Never blesses: the Rust harness owns `--bless`, so a Kotlin renderer or lint
- * that drifts fails here rather than quietly rewriting the shared snapshot.
+ * Nothing is compared here, and nothing is committed: `.tbl` and `.trace` are
+ * the contract, and the renderings of it are produced by all three
+ * implementations at check time and diffed against each other by
+ * `tools/verify renderings-agree`.
  */
-private fun checkGolden(root: File, name: String, ext: String, got: String): List<String> {
-    val golden = File(root, "$name.$ext")
-    if (!golden.exists()) return listOf("no golden $ext at ${golden.path}")
-    val want = golden.readText()
-    if (got == want) return emptyList()
-
-    val errs = mutableListOf("$ext differs from ${golden.path}:")
-    got.lines().zip(want.lines()).forEachIndexed { n, (g, w) ->
-        if (g != w) {
-            errs.add("  line $n: kotlin |$g|")
-            errs.add("  line $n: golden |$w|")
-        }
-    }
-    return errs
+private fun emit(dir: File?, name: String, ext: String, got: String) {
+    if (dir != null) File(dir, "$name.$ext").writeText(got)
 }

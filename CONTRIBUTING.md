@@ -89,11 +89,12 @@ So when reviewing a change, the useful question is not "is this checked?" but
 
 - Adding a renderer, a report, or any other output? It needs something to
   compare against, or it needs to share a code path with something that has
-  one. For rendered data, that is a golden in `spec/conformance/`, blessed by
-  Rust and read by the other two. For **generated source it is never a
-  golden**: emitted code is not committed (`no-generated`), so what compares
-  it is compiling it, and stating its description by hand where two front ends
-  must agree (`kspTwins`).
+  one. Nothing in this repository is committed as a snapshot of its own
+  output: rendered data is produced by all three implementations at check time
+  and diffed (`renderings-agree`), and generated source is compiled rather than
+  compared (`no-generated`), with a hand-stated description where two front
+  ends must agree (`kspTwins`). The authored files — `.tbl`, `.trace`, the
+  fixtures table — are the contract, and a person writes those.
 - Copying a loop or a function into a second language, or a second color of the
   same language? Something must assert the two agree, or they will not.
 - Writing a helper inside a `bin/`? Nothing can test it there. Put it in the

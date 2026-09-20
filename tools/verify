@@ -12,7 +12,8 @@
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
 #         kotlin-examples kotlin-ksp kotlin-ksp-compile-fail
 #         kotlin-ksp-incremental kotlin-matrix-stable rust-matrix-stable
-#         matrix-covered swift-format-config diagnostics-coverage fixtures-complete
+#         matrix-covered swift-format-config swift-matrix-stable
+#         diagnostics-coverage fixtures-complete
 #         no-bless no-generated
 #         swift swift-compile-fail swift-conformance swift-macros
 #         swift-macro-support swift-examples swift-codegen
@@ -58,29 +59,29 @@ require_dir() {
 #
 # It earns its keep twice: it also catches adding a .tbl fixture and forgetting
 # to bless it, which produces the same misleading message.
-GOLDEN_EXTS="grid mmd lint cov"
+RENDERINGS="grid mmd lint cov"   # produced at check time, never committed
 
-require_goldens() {
-    local missing="" tbl name ext
+require_fixtures() {
+    local missing="" tbl name
     for tbl in spec/conformance/*.tbl; do
         [ -e "$tbl" ] || continue
-        name="${tbl%.tbl}"
-        for ext in $GOLDEN_EXTS; do
-            [ -f "$name.$ext" ] || missing="$missing $name.$ext"
-        done
+        name="$(basename "$tbl" .tbl)"
+        [ -f "spec/conformance/traces/$name.trace" ] \
+            || missing="$missing traces/$name.trace"
     done
+    if [ -z "$(echo spec/conformance/*.tbl)" ] || [ ! -e spec/conformance/timer.tbl ]; then
+        echo "spec/conformance has no fixtures; the contract has evaporated"
+        return 1
+    fi
     [ -z "$missing" ] && return 0
 
-    echo "missing golden file(s):"
+    echo "fixture(s) missing a trace:"
     for f in $missing; do echo "  $f"; done
     echo
-    echo "  If these exist in your working tree, they are probably untracked:"
-    echo "  nix excludes untracked files from a dirty tree, so a patch applied"
-    echo "  with 'git apply' leaves new files out of the build. Commit them, or"
-    echo "  'git add -A', or apply patches with 'git am'."
-    echo
-    echo "  If they genuinely do not exist, the fixture has never been blessed:"
-    echo "  cd rust && cargo run -p tabula-conformance -- --bless"
+    echo '  .tbl and .trace are authored by hand: they are the contract.'
+    echo "  If they exist in your working tree, they are probably untracked --"
+    echo "  nix excludes untracked files from a dirty tree, so 'git apply'"
+    echo "  leaves new files out of the build. 'git add -A', or use 'git am'."
     return 1
 }
 
@@ -261,8 +262,131 @@ step_no_std() {
 # The exit status is the question being asked, so ask it.
 step_compile_fail() { ./tools/compile-fail; }
 
+# The renderings the three implementations must agree on.
+#
+# `.tbl` and `.trace` are the contract, authored by hand. The renderings of a
+# fixture -- `.grid`, `.mmd`, `.lint`, `.cov` -- are OUTPUT, and were committed
+# until September 2026: Rust blessed them and the other two compared against
+# them. That made one implementation's output the expectation for the other
+# two and had to be re-blessed whenever any renderer changed a character.
+#
+# So each implementation renders into its own directory here, and the
+# directories are diffed. Nothing is committed and nothing is blessed; what is
+# asserted is exactly the property the goldens were standing in for, that three
+# implementations produce the same bytes.
+#
+# It needs at least two of them: one implementation agreeing with itself is not
+# a comparison, so a run that finds only one FAILS rather than passing. That is
+# also why this is one step rather than three -- no single-toolchain check can
+# make this assertion at all.
+step_renderings_agree() {
+    require_fixtures || return 1
+    local scratch present=() bad=0
+    scratch="$(mktemp -d)"
+
+    if command -v cargo >/dev/null 2>&1; then
+        # shellcheck disable=SC2086
+        if (cd rust && cargo run -q -p tabula-conformance $CARGO_FLAGS -- \
+            "--emit=$scratch/rust" ../spec/conformance) >/dev/null; then
+            present+=(rust)
+        else
+            echo "FAIL rust could not render"
+            bad=1
+        fi
+    else
+        echo "skip renderings-agree (rust: \$cargo not found)"
+    fi
+
+    if kotlin_available; then
+        local out
+        out="$(mktemp -d)"
+        if (
+            cd kotlin || exit 1
+            kotlin_artifacts "$out" || exit 1
+            KCP="$(kotlin_cp "$out")"
+            "$KOTLINC" -cp "$KCP" test/Composition.kt -d "$out/comp" 2>&1 \
+                | grep -v "^info:" || true
+            "$KOTLINC" -cp "$KCP:$out/comp" conformance/*.kt -include-runtime \
+                -d "$out/c.jar" 2>&1 | grep -v "^info:" || true
+            [ -f "$out/c.jar" ] || { echo "conformance failed to compile"; exit 1; }
+            java -cp "$out/c.jar:$KCP:$out/comp" conformance.MainKt \
+                ../spec/conformance "--emit=$scratch/kotlin"
+        ) >/dev/null; then
+            present+=(kotlin)
+        else
+            echo "FAIL kotlin could not render"
+            bad=1
+        fi
+        rm -rf "$out"
+    else
+        echo "skip renderings-agree (kotlin: \$KOTLINC not found)"
+    fi
+
+    if swift_available; then
+        local sw
+        sw="$(mktemp -d)"
+        swift_home "$sw"
+        # shellcheck disable=SC2046
+        if (cd swift && "$SWIFT" run -c release $(swift_paths "$sw") \
+            tabula-conformance ../spec/conformance "--emit=$scratch/swift") >/dev/null 2>&1; then
+            present+=(swift)
+        else
+            echo "FAIL swift could not render"
+            bad=1
+        fi
+        rm -rf "$sw"
+    else
+        echo "skip renderings-agree (swift: \$SWIFT not found)"
+    fi
+
+    if [ "${#present[@]}" -lt 2 ]; then
+        echo "FAIL renderings-agree needs two implementations to compare and found ${#present[@]}."
+        echo "     One implementation agreeing with itself asserts nothing, so"
+        echo "     this fails rather than passing on a machine with one toolchain."
+        rm -rf "$scratch"
+        return 1
+    fi
+
+    # Pairwise against the first present implementation: agreement is
+    # transitive, and naming a reference makes the diff readable.
+    local ref="${present[0]}" other f n=0
+    for other in "${present[@]:1}"; do
+        for f in "$scratch/$ref"/*; do
+            [ -e "$f" ] || continue
+            n=$((n + 1))
+            if ! diff -q "$f" "$scratch/$other/$(basename "$f")" >/dev/null 2>&1; then
+                echo "FAIL $(basename "$f"): $ref and $other disagree"
+                diff "$scratch/$ref/$(basename "$f")" "$scratch/$other/$(basename "$f")" \
+                    | head -8 | sed 's/^/       /'
+                bad=1
+            fi
+        done
+    done
+
+    # The fixtures table in spec/diagnostics-coverage.md, checked against the
+    # lints that were just rendered. It lived in `diagnostics-coverage`, which
+    # read the committed `.lint` goldens; that step is text-only and stays so.
+    local code langs fixtures actual
+    while read -r code langs; do
+        [ -n "$code" ] || continue
+        actual="$(grep -l "$code" "$scratch/$ref"/*.lint 2>/dev/null \
+            | sed 's|.*/||; s|\.lint$||' | sort | tr '\n' ' ')"
+        actual="$(echo $actual)"
+        [ -z "$actual" ] && actual="-"
+        fixtures="$(echo $langs)"
+        if [ "$actual" != "$fixtures" ]; then
+            echo "FAIL $code: spec/diagnostics-coverage.md says fixtures [$fixtures], $ref renders [$actual]"
+            bad=1
+        fi
+    done < <(sed -n '/^```fixtures$/,/^```$/p' spec/diagnostics-coverage.md | sed '1d;$d')
+
+    [ "$bad" -eq 0 ] && echo "ok   ${#present[@]} implementations agree on $n renderings (${present[*]})"
+    rm -rf "$scratch"
+    return "$bad"
+}
+
 step_conformance() {
-    require_goldens || return 1
+    require_fixtures || return 1
     (cd rust && cargo run -q -p tabula-conformance $CARGO_FLAGS) || return 1
     # Smoke-run table-diff. It is a documented tool with a `just` recipe and a
     # `nix run` app, and until now nothing ever executed it -- `cargo clippy
@@ -372,7 +496,7 @@ step_kotlin_conformance() {
         echo "skip kotlin-conformance (\$KOTLINC not found)"
         return 0
     fi
-    require_goldens || return 1
+    require_fixtures || return 1
     local out
     out="$(mktemp -d)"
     (
@@ -1392,7 +1516,7 @@ step_swift_conformance() {
         echo "skip swift-conformance (\$SWIFT not found)"
         return 0
     fi
-    require_goldens || return 1
+    require_fixtures || return 1
     local scratch
     scratch="$(mktemp -d)"
     swift_home "$scratch"
@@ -1481,24 +1605,21 @@ KTLINT="${KTLINT:-ktlint}"
 # Narrow on purpose. Adopting ktlint as a style gate would mean making the whole
 # tree ktlint-clean, which is a separate decision; this guards the one property
 # the library actually depends on.
-# Every fixture has every golden.
+# Every fixture is complete: a table and a trace.
 #
-# The conformance harness already catches a missing golden -- it is what caught
-# `dead-column.mmd`. But only once an ADAPTER exists, because the harness walks
-# adapters and checks the goldens each one needs. A fixture added ahead of its
-# adapters, which is how every fixture here has been added, sits incomplete and
-# reports nothing until three patches later.
-#
-# GOLDEN_EXTS is the list either way, so this asks the same question earlier
-# and without a toolchain: for each `.tbl`, does every extension exist?
+# It used to ask for the four renderings too, when those were committed. They
+# are produced at check time now (`renderings-agree`), so what is left to
+# check here is the pair a human authors -- and a fixture with no trace is
+# still a fixture that checks a table and no behaviour.
 # This script never blesses.
 #
 # It is the single definition of green, and a definition of green that can
 # rewrite what it compares against is not one: a step run with a bless flag
 # passes by construction. The one golden set left -- spec/conformance/, the
-# cross-language contract -- is blessed by calling Rust's harness directly,
-# `cargo run -p tabula-conformance -- --bless`, and read and committed by a
-# person. Emitted source has no goldens at all; see step_no_generated.
+# cross-language contract -- is authored by hand: `.tbl` and `.trace` are
+# written by a person, and the renderings of them are produced by every
+# implementation at check time and diffed (`renderings-agree`). Nothing in
+# this repository is blessed any more; see also step_no_generated.
 #
 # Not hypothetical: swift-codegen briefly took a TABULA_BLESS variable. So
 # this fails on any COMMAND in tools/verify or nix/ that mentions a bless flag
@@ -1560,12 +1681,11 @@ step_fixtures_complete() {
         name="$(basename "$tbl" .tbl)"
         n=$((n + 1))
         missing=""
-        for ext in $GOLDEN_EXTS; do
-            [ -f "$d/$name.$ext" ] || missing="$missing $ext"
-        done
-        # A trace is not in GOLDEN_EXTS -- it is an input, not an expectation --
-        # and a fixture without one checks a table and no behaviour.
         [ -f "$d/traces/$name.trace" ] || missing="$missing trace"
+        # A rendering that IS committed is a golden nobody asked for.
+        for ext in $RENDERINGS; do
+            [ -f "$d/$name.$ext" ] && missing="$missing (committed $ext)"
+        done
 
         if [ -n "$missing" ]; then
             echo "FAIL $name is missing:$missing"
@@ -1577,10 +1697,11 @@ step_fixtures_complete() {
         echo "FAIL no fixtures found in $d"
         bad=1
     elif [ "$bad" -eq 0 ]; then
-        echo "ok   $n fixtures, each with $GOLDEN_EXTS and a trace"
+        echo "ok   $n fixtures, each with a table and a trace"
     else
-        echo "     Bless what is missing, or generate it:"
-        echo "       cd rust && cargo run -p tabula-conformance -- --bless"
+        echo "     A fixture is a .tbl and a .trace, both authored. The"
+        echo "     renderings ($RENDERINGS) are produced at check time by"
+        echo "     every implementation and diffed -- see renderings-agree."
     fi
     return "$bad"
 }
@@ -1668,38 +1789,89 @@ step_diagnostics_coverage() {
     # it catches is movement in either direction: a fixture that stops tripping
     # a lint it used to, and a lint that gains coverage without the table
     # noticing. Closing a gap is then a diff here, which is the point.
-    local fixtures actualf
-    while read -r code langs; do
-        [ -n "$code" ] || continue
-        actualf="$(grep -l "$code" spec/conformance/*.lint 2>/dev/null \
-            | sed 's|.*/||; s|\.lint$||' | sort | tr '\n' ' ')"
-        actualf="$(echo $actualf)"
-        [ -z "$actualf" ] && actualf="-"
-        fixtures="$(echo $langs)"
-        if [ "$actualf" != "$fixtures" ]; then
-            echo "FAIL $code: $doc says fixtures [$fixtures], goldens say [$actualf]"
-            bad=1
-        fi
-    done < <(sed -n '/^```fixtures$/,/^```$/p' "$doc" | sed '1d;$d')
+    # The fixtures block of that file is checked by `renderings-agree`, which
+    # has the rendered lints in hand. This step stays text-only: it needs no
+    # toolchain, and a check that needs one cannot run everywhere this does.
 
     [ "$bad" -eq 0 ] && echo "ok   $n diagnostic codes agree across three implementations"
     return "$bad"
 }
 
-# The Swift matrix has no formatter guarding it. This guards the guard.
+# Matrix rows must survive `swift-format`, the same claim rust-matrix-stable
+# and kotlin-matrix-stable make for their formatters.
 #
-# `swift-matrix-stable` is not written, because swift-format is a remote
-# SwiftPM package and adding it is a real cost with a version trap in it (see
-# PLAN). So `Turnstile.tb.swift` survives for a reason worth naming precisely:
-# nothing formats it. That is luck, and luck expires the day someone adds
-# swift-format to the repository -- at which point it collapses the matrix on
-# its first run, and `swift-fmt --check` would then demand the collapsed form
-# forever after, exactly as rustfmt would.
+# Swift's exemption is `// swift-format-ignore-file`, the whole of what
+# swift-format offers -- it has no per-glob rule configuration. So this runs
+# the formatter over a copy of each `.tb.swift` and requires the file to come
+# back byte for byte: with the directive there is nothing for the formatter to
+# change, matrix or otherwise.
 #
-# The expiry is what is checkable today with no dependency at all. If a
-# swift-format configuration appears, it must already exclude `.tb.swift`. A
-# config that arrives without the exemption is the moment the matrix breaks,
-# and this is the check that is standing there when it does.
+# The liveness probe is the part worth keeping honest. A check that runs a
+# formatter which silently does nothing -- wrong subcommand, wrong arguments,
+# a binary that exits zero on unknown flags -- passes every file and proves
+# nothing. So it first formats a deliberately misformatted file and requires
+# THAT to change. If it does not, the check says it cannot tell whether the
+# formatter ran, rather than reporting seventeen passes.
+step_swift_matrix_stable() {
+    if ! command -v swift-format >/dev/null 2>&1; then
+        echo "skip swift-matrix-stable (swift-format not found)"
+        return 0
+    fi
+
+    local scratch f n=0 bad=0
+    scratch="$(mktemp -d)"
+
+    # 1. Liveness: does the formatter actually rewrite anything?
+    printf 'let probe   =    1\n' > "$scratch/probe.swift"
+    swift-format format --in-place "$scratch/probe.swift" 2>/dev/null
+    if [ "$(cat "$scratch/probe.swift")" = "let probe   =    1" ]; then
+        echo "FAIL swift-format left a deliberately misformatted file alone,"
+        echo "     so this check cannot tell whether it ran at all. Check the"
+        echo "     invocation before trusting any pass below."
+        rm -rf "$scratch"
+        return 1
+    fi
+
+    # 2. Every matrix file, unchanged.
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        n=$((n + 1))
+        cp "$f" "$scratch/subject.swift"
+        if ! swift-format format --in-place "$scratch/subject.swift" 2>"$scratch/err"; then
+            echo "FAIL swift-format could not read $f"
+            sed 's/^/       /' "$scratch/err"
+            bad=1
+            continue
+        fi
+        if diff -q "$f" "$scratch/subject.swift" >/dev/null; then
+            echo "ok   $f"
+        else
+            echo "FAIL swift-format changed $f"
+            diff "$f" "$scratch/subject.swift" | head -8 | sed 's/^/       /'
+            echo "     Its rows are a grid. Check that"
+            echo "     \`// swift-format-ignore-file\` is still the first line."
+            bad=1
+        fi
+    done < <(find . -name '*.tb.swift' -not -path './.git/*' -not -path '*/.build/*' | sort)
+
+    if [ "$n" -eq 0 ]; then
+        echo "FAIL no .tb.swift found; this scan checked nothing"
+        bad=1
+    elif [ "$bad" -eq 0 ]; then
+        echo "ok   $n Swift matrices survive swift-format"
+    fi
+    rm -rf "$scratch"
+    return "$bad"
+}
+
+# The two things a config could do wrong, neither needing a toolchain.
+#
+# `swift-matrix-stable` above runs swift-format and is the real guard, but it
+# skips where swift-format is absent. This one holds with nothing installed:
+# every `.tb.swift` must carry `// swift-format-ignore-file` -- the whole of
+# swift-format's exemption mechanism, since it has no per-glob rule
+# configuration -- and any config that appears must name `.tb.swift` too, for
+# whoever runs the formatter outside this script.
 step_swift_format_config() {
     local cfg found=0 bad=0
     while IFS= read -r cfg; do
@@ -1791,12 +1963,14 @@ step_matrix_covered() {
                 echo "ok   $f (rust-matrix-stable)"
                 ;;
             *.tb.swift)
-                # A known gap with a name, not an omission. swift-format is a
-                # remote SwiftPM package and there is no swift-matrix-stable
-                # yet; see PLAN. Reported through the ledger so it is counted
-                # rather than assumed.
-                echo "skip matrix-covered ($f: no swift-matrix-stable yet;"
-                echo "     swift-format is a remote package -- see PLAN)"
+                # Covered twice, as of swift-format arriving from the same
+                # nixpkgs pin as swift itself: `swift-matrix-stable` runs the
+                # formatter over each of these and requires the file back
+                # unchanged, and `swift-format-config` requires the
+                # `// swift-format-ignore-file` that makes that true -- the
+                # whole of swift-format's exemption mechanism. The second
+                # holds where no toolchain exists and the first skips.
+                covered=$((covered + 1))
                 ;;
             *)
                 uncovered="$uncovered  $f"$'\n'
@@ -2125,7 +2299,8 @@ steps=("$@")
            kotlin-examples kotlin-ksp kotlin-ksp-compile-fail kotlin-ksp-incremental \
            kotlin-matrix-stable rust-matrix-stable \
            matrix-covered swift-format-config diagnostics-coverage \
-           fixtures-complete no-bless no-generated \
+           fixtures-complete no-bless no-generated swift-matrix-stable \
+           renderings-agree \
            swift swift-compile-fail swift-conformance swift-examples \
            swift-codegen swift-macros)
 
@@ -2156,6 +2331,8 @@ for s in "${steps[@]}"; do
         fixtures-complete)   run fixtures-complete   step_fixtures_complete ;;
         no-bless)            run no-bless            step_no_bless ;;
         no-generated)        run no-generated        step_no_generated ;;
+        swift-matrix-stable) run swift-matrix-stable step_swift_matrix_stable ;;
+        renderings-agree)    run renderings-agree    step_renderings_agree ;;
         swift)               run swift               step_swift ;;
         swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
         swift-conformance)   run swift-conformance   step_swift_conformance ;;

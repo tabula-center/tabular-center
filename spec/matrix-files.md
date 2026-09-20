@@ -137,8 +137,10 @@ Two examples carry it, one per language that can:
   `Retry`, `ObservableCounter` and `Timer` the same way; `Login`'s table was
   a top-level `SESSION_TABLE` and stays one, in `Login.tb.swift`. None is
   checked for formatter stability yet: `swift-matrix-stable` waits on
-  swift-format, and `matrix-covered` lists each in the skip ledger. Each
-  carries `// swift-format-ignore-file`, as do the eleven macro fixtures.
+  swift-format. Each carries `// swift-format-ignore-file`, as do the eleven
+  macro fixtures. `swift-matrix-stable` runs swift-format over every one and
+  requires it back byte for byte; `swift-format-config` requires the directive
+  itself, and holds where no toolchain exists.
 - `examples/rust/01-traffic-light/src/machine.tb.rs` — the
   `transition_matrix!` invocation, reached with `#[path]`. Every Rust example
   now: `02-timer` and `03-retry` the same way, and `04-login`'s two matrices

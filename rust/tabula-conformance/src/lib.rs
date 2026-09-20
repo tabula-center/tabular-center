@@ -531,9 +531,11 @@ mod tests {
         // nothing checked them against each other: `spec_grid` lived in a
         // binary, where a test cannot reach it.
         //
-        // The `.grid` goldens are written by `to_grid`, so comparing against
-        // them compares the two renderers directly, on every fixture, for
-        // free.
+        // So compare the two renderers against each other directly, on every
+        // fixture: `spec_grid` reads the `.tbl` contract, `Adapter::grid`
+        // renders the machine's own TABLE, and they must agree. This went
+        // through the committed `.grid` goldens until those were removed;
+        // comparing the renderers is what the goldens were standing in for.
         let root =
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../spec/conformance");
         let mut checked = 0;
@@ -548,10 +550,15 @@ mod tests {
                 .expect("fixture name")
                 .to_string();
             let (spec, _) = super::load(&root, &name).expect(&name);
-            let golden =
-                std::fs::read_to_string(root.join(format!("{name}.grid"))).expect("golden grid");
-            let got = super::spec_grid(&spec);
-            assert_eq!(got, golden, "spec_grid drifted for {name}");
+            let adapter = super::machines::all()
+                .into_iter()
+                .find(|a| a.name() == name)
+                .unwrap_or_else(|| panic!("no adapter for {name}"));
+            assert_eq!(
+                super::spec_grid(&spec),
+                adapter.grid(),
+                "spec_grid and Adapter::grid drifted for {name}"
+            );
             checked += 1;
         }
         // Discovered rather than listed, so a new fixture is covered the

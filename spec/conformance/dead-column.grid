@@ -1,4 +1,0 @@
-Vend        Insert    Select  Refund
-Idle        HANDLE    IGNORE  IGNORE
-Charged     IGNORE    HANDLE  IGNORE
-Dispensing  GO(Idle)  IGNORE  IGNORE

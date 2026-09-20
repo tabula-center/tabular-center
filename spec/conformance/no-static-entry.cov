@@ -1,3 +1,0 @@
-Door: 9 cells (3x3), 0 required members
-  ignore 5 | go 3 | emit 1 | handle 0 | delegate 0 | unreachable 0
-  warning: `Jammed` has no static incoming transition

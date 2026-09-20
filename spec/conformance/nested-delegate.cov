@@ -1,2 +1,0 @@
-Job: 9 cells (3x3), 3 required members
-  ignore 5 | go 1 | emit 0 | handle 1 | delegate 2 | unreachable 0

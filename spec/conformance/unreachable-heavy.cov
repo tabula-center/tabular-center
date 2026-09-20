@@ -1,3 +1,0 @@
-Link: 12 cells (3x4), 1 required members
-  ignore 4 | go 3 | emit 1 | handle 1 | delegate 0 | unreachable 3
-  warning: 3 UNREACHABLE cell(s); usually a modelling error

@@ -50,10 +50,13 @@ The table above says the three implementations emit the same codes. It does not
 say any of them is ever *exercised* by a fixture, and that turned out to be a
 different and worse question.
 
-The `.lint` goldens are the only cross-language check on lint behaviour: each
-implementation renders `report(table, payloads)` and all three must produce the
-same bytes. When this section was written, two codes appeared across all six
-fixtures; across today's eleven, all seven runtime lints do.
+The rendered `.lint` output is the only cross-language check on lint
+behaviour: each implementation renders `report(table, payloads)` and all three
+must produce the same bytes. Nothing is committed -- `renderings-agree` renders
+from every implementation present and diffs them -- and that step also checks
+the table below against the lints it just rendered. When this section was
+written, two codes appeared across all six fixtures; across today's eleven, all
+seven runtime lints do.
 
 ```fixtures
 tabula::dead-column        dead-column

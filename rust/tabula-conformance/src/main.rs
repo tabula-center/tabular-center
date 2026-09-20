@@ -37,49 +37,35 @@ fn check_trace(adapter: &dyn Adapter, trace: &Trace) -> Vec<String> {
     errs
 }
 
-/// Compare a generated artifact against its golden file, or write it with
-/// `--bless`.
+/// Write one rendering out, when asked with `--emit=<dir>`.
 ///
-/// Used for both the grid and the lint report. Both are committed, so a change
-/// in either shows up in review as a diff of the *output* rather than only of
-/// the code that produces it.
-///
-/// The golden file is committed, so a behaviour change shows up in review as a
-/// table diff rather than only as a diff of macro invocation lines.
-fn check_golden(
-    root: &std::path::Path,
-    name: &str,
-    ext: &str,
-    got: &str,
-    bless: bool,
-) -> Vec<String> {
-    let path = root.join(format!("{name}.{ext}"));
-    if bless {
-        let _ = std::fs::write(&path, got);
-        return vec![];
-    }
-    match std::fs::read_to_string(&path) {
-        Ok(golden) if golden == got => vec![],
-        Ok(golden) => {
-            let mut errs = vec![format!("{ext} differs from {}:", path.display())];
-            for (n, (g, w)) in got.lines().zip(golden.lines()).enumerate() {
-                if g != w {
-                    errs.push(format!("  line {n}: got    |{g}|"));
-                    errs.push(format!("  line {n}: golden |{w}|"));
-                }
-            }
-            errs.push("  run with --bless to accept".into());
-            errs
+/// Nothing is compared here, and nothing is committed. `.tbl` and `.trace`
+/// are the contract; `.grid`, `.mmd`, `.lint` and `.cov` are renderings OF
+/// that contract, and every implementation produces its own at check time for
+/// `tools/verify renderings-agree` to diff against the others. A committed
+/// golden made one implementation's output the expectation for the other two,
+/// and had to be re-blessed whenever any of them changed a character.
+fn emit(dir: Option<&std::path::Path>, name: &str, ext: &str, got: &str) {
+    if let Some(dir) = dir {
+        let path = dir.join(format!("{name}.{ext}"));
+        if let Err(e) = std::fs::write(&path, got) {
+            eprintln!("could not write {}: {e}", path.display());
         }
-        Err(_) => vec![format!(
-            "no golden {ext} at {}; run with --bless to create it",
-            path.display()
-        )],
     }
 }
 
 fn main() -> ExitCode {
-    let bless = std::env::args().any(|a| a == "--bless");
+    // Where to write renderings, if anywhere. No `--bless`: there is nothing
+    // committed to bless.
+    let emit_dir =
+        std::env::args().find_map(|a| a.strip_prefix("--emit=").map(std::path::PathBuf::from));
+    if let Some(dir) = &emit_dir {
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            eprintln!("could not create {}: {e}", dir.display());
+            return ExitCode::FAILURE;
+        }
+    }
+    let emit_dir = emit_dir.as_deref();
     let root = spec_root();
     let mut failed = 0usize;
     let (mut tables, mut steps) = (0usize, 0usize);
@@ -96,18 +82,17 @@ fn main() -> ExitCode {
         };
 
         let mut errs = adapter.check_table(&spec);
-        errs.extend(check_golden(&root, name, "grid", &adapter.grid(), bless));
+        emit(emit_dir, name, "grid", &adapter.grid());
         // The diagram. The only output compared ACROSS implementations, and
         // the reason it is worth a golden: they had already drifted on edge
         // ordering before anything looked.
-        errs.extend(check_golden(&root, name, "mmd", &adapter.mermaid(), bless));
+        emit(emit_dir, name, "mmd", &adapter.mermaid());
         // The lints carry the most per-language logic there is -- thresholds,
         // the dead-row/no-static-exit subsumption, the fully-static gate on
         // reachability. Nothing compared them across languages until now, so a
         // rule could drift in one and nobody would know.
-        errs.extend(check_golden(&root, name, "lint", &adapter.lint(), bless));
-        let cov = adapter.coverage_report();
-        errs.extend(check_golden(&root, name, "cov", &cov, bless));
+        emit(emit_dir, name, "lint", &adapter.lint());
+        emit(emit_dir, name, "cov", &adapter.coverage_report());
         tables += 1;
 
         for t in &traces {

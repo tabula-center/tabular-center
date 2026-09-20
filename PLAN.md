@@ -232,6 +232,23 @@ The other direction, in priority order:
       hand, so the two front ends are diffed against one statement.
       `tabula::unknown-child` now also names the KSP case: a child must be
       compiled with its parent, since `@Machine` is `SOURCE`-retention
+- [x] **Rendered conformance output is not committed either.** `.tbl` and
+      `.trace` are authored and stay: they are the contract. `.grid`, `.mmd`,
+      `.lint` and `.cov` were blessed by Rust and read by the other two, which
+      made one implementation's output the expectation for the other two and
+      meant re-blessing whenever any renderer changed a character. All 44 are
+      gone. Each harness now writes its renderings with `--emit=<dir>`, and
+      `renderings-agree` renders from every implementation present and diffs
+      them -- failing, not passing, if fewer than two are present, since one
+      implementation agreeing with itself asserts nothing. It is the only
+      check that needs more than one toolchain, which is why it exists as a
+      step rather than as three. Two consumers moved with it: the fixtures
+      table in `spec/diagnostics-coverage.md` is now checked there, so
+      `diagnostics-coverage` stays text-only; and the Rust test that compared
+      `table-diff`'s renderer against the `.grid` goldens now compares it
+      against `Adapter::grid` directly, which is what the goldens stood in
+      for. What is lost: a lint or coverage change no longer shows as a diff
+      in review, only as agreement or disagreement.
 - [x] **Generated code is not committed** -- as source or as a golden. The
       emitted-source goldens (`kotlin/codegen/golden/`, `kotlin/ksp/golden/`,
       `swift/codegen-golden/`) are gone, and each guarantee they carried is
@@ -1530,8 +1547,9 @@ extension narrows that to exactly the files that need it.
       covered by it. **Swift**: `TrafficLight`, `Retry`, `ObservableCounter`
       and `Timer` hold their `Table` in an extension in a `.tb.swift`, as
       `SpecCheck` did; `Login`'s top-level `SESSION_TABLE` moved as it was.
-      Six `.tb.swift` files now sit in `matrix-covered`'s skip ledger until
-      `swift-matrix-stable` exists
+      Six `.tb.swift` files, covered by `swift-format-config` reading their
+      `// swift-format-ignore-file` -- cover by directive until
+      `swift-matrix-stable` runs a formatter over them
 - [x] `spec/tabula-fmt.md`: the contract. Written first for the reason
       `SURFACE.md` was — a formatter's contract is almost all of its risk, and
       it is the part reviewable by reading.
@@ -2160,23 +2178,21 @@ check cannot cover three.
       it on every one -- checkable with no toolchain, so it holds the day
       before swift-format arrives rather than the day after it collapses a
       grid.
-- [ ] `swift-matrix-stable`, against `swift-format` itself: run it over each
-      `.tb.swift` and compare the rows, as Rust's and Kotlin's steps do. Still
-      needs the formatter in the sandbox, which is the `swift-syntax` question
-      again -- a remote SwiftPM package, offline build. `tools/swift-lock`
-      solves that shape already, so it is a dependency and a step, not new
-      machinery. Two routes, in order of preference:
-      1. `swift-format` from nixpkgs, if the pinned `nixpkgs-swift` carries a
-         version matching swift-syntax 509. No lock entry, no build, and the
-         version question is answered by the same pin that answers Swift's.
-      2. A `SwiftFormat` library dependency in `swift/macros` plus a tiny
-         executable target that formats a file, locked by `tools/swift-lock`.
-         More moving parts, and its API differs across swift-format releases,
-         which is the version trap this item has always carried.
+- [x] `swift-matrix-stable`, against `swift-format` itself. Route 1: the
+      pinned `nixpkgs-swift` carries swift-format 5.10.1, and `context.nix`
+      already put it in `swiftPkgs`, so this needed no lock entry, no build,
+      and no version question of its own -- the pin that answers Swift's
+      answers it. The step formats a copy of every `.tb.swift` and requires
+      the file back byte for byte, which the ignore directive makes true.
+      It opens with a liveness probe: swift-format must rewrite a
+      deliberately misformatted file first, or the step reports that it
+      cannot tell whether the formatter ran rather than passing seventeen
+      files. The SwiftPM-dependency route was not needed.
 - [x] A check that every `.tb.` file in the tree is covered by one of the
       three: `matrix-covered`. It enumerates the files that exist and asks
-      which scan reaches each, and reports `.tb.swift` through the skip ledger
-      until `swift-matrix-stable` exists.
+      which scan reaches each. `.tb.swift` is covered by
+      `swift-format-config` reading its ignore directive: weaker than running
+      a formatter, and no longer a skip, because something is looking.
 
 ## swift-matrix-stable — the cost, and what stands in until it is paid
 

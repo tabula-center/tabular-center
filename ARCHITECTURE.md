@@ -851,10 +851,10 @@ tabula/
 │       ├── retry.tbl
 │       ├── nested-delegate.tbl
 │       ├── effects-never.tbl
-│       ├── <name>.grid          # golden matrix; Rust blesses, others read
-│       ├── <name>.lint          # golden lint output; same rule
-│       ├── <name>.cov           # golden coverage report; same rule
 │       └── traces/<name>.trace  # (state, action) → expected (state, effects)
+│                                 #   .grid/.mmd/.lint/.cov are NOT here: each
+│                                 #   implementation renders its own at check
+│                                 #   time and `renderings-agree` diffs them
 │
 ├── rust/
 │   ├── Cargo.toml               # workspace

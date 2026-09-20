@@ -1,7 +1,0 @@
-stateDiagram-v2
-    [*] --> Down
-    Down --> Dialing: Dial
-    Dialing --> Dialing: Ack / ?handle
-    Dialing --> Down: Hangup
-    Up --> Down: Hangup
-    Up --> Up: Ping / Pong
