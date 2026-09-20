@@ -874,7 +874,7 @@ tabula/
 │   ├── core/dev/tabula/         # Step, Cell, Table, Export, Lint, Driver
 │   ├── annotations/dev/tabula/  # @Machine, @Row, @Path, cell markers
 │   ├── testing/dev/tabula/testing/
-│   ├── codegen/                 # MachineDesc -> String, + golden/ and compile_fail/
+│   ├── codegen/                 # MachineDesc -> String, + support/ and compile_fail/
 │   ├── ksp/                     # JVM processor — Gradle, offline via nix/gradle-lock.json
 │   ├── test/                    # reference machine + harness
 │   ├── conformance/
@@ -887,6 +887,8 @@ tabula/
 │   ├── Sources/TabulaCodegen/   # the emitter; no SwiftSyntax, so it builds offline
 │   ├── Sources/TabulaCheck/     # reference machine + harness (no XCTest available)
 │   ├── Sources/TabulaConformance/
+│   ├── codegen-support/         # what the emitted source is compiled against:
+│   │                             #   types, complete impls, and refusals
 │   ├── compile_fail/
 │   └── macros/                  # separate package: the only one linking
 │                                 #   swift-syntax. MachineSyntax + fixtures/;

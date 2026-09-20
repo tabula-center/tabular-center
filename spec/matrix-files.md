@@ -72,10 +72,20 @@ ktlint_standard_argument-list-wrapping = disabled
 ktlint_standard_indent = disabled
 ```
 
-**Swift** — `.swift-format`, via `swift-format`'s ignore file, or by excluding
-the pattern from the formatter invocation. swift-format has no in-file
-suppression comparable to rustfmt's `ignore`, so the exclusion belongs in
-whatever runs it.
+**Swift** — `// swift-format-ignore-file`, the first line of the file:
+
+```swift
+// swift-format-ignore-file
+```
+
+It does have an in-file suppression comparable to rustfmt's `ignore`, contrary
+to what this paragraph said until September 2026, and it is the better of the
+two mechanisms available: swift-format has no per-glob rule configuration, so
+the alternative is excluding the pattern from whatever invokes the formatter —
+one more thing to remember in every invocation, and invisible from the file it
+protects. `swift-format-config` requires the directive on every `.tb.swift`,
+which holds whether or not a config exists and whether or not anyone has run a
+formatter yet.
 
 ## Rust moves types, not just text
 
@@ -127,7 +137,8 @@ Two examples carry it, one per language that can:
   `Retry`, `ObservableCounter` and `Timer` the same way; `Login`'s table was
   a top-level `SESSION_TABLE` and stays one, in `Login.tb.swift`. None is
   checked for formatter stability yet: `swift-matrix-stable` waits on
-  swift-format, and `matrix-covered` lists each in the skip ledger.
+  swift-format, and `matrix-covered` lists each in the skip ledger. Each
+  carries `// swift-format-ignore-file`, as do the eleven macro fixtures.
 - `examples/rust/01-traffic-light/src/machine.tb.rs` — the
   `transition_matrix!` invocation, reached with `#[path]`. Every Rust example
   now: `02-timer` and `03-retry` the same way, and `04-login`'s two matrices

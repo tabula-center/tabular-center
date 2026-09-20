@@ -1053,9 +1053,10 @@ four fixtures pass, with the same golden `.grid` and `.lint` files.
 - [x] Reference machine and compile-fail suite, the counterparts of
       `reference_timer.rs` and `kotlin/compile_fail/`
 - [x] `Sources/TabulaCodegen`: the same `MachineDesc -> String` split Kotlin
-      took, with a golden diff and 13 declaration diagnostics. *The golden was
-      never committed, and the emitted source is never compiled; see the
-      September 2026 audit.* Split for the
+      took, with 13 declaration diagnostics. *Its golden diff was later
+      removed with every other emitted-source golden: `swift-codegen`
+      compiles the output instead. See the audit, and "Generated code is not
+      committed" below.* Split for the
       same reason and it paid the same way — the generator's logic is testable
       without the macro that does not exist yet.
 - [x] `Store` and `actor AsyncStore`. A `Driver` takes its two closures on
@@ -2151,14 +2152,27 @@ check cannot cover three.
 - [x] Both fail on an empty scan. `for f in $(grep -rl ...)` matching nothing
       prints nothing and returns zero, which is how either check would report
       success after a rename moved every matrix out from under it.
-- [ ] `swift-matrix-stable`, against `swift-format`. Blocked on the same
-      question `swift-syntax` was: the formatter is a remote SwiftPM package
-      and the sandbox is offline. `tools/swift-lock` already solves that shape,
-      so this is adding a dependency to `swift/macros` and a step, not new
-      machinery. Until it lands,
-      `examples/swift-examples/Sources/SpecCheck/Turnstile.tb.swift` has no
-      formatter guarding it — and no formatter running over it either, so
-      nothing has broken it. That is luck, not a design.
+- [x] The exemption, which needed no dependency and was mis-specified:
+      `spec/matrix-files.md` said swift-format has no in-file suppression. It
+      has `// swift-format-ignore-file`, and since swift-format has no
+      per-glob rule configuration, that directive is the whole mechanism. All
+      seventeen `.tb.swift` files carry it, and `swift-format-config` requires
+      it on every one -- checkable with no toolchain, so it holds the day
+      before swift-format arrives rather than the day after it collapses a
+      grid.
+- [ ] `swift-matrix-stable`, against `swift-format` itself: run it over each
+      `.tb.swift` and compare the rows, as Rust's and Kotlin's steps do. Still
+      needs the formatter in the sandbox, which is the `swift-syntax` question
+      again -- a remote SwiftPM package, offline build. `tools/swift-lock`
+      solves that shape already, so it is a dependency and a step, not new
+      machinery. Two routes, in order of preference:
+      1. `swift-format` from nixpkgs, if the pinned `nixpkgs-swift` carries a
+         version matching swift-syntax 509. No lock entry, no build, and the
+         version question is answered by the same pin that answers Swift's.
+      2. A `SwiftFormat` library dependency in `swift/macros` plus a tiny
+         executable target that formats a file, locked by `tools/swift-lock`.
+         More moving parts, and its API differs across swift-format releases,
+         which is the version trap this item has always carried.
 - [x] A check that every `.tb.` file in the tree is covered by one of the
       three: `matrix-covered`. It enumerates the files that exist and asks
       which scan reaches each, and reports `.tb.swift` through the skip ledger

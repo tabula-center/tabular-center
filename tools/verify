@@ -1726,6 +1726,36 @@ step_swift_format_config() {
     if [ "$found" -eq 0 ]; then
         echo "ok   no swift-format config; nothing formats Swift here yet"
     fi
+
+    # The exemption itself, which is in the files rather than in a config.
+    #
+    # swift-format has no per-glob rule exemptions -- the whole mechanism is
+    # `// swift-format-ignore-file` in the leading comment of the file. So the
+    # directive is the only thing standing between a matrix and the first
+    # person to run swift-format over this tree, whether or not a config ever
+    # appears, and whether or not `swift-matrix-stable` exists yet.
+    #
+    # Checkable with no toolchain at all, which is the point: it holds the day
+    # before swift-format arrives, not the day after it collapses a grid.
+    local f n=0
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        n=$((n + 1))
+        if ! grep -qx "// swift-format-ignore-file" "$f"; then
+            echo "FAIL $f has no \`// swift-format-ignore-file\`"
+            echo "     Its rows are column-aligned on purpose, and that"
+            echo "     directive is swift-format's only per-file exemption."
+            echo "     See spec/matrix-files.md."
+            bad=1
+        fi
+    done < <(find . -name '*.tb.swift' -not -path './.git/*' -not -path '*/.build/*' | sort)
+
+    if [ "$n" -eq 0 ]; then
+        echo "FAIL no .tb.swift found; this scan checked nothing"
+        bad=1
+    elif [ "$bad" -eq 0 ]; then
+        echo "ok   $n .tb.swift files carry swift-format's ignore directive"
+    fi
     return "$bad"
 }
 

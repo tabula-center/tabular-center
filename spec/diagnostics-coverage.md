@@ -6,11 +6,12 @@ The check compares this table against what the source actually contains and
 fails on any disagreement in either direction.
 
 It exists because nothing compared the three. The divergence below was found by
-looking, not by a check, after this file's absence had let it sit: Rust emits
-twelve of the twenty-one codes, and Kotlin and Swift emit twenty -- every code
-but `tabula::color-mismatch`, which nobody emits by decision (see the last
-section). The gap is
-defensible — see the notes — but "defensible" and "nobody noticed" are
+looking, not by a check, after this file's absence had let it sit: of the
+twenty-two codes, Rust emits thirteen, and Kotlin and Swift emit twenty each.
+Two are emitted by nobody, each for a stated reason:
+`tabula::color-mismatch` by decision (see the last section), and
+`tabula::unsupported-color` because only Rust can have it, and does. The gaps
+are defensible — see the notes — but "defensible" and "nobody noticed" are
 different states, and only one of them survives a refactor.
 
 ```coverage
