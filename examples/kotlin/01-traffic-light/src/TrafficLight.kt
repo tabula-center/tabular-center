@@ -9,9 +9,7 @@
  */
 package examples.trafficlight
 
-import dev.tabula.Cell
 import dev.tabula.Step
-import dev.tabula.Table
 
 sealed interface S {
     data object Red : S
@@ -44,18 +42,6 @@ fun step(cells: Cells, ctx: Ctx, s: S, a: A): Step<S, Nothing> = when (s) {
         is A.Fault -> Step.Go(S.Red)
     }
 }
-
-val TABLE = Table(
-    machine = "TrafficLight",
-    states = listOf("Red", "Green", "Amber"),
-    actions = listOf("Advance", "Fault"),
-    initial = "Red",
-    cells = listOf(
-        listOf(Cell.Go("Green"), Cell.Go("Red")),
-        listOf(Cell.Go("Amber"), Cell.Go("Red")),
-        listOf(Cell.Handle, Cell.Go("Red")),
-    ),
-)
 
 class Controller : Cells {
     /**

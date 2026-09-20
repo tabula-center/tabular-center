@@ -117,6 +117,11 @@ Two examples carry it, one per language that can:
 
 - `examples/kotlin/06-generated/src/Machine.tb.kt` — the annotated declaration
   KSP reads.
+- `examples/kotlin/01`–`05` — each hand-written example's `Table` literal, in
+  `<Name>.tb.kt` beside the handlers. `04-login` holds two, as top-level
+  `AUTH_TABLE` and `SESSION_TABLE`, because an `object` cannot span files;
+  `auth.TABLE` and `session.TABLE` still name them. `kotlin-matrix-stable`
+  checks every `.tb.kt`, `Cell.` rows included, and fails one with no rows.
 - `examples/swift-examples/Sources/SpecCheck/Turnstile.tb.swift` — the `Table`
   literal, moved out of `Turnstile.swift` into an extension.
 - `examples/rust/01-traffic-light/src/machine.tb.rs` — the

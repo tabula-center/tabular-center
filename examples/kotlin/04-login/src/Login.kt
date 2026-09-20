@@ -13,9 +13,7 @@
  */
 package examples.login
 
-import dev.tabula.Cell
 import dev.tabula.Step
-import dev.tabula.Table
 
 /** The child: authentication, written knowing nothing about sessions. */
 object auth {
@@ -54,17 +52,7 @@ object auth {
         }
     }
 
-    val TABLE = Table(
-        machine = "Auth",
-        states = listOf("AwaitingCredentials", "Authenticated", "LockedOut"),
-        actions = listOf("Submit", "Reset"),
-        initial = "AwaitingCredentials",
-        cells = listOf(
-            listOf(Cell.Handle, Cell.Go("AwaitingCredentials", listOf("Prompt"))),
-            listOf(Cell.Ignore, Cell.Go("AwaitingCredentials", listOf("Prompt"))),
-            listOf(Cell.Ignore, Cell.Ignore),
-        ),
-    )
+    val TABLE = AUTH_TABLE
 }
 
 object session {
@@ -149,17 +137,7 @@ object session {
         }
     }
 
-    val TABLE = Table(
-        machine = "Session",
-        states = listOf("LoggedOut", "Active", "Banned"),
-        actions = listOf("Credentials", "StartOver", "Logout"),
-        initial = "LoggedOut",
-        cells = listOf(
-            listOf(Cell.Delegate("auth"), Cell.Delegate("auth"), Cell.Ignore),
-            listOf(Cell.Ignore, Cell.Ignore, Cell.Go("Banned", listOf("Audit"))),
-            listOf(Cell.Ignore, Cell.Ignore, Cell.Ignore),
-        ),
-    )
+    val TABLE = SESSION_TABLE
 }
 
 /** One object satisfying both machines' surfaces. */

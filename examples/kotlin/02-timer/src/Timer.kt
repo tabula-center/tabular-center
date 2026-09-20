@@ -7,9 +7,7 @@
  */
 package examples.timer
 
-import dev.tabula.Cell
 import dev.tabula.Step
-import dev.tabula.Table
 
 sealed interface S {
     data object Idle : S
@@ -65,18 +63,6 @@ fun perform(cells: Cells, ctx: Ctx, f: F): A? = when (f) {
     is F.StartClock -> cells.startClock(ctx, f)
     is F.StopClock -> cells.stopClock(ctx, f)
 }
-
-val TABLE = Table(
-    machine = "Timer",
-    states = listOf("Idle", "Running", "Done"),
-    actions = listOf("Start", "Tick", "Cancel"),
-    initial = "Idle",
-    cells = listOf(
-        listOf(Cell.Handle, Cell.Ignore, Cell.Ignore),
-        listOf(Cell.Ignore, Cell.Handle, Cell.Go("Idle", listOf("StopClock"))),
-        listOf(Cell.Go("Running", listOf("StartClock")), Cell.Ignore, Cell.Ignore),
-    ),
-)
 
 class Impl : Cells {
     override fun idleStart(ctx: Ctx, state: S.Idle, action: A.Start) =

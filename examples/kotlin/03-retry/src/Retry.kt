@@ -8,10 +8,8 @@
  */
 package examples.retry
 
-import dev.tabula.Cell
 import dev.tabula.Driver
 import dev.tabula.Step
-import dev.tabula.Table
 
 sealed interface S {
     data object Ready : S
@@ -64,18 +62,6 @@ fun perform(cells: Cells, ctx: Ctx, f: F): A? = when (f) {
     is F.Sleep -> cells.sleep(ctx, f)
     is F.GiveUp -> cells.giveUp(ctx, f)
 }
-
-val TABLE = Table(
-    machine = "Retry",
-    states = listOf("Ready", "Waiting", "Exhausted"),
-    actions = listOf("Attempt", "Elapsed", "Abort"),
-    initial = "Ready",
-    cells = listOf(
-        listOf(Cell.Handle, Cell.Ignore, Cell.Go("Exhausted")),
-        listOf(Cell.Ignore, Cell.Handle, Cell.Go("Exhausted")),
-        listOf(Cell.Ignore, Cell.Ignore, Cell.Ignore),
-    ),
-)
 
 class Impl : Cells {
     override fun readyAttempt(ctx: Ctx, state: S.Ready, action: A.Attempt) =

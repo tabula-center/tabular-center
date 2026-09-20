@@ -19,10 +19,8 @@
  */
 package examples.suspending
 
-import dev.tabula.Cell
 import dev.tabula.Step
 import dev.tabula.SuspendDriver
-import dev.tabula.Table
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.startCoroutine
@@ -61,22 +59,6 @@ interface Cells {
     suspend fun idleStart(ctx: Ctx, state: S.Idle, action: A.Start): Step<S, F>
     suspend fun loadingArrived(ctx: Ctx, state: S.Loading, action: A.Arrived): Step<S, F>
 }
-
-//            Start    Arrived   Give
-// Idle       HANDLE   IGNORE    IGNORE
-// Loading    IGNORE   HANDLE    GO(Loaded)
-// Loaded     IGNORE   IGNORE    IGNORE
-val TABLE = Table(
-    machine = "Fetch",
-    states = listOf("Idle", "Loading", "Loaded"),
-    actions = listOf("Start", "Arrived", "Give"),
-    initial = "Idle",
-    cells = listOf(
-        listOf(Cell.Handle, Cell.Ignore, Cell.Ignore),
-        listOf(Cell.Ignore, Cell.Handle, Cell.Go("Loaded")),
-        listOf(Cell.Ignore, Cell.Ignore, Cell.Ignore),
-    ),
-)
 
 /** The generated dispatcher, suspending because the cells are. */
 suspend fun step(c: Cells, ctx: Ctx, s: S, a: A): Step<S, F> = when (s) {

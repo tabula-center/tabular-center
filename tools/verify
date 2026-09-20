@@ -1913,16 +1913,30 @@ step_kotlin_matrix_stable() {
         (cd "$scratch" && "$KTLINT" --format "$root/**/*.kt" >/dev/null 2>&1) || true
     done
 
+    # Every `.tb.kt`, not only files carrying `@Row` / `@Machine`. The
+    # hand-written examples' matrices are `Table(...)` literals, whose rows are
+    # `Cell.` lines; matrix-covered counts every `.tb.kt` under these roots as
+    # covered HERE, so a `.tb.kt` this scan skipped would have been reported
+    # covered and checked by nothing.
+    local pat='@Row(\|@Machine(\|CellSpec(\|Cell\.'
     for root in "${roots[@]}"; do
-        for f in $(cd "$root" && grep -rl "@Row(\|@Machine(" . 2>/dev/null); do
+        for f in $( (cd "$root" && { grep -rl "@Row(\|@Machine(" . 2>/dev/null
+            find . -name '*.tb.kt' -type f; } | sort -u) ); do
             found=$((found + 1))
+            # A `.tb.kt` with no matrix lines would compare empty to empty and
+            # pass. It is a file claiming the exemption for nothing.
+            if [ "${f%.tb.kt}" != "$f" ] && ! grep -q "$pat" "$root/$f"; then
+                echo "FAIL $root/$f is a .tb.kt with no matrix rows in it"
+                bad=1
+                continue
+            fi
             if ! diff -q \
-                <(grep -h "@Row(\|@Machine(\|CellSpec(" "$root/$f") \
-                <(grep -h "@Row(\|@Machine(\|CellSpec(" "$scratch/$root/$f") >/dev/null; then
+                <(grep -h "$pat" "$root/$f") \
+                <(grep -h "$pat" "$scratch/$root/$f") >/dev/null; then
                 echo "FAIL ktlint --format changed the matrix in $root/$f"
                 diff \
-                    <(grep -h "@Row(\|@Machine(\|CellSpec(" "$root/$f") \
-                    <(grep -h "@Row(\|@Machine(\|CellSpec(" "$scratch/$root/$f") | head -6
+                    <(grep -h "$pat" "$root/$f") \
+                    <(grep -h "$pat" "$scratch/$root/$f") | head -6
                 bad=1
             else
                 echo "ok   matrix rows survive ktlint --format: $root/$f"
