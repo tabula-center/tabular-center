@@ -303,24 +303,6 @@ private func refusals(_ d: MachineDesc) -> [String] {
     for v in d.states + d.actions + d.effects where v.hasPayload && v.fields.isEmpty {
         out.append("tabula: the payload fields of `\(v.name)` are unknown, so the generator cannot bind them")
     }
-    // A GO or EMIT names effects, and the model carries no arguments for one.
-    // `.stopClock` for `stopClock(reason:)` is not a value.
-    let payloaded = Set(d.effects.filter { $0.hasPayload }.map(\.name))
-    for (i, row) in d.rows.enumerated() {
-        for (j, c) in row.enumerated() {
-            let named: [String]
-            switch c {
-            case let .go(_, _, effects): named = effects
-            case let .emit(effects): named = effects
-            default: named = []
-            }
-            for e in named where payloaded.contains(e) {
-                out.append(
-                    "tabula: cell (\(d.states[i].name), \(d.actions[j].name)) emits `\(e)`, which carries "
-                        + "a payload; GO and EMIT cannot supply one yet. Use HANDLE.")
-            }
-        }
-    }
     return out
 }
 
@@ -349,6 +331,7 @@ private func arm(_ d: MachineDesc, _ i: Int, _ j: Int) -> String {
     case .unreachable:
         return "fatalError(\(q("tabula: \(d.states[i].name) x \(d.actions[j].name) was declared UNREACHABLE but occurred")))"
     case let .go(target, args, effects):
+        // Verbatim, arguments included: `.stopClock(reason: .cancelled)`.
         let e = effects.map { ".\(lower($0))" }.joined(separator: ", ")
         return ".go(.\(lower(target))\(args), effects: [\(e)])"
     case let .emit(effects):
@@ -362,10 +345,14 @@ private func cellData(_ c: CellDesc) -> String {
     case .ignore: return ".ignore"
     case .handle: return ".handle"
     case .unreachable: return ".unreachable"
+    // `TABLE` records WHICH effect a cell emits, not with what: the arguments
+    // are the dispatcher's, and the conformance goldens compare names.
     case let .go(target, _, effects):
-        return ".go(target: \(q(target)), effects: [\(effects.map(q).joined(separator: ", "))])"
+        let e = effects.map { q(effectName($0)) }.joined(separator: ", ")
+        return ".go(target: \(q(target)), effects: [\(e)])"
     case let .emit(effects):
-        return ".emit(effects: [\(effects.map(q).joined(separator: ", "))])"
+        let e = effects.map { q(effectName($0)) }.joined(separator: ", ")
+        return ".emit(effects: [\(e)])"
     case let .delegate(child):
         return ".delegate(child: \(q(child)))"
     }

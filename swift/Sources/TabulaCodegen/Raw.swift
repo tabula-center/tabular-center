@@ -129,6 +129,9 @@ public struct RawCell {
     public let target: String
     /// Literal constructor arguments for `target`, e.g. `"(since: 0)"`.
     public let args: String
+    /// The effects a static cell emits, as written, ARGUMENTS INCLUDED:
+    /// `["stopClock"]`, or `["stopClock(reason: .cancelled)"]`. Use
+    /// `effectName` for the part before `(`.
     public let effects: [String]
     public let child: String
 
@@ -242,10 +245,10 @@ private func cell(
     effectNames: [String], stateNames: [String], payloadStates: Set<String>
 ) throws -> CellDesc {
     func checkEffects() throws {
-        for e in c.effects where !effectNames.contains(e) {
+        for e in c.effects where !effectNames.contains(effectName(e)) {
             try fail(
                 "tabula::unknown-effect",
-                "cell (\(state), \(action)) emits `\(e)`, which is not a declared "
+                "cell (\(state), \(action)) emits `\(effectName(e))`, which is not a declared "
                     + "effect. Effects: \(effectNames.joined(separator: " "))")
         }
     }
@@ -423,4 +426,13 @@ private func derive(
         }
     }
     return c
+}
+
+/// An effect reference without its arguments: `stopClock(reason: .cancelled)`
+/// names the effect `stopClock`.
+///
+/// Which effect a cell emits is what validation and `TABLE` are about; with
+/// what is the dispatcher's business, and it emits the reference verbatim.
+public func effectName(_ ref: String) -> String {
+    String(ref.prefix(while: { $0 != "(" }))
 }

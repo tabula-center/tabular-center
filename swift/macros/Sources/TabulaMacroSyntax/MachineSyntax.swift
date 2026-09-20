@@ -346,14 +346,35 @@ public enum MachineSyntax {
     /// you for.
     static func effectNames(_ expr: ExprSyntax) -> [String] {
         if let array = expr.as(ArrayExprSyntax.self) {
-            return array.elements.compactMap {
-                $0.expression.as(MemberAccessExprSyntax.self)?.declName.baseName.text
-            }
+            return array.elements.compactMap { effectRef($0.expression) }
         }
+        return effectRef(expr).map { [$0] } ?? []
+    }
+
+    /// One effect as a static cell names it, ARGUMENTS INCLUDED:
+    /// `stopClock`, or `stopClock(reason: .cancelled)`.
+    ///
+    /// A payload-carrying effect is written as a call, so it parses as a
+    /// `FunctionCallExprSyntax` wrapping the member access. Matching only the
+    /// member access -- which this did until September 2026 -- made every such
+    /// effect vanish from the machine silently: not a diagnostic, not a
+    /// malformed cell, just a GO that emits nothing.
+    ///
+    /// The text is kept as the developer wrote it, so the dispatcher can emit
+    /// the call verbatim. `effectName` takes the part before `(` where only
+    /// the name is wanted -- validation, and `TABLE`, which is inert data
+    /// about which effect a cell emits and not with what.
+    static func effectRef(_ expr: ExprSyntax) -> String? {
         if let member = expr.as(MemberAccessExprSyntax.self) {
-            return [member.declName.baseName.text]
+            return member.declName.baseName.text
         }
-        return []
+        if let call = expr.as(FunctionCallExprSyntax.self),
+            let member = call.calledExpression.as(MemberAccessExprSyntax.self)
+        {
+            let args = call.arguments.map(\.trimmedDescription).joined(separator: ", ")
+            return "\(member.declName.baseName.text)(\(args))"
+        }
+        return nil
     }
 
     /// Every modifier and effect specifier on `handle`, in source order.

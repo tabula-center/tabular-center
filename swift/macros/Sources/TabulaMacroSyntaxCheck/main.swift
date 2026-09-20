@@ -392,6 +392,58 @@ do {
     }
 }
 
+// MARK: - A static cell's effect keeps its arguments
+//
+// `.stopClock(reason: .cancelled)` parses as a CALL wrapping the member
+// access. Reading only the member access dropped every payload-carrying
+// effect from the machine silently -- no diagnostic, just a GO that emits
+// nothing -- which is what this fixes and what this checks.
+do {
+    let source = """
+        @Machine
+        enum Gate {
+            enum S { case shut, open }
+            enum A { case push }
+            enum F { case chime, log(line: String) }
+            final class Ctx {}
+            static let initial = S.shut
+
+            //                          push
+            @Row(.shut) static let a = [ .go(.open, effects: [.chime, .log(line: "x")]) ]
+            @Row(.open) static let b = [ .emit([.log(line: "y")]) ]
+
+            func handle(_ ctx: Ctx, _ state: S, _ action: A) -> Step<S, F> { fatalError() }
+        }
+        """
+    let tree = Parser.parse(source: source)
+    if let decl = tree.statements.compactMap({ $0.item.as(EnumDeclSyntax.self) }).first {
+        do {
+            let raw = try MachineSyntax.read(decl)
+            let goCell = raw.rows[0].cells[0]
+            // Not `emit`: that is TabulaCodegen's function, and a local of
+            // that name shadows it three lines down.
+            let emitCell = raw.rows[1].cells[0]
+            check(
+                goCell.effects == ["chime", "log(line: \"x\")"],
+                "a GO keeps its effect arguments: got \(goCell.effects)")
+            check(
+                emitCell.effects == ["log(line: \"y\")"],
+                "an EMIT keeps its effect arguments: got \(emitCell.effects)")
+            let out = emit(try buildDesc(raw))
+            check(
+                out.contains(".log(line: \"x\")"),
+                "the dispatcher emits the call verbatim")
+            check(
+                out.contains("effects: [\"chime\", \"log\"]"),
+                "TABLE records the effect name without its arguments")
+        } catch {
+            check(false, "the machine with effect arguments is accepted: \(error)")
+        }
+    } else {
+        check(false, "the machine with effect arguments parses")
+    }
+}
+
 check(TabulaMacroSyntax.surface == "see SURFACE.md", "the module links")
 
 print("")

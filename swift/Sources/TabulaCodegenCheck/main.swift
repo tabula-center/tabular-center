@@ -222,7 +222,10 @@ func timerMachine(_ name: String, modifiers: [String] = []) -> RawMachine {
             RawRow("Idle", [RawCell("HANDLE"), RawCell("IGNORE"), RawCell("IGNORE")]),
             RawRow("Running", [
                 RawCell("IGNORE"), RawCell("HANDLE"),
-                RawCell("GO", target: "Idle", effects: ["StopClock"]),
+                // A static cell emitting a payload-carrying effect, arguments
+                // and all. The dispatcher emits the call verbatim; `TABLE`
+                // records the name.
+                RawCell("GO", target: "Idle", effects: ["StopClock", "Halt(reason: .cancelled)"]),
             ]),
             RawRow("Done", [
                 RawCell("GO", target: "Running", args: "(since: 0)", effects: ["StartClock"]),

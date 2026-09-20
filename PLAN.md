@@ -288,9 +288,23 @@ The other direction, in priority order:
       every machine's surface and every parent's `refines` clause for one
       bug. The macro check asserts the strings; `codegen-support` proves a
       qualified nested type resolves in the file-scope protocol
-- [ ] Effect arguments in GO/EMIT. `RawCell.effects` holds names, so a
-      static cell cannot emit `.stopClock(reason: .cancelled)` in any
-      generator's model. Refused loudly in Swift for now
+- [x] Effect arguments in GO/EMIT, in **Swift**. `RawCell.effects` holds the
+      reference as written, arguments included, and `effectName` takes the
+      part before `(` where only the name is wanted -- validation, and
+      `TABLE`, which records WHICH effect a cell emits and not with what. The
+      dispatcher emits the call verbatim, and the `#error` refusal is gone.
+      A bug came with it: `.stopClock(reason: .cancelled)` parses as a CALL
+      wrapping the member access, and `MachineSyntax` matched only the member
+      access -- so every payload-carrying effect in a static cell vanished
+      from the machine with no diagnostic at all. The macro check now asserts
+      the arguments survive; `codegen-support`'s timer emits one from a GO
+- [ ] Effect arguments in GO/EMIT, in **Kotlin**. Needs a surface change,
+      which Swift did not: `CellSpec(emit = [F.StopClock::class])` takes
+      classes, and a class cannot carry `reason = Reason.Cancelled`. Either a
+      parallel `emitArgs: Array<String>` -- ugly, and positional against
+      `emit` -- or effects named by a string when they carry a payload. Rust
+      has had this since the beginning, because `GO!(Idle, StopClock { reason: 0 })`
+      is tokens
 
 ---
 
