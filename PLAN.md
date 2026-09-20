@@ -184,6 +184,17 @@ The other direction, in priority order:
       advertised `-- --bless` turned out never to reach the step. Removed:
       the definition of green does not rewrite what it compares against.)
       A missing golden now fails, as in Kotlin, rather than skipping
+- [x] Kotlin's composition output was never compiled either: nothing -- not
+      the codegen check, not the KSP processor -- built a `ChildDesc`, so
+      `Emit.kt`'s delegation, and the color flow this file credited it with,
+      were read rather than verified. `kotlin-codegen` now emits and compiles
+      a child, a parent in both colors, a hole in the child, and a colored
+      child under a plain parent that must be refused
+- [ ] Kotlin's child alias doubles as a root package: the emitter writes
+      `<alias>.Cells` and `<alias>.step` with no import, and `<alias>ChildState`
+      as a member name. `ChildDesc.packageName` exists and is unused. Emit
+      imports from it, or qualify with it, so a child can live in
+      `com.example.retry`; and have the KSP processor build `ChildDesc` at all
 - [x] `no-bless`: `tools/verify` fails if any command in it or in `nix/`
       mentions a bless flag or variable. Comments and printed advice are
       allowed. Proven against the commit that had `TABULA_BLESS`
@@ -1061,8 +1072,9 @@ color-mismatch is a build error in all three.
       kotlinc error. Swift's generator does the same since the audit, and
       `codegen-support/compile_fail/job-mixed_*.swift` proves it: an uncolored
       parent over an `async throws` child is refused by swiftc, and
-      `complete/job-async.swift` shows the reverse compiles. Kotlin has no
-      fixture yet; Rust has no colors
+      `complete/job-async.swift` shows the reverse compiles. Kotlin now has
+      the same pair: `codegen/compile_fail/jobmixed_*.kt` and
+      `support/CompleteJobSuspend.kt`. Rust has no colors
 - [x] Kotlin half. `interface Cells : retry.Cells` — interfaces are Kotlin's
       trait bounds — with `compile_fail/child_hole_breaks_parent.kt` proving the
       property.

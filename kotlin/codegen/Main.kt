@@ -93,7 +93,92 @@ val stopwatchDesc = MachineDesc(
     ),
 )
 
-private val all = mapOf("timer" to timerDesc, "toggle" to toggleDesc, "stopwatch" to stopwatchDesc)
+/**
+ * The child in `test/Composition.kt`: a retry machine, written knowing nothing
+ * about any parent.
+ *
+ * Its package is a ROOT package named like the alias a parent delegates
+ * through, because the emitter reaches a child as `<alias>.Cells` and
+ * `<alias>.step` -- fully qualified names, with no import. So the alias is
+ * both an identifier and a package, and `retry` has to be both.
+ */
+fun retryDesc(pkg: String, mods: List<String> = emptyList()) = MachineDesc(
+    packageName = pkg,
+    machine = "Retry",
+    stateType = "S",
+    actionType = "A",
+    effectType = "F",
+    ctxType = "Ctx",
+    initial = "Ready",
+    states = listOf(
+        Variant("Ready"),
+        Variant("Waiting", hasPayload = true, fields = listOf("attempt" to "Int")),
+        Variant("Exhausted"),
+    ),
+    actions = listOf(Variant("Attempt"), Variant("Elapsed"), Variant("Abort")),
+    effects = listOf(Variant("Sleep"), Variant("GiveUp")),
+    rows = listOf(
+        listOf(CellDesc.Handle, CellDesc.Ignore, CellDesc.Go("Exhausted")),
+        listOf(CellDesc.Ignore, CellDesc.Handle, CellDesc.Go("Exhausted")),
+        listOf(CellDesc.Ignore, CellDesc.Ignore, CellDesc.Ignore),
+    ),
+    prototypeModifiers = mods,
+)
+
+/**
+ * The parent: its `Retrying` state holds the child's state, and two of its
+ * cells delegate to the child.
+ */
+fun jobDesc(pkg: String, child: String, mods: List<String> = emptyList()) = MachineDesc(
+    packageName = pkg,
+    machine = "Job",
+    stateType = "S",
+    actionType = "A",
+    effectType = "F",
+    ctxType = "Ctx",
+    initial = "Idle",
+    states = listOf(
+        Variant("Idle"),
+        Variant("Retrying", hasPayload = true, fields = listOf("child" to "$child.S")),
+        Variant("Done"),
+    ),
+    actions = listOf(Variant("Run"), Variant("Tick"), Variant("Cancel")),
+    effects = listOf(Variant("Log")),
+    rows = listOf(
+        listOf(CellDesc.Handle, CellDesc.Ignore, CellDesc.Ignore),
+        listOf(CellDesc.Delegate(child), CellDesc.Delegate(child), CellDesc.Go("Done", effects = listOf("Log"))),
+        listOf(CellDesc.Ignore, CellDesc.Ignore, CellDesc.Ignore),
+    ),
+    prototypeModifiers = mods,
+    children = listOf(ChildDesc(child, child, "S", "A", "F", "Ctx")),
+)
+
+/**
+ * Every machine whose emitted source must compile. Composition was emitted
+ * by `Emit.kt` from the start and never compiled: nothing built a
+ * [ChildDesc], here or in the KSP processor. These four are what compile it.
+ */
+private val all = mapOf(
+    "timer" to timerDesc,
+    "toggle" to toggleDesc,
+    "stopwatch" to stopwatchDesc,
+    "retry" to retryDesc("retry"),
+    "retrysuspend" to retryDesc("retrysuspend", listOf("suspend")),
+    "job" to jobDesc("generated.job", "retry"),
+    // A colorless child in a colored parent: allowed, and compiled.
+    "jobsuspend" to jobDesc("generated.jobsuspend", "retry", listOf("suspend")),
+)
+
+/**
+ * Machines whose emitted source must NOT compile. Written apart, to
+ * `refused/`, so `tools/verify` compiles each only with the fixture that
+ * names it. A colored child in a colorless parent: color flows one way, and
+ * the generated `delegateTo<Child>` carries the parent's color, so kotlinc
+ * refuses the child's `suspend` `step` from a plain function.
+ */
+private val refused = mapOf(
+    "jobmixed" to jobDesc("generated.jobmixed", "retrysuspend"),
+)
 
 fun main(args: Array<String>) {
     if (runValidationTests() > 0) kotlin.system.exitProcess(1)
@@ -103,7 +188,7 @@ fun main(args: Array<String>) {
     dir.mkdirs()
 
     var failed = 0
-    for ((name, desc) in all) {
+    for ((name, desc) in all + refused) {
         val got = emit(desc)
         val golden = File(dir, "$name.kt.golden")
         if (bless) {
@@ -136,6 +221,8 @@ fun main(args: Array<String>) {
     if (outDir.path.isNotEmpty()) {
         outDir.mkdirs()
         for ((name, desc) in all) File(outDir, "$name.kt").writeText(emit(desc))
+        val refusedDir = File(outDir, "refused").apply { mkdirs() }
+        for ((name, desc) in refused) File(refusedDir, "$name.kt").writeText(emit(desc))
     }
 
     if (failed > 0) kotlin.system.exitProcess(1)

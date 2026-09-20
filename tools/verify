@@ -1906,26 +1906,42 @@ step_kotlin_codegen() {
         # 2. the emitted source must compile
         # StopwatchTypes.kt carries its own implementation: that machine is
         # `internal`, so it has to be implemented in the same compilation.
+        # The composition machines -- retry, its suspend twin, and the job
+        # parent in both colors -- were emitted by Emit.kt from the start and
+        # never compiled until these types existed. `refused/` is not in the
+        # glob: those machines must NOT compile, and step 4 proves it.
         "$KOTLINC" -cp "$KCP" codegen/support/TimerTypes.kt codegen/support/ToggleTypes.kt \
             codegen/support/StopwatchTypes.kt \
+            codegen/support/RetryTypes.kt codegen/support/RetrySuspendTypes.kt \
+            codegen/support/JobTypes.kt codegen/support/JobSuspendTypes.kt \
             "$gen"/*.kt -d "$out/gen" 2>&1 | grep -v "^info:" || true
         [ -d "$out/gen" ] || { echo "emitted source does not compile"; exit 1; }
         echo "ok   emitted source compiles"
 
         # 3. a complete implementation must satisfy it
-        "$KOTLINC" -cp "$KCP:$out/gen" codegen/support/Complete.kt -d "$out/cmp" 2>&1 \
-            | grep -v "^info:" || true
+        "$KOTLINC" -cp "$KCP:$out/gen" codegen/support/Complete.kt \
+            codegen/support/CompleteJob.kt codegen/support/CompleteJobSuspend.kt \
+            -d "$out/cmp" 2>&1 | grep -v "^info:" || true
         [ -d "$out/cmp" ] || { echo "a complete implementation does not compile"; exit 1; }
-        echo "ok   complete implementation compiles"
+        echo "ok   complete implementations compile, composition in both parent colors included"
 
-        # 4. an incomplete one must not -- the guarantee, after generation
-        local f exp err bad=0
+        # 4. an incomplete one must not -- the guarantee, after generation.
+        #    A fixture named `<machine>_*.kt` for a machine the check marks
+        #    refused also gets that machine's emitted source, whose own
+        #    generated code is what must be refused.
+        local f m extra exp err bad=0
         for f in codegen/compile_fail/*.kt; do
+            m="$(basename "$f" .kt)"
+            m="${m%%_*}"
+            extra=""
+            [ -f "$gen/refused/$m.kt" ] && extra="$gen/refused/$m.kt"
             exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
             # Status of kotlinc, not of the grep that filters its notes -- a
             # pipeline reports the last command, and `grep -v` exits 1 when it
-            # filters everything away.
-            raw="$("$KOTLINC" -cp "$KCP:$out/gen" "$f" -d "$out/x" 2>&1)"; rc=$?
+            # filters everything away. `$extra` unquoted: empty means no file,
+            # and a mktemp path has no spaces.
+            # shellcheck disable=SC2086
+            raw="$("$KOTLINC" -cp "$KCP:$out/gen" "$f" $extra -d "$out/x" 2>&1)"; rc=$?
             err="$(printf '%s\n' "$raw" | grep -v "^info:" || true)"
             if [ "$rc" -eq 0 ]; then
                 echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
