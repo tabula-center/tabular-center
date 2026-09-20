@@ -120,7 +120,12 @@ Two examples carry it, one per language that can:
 - `examples/swift-examples/Sources/SpecCheck/Turnstile.tb.swift` — the `Table`
   literal, moved out of `Turnstile.swift` into an extension.
 - `examples/rust/01-traffic-light/src/machine.tb.rs` — the
-  `transition_matrix!` invocation, reached with `#[path]`.
+  `transition_matrix!` invocation, reached with `#[path]`. Every Rust example
+  now: `02-timer` and `03-retry` the same way, and `04-login`'s two matrices
+  as `auth.tb.rs` and `session.tb.rs`, private modules at the crate root
+  re-exported by `pub mod auth` and `pub mod session` -- a `#[path]` inside
+  an inline module resolves against a directory named after that module,
+  and one rule for every example is simpler than a directory per matrix.
 - `kotlin/test/TimerSpec.tb.kt` — the reference machine's declaration, and the
   one piece of *library* code carrying the convention. Split out of
   `ReferenceTimer.kt` when `kotlin-matrix-stable` was first switched on.

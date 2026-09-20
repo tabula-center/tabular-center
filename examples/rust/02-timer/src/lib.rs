@@ -7,7 +7,7 @@
 //!
 //! The effect carries a payload too, so the handler is narrowed the same way.
 
-use tabula::{transition_matrix, Handle, Perform, Step};
+use tabula::{Handle, Perform, Step};
 
 #[derive(Debug, Default)]
 pub struct Ctx {
@@ -16,22 +16,11 @@ pub struct Ctx {
     pub log: Vec<String>,
 }
 
-transition_matrix! {
-    machine Timer;
-    context Ctx;
-    state   State;
-    action  Action;
-    effects Effect { StartClock, StopClock { reason: Reason } }
-    initial Idle;
+// The matrix lives in `machine.tb.rs`, per `spec/matrix-files.md`.
+#[path = "machine.tb.rs"]
+mod machine;
 
-    states  { Idle, Running { since: u64 }, Done }
-    actions { Start, Tick { now: u64 }, Cancel }
-
-    //            Start                                  Tick     Cancel
-    Idle    => [  HANDLE,                                IGNORE,  IGNORE                                  ];
-    Running => [  IGNORE,                                HANDLE,  GO!(Idle, StopClock { reason: Reason::Cancelled }) ];
-    Done    => [  GO!(Running { since: 0 }, StartClock), IGNORE,  IGNORE                                  ];
-}
+pub use machine::*;
 
 /// Why a clock stopped. A payload with meaning, rather than a bare flag —
 /// `StopClock` is emitted from two very different places.

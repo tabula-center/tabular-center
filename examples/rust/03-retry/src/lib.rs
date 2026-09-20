@@ -9,7 +9,7 @@
 //! rather than merely discouraged, which is the distinction the design cares
 //! about everywhere else too.
 
-use tabula::{transition_matrix, Driver, Handle, Perform, Step};
+use tabula::{Driver, Handle, Perform, Step};
 
 #[derive(Debug, Default)]
 pub struct Ctx {
@@ -18,22 +18,11 @@ pub struct Ctx {
     pub performed: Vec<String>,
 }
 
-transition_matrix! {
-    machine Retry;
-    context Ctx;
-    state   State;
-    action  Action;
-    effects Effect { Sleep { ms: u64 }, GiveUp }
-    initial Ready;
+// The matrix lives in `machine.tb.rs`, per `spec/matrix-files.md`.
+#[path = "machine.tb.rs"]
+mod machine;
 
-    states  { Ready, Waiting { attempt: u32 }, Exhausted }
-    actions { Attempt, Elapsed, Abort }
-
-    //                Attempt   Elapsed   Abort
-    Ready     => [    HANDLE,   IGNORE,   GO!(Exhausted)  ];
-    Waiting   => [    IGNORE,   HANDLE,   GO!(Exhausted)  ];
-    Exhausted => [    IGNORE,   IGNORE,   IGNORE          ];
-}
+pub use machine::*;
 
 #[derive(Default)]
 pub struct Impl;

@@ -1482,7 +1482,10 @@ extension narrows that to exactly the files that need it.
       moves the crate's namespace rather than just text. `#[rustfmt::skip]` on
       the invocation is the stable exemption.
 - [ ] The hand-written examples in all three languages still keep their matrix
-      and their handlers in one file.
+      and their handlers in one file. **Rust done**: every example's matrix is
+      in a `.tb.rs` (`04-login` has two). Kotlin (`01`-`05`) and Swift
+      (`Login`, `TrafficLight`, `Retry`, `ObservableCounter`, `SpecCheck`,
+      `Timer`) remain
 - [x] `spec/tabula-fmt.md`: the contract. Written first for the reason
       `SURFACE.md` was — a formatter's contract is almost all of its risk, and
       it is the part reviewable by reading.

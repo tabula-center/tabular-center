@@ -15,38 +15,26 @@
 //! cell of the child unimplemented breaks the *parent's* build. A hand-written
 //! `HANDLE` could not give that: it is free to ignore the child entirely.
 
-use tabula::{transition_matrix, Delegate, Handle, Lens, Step};
+use tabula::{Delegate, Handle, Lens, Step};
+
+// Each matrix lives in its own `.tb.rs`, per `spec/matrix-files.md`, as a
+// private module re-exported by the public one named for its machine.
+#[path = "auth.tb.rs"]
+mod auth_matrix;
+#[path = "session.tb.rs"]
+mod session_matrix;
 
 /// The child: authentication, written knowing nothing about sessions.
 pub mod auth {
-    use super::*;
-
     #[derive(Debug, Default)]
     pub struct Ctx {
         pub max_attempts: u32,
     }
 
-    transition_matrix! {
-        machine Auth;
-        context Ctx;
-        state   State;
-        action  Action;
-        effects Effect { Prompt, Lockout }
-        initial AwaitingCredentials;
-
-        states  { AwaitingCredentials { attempts: u32 }, Authenticated, LockedOut }
-        actions { Submit { ok: u32 }, Reset }
-
-        //                            Submit    Reset
-        AwaitingCredentials  => [     HANDLE,   GO!(AwaitingCredentials { attempts: 0 }, Prompt) ];
-        Authenticated        => [     IGNORE,   GO!(AwaitingCredentials { attempts: 0 }, Prompt) ];
-        LockedOut            => [     IGNORE,   IGNORE                                          ];
-    }
+    pub use crate::auth_matrix::*;
 }
 
 pub mod session {
-    use super::*;
-
     /// The parent's context **contains** the child's, so `child_ctx` is a
     /// field access and the child never sees session data it has no business
     /// with.
@@ -56,22 +44,7 @@ pub mod session {
         pub logins: u32,
     }
 
-    transition_matrix! {
-        machine Session;
-        context Ctx;
-        state   State;
-        action  Action;
-        effects Effect { Audit, Warn, Redirect }
-        initial LoggedOut;
-
-        states  { LoggedOut { auth: super::auth::State }, Active, Banned }
-        actions { Credentials { ok: u32 }, StartOver, Logout }
-
-        //                 Credentials         StartOver           Logout
-        LoggedOut  => [     DELEGATE!(auth),   DELEGATE!(auth),    IGNORE                    ];
-        Active     => [     IGNORE,            IGNORE,             GO!(Banned, Audit)        ];
-        Banned     => [     IGNORE,            IGNORE,             IGNORE                    ];
-    }
+    pub use crate::session_matrix::*;
 }
 
 use session::Ctx as SessionCtx;
