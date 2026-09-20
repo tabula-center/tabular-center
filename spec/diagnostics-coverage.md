@@ -34,7 +34,13 @@ tabula::unknown-child      kotlin swift
 tabula::unknown-effect     kotlin swift
 tabula::unknown-state      kotlin swift
 tabula::unreachable-heavy  rust kotlin swift
+tabula::unsupported-color  rust
 ```
+
+`unsupported-color` is Rust's alone, and cannot be otherwise: Kotlin and Swift
+copy prototype modifiers verbatim, so every modifier their compiler accepts is
+a color they support. Rust needs a colored twin of `Handle` per color, and
+stable Rust offers one, `async`.
 
 ## Which lints a conformance fixture actually trips
 

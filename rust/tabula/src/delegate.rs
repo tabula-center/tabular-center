@@ -53,14 +53,15 @@
 //! real performance and Swift has no native case key paths. Here they are
 //! trait methods, which monomorphise to nothing.
 //!
-//! # Color flows one way -- not yet enforced here
+//! # Color flows one way -- by construction, and for now too strictly
 //!
 //! The rule is that a colorless child composes into a colored parent and the
-//! reverse is refused. `transition_matrix!` has no prototype colors yet, so
-//! every generated `step` is uncolored and the rule holds only vacuously. The
-//! intended enforcement is by construction: a colored child's `step` called
-//! from an uncolored parent arm is a rustc error. See PLAN, September 2026
-//! audit.
+//! reverse is refused. A DELEGATE arm calls the child's `step` without
+//! `.await`, in either color: a plain child's `step` is an ordinary call
+//! inside an async parent, which is the allowed direction; an async child's
+//! `step` is a future where a `Step` is expected, which rustc refuses. That
+//! refusal also catches an async child under an async parent, which the rule
+//! allows -- see PLAN, September 2026 audit.
 
 use crate::machine::Machine;
 

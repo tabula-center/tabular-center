@@ -63,3 +63,37 @@ pub trait Perform<M: Machine, EV> {
     /// impossible rather than merely discouraged. See [`crate::driver`].
     fn perform(&mut self, ctx: &mut M::Ctx, effect: EV) -> Option<M::Action>;
 }
+
+/// The colored twin of [`Handle`], for a machine declared with
+/// `prototype async fn handle;`.
+///
+/// A second trait rather than a copied modifier, because Rust's cell surface is
+/// a library trait, not a generated declaration: there is nothing to copy
+/// `async` onto (ARCHITECTURE 5). Of the colors a Rust `fn` can carry, `async`
+/// is the one a trait method can carry on stable -- `const` trait methods are
+/// unstable and `extern` does not apply -- so this twin is the whole set.
+///
+/// The generated `step` of an async machine requires one `AsyncHandle` per
+/// HANDLE cell, exactly as a plain machine requires one [`Handle`]; a missing
+/// impl names the hole the same way.
+// `async fn` in a public trait warns that callers cannot add `Send` bounds to
+// the returned future. Accepted: `step` awaits it in place, and whether the
+// whole machine is `Send` is decided by the developer's impls.
+#[allow(async_fn_in_trait)]
+pub trait AsyncHandle<M: Machine, SV, AV> {
+    /// Handle `action` in `state`, where both are narrowed to one variant.
+    async fn handle(
+        &mut self,
+        ctx: &mut M::Ctx,
+        state: SV,
+        action: AV,
+    ) -> Step<M::State, M::Effect>;
+}
+
+/// The colored twin of [`Perform`]: one per effect variant of an async
+/// machine, awaited by its generated `perform`.
+#[allow(async_fn_in_trait)]
+pub trait AsyncPerform<M: Machine, EV> {
+    /// Carry out `effect`, returning any follow-up action.
+    async fn perform(&mut self, ctx: &mut M::Ctx, effect: EV) -> Option<M::Action>;
+}

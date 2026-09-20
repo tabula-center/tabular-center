@@ -190,6 +190,7 @@ test rather than living in code that needs Maven to run.
 | `tabula::unknown-child` | `DELEGATE` names an undeclared child |
 | `tabula::go-target` | `GO` targets a payload state with no literal arguments |
 | `tabula::empty-emit` | `EMIT` lists no effects; use `IGNORE` or `HANDLE` |
+| `tabula::unsupported-color` | a Rust prototype other than `fn handle` or `async fn handle` |
 
 Rows are identified by **position**, so an out-of-order row is reported as
 `missing-row` rather than accepted as a reordering: it is a row for the wrong
@@ -218,6 +219,22 @@ that: it compares behaviour, and no fixture writes a forbidden cell.
 | `unknown-child` | by rustc | yes | yes |
 | `go-target` | by construction | yes | yes |
 | `empty-emit` | yes | yes | yes |
+| `unsupported-color` | yes | n/a | n/a |
+
+### `tabula::unsupported-color`
+
+```
+tabula::unsupported-color: machine `Timer` has a prototype Rust cannot color.
+Write `prototype fn handle;` or `prototype async fn handle;` -- `async` is the
+only color a Rust trait method can carry on stable.
+```
+
+Rust only, and by design. Kotlin and Swift copy the prototype's modifiers onto
+generated declarations, so any modifier their compiler accepts is a color.
+Rust's cell surface is a library trait, so each color needs a colored twin of
+it, and `async` is the only one a trait method can carry on stable. Named,
+rather than left to `no rules expected the token`, because the right fix is a
+different prototype, and the generic error would not say which.
 
 ### `tabula::empty-emit`
 

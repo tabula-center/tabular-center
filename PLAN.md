@@ -41,12 +41,13 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 8 Introspection & tooling | **done (all three)** |
 | 9a Driver and mailbox | **done (all three)**; 9b (rendering surface) not started |
 
-One exception to the table, found by the audit below: **Rust has no prototype
-colors.** Phase 2 and Phase 6 had them ticked; `transition_matrix!` has no
-`prototype` clause and every generated `fn` is uncolored.
+One exception to the table, found by the audit below: Rust had no prototype
+colors. It has one now, `async` (see the audit's Rust-colors item); delegating
+to an async child is the part still open.
 
-93 Rust tests; 41 compile-fail fixtures (10 Rust, 4 Kotlin, 1 Kotlin-codegen,
-11 Kotlin-KSP, 4 Swift, 11 Swift macro-syntax); 11 conformance fixtures (96
+99 Rust tests; 50 compile-fail fixtures (12 Rust, 4 Kotlin, 3 Kotlin-codegen,
+11 Kotlin-KSP, 4 Swift, 11 Swift macro-syntax, 5 Swift-codegen); 11
+conformance fixtures (96
 trace steps), every one with an adapter in all three languages; 11 each of
 golden `.grid`, `.mmd`, `.lint`, `.cov`. Every runtime lint is tripped by at
 least one fixture.
@@ -58,6 +59,8 @@ grep -rho '#\[test\]' rust/ | wc -l
 ls rust/tabula/tests/compile_fail/*.rs | grep -vc _prelude
 ls -d kotlin/ksp/compile-fail/fixtures/*/ | wc -l
 ls -d swift/macros/fixtures/*/ | wc -l
+ls kotlin/compile_fail/*.kt kotlin/codegen/compile_fail/*.kt | wc -l
+ls swift/compile_fail/*.swift swift/codegen-support/compile_fail/*.swift | wc -l
 grep -h '=>' spec/conformance/traces/*.trace | wc -l
 ls spec/conformance/*.tbl | wc -l
 ```
@@ -158,13 +161,28 @@ The other direction, in priority order:
   `ObservableStore` that conforms by hand.
 
 - [x] Docs, comments and boxes corrected; the Gradle report check removed
-- [ ] Rust prototype colors. Decide the shape first: `Handle` cannot carry a
-      copied color, so this is either a generated per-machine cell trait (the
-      surface Kotlin and Swift already have, at the cost of identifiers
-      `macro_rules!` cannot build), or colored library traits chosen by the
-      prototype, which enumerates colors -- the thing ARCHITECTURE 5 rejects.
-      Blocks the `color-mismatch` decision below, since that decision rests
-      on what each language enforces by construction
+- [x] Rust prototype colors, first increment: `prototype async fn handle;`.
+      Decided as colored library traits -- `AsyncHandle` and `AsyncPerform`,
+      twins of `Handle` and `Perform` -- because Rust's cell surface is a
+      library trait with no declaration to copy a color onto, and a generated
+      per-machine trait needs identifiers `macro_rules!` cannot build. That
+      does enumerate colors, which ARCHITECTURE 5 rejects in general; in Rust
+      the enumeration is the language's, not tabula's: `async` is the only
+      color a trait method can carry on stable (`const` trait methods are
+      unstable, `extern` does not apply). Any other prototype is
+      `tabula::unsupported-color`. The color is threaded through every rule
+      as one token and used in four places: `step`, `perform`, the per-cell
+      bound, and the HANDLE call. `tests/async_prototype.rs` proves `step`
+      really awaits its cells (a suspending cell makes it poll twice)
+- [ ] Rust colors, second increment: delegating to an async child. Today a
+      DELEGATE arm calls the child's `step` without `.await` in either color,
+      so a plain child composes into either parent -- the allowed direction --
+      and an async child is refused in both: its `step` is a future where a
+      `Step` is expected. Refusing it under a plain parent is the rule;
+      refusing it under an async parent is too strict. Needs the child's color
+      at the parent's expansion, which `macro_rules!` cannot see; a `Marker`
+      associated type or constant is the likely route. Then the
+      `color-mismatch` decision below can be made on all three languages
 - [x] Swift emitter to the shape of `ReferenceTimer.swift`, first half:
       payload binding (`case let (.running(since), .tick(now))`, building
       the narrowed structs), effect payloads (one field passes its value, as
@@ -673,8 +691,9 @@ the hand-written version.
 
 - [x] Grammar: `machine` / `context` / `state` / `action` / `effects` /
       `initial` / `states` / `actions` / rows
-- [ ] `prototype` in the grammar. Ticked until the September 2026 audit; the
-      entry arm has no such clause
+- [x] `prototype` in the grammar: `prototype fn handle;` and
+      `prototype async fn handle;`, after `context`. Unticked by the September
+      2026 audit, written after it
 - [x] Row parsing with positional cells
 - [x] Static cell kinds: `IGNORE`, `GO!`, `EMIT`
 - [x] `HANDLE` → trait method emission with **narrowed argument types**
@@ -688,8 +707,11 @@ the hand-written version.
 - [ ] Index dispatch for payload-free machines. Never written: dispatch is a
       `match` for every machine. Whether it would buy anything is the Phase 10
       benchmark's question, not this one's
-- [ ] Color splatting: `async` / `unsafe` / `const` / `extern`, with `$(.await)?`
-      at call sites. Ticked until the September 2026 audit; see there
+- [x] Color, as Rust allows it: `async` only, through `AsyncHandle` /
+      `AsyncPerform` and `.await` at the HANDLE call and in `perform`. Not
+      `unsafe` / `const` / `extern` splatting: the cell surface is a library
+      trait, and of those only `async` can be carried by a trait method on
+      stable. See the audit's Rust-colors item
 - [x] `EMIT!()` rejected as `tabula::empty-emit`. Found by the audit, not by
       the conformance suite, which cannot find this class of bug: it compares
       behaviour, and no fixture writes a cell the spec forbids. Kotlin and
@@ -1089,7 +1111,10 @@ color-mismatch is a build error in all three.
       that only works inside its parent is not a reusable machine.
 - [ ] One-way color flow. Ticked until the September 2026 audit as
       "enforced by construction in Rust"; it held only vacuously, because
-      Rust has no colors to mismatch. In Kotlin it is by construction: the
+      Rust had no colors to mismatch. Rust has `async` now, and a plain parent
+      over an async child is refused -- but so, for now, is an async parent
+      over one; see the second Rust-colors increment. In Kotlin it is by
+      construction: the
       generated `delegateTo<Child>` carries the *parent's* modifiers and calls
       the child's `step`, so a suspending child under a plain parent is a
       kotlinc error. Swift's generator does the same since the audit, and

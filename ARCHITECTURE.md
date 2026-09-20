@@ -212,10 +212,14 @@ maintained. The prototype is the extension point.
 | Kotlin | `suspend`, annotations (`@Composable`, `@RestrictsSuspension`, custom plugin annotations), context parameters, extension receiver, visibility |
 | Swift | effect specifiers `async` / `throws` / `async throws`, attributes `@MainActor`, `@Sendable`, isolation clauses |
 
-> **Status (Rust).** Not implemented. `transition_matrix!` has no `prototype`
-> clause and `Handle` is a library trait with one uncolored `fn handle`, so
-> there is no generated declaration for a copied color to land on. PLAN,
-> September 2026 audit, carries the open design question.
+> **Status (Rust).** `prototype async fn handle;` is implemented, as colored
+> library traits rather than copied modifiers: Rust's cell surface is the
+> library trait `Handle`, with no generated declaration for a color to land on,
+> so an async machine requires `AsyncHandle` / `AsyncPerform` instead. That
+> enumerates colors, which this section rejects in general; in Rust the list is
+> the language's, since `async` is the only color a trait method can carry on
+> stable. Any other prototype is `tabula::unsupported-color`. Delegating to an
+> async child is not yet supported -- PLAN, September 2026 audit.
 
 > **Status.** The KSP processor captures `suspend`, annotations and the
 > extension receiver. Visibility is taken from the annotated declaration rather
