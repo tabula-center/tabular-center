@@ -15,6 +15,7 @@ final class Cells: TimerAsyncCells {
     func startClock(_ ctx: TimerAsync.Ctx) async throws -> TimerAsync.A? { nil }
     func stopClock(_ ctx: TimerAsync.Ctx) async throws -> TimerAsync.A? { nil }
     func note(_ ctx: TimerAsync.Ctx, _ effect: String) async throws -> TimerAsync.A? { nil }
+    func halt(_ ctx: TimerAsync.Ctx, _ effect: Timer.Reason) async throws -> TimerAsync.A? { nil }
 }
 
 // `throws` and `try`, so the one thing missing is `async`: the error this

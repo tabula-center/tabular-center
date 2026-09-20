@@ -229,11 +229,16 @@ The other direction, in priority order:
       the whole parent state, as in Kotlin. `codegen-support/` gains Retry,
       Job in both colors, and two refusals: a hole in the child's surface,
       and a colored child under an uncolored parent
-- [ ] Effect field types are copied as written, and the cell protocol sits at
-      file scope, so a payload type nested in the machine's enum
-      (`case stopClock(reason: Reason)` with `Timer.Reason`) does not resolve
-      in the protocol. Qualify it in `MachineSyntax`, where the declaration
-      is visible, or nest the protocol (Swift 5.10, SE-0404)
+- [x] Payload types nested in the machine's enum are qualified by
+      `MachineSyntax`, the one place that can see the enum's members:
+      `stopClock(reason: Reason)` reads as `Timer.Reason`. Every
+      `IdentifierTypeSyntax` naming a nested type is qualified by byte
+      offset, so `[Reason]`, `Reason?` and `Reason.Kind` work and
+      `Swift.Int` or an already-qualified `Timer.Reason` are untouched.
+      Chosen over nesting the protocol (SE-0404), which would have changed
+      every machine's surface and every parent's `refines` clause for one
+      bug. The macro check asserts the strings; `codegen-support` proves a
+      qualified nested type resolves in the file-scope protocol
 - [ ] Effect arguments in GO/EMIT. `RawCell.effects` holds names, so a
       static cell cannot emit `.stopClock(reason: .cancelled)` in any
       generator's model. Refused loudly in Swift for now

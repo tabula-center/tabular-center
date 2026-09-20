@@ -340,6 +340,58 @@ do {
     }
 }
 
+// MARK: - Nested payload types are qualified
+//
+// The generated cell protocol sits at file scope, and an effect handler's
+// parameter type is copied into it. `Reason` declared inside `enum Timer`
+// resolves there as written and nowhere else, so `MachineSyntax` qualifies
+// every reference to a type the machine nests. What must be left alone is as
+// much the test as what must change: a module type, an already-qualified
+// type, and `Timer` itself.
+do {
+    let source = """
+        @Machine
+        enum Timer {
+            enum S { case idle, running(since: Instant) }
+            enum A { case start, stop }
+            enum F {
+                case stopClock(reason: Reason)
+                case log(lines: [Reason], kind: Reason.Kind, count: Swift.Int, again: Timer.Reason)
+            }
+            enum Reason { case cancelled; enum Kind { case soft } }
+            struct Instant {}
+            final class Ctx {}
+            static let initial = S.idle
+
+            //                             start     stop
+            @Row(.idle)    static let i = [ .ignore,  .ignore ]
+            @Row(.running) static let r = [ .ignore,  .ignore ]
+
+            func handle(_ ctx: Ctx, _ state: S, _ action: A) -> Step<S, F> { fatalError() }
+        }
+        """
+    let tree = Parser.parse(source: source)
+    if let decl = tree.statements.compactMap({ $0.item.as(EnumDeclSyntax.self) }).first {
+        do {
+            let raw = try MachineSyntax.read(decl)
+            let types = raw.effects.flatMap { $0.fields.map(\.type) }
+            let want = ["Timer.Reason", "[Timer.Reason]", "Timer.Reason.Kind", "Swift.Int", "Timer.Reason"]
+            check(types == want, "effect payload types are qualified exactly where nested: got \(types)")
+            check(
+                raw.states.count > 1 && raw.states[1].fields.first?.type == "Timer.Instant",
+                "a state payload's nested type is qualified too")
+            let out = emit(try buildDesc(raw))
+            check(
+                out.contains("_ effect: Timer.Reason)"),
+                "the file-scope protocol names the qualified type")
+        } catch {
+            check(false, "the nested-type machine is accepted: \(error)")
+        }
+    } else {
+        check(false, "the nested-type machine parses")
+    }
+}
+
 check(TabulaMacroSyntax.surface == "see SURFACE.md", "the module links")
 
 print("")

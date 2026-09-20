@@ -32,7 +32,13 @@ enum Timer {
         /// Named by no static cell, so it exists to exercise the
         /// payload-carrying handler: `note(_ ctx: Timer.Ctx, _ effect: String)`.
         case note(text: String)
+        /// Its payload type is nested in `Timer`, so the emitted handler reads
+        /// `halt(_ ctx: Timer.Ctx, _ effect: Timer.Reason)` -- unqualified,
+        /// the file-scope protocol could not resolve it.
+        case halt(reason: Reason)
     }
+
+    enum Reason: Equatable { case cancelled }
 
     final class Ctx {}
 

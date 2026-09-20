@@ -12,5 +12,6 @@ final class Incomplete: TimerAsyncCells {
     ) async throws -> Step<TimerAsync.S, TimerAsync.F> { .ignored }
     func startClock(_ ctx: TimerAsync.Ctx) async throws -> TimerAsync.A? { nil }
     func stopClock(_ ctx: TimerAsync.Ctx) async throws -> TimerAsync.A? { nil }
+    func halt(_ ctx: TimerAsync.Ctx, _ effect: Timer.Reason) async throws -> TimerAsync.A? { nil }
     // note is missing.
 }

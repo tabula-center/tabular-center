@@ -213,6 +213,10 @@ func timerMachine(_ name: String, modifiers: [String] = []) -> RawMachine {
             RawVariant("StartClock"),
             RawVariant("StopClock"),
             RawVariant("Note", hasPayload: true, fields: [(name: "text", type: "String")]),
+            // A payload type NESTED in the machine's enum, qualified the way
+            // `MachineSyntax` now qualifies it. The file-scope protocol can
+            // only resolve it qualified; this is what proves it does.
+            RawVariant("Halt", hasPayload: true, fields: [(name: "reason", type: "Timer.Reason")]),
         ],
         rows: [
             RawRow("Idle", [RawCell("HANDLE"), RawCell("IGNORE"), RawCell("IGNORE")]),

@@ -37,6 +37,12 @@ public enum MachineSyntax {
         let members = decl.memberBlock.members.map(\.decl)
 
         let enums = members.compactMap { $0.as(EnumDeclSyntax.self) }
+        // Every type the machine's enum declares. A payload field naming one
+        // is qualified by the machine -- see `qualified(_:machine:nested:)`.
+        let nested = nestedTypeNames(members)
+        func cases(of e: EnumDeclSyntax) -> [RawVariant] {
+            Self.cases(of: e, machine: machine, nested: nested)
+        }
         func variants(_ name: String) throws -> [RawVariant] {
             guard let e = enums.first(where: { $0.name.text == name }) else {
                 throw SyntaxError(
@@ -128,6 +134,54 @@ public enum MachineSyntax {
         )
     }
 
+    /// The names of the types a machine's enum declares inside itself.
+    ///
+    /// `S`, `A`, `F` and `Ctx` among them, and anything else the developer
+    /// nests: `enum Reason`, `struct Running`, a `typealias`.
+    static func nestedTypeNames(_ members: [DeclSyntax]) -> Set<String> {
+        var out: Set<String> = []
+        for m in members {
+            if let d = m.as(EnumDeclSyntax.self) { out.insert(d.name.text) }
+            else if let d = m.as(StructDeclSyntax.self) { out.insert(d.name.text) }
+            else if let d = m.as(ClassDeclSyntax.self) { out.insert(d.name.text) }
+            else if let d = m.as(ActorDeclSyntax.self) { out.insert(d.name.text) }
+            else if let d = m.as(TypeAliasDeclSyntax.self) { out.insert(d.name.text) }
+            else if let d = m.as(ProtocolDeclSyntax.self) { out.insert(d.name.text) }
+        }
+        return out
+    }
+
+    /// `type` as written, with every reference to a type nested in the
+    /// machine qualified by the machine's name.
+    ///
+    /// Why this is needed: the generated cell protocol sits at FILE scope, so
+    /// a parent can refine it (`protocol JobCells: RetryCells`), and an effect
+    /// handler's parameter type is copied into it. Inside `enum Timer`,
+    /// `case stopClock(reason: Reason)` resolves `Reason` to `Timer.Reason`;
+    /// copied verbatim into `protocol TimerCells`, it resolves to nothing.
+    ///
+    /// Why here: this is the only place that can answer "is `Reason` nested in
+    /// this machine?". The emitter sees strings, and a string cannot tell a
+    /// nested `Reason` from a module-level one.
+    ///
+    /// Every unqualified type reference is an `IdentifierTypeSyntax` -- inside
+    /// `[Reason]`, `Reason?`, `Result<Reason, E>`, and as the base of
+    /// `Reason.Kind` -- while an already-qualified `Timer.Reason` has `Timer`
+    /// as its base, which is not nested and so is left alone. Qualifying
+    /// exactly those nodes, by byte offset, rewrites nothing else about how
+    /// the developer wrote the type.
+    static func qualified(_ type: TypeSyntax, machine: String, nested: Set<String>) -> String {
+        let finder = NestedReferences(nested)
+        finder.walk(type)
+        let start = type.positionAfterSkippingLeadingTrivia.utf8Offset
+        var bytes = Array(type.trimmedDescription.utf8)
+        let prefix = Array("\(machine).".utf8)
+        for offset in finder.offsets.sorted(by: >) {
+            bytes.insert(contentsOf: prefix, at: offset - start)
+        }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+
     /// The text of a plain string literal, or nil if it is not one.
     ///
     /// `representedLiteralValue` does this in one call and is swift-syntax 510;
@@ -155,7 +209,10 @@ public enum MachineSyntax {
     /// what makes a matrix reviewable and what `tabula::row-arity` checks. A
     /// traversal that sorted, or that used a dictionary anywhere on this path,
     /// would lose the property the library exists for.
-    static func cases(of e: EnumDeclSyntax) -> [RawVariant] {
+    ///
+    /// Field types are qualified against the machine: see
+    /// `qualified(_:machine:nested:)`.
+    static func cases(of e: EnumDeclSyntax, machine: String, nested: Set<String>) -> [RawVariant] {
         e.memberBlock.members
             .compactMap { $0.decl.as(EnumCaseDeclSyntax.self) }
             .flatMap { $0.elements }
@@ -163,7 +220,7 @@ public enum MachineSyntax {
                 let params = element.parameterClause?.parameters.map { p in
                     (
                         name: p.firstName?.text ?? "",
-                        type: p.type.trimmedDescription
+                        type: qualified(p.type, machine: machine, nested: nested)
                     )
                 } ?? []
                 return RawVariant(
@@ -344,4 +401,22 @@ public struct SyntaxError: Error, CustomStringConvertible {
     public let message: String
     public init(_ message: String) { self.message = message }
     public var description: String { message }
+}
+
+/// Where, in a type, the references to machine-nested types start.
+private final class NestedReferences: SyntaxVisitor {
+    let nested: Set<String>
+    var offsets: [Int] = []
+
+    init(_ nested: Set<String>) {
+        self.nested = nested
+        super.init(viewMode: .sourceAccurate)
+    }
+
+    override func visit(_ node: IdentifierTypeSyntax) -> SyntaxVisitorContinueKind {
+        if nested.contains(node.name.text) {
+            offsets.append(node.positionAfterSkippingLeadingTrivia.utf8Offset)
+        }
+        return .visitChildren
+    }
 }

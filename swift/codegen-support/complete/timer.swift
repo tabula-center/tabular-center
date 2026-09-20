@@ -14,6 +14,7 @@ final class CompleteTimer: TimerCells {
     func startClock(_ ctx: Timer.Ctx) -> Timer.A? { nil }
     func stopClock(_ ctx: Timer.Ctx) -> Timer.A? { nil }
     func note(_ ctx: Timer.Ctx, _ effect: String) -> Timer.A? { nil }
+    func halt(_ ctx: Timer.Ctx, _ effect: Timer.Reason) -> Timer.A? { nil }
 }
 
 // The dispatcher and the effect pump are callable with it, uncolored.
