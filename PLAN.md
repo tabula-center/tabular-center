@@ -1046,11 +1046,16 @@ and `kotlin/ksp/golden/`, not guessed (0f asked for exactly this pass):
 - [x] Diagnostics per `spec/diagnostics.md`, via `KSPLogger.error`, authored in
       `codegen/Raw.kt` and exercised by the 11 `kotlin-ksp-compile-fail`
       fixtures.
-- [ ] Diagnostic *positions*. `logger.error(e.message, decl)` points at the
-      annotated interface, not at the `@Row` or the `CellSpec` at fault.
-      ARCHITECTURE 3 shows `row-arity` pointing at the row's line. Same
-      trade-off Phase 5 accepts for Swift (row-level in v1); here it is
-      declaration-level, one step coarser.
+- [x] Diagnostic *positions*, to the row. `TabulaError` carries the state
+      whose row was being validated -- attached in `buildDesc`'s loop, not at
+      each of the eighteen `fail` sites, since the row is known in exactly one
+      place -- and the processor maps it to that `@Row` annotation, which KSP
+      accepts as a position. Row-level, the same as Phase 5 accepts for Swift;
+      a `CellSpec` inside an annotation argument is not separately addressable
+      here. Declaration-level diagnostics (a bad `initial`, a broken path, a
+      missing row) still point at the interface, which is where they belong.
+      Checked, not assumed: `//~ AT: <text>` in a KSP fixture asserts the line
+      the compiler underlined contains that text, and two fixtures say so.
 - [x] Incremental-processing correctness: `kotlin-ksp-incremental` edits
       `Types.kt` (not the annotated file) and requires the regenerated output
       to change. The processor declares only the annotated file as a
@@ -1327,8 +1332,13 @@ the API the way its author already imagined it.
       `cargo build` never compiles, so it passed locally and failed clippy in
       CI. `--all-targets` is load-bearing.
 - [ ] Any behavioural change lands in `spec/conformance` before any implementation
-- [ ] Every diagnostic gets a UI test (`trybuild` / KSP compile-testing /
-      swift-macro-testing)
+- [x] Every diagnostic gets a UI test (`trybuild` / KSP compile-testing /
+      swift-macro-testing) -- and `diagnostics-tested` now enforces it rather
+      than trusting the habit. From `spec/diagnostics-coverage.md`: a runtime
+      lint must name conformance fixtures that exist, every other emitted code
+      must have a compile-fail fixture whose `//~ EXPECT:` names it, and a
+      code emitted by nobody must have no fixture expecting it -- so the `-`
+      beside `color-mismatch` cannot quietly become false either
 - [ ] Docs updated in the same PR
 - [ ] All three implementations green before merge to `main`
 
@@ -2245,10 +2255,12 @@ when someone adds that config. This is the check standing there when they do.
       toolchain. The risk is a file appearing in a commit and a commit can come
       from anywhere; gating it on `swiftChecked` would have removed the guard
       from the machines most likely to add a config they cannot run.
-- [ ] `swift-matrix-stable` proper, at swift-format 509.0.0, when a formatter
-      is actually adopted — or sooner, if the cost above is judged worth
-      paying. Not a five-line change, and not urgent while nothing formats
-      Swift here.
+- [x] `swift-matrix-stable` proper. The cost above never had to be paid: the
+      pinned `nixpkgs-swift` carries swift-format 5.10.1 and `context.nix`
+      already had it in `swiftPkgs`, so it needed no SwiftPM dependency, no
+      lock entry and no version of its own. It formats a copy of every
+      `.tb.swift` and requires it back byte for byte, behind a liveness probe
+      so a formatter that silently does nothing cannot pass seventeen files.
 
 ## The three implementations had diverged on diagnostics
 

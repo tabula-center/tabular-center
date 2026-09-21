@@ -91,7 +91,34 @@ data class RawCell(
 )
 
 /** A diagnostic, carrying the code from `spec/diagnostics.md`. */
-class TabulaError(val code: String, override val message: String) : IllegalArgumentException(message)
+/**
+ * A diagnostic from `spec/diagnostics.md`.
+ *
+ * [state] names the row being validated when it was raised, where one was.
+ * It carries no position of its own -- this layer knows nothing about KSP,
+ * syntax trees or files -- but it is enough for a front end to find the right
+ * node: the KSP processor maps the state to its `@Row` annotation, so the
+ * error lands on the row rather than on the annotated interface.
+ */
+class TabulaError(
+    val code: String,
+    override val message: String,
+    val state: String? = null,
+) : IllegalArgumentException(message)
+
+/**
+ * Run [body], tagging any diagnostic it raises with the row it came from.
+ *
+ * Done here rather than at each of the eighteen `fail` sites: the row is
+ * known at exactly one place, the loop below, and a parameter threaded
+ * through every validator would be eighteen chances to forget it.
+ */
+private inline fun <T> inRow(state: String, body: () -> T): T =
+    try {
+        body()
+    } catch (e: TabulaError) {
+        if (e.state == null) throw TabulaError(e.code, e.message, state) else throw e
+    }
 
 private fun fail(code: String, message: String): Nothing = throw TabulaError(code, "$code: $message")
 
@@ -146,15 +173,17 @@ fun buildDesc(raw: RawMachine): MachineDesc {
     }
 
     val rows = raw.rows.mapIndexed { i, row ->
-        if (row.cells.size != actionNames.size) {
-            fail(
-                "tabula::row-arity",
-                "row `${row.state}` has ${row.cells.size} cells, expected ${actionNames.size}. " +
-                    "Expected columns: ${actionNames.joinToString(" ")}"
-            )
-        }
-        row.cells.mapIndexed { j, c ->
-            cell(raw, derive(c, row.state, actionNames[j], raw), row.state, actionNames[j], effectNames, stateNames, payloadStates)
+        inRow(row.state) {
+            if (row.cells.size != actionNames.size) {
+                fail(
+                    "tabula::row-arity",
+                    "row `${row.state}` has ${row.cells.size} cells, expected ${actionNames.size}. " +
+                        "Expected columns: ${actionNames.joinToString(" ")}"
+                )
+            }
+            row.cells.mapIndexed { j, c ->
+                cell(raw, derive(c, row.state, actionNames[j], raw), row.state, actionNames[j], effectNames, stateNames, payloadStates)
+            }
         }
     }
 

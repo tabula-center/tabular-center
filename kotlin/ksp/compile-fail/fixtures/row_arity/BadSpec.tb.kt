@@ -1,4 +1,5 @@
 //~ EXPECT: tabula::row-arity
+//~ AT: @Row(S.Idle::class
 //
 // A row with two cells against three actions.
 //

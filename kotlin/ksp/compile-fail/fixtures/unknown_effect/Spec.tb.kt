@@ -1,4 +1,5 @@
 //~ EXPECT: tabula::unknown-effect
+//~ AT: @Row(S.Idle::class
 //
 // A cell emitting an effect the machine never declared.
 //

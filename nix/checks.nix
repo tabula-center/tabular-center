@@ -82,6 +82,10 @@ in
   # Generated code is not committed, as source or as a golden: emitted source
   # is compiled and compared at check time instead. Text only.
   no-generated = verify "no-generated" [ ];
+
+  # CONTRIBUTING says every diagnostic gets a fixture. Text only, and now a
+  # check rather than a habit.
+  diagnostics-tested = verify "diagnostics-tested" [ ];
 }
 // lib.optionalAttrs has.rustConformance {
   rust-conformance = verify "conformance" rustInputs;

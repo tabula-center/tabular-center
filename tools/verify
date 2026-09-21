@@ -14,7 +14,7 @@
 #         kotlin-ksp-incremental kotlin-matrix-stable rust-matrix-stable
 #         matrix-covered swift-format-config swift-matrix-stable
 #         diagnostics-coverage fixtures-complete
-#         no-bless no-generated
+#         no-bless no-generated diagnostics-tested
 #         swift swift-compile-fail swift-conformance swift-macros
 #         swift-macro-support swift-examples swift-codegen
 set -uo pipefail
@@ -853,6 +853,48 @@ step_kotlin_ksp_incremental() {
 # No new dependency. KSP compile-testing as a library would mean an embedded
 # Kotlin compiler in nix/gradle-lock.json and a re-lock; this reuses the two
 # plugins the example already resolves, so the lock covers it unchanged.
+# Where a diagnostic points, for a fixture that says.
+#
+# `//~ AT: <text>` asserts that the line KSP underlined contains that text --
+# the `@Row` the error came from, rather than the annotated interface. Optional
+# because most diagnostics are declaration-level and have no row to name; where
+# a fixture does say, the position is checked rather than assumed, which is the
+# difference between a message that helps and one that merely exists.
+check_position() {
+    local dir="$1" src="$2" expect="$3" out="$4"
+    local at lineno line
+    at="$(sed -n 's|^//~ AT: ||p' "$dir"/*.kt 2>/dev/null | head -1)"
+    [ -n "$at" ] || return 0
+
+    # KSP prints `e: [ksp] <file>.kt:<line>: <message>` -- a line with no
+    # column, unlike kotlinc's own `<file>.kt:<line>:<col>:`. Both are
+    # accepted; the column is optional in the pattern.
+    #
+    # The first line that YIELDS a position, not the first that mentions the
+    # message: gradle repeats a failing task's message in a summary with no
+    # file or line at all.
+    lineno="$(printf '%s\n' "$out" | grep -F -- "$expect" \
+        | sed -n 's|.*\.kt:\([0-9]\{1,\}\):.*|\1|p' | head -1)"
+    if [ -z "$lineno" ]; then
+        echo "FAIL $(basename "$dir") -- the diagnostic carries no source position"
+        echo "     expected it to point at a line containing: $at"
+        echo "     the lines carrying the message were:"
+        printf '%s\n' "$out" | grep -F -- "$expect" | head -3 | sed 's/^/       /'
+        return 1
+    fi
+
+    line="$(sed -n "${lineno}p" "$src")"
+    case "$line" in
+        *"$at"*) return 0 ;;
+        *)
+            echo "FAIL $(basename "$dir") -- points at line $lineno:"
+            echo "       $line"
+            echo "     expected a line containing: $at"
+            return 1
+            ;;
+    esac
+}
+
 step_kotlin_ksp_compile_fail() {
     if ! command -v gradle >/dev/null 2>&1; then
         echo "skip kotlin-ksp-compile-fail (\$gradle not found)"
@@ -908,6 +950,8 @@ step_kotlin_ksp_compile_fail() {
         elif ! printf '%s' "$out" | grep -qF -- "$expect"; then
             echo "FAIL $name -- failed, but not with \`$expect\`"
             printf '%s' "$out" | grep -iE "^e:|error:" | head -3 | sed 's/^/       /'
+            bad=1
+        elif ! check_position "$dir" "$src" "$expect" "$out"; then
             bad=1
         elif ! printf '%s' "$out" | grep -qF -- "$(basename "$src")"; then
             # The position, not just the message.
@@ -1641,6 +1685,73 @@ step_no_bless() {
     echo "ok   no check blesses; every golden is compared, never written"
 }
 
+# Every diagnostic is tested, and tested in the right shape.
+#
+# The habit in CONTRIBUTING says each one gets a fixture. A habit is a promise
+# nothing keeps: `unsupported-color` was documented and fixtured in the same
+# patch because the author happened to remember, and nothing would have said so
+# otherwise.
+#
+# Two kinds, from spec/diagnostics-coverage.md:
+#
+#   - A RUNTIME LINT is reported by a renderer, so it is tested by a
+#     conformance fixture that trips it. Those are listed in the `fixtures`
+#     block, and `renderings-agree` checks the list against the rendered lints;
+#     here we check the fixtures named there exist at all.
+#   - Every other code is a DECLARATION diagnostic: a generator refuses
+#     something, so it is tested by a compile-fail fixture whose `//~ EXPECT:`
+#     names the code.
+#
+# A code emitted by nobody (`-`) is exempt, and required to stay that way: if
+# a fixture ever expects it, the `-` is a lie and this says so.
+step_diagnostics_tested() {
+    local dirs="rust/tabula/tests/compile_fail kotlin/ksp/compile-fail/fixtures"
+    dirs="$dirs kotlin/codegen/compile_fail kotlin/compile_fail swift/macros/fixtures"
+    dirs="$dirs swift/compile_fail swift/codegen-support/compile_fail"
+    local doc=spec/diagnostics-coverage.md
+    local code langs lint hits missing bad=0 n=0
+
+    # shellcheck disable=SC2086
+    while read -r code langs; do
+        [ -n "$code" ] || continue
+        n=$((n + 1))
+        hits="$(grep -rh '^//~ EXPECT' $dirs 2>/dev/null | grep -c -- "$code")"
+        lint="$(sed -n '/^```fixtures$/,/^```$/p' "$doc" | sed -n "s|^$code  *||p")"
+
+        if [ "$langs" = "-" ]; then
+            if [ "$hits" -ne 0 ]; then
+                echo "FAIL $code is listed as emitted by nobody, and $hits fixture(s) expect it"
+                bad=1
+            fi
+            continue
+        fi
+
+        if [ -n "$lint" ]; then
+            missing=""
+            for f in $lint; do
+                [ -f "spec/conformance/$f.tbl" ] || missing="$missing $f"
+            done
+            if [ -n "$missing" ]; then
+                echo "FAIL $code names conformance fixture(s) that do not exist:$missing"
+                bad=1
+            fi
+        elif [ "$hits" -eq 0 ]; then
+            echo "FAIL $code is documented and emitted, and no fixture expects it."
+            echo "     A declaration diagnostic is tested by a compile-fail fixture"
+            echo "     whose '//~ EXPECT:' names it. See CONTRIBUTING."
+            bad=1
+        fi
+    done < <(sed -n '/^```coverage$/,/^```$/p' "$doc" | sed '1d;$d')
+
+    if [ "$n" -eq 0 ]; then
+        echo "FAIL the coverage block in $doc is empty; this checked nothing"
+        bad=1
+    elif [ "$bad" -eq 0 ]; then
+        echo "ok   $n diagnostic codes, each tested by a fixture or a lint fixture"
+    fi
+    return "$bad"
+}
+
 # Generated code is not committed.
 #
 # Not as source, and not as a golden. A committed golden of emitted source is
@@ -2299,7 +2410,8 @@ steps=("$@")
            kotlin-examples kotlin-ksp kotlin-ksp-compile-fail kotlin-ksp-incremental \
            kotlin-matrix-stable rust-matrix-stable \
            matrix-covered swift-format-config diagnostics-coverage \
-           fixtures-complete no-bless no-generated swift-matrix-stable \
+           fixtures-complete no-bless no-generated diagnostics-tested \
+           swift-matrix-stable \
            renderings-agree \
            swift swift-compile-fail swift-conformance swift-examples \
            swift-codegen swift-macros)
@@ -2331,6 +2443,7 @@ for s in "${steps[@]}"; do
         fixtures-complete)   run fixtures-complete   step_fixtures_complete ;;
         no-bless)            run no-bless            step_no_bless ;;
         no-generated)        run no-generated        step_no_generated ;;
+        diagnostics-tested)  run diagnostics-tested  step_diagnostics_tested ;;
         swift-matrix-stable) run swift-matrix-stable step_swift_matrix_stable ;;
         renderings-agree)    run renderings-agree    step_renderings_agree ;;
         swift)               run swift               step_swift ;;

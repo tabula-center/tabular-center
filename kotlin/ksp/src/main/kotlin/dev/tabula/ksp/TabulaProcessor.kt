@@ -69,8 +69,11 @@ class TabulaProcessor(
             } catch (e: TabulaError) {
                 // Diagnostics are authored in `codegen`, not here, so their
                 // text stays identical whether they are triggered through KSP
-                // or through the tests. Only the source position is added.
-                logger.error(e.message, decl)
+                // or through the tests. Only the source position is added --
+                // the `@Row` the error came from where it named one, so a
+                // row-arity or unknown-effect message underlines the row a
+                // reader has to fix rather than the interface it sits on.
+                logger.error(e.message, e.state?.let { rowNodes(decl)[it] } ?: decl)
             } catch (e: Exception) {
                 logger.error("tabula: ${e.message}", decl)
             }
@@ -173,6 +176,24 @@ class TabulaProcessor(
         // `childrenOf` carries everything else about it.
         child = a.childDecl()?.let { aliasOf(it) } ?: "",
     )
+
+    /**
+     * Each `@Row` annotation by the state it declares, for positioning
+     * diagnostics.
+     *
+     * KSP positions a message at any `KSNode`, and an annotation is one. The
+     * cell would be better still -- ARCHITECTURE 3 shows `row-arity` pointing
+     * at a row, and a cell-level position would beat it -- but a `CellSpec`
+     * inside an annotation argument is not separately addressable here, so
+     * the row is as fine as this front end goes.
+     */
+    private fun rowNodes(decl: KSClassDeclaration): Map<String, KSAnnotation> =
+        decl.annotations
+            .filter { it.shortName.asString() == ROW_SIMPLE }
+            .mapNotNull { row ->
+                row.classes("state").firstOrNull()?.simpleName?.asString()?.let { it to row }
+            }
+            .toMap()
 
     /** The child a DELEGATE cell names, or null for every other kind. */
     private fun KSAnnotation.childDecl(): KSClassDeclaration? =

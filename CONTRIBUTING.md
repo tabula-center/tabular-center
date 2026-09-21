@@ -17,6 +17,12 @@
    project's only dependency in its language, to do what a few lines of bash
    already do. A fixture passes only if the compiler *refused* it and the
    refusal contains the expected text; both halves matter.
+
+   `diagnostics-tested` holds you to this: every code in
+   `spec/diagnostics-coverage.md` that something emits must be named by a
+   fixture's `//~ EXPECT:`, unless it is a runtime lint, which is tested by
+   the conformance fixtures that trip it. A code nothing emits must have no
+   fixture expecting it either. So the rule is a check, not a habit.
 4. **Diagnostics are normative.** Message text lives in `spec/diagnostics.md`
    and should be recognizably the same in all three languages.
 5. **All implementations green before merge to `main`.**
