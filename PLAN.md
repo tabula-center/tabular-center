@@ -2016,7 +2016,14 @@ carries its own checklist; the boxes below track it rather than duplicate it.
       `GO` (`derive` in `codegen/Raw.kt` and `TabulaCodegen/Raw.swift`), shown
       by `examples/kotlin/06-generated/src/Spine.tb.kt` and pinned by
       `ksp/golden/SpineGenerated.kt.golden`.
-- [ ] Rust: `@Path` as a `transition_matrix!` arm.
+- [x] Rust: `paths { .. }` as a `transition_matrix!` arm, by approach A --
+      chosen to keep Rust close to Kotlin and Swift. The path compiles to a
+      local `__tabula_hop!` whose rules are its own identifiers, since
+      `macro_rules!` cannot compare two; every cell passes through it once,
+      before `@main` sees a row, so the three munchers are untouched and a
+      machine without `paths` never reaches the new arms.
+- [ ] Rust: the four `path-*` codes as `compile_error!` arms, through the same
+      generated-macro technique
 
 ## PlantUML — removed
 

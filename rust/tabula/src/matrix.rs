@@ -190,6 +190,129 @@ macro_rules! transition_matrix {
         $crate::transition_matrix!(@main c=Plain machine $($rest)*);
     };
 
+    // ---------------------------------------------------------------- paths
+    //
+    // A spine, as Kotlin's `@Path` and Swift's `paths:` declare it: states and
+    // actions alternating, `[Idle, Start, Connecting, Ready, Live]`. A HANDLE
+    // named by a hop becomes a GO to the hop's next state, so it needs no
+    // `Handle` impl and its dispatcher arm is static -- the derivation
+    // `spec/happy-paths.md` specifies, the same one `derive` performs in
+    // `kotlin/codegen/Raw.kt` and `swift/Sources/TabulaCodegen/Raw.swift`.
+    //
+    // `macro_rules!` cannot compare two identifiers, and every part of that
+    // asks whether one identifier is another. So the path is turned into a
+    // local macro whose rules ARE its identifiers -- `(Idle Start HANDLE)` --
+    // and each cell is passed through it. The rewrite happens once, here,
+    // before `@main` sees any row; `@main` then runs exactly as for a machine
+    // with no path. A machine without a `paths` block never reaches this arm.
+    //
+    // A block rather than a repeated `path` clause: `$(path ..)+` followed by
+    // `$($row:ident => ..)*` is ambiguous at `path`, which is also an ident.
+    (@main c=$c:tt
+        machine $m:ident;
+        context $x:ident;
+        state   $s:ident;
+        action  $a:ident;
+        effects $e:ident { $($ev:ident $({ $($eff:ident : $efft:ty),* $(,)? })? ),* $(,)? }
+        initial $i:ident;
+
+        states  { $($sv:ident $({ $($sf:ident : $sft:ty),* $(,)? })? ),* $(,)? }
+        actions { $($av:ident $({ $($af:ident : $aft:ty),* $(,)? })? ),* $(,)? }
+
+        paths { $($pn:ident : [ $($pe:ident),* $(,)? ];)+ }
+
+        $($row:ident => [ $($cell:tt)* ];)*
+    ) => {
+        $crate::transition_matrix!(@hops c=$c
+            hdr=[
+                machine $m;
+                context $x;
+                state   $s;
+                action  $a;
+                effects $e { $($ev $({ $($eff : $efft),* })?),* }
+                initial $i;
+                states  { $($sv $({ $($sf : $sft),* })?),* }
+                actions { $($av $({ $($af : $aft),* })?),* }
+            ]
+            acts=[$($av)*]
+            rows=[$($row => [ $($cell)* ];)*]
+            acc=[]
+            paths=[$( [$($pe),*] )+]
+        );
+    };
+
+    // Pair each path into hops: `[Idle, Start, Connecting, ..]` gives
+    // `(Idle Start Connecting)`, then continues from `Connecting`.
+    (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=[$($acc:tt)*]
+        paths=[ [$st:ident, $ac:ident, $nx:ident $(, $more:ident)*] $($ps:tt)* ]
+    ) => {
+        $crate::transition_matrix!(@hops c=$c hdr=$hdr acts=$acts rows=$rows
+            acc=[$($acc)* ($st $ac $nx)]
+            paths=[ [$nx $(, $more)*] $($ps)* ]);
+    };
+    // A path ends on a state.
+    (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=$acc:tt
+        paths=[ [$last:ident] $($ps:tt)* ]
+    ) => {
+        $crate::transition_matrix!(@hops c=$c hdr=$hdr acts=$acts rows=$rows acc=$acc
+            paths=[$($ps)*]);
+    };
+    // Every path paired: define the lookup, then rewrite the rows through it.
+    //
+    // `($)` hands the helper a literal `$`: a macro cannot write one in its
+    // own output, except as the last token of a delimited group, and the
+    // lookup it defines needs metavariables of its own.
+    (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=[$($acc:tt)*] paths=[]) => {
+        $crate::__tabula_define_hops! { ($) hops=[$($acc)*] }
+        $crate::transition_matrix!(@derive c=$c hdr=$hdr acts=$acts done=[] todo=$rows);
+    };
+
+    // Every row rewritten: run `@main` as if the spine had been written
+    // longhand -- which, by now, it has.
+    (@derive c=$c:tt hdr=[$($h:tt)*] acts=$acts:tt done=[$($done:tt)*] todo=[]) => {
+        $crate::transition_matrix!(@main c=$c $($h)* $($done)*);
+    };
+    // Start a row: its cells, zipped with the action names in order.
+    (@derive c=$c:tt hdr=$hdr:tt acts=$acts:tt done=$done:tt
+        todo=[$row:ident => [ $($cells:tt)* ]; $($todo:tt)*]
+    ) => {
+        $crate::transition_matrix!(@cells c=$c hdr=$hdr acts=$acts done=$done
+            todo=[$($todo)*] row=$row left=$acts out=[] in=[$($cells)*]);
+    };
+
+    // One cell: through the lookup, which calls back with it rewritten or not.
+    (@cells c=$c:tt hdr=$hdr:tt acts=$acts:tt done=$done:tt todo=$todo:tt
+        row=$row:ident left=[$act:ident $($more:ident)*] out=$out:tt
+        in=[$k:ident $(! $g:tt)? $(, $($in:tt)*)?]
+    ) => {
+        __tabula_hop!(
+            [@celled c=$c hdr=$hdr acts=$acts done=$done todo=$todo
+                row=$row left=[$($more)*] out=$out in=[$($($in)*)?]]
+            ; $row $act $k $(! $g)?
+        );
+    };
+    (@celled c=$c:tt hdr=$hdr:tt acts=$acts:tt done=$done:tt todo=$todo:tt
+        row=$row:ident left=$left:tt out=[$($out:tt)*] in=$in:tt cell=[$($cell:tt)*]
+    ) => {
+        $crate::transition_matrix!(@cells c=$c hdr=$hdr acts=$acts done=$done todo=$todo
+            row=$row left=$left out=[$($out)* ($($cell)*)] in=$in);
+    };
+    // The row's cells are exhausted -- or its actions are, in which case the
+    // leftover cells pass through untouched and `@check_rows` reports the
+    // arity, exactly as it would have without a path.
+    (@cells c=$c:tt hdr=$hdr:tt acts=$acts:tt done=[$($done:tt)*] todo=$todo:tt
+        row=$row:ident left=$left:tt out=[$( ($($o:tt)*) )*] in=[]
+    ) => {
+        $crate::transition_matrix!(@derive c=$c hdr=$hdr acts=$acts
+            done=[$($done)* $row => [ $($($o)*),* ];] todo=$todo);
+    };
+    (@cells c=$c:tt hdr=$hdr:tt acts=$acts:tt done=[$($done:tt)*] todo=$todo:tt
+        row=$row:ident left=$left:tt out=[$( ($($o:tt)*) )*] in=[$($in:tt)+]
+    ) => {
+        $crate::transition_matrix!(@derive c=$c hdr=$hdr acts=$acts
+            done=[$($done)* $row => [ $($($o)*),* , $($in)+ ];] todo=$todo);
+    };
+
     (@main c=$c:tt
         machine $m:ident;
         context $x:ident;
@@ -755,6 +878,35 @@ macro_rules! __tabula_count {
 macro_rules! __tabula_unit {
     ($x:tt) => {
         ()
+    };
+}
+
+/// Defines `__tabula_hop!`, the lookup a path compiles to.
+///
+/// One rule per hop, whose tokens are the hop's own identifiers, plus a
+/// fallback. A HANDLE at `(state, action)` of a hop comes back as
+/// `GO!(next)`; every other cell comes back as it was. Either way the answer
+/// is delivered by calling back into `transition_matrix!` with the
+/// continuation it was given, because a macro cannot return a value to the
+/// middle of another macro's munch.
+///
+/// `$d` is a literal `$`, handed in as `($)` by the caller: the definition
+/// below needs metavariables of its own, and a macro cannot otherwise put a
+/// `$` in its output.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __tabula_define_hops {
+    (($d:tt) hops=[ $( ($st:ident $ac:ident $nx:ident) )* ]) => {
+        macro_rules! __tabula_hop {
+            $(
+                ([$d($d k:tt)*] ; $st $ac HANDLE) => {
+                    $crate::transition_matrix!($d($d k)* cell=[GO!($nx)]);
+                };
+            )*
+            ([$d($d k:tt)*] ; $d _st:ident $d _ac:ident $d($d cell:tt)*) => {
+                $crate::transition_matrix!($d($d k)* cell=[$d($d cell)*]);
+            };
+        }
     };
 }
 

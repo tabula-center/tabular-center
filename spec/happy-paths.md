@@ -223,6 +223,74 @@ second-class in the interface because they are second-class in the intent.
   it inside the generated member would hide an effect execution inside what
   looks like a state transition.
 
+## Rust: the spine without identifier comparison
+
+**Status: A chosen, and its derivation implemented; the four `path-*` codes
+follow in their own change.**
+
+A was chosen over B to keep Rust close to Kotlin and Swift: derivation is the
+part B could not do. (B's checks would have run in `const` evaluation, at
+compile time; neither option could panic at runtime.)
+
+Everything a spine does in Kotlin and Swift -- the four `path-*` codes and the
+`HANDLE`-to-`GO` derivation -- asks one question: *is this identifier that
+one?* Is `Connecting` a declared state; is the cell at `(Idle, Start)` a hop.
+`macro_rules!` cannot ask it: two `$x:ident` fragments cannot be compared, only
+matched against literal tokens written in a rule. So the Rust arm is a choice
+between two ways around that, with different costs.
+
+### A. A generated lookup macro — full parity
+
+The path expands into a local `macro_rules!` whose rules are the path's own
+identifiers as literals: `(Idle, Start) => ...`, `(Connecting, Ready) => ...`,
+and a fallback. Every cell the row muncher visits is passed through it:
+
+- **Derivation.** A `HANDLE` at a hop comes back as `GO!(next)`, so its
+  `Handle` bound is never generated and the dispatcher arm is static -- the
+  same as Kotlin and Swift, and the additive test holds as stated.
+- **All four codes as `compile_error!`**, with tabula's own text:
+  `path-unknown-state` by a second generated macro whose rules are the
+  declared states; `path-broken` by the fallback seeing a hop's cell that is
+  neither `HANDLE` nor `GO` to the next state; `path-duplicate` and
+  `path-unterminated` structurally, while the path is parsed.
+
+The cost is real. A macro that defines a macro needs the `$` token passed in
+from outside (a nested definition cannot write `$` itself); the lookup has to
+be continuation-passing, because a macro cannot return a value mid-munch, so
+all three munchers -- bounds, dispatch, `TABLE` -- have to be threaded through
+it; and every cell costs another expansion step against the recursion limit,
+which large machines already approach.
+
+### B. Const evaluation over `TABLE` — validation only
+
+`TABLE` is already a `const` of strings. The path becomes a `const` slice of
+names, and a `const _: () = { .. }` block walks both with byte comparison,
+which stable `const fn` allows, and `panic!`s with the code:
+
+- **All four codes, detected at compile time**, as "evaluation of constant
+  value failed" carrying `tabula::path-broken: ...`. The machine and path
+  names can be in the message (`concat!` of `stringify!`); *which* hop broke
+  cannot, since stable `const` panics take no formatted arguments.
+- **No derivation.** The bound is syntactic and the check is a value, so a
+  hop cell must already be written `GO!(next)`. In Rust that loses less than
+  it sounds: a `GO!` cell already needs no `Handle` impl, which is the entire
+  benefit derivation buys Kotlin and Swift. What is lost is writing the target
+  once, in the path, instead of once per hop.
+
+That makes B's `path-broken` **stricter** than Kotlin's and Swift's: a hop
+must be `GO!` to the next state, not `HANDLE` or `GO!`. The additive test holds
+trivially, since the longhand is the only form.
+
+### Recommendation
+
+**B first.** It closes the four codes in Rust -- the named requirement below --
+with a few dozen lines outside the munchers, and every piece of it is ordinary
+Rust a reviewer can read. A stays available if writing `GO!` at each hop turns
+out to be the friction the spine exists to remove; the iced examples in PLAN's
+backlog are the place that would show it. The cost of B is one semantic
+difference, recorded above, and a less specific message than the other two
+languages give.
+
 ## Diagnostics are compile-time, not lints
 
 The four `path-*` codes join the nine existing compile-time diagnostics
@@ -264,8 +332,11 @@ after three implementations is the expensive version.
 - [x] The four `path-*` diagnostics above, with four compile-fail fixtures each
       in Kotlin and Swift. Compile-time rejections rather than lints — see
       the section below.
-- [ ] Rust: `@Path` as a `transition_matrix!` arm, and the four codes as
-      `compile_error!` arms.
+- [x] Rust: `paths { .. }` as a `transition_matrix!` arm, with derivation:
+      approach A below. `tests/spine.rs` shows a hop needs no `Handle` impl,
+      that the spine-derived `TABLE` equals the longhand one, and that without
+      the path the same rows differ.
+- [ ] Rust: the four `path-*` codes as `compile_error!` arms.
 - [ ] The narrowed calling surface: one member per hop, per the section above.
       The two open questions there are decisions, not implementation.
 - [ ] The Compose and iced examples (PLAN backlog). They are the acceptance
