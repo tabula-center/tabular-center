@@ -25,10 +25,10 @@ tabula::ignore-heavy       rust kotlin swift
 tabula::missing-row        rust kotlin swift
 tabula::no-static-entry    rust kotlin swift
 tabula::no-static-exit     rust kotlin swift
-tabula::path-broken        kotlin swift
+tabula::path-broken        rust kotlin swift
 tabula::path-duplicate     kotlin swift
-tabula::path-unknown-state kotlin swift
-tabula::path-unterminated  kotlin swift
+tabula::path-unknown-state rust kotlin swift
+tabula::path-unterminated  rust kotlin swift
 tabula::payload-hoist      rust kotlin swift
 tabula::row-arity          rust kotlin swift
 tabula::unknown-cell       rust kotlin swift

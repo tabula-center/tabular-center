@@ -45,7 +45,7 @@ One exception to the table, found by the audit below: Rust had no prototype
 colors. It has one now, `async`, composing in both directions the rule
 allows (see the audit's Rust-colors items).
 
-101 Rust tests; 52 compile-fail fixtures (13 Rust, 4 Kotlin, 3 Kotlin-codegen,
+105 Rust tests; 56 compile-fail fixtures (17 Rust, 4 Kotlin, 3 Kotlin-codegen,
 12 Kotlin-KSP, 4 Swift, 11 Swift macro-syntax, 5 Swift-codegen); 11
 conformance fixtures (96
 trace steps), every one with an adapter in all three languages; 11 each of
@@ -2022,8 +2022,12 @@ carries its own checklist; the boxes below track it rather than duplicate it.
       `macro_rules!` cannot compare two; every cell passes through it once,
       before `@main` sees a row, so the three munchers are untouched and a
       machine without `paths` never reaches the new arms.
-- [ ] Rust: the four `path-*` codes as `compile_error!` arms, through the same
-      generated-macro technique
+- [x] Rust: the four `path-*` codes. `path-unknown-state`, `path-broken` and
+      `path-unterminated` in tabula's own words, from lookups generated out of
+      the declared states and actions and extra rules in `__tabula_hop!`;
+      `path-duplicate` by rustc, like `unknown-child`. Errors continue the
+      munch, so the rest of the machine expands and the tabula error is the
+      one a reader sees first
 
 ## PlantUML — removed
 

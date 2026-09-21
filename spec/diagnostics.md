@@ -220,6 +220,10 @@ that: it compares behaviour, and no fixture writes a forbidden cell.
 | `go-target` | by construction | yes | yes |
 | `empty-emit` | yes | yes | yes |
 | `unsupported-color` | yes | n/a | n/a |
+| `path-unknown-state` | yes | yes | yes |
+| `path-broken` | yes | yes | yes |
+| `path-unterminated` | yes | yes | yes |
+| `path-duplicate` | by rustc | yes | yes |
 
 ### `tabula::unsupported-color`
 
@@ -267,8 +271,8 @@ rejections are `compile_error!`, exactly as `extra-row` already is.
 ### `tabula::path-broken`
 
 ```
-tabula::path-broken: path `connect` goes `Connecting` -> `Live`, and no cell
-in row `Connecting` can reach `Live`.
+tabula::path-broken: path `connect` goes `Connecting` -`Ready`-> `Live`, and
+cell (Connecting, Ready) cannot reach `Live`
 ```
 
 The check that lets a path be declared away from the rows it describes. Without

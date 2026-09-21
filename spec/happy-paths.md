@@ -225,8 +225,8 @@ second-class in the interface because they are second-class in the intent.
 
 ## Rust: the spine without identifier comparison
 
-**Status: A chosen, and its derivation implemented; the four `path-*` codes
-follow in their own change.**
+**Status: A chosen and implemented -- derivation and the four `path-*`
+codes.**
 
 A was chosen over B to keep Rust close to Kotlin and Swift: derivation is the
 part B could not do. (B's checks would have run in `const` evaluation, at
@@ -336,7 +336,14 @@ after three implementations is the expensive version.
       approach A below. `tests/spine.rs` shows a hop needs no `Handle` impl,
       that the spine-derived `TABLE` equals the longhand one, and that without
       the path the same rows differ.
-- [ ] Rust: the four `path-*` codes as `compile_error!` arms.
+- [x] Rust: the four `path-*` codes. Three are tabula's own text, from
+      lookups generated out of the declared names -- the same technique as
+      derivation. `path-duplicate` is rustc's "defined multiple times": it
+      compares two names the machine chose, so there is no declared list to
+      generate a lookup from, which is why `unknown-child` is rustc's too.
+      Four compile-fail fixtures. One message differs from Kotlin's: a path
+      of the wrong shape cannot say how many elements it has, because a
+      `compile_error!` message is a literal and the count is not
 - [ ] The narrowed calling surface: one member per hop, per the section above.
       The two open questions there are decisions, not implementation.
 - [ ] The Compose and iced examples (PLAN backlog). They are the acceptance

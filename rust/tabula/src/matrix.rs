@@ -223,6 +223,20 @@ macro_rules! transition_matrix {
 
         $($row:ident => [ $($cell:tt)* ];)*
     ) => {
+        // Declared names, as lookups whose rules ARE the names: checked
+        // against every state and action a path mentions.
+        $crate::__tabula_define_known! { ($) states=[$($sv)*] actions=[$($av)*] }
+
+        // `path-duplicate`, by rustc: one item per path name, so a repeated
+        // name is "defined multiple times". The other three codes are
+        // tabula's own text; this one compares two names the MACHINE chose,
+        // so there is no declared list to generate a lookup from -- the same
+        // reason `unknown-child` is left to rustc.
+        #[allow(non_camel_case_types, dead_code)]
+        mod __tabula_path_names {
+            $( pub struct $pn; )+
+        }
+
         $crate::transition_matrix!(@hops c=$c
             hdr=[
                 machine $m;
@@ -237,33 +251,60 @@ macro_rules! transition_matrix {
             acts=[$($av)*]
             rows=[$($row => [ $($cell)* ];)*]
             acc=[]
-            paths=[$( [$($pe),*] )+]
+            lasts=[]
+            paths=[$( ($pn start [$($pe),*]) )+]
         );
     };
 
     // Pair each path into hops: `[Idle, Start, Connecting, ..]` gives
-    // `(Idle Start Connecting)`, then continues from `Connecting`.
-    (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=[$($acc:tt)*]
-        paths=[ [$st:ident, $ac:ident, $nx:ident $(, $more:ident)*] $($ps:tt)* ]
+    // `(connect Idle Start Connecting)`, then continues from `Connecting`.
+    // Every state and action named is checked against the declared ones as
+    // it goes (`path-unknown-state`).
+    //
+    // `start` marks a path's first step, so a path too short to hold one hop
+    // is told apart from one that has simply finished.
+    (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=[$($acc:tt)*] lasts=$lasts:tt
+        paths=[ ($pn:ident $step:ident [$st:ident, $ac:ident, $nx:ident $(, $more:ident)*])
+            $($ps:tt)* ]
     ) => {
+        __tabula_known_state!($pn $st);
+        __tabula_known_action!($pn $ac);
         $crate::transition_matrix!(@hops c=$c hdr=$hdr acts=$acts rows=$rows
-            acc=[$($acc)* ($st $ac $nx)]
-            paths=[ [$nx $(, $more)*] $($ps)* ]);
+            acc=[$($acc)* ($pn $st $ac $nx)] lasts=$lasts
+            paths=[ ($pn mid [$nx $(, $more)*]) $($ps)* ]);
     };
-    // A path ends on a state.
-    (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=$acc:tt
-        paths=[ [$last:ident] $($ps:tt)* ]
+    // A path ends on a state, after at least one hop.
+    (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=$acc:tt lasts=[$($lasts:tt)*]
+        paths=[ ($pn:ident mid [$last:ident]) $($ps:tt)* ]
     ) => {
+        __tabula_known_state!($pn $last);
         $crate::transition_matrix!(@hops c=$c hdr=$hdr acts=$acts rows=$rows acc=$acc
-            paths=[$($ps)*]);
+            lasts=[$($lasts)* ($pn $last)] paths=[$($ps)*]);
+    };
+    // Any other shape: fewer than three elements, or ending on an action.
+    // Reported, and the path dropped, so the rest of the machine still
+    // expands and this is the error a reader sees first.
+    (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=$acc:tt lasts=$lasts:tt
+        paths=[ ($pn:ident $step:ident [$($bad:ident),*]) $($ps:tt)* ]
+    ) => {
+        ::core::compile_error!(::core::concat!(
+            "tabula::path-broken: path `",
+            ::core::stringify!($pn),
+            "` does not alternate state and action from a state to a state; a path's ",
+            "element count is odd and at least three"
+        ));
+        $crate::transition_matrix!(@hops c=$c hdr=$hdr acts=$acts rows=$rows acc=$acc
+            lasts=$lasts paths=[$($ps)*]);
     };
     // Every path paired: define the lookup, then rewrite the rows through it.
     //
     // `($)` hands the helper a literal `$`: a macro cannot write one in its
     // own output, except as the last token of a delimited group, and the
     // lookup it defines needs metavariables of its own.
-    (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=[$($acc:tt)*] paths=[]) => {
-        $crate::__tabula_define_hops! { ($) hops=[$($acc)*] }
+    (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=[$($acc:tt)*] lasts=[$($lasts:tt)*]
+        paths=[]
+    ) => {
+        $crate::__tabula_define_hops! { ($) hops=[$($acc)*] lasts=[$($lasts)*] }
         $crate::transition_matrix!(@derive c=$c hdr=$hdr acts=$acts done=[] todo=$rows);
     };
 
@@ -883,12 +924,21 @@ macro_rules! __tabula_unit {
 
 /// Defines `__tabula_hop!`, the lookup a path compiles to.
 ///
-/// One rule per hop, whose tokens are the hop's own identifiers, plus a
-/// fallback. A HANDLE at `(state, action)` of a hop comes back as
-/// `GO!(next)`; every other cell comes back as it was. Either way the answer
-/// is delivered by calling back into `transition_matrix!` with the
-/// continuation it was given, because a macro cannot return a value to the
-/// middle of another macro's munch.
+/// Rules whose tokens are the path's own identifiers, plus a fallback. For a
+/// hop `(p S A N)`, the cell at `(S, A)`:
+///
+/// - `HANDLE` comes back as `GO!(N)` -- the derivation;
+/// - `DELEGATE!(..)` or `GO!(N ..)` comes back as it was;
+/// - anything else is `tabula::path-broken`: the cell cannot reach `N`.
+///
+/// For a path's last state `(p L)`, a cell that can still leave `L` -- a
+/// HANDLE, a DELEGATE, a GO anywhere but `L` -- is
+/// `tabula::path-unterminated`. Every other cell comes back as it was.
+///
+/// Every answer is delivered by calling back into `transition_matrix!` with
+/// the continuation it was given, because a macro cannot return a value to
+/// the middle of another macro's munch -- errors included, so the rest of
+/// the machine still expands and the reported error is the one that matters.
 ///
 /// `$d` is a literal `$`, handed in as `($)` by the caller: the definition
 /// below needs metavariables of its own, and a macro cannot otherwise put a
@@ -896,15 +946,99 @@ macro_rules! __tabula_unit {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __tabula_define_hops {
-    (($d:tt) hops=[ $( ($st:ident $ac:ident $nx:ident) )* ]) => {
+    (($d:tt)
+        hops=[ $( ($p:ident $st:ident $ac:ident $nx:ident) )* ]
+        lasts=[ $( ($lp:ident $l:ident) )* ]
+    ) => {
         macro_rules! __tabula_hop {
             $(
                 ([$d($d k:tt)*] ; $st $ac HANDLE) => {
                     $crate::transition_matrix!($d($d k)* cell=[GO!($nx)]);
                 };
+                ([$d($d k:tt)*] ; $st $ac DELEGATE $d($d g:tt)*) => {
+                    $crate::transition_matrix!($d($d k)* cell=[DELEGATE $d($d g)*]);
+                };
+                ([$d($d k:tt)*] ; $st $ac GO ! ($nx $d($d r:tt)*)) => {
+                    $crate::transition_matrix!($d($d k)* cell=[GO ! ($nx $d($d r)*)]);
+                };
+                ([$d($d k:tt)*] ; $st $ac $d($d cell:tt)*) => {
+                    ::core::compile_error!(::core::concat!(
+                        "tabula::path-broken: path `", ::core::stringify!($p),
+                        "` goes `", ::core::stringify!($st),
+                        "` -`", ::core::stringify!($ac),
+                        "`-> `", ::core::stringify!($nx),
+                        "`, and cell (", ::core::stringify!($st),
+                        ", ", ::core::stringify!($ac),
+                        ") cannot reach `", ::core::stringify!($nx), "`"
+                    ));
+                    $crate::transition_matrix!($d($d k)* cell=[$d($d cell)*]);
+                };
+            )*
+            $(
+                ([$d($d k:tt)*] ; $l $d _ac:ident GO ! ($l $d($d r:tt)*)) => {
+                    $crate::transition_matrix!($d($d k)* cell=[GO ! ($l $d($d r)*)]);
+                };
+                ([$d($d k:tt)*] ; $l $d _ac:ident HANDLE) => {
+                    $crate::__tabula_unterminated!($lp $l);
+                    $crate::transition_matrix!($d($d k)* cell=[HANDLE]);
+                };
+                ([$d($d k:tt)*] ; $l $d _ac:ident DELEGATE $d($d g:tt)*) => {
+                    $crate::__tabula_unterminated!($lp $l);
+                    $crate::transition_matrix!($d($d k)* cell=[DELEGATE $d($d g)*]);
+                };
+                ([$d($d k:tt)*] ; $l $d _ac:ident GO $d($d g:tt)*) => {
+                    $crate::__tabula_unterminated!($lp $l);
+                    $crate::transition_matrix!($d($d k)* cell=[GO $d($d g)*]);
+                };
             )*
             ([$d($d k:tt)*] ; $d _st:ident $d _ac:ident $d($d cell:tt)*) => {
                 $crate::transition_matrix!($d($d k)* cell=[$d($d cell)*]);
+            };
+        }
+    };
+}
+
+/// `tabula::path-unterminated`, for the last state `$l` of path `$p`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __tabula_unterminated {
+    ($p:ident $l:ident) => {
+        ::core::compile_error!(::core::concat!(
+            "tabula::path-unterminated: path `",
+            ::core::stringify!($p),
+            "` ends at `",
+            ::core::stringify!($l),
+            "`, which can still be left; a path ends where the machine is done"
+        ));
+    };
+}
+
+/// Defines the lookups `path-unknown-state` asks: one for declared states,
+/// one for declared actions, each a rule per name plus a fallback that
+/// reports the name it did not find -- with the declared list, as Kotlin and
+/// Swift give it.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __tabula_define_known {
+    (($d:tt) states=[$($sv:ident)*] actions=[$($av:ident)*]) => {
+        macro_rules! __tabula_known_state {
+            $( ($d _p:ident $sv) => {}; )*
+            ($d p:ident $d other:ident) => {
+                ::core::compile_error!(::core::concat!(
+                    "tabula::path-unknown-state: path `", ::core::stringify!($d p),
+                    "` names state `", ::core::stringify!($d other),
+                    "`, which is not declared. States: ", ::core::stringify!($($sv)*)
+                ));
+            };
+        }
+        macro_rules! __tabula_known_action {
+            $( ($d _p:ident $av) => {}; )*
+            ($d p:ident $d other:ident) => {
+                ::core::compile_error!(::core::concat!(
+                    "tabula::path-unknown-state: path `", ::core::stringify!($d p),
+                    "` names action `", ::core::stringify!($d other),
+                    "`, which is not declared. Actions: ", ::core::stringify!($($av)*)
+                ));
             };
         }
     };
