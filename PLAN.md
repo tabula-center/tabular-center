@@ -298,13 +298,18 @@ The other direction, in priority order:
       access -- so every payload-carrying effect in a static cell vanished
       from the machine with no diagnostic at all. The macro check now asserts
       the arguments survive; `codegen-support`'s timer emits one from a GO
-- [ ] Effect arguments in GO/EMIT, in **Kotlin**. Needs a surface change,
-      which Swift did not: `CellSpec(emit = [F.StopClock::class])` takes
-      classes, and a class cannot carry `reason = Reason.Cancelled`. Either a
-      parallel `emitArgs: Array<String>` -- ugly, and positional against
-      `emit` -- or effects named by a string when they carry a payload. Rust
-      has had this since the beginning, because `GO!(Idle, StopClock { reason: 0 })`
-      is tokens
+- [x] Effect arguments in GO/EMIT, in **Kotlin**, so all three have it. The
+      surface change is an annotation, not a parallel array:
+      `emits = [Emit(F.Chime::class, "volume = 3")]`, pairing the effect with
+      its literal arguments so the two cannot drift apart -- an `emitArgs`
+      array would be positional against `emit` and misalign in silence.
+      `args` is a string for the reason `CellSpec.args` already is: an
+      annotation cannot hold an expression, and a static cell only ever emits
+      what is known at declaration time. `emit` stays for payload-free
+      effects. As in Swift, the reference is carried whole and `effectName`
+      takes the part before `(` for validation and `TABLE`. The `Gate`
+      example's `Chime` now carries a volume and is emitted by a static cell,
+      so KSP, the twin and the generated code are checked end to end
 
 ---
 

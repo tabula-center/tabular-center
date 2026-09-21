@@ -233,8 +233,8 @@ private fun cellData(c: CellDesc): String = when (c) {
     is CellDesc.Unreachable -> "Cell.Unreachable"
     is CellDesc.Go ->
         if (c.effects.isEmpty()) "Cell.Go(${q(c.target)})"
-        else "Cell.Go(${q(c.target)}, listOf(${c.effects.joinToString(", ") { q(it) }}))"
-    is CellDesc.Emit -> "Cell.Emit(listOf(${c.effects.joinToString(", ") { q(it) }}))"
+        else "Cell.Go(${q(c.target)}, listOf(${c.effects.joinToString(", ") { q(effectName(it)) }}))"
+    is CellDesc.Emit -> "Cell.Emit(listOf(${c.effects.joinToString(", ") { q(effectName(it)) }}))"
     is CellDesc.Delegate -> "Cell.Delegate(${q(c.child)})"
 }
 

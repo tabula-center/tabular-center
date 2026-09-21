@@ -25,8 +25,32 @@ annotation class CellSpec(
      * literal.
      */
     val args: String = "",
+    /** Payload-free effects: `emit = [F.StopClock::class]`. */
     val emit: Array<KClass<*>> = [],
+    /**
+     * Effects that carry a payload, with their literal arguments:
+     * `emits = [Emit(F.StopClock::class, "reason = Reason.Cancelled")]`.
+     *
+     * A separate parameter rather than an `emitArgs` array parallel to [emit],
+     * because a parallel array is positional against another array and
+     * silently misaligns. Paired here, the effect and its arguments cannot
+     * drift apart.
+     */
+    val emits: Array<Emit> = [],
     val child: KClass<*> = Unit::class,
+)
+
+/**
+ * One effect and the literal arguments to construct it, for [CellSpec.emits].
+ *
+ * `args` is a string for the same reason [CellSpec.args] is: an annotation
+ * cannot hold an expression. A static cell may only emit what is known at
+ * declaration time, so a literal is all it ever needs.
+ */
+@Retention(AnnotationRetention.SOURCE)
+annotation class Emit(
+    val effect: KClass<*>,
+    val args: String = "",
 )
 
 /**

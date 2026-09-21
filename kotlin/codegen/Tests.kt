@@ -184,6 +184,7 @@ fun runValidationTests(): Int {
 
     runAdditiveTest()
     runChildPackageTest()
+    runEffectArgumentTest()
 
     if (failures == 0) println("ok   codegen validation ($checks checks)")
     else println("FAIL codegen validation ($failures of $checks checks failed)")
@@ -241,6 +242,41 @@ private fun runAdditiveTest() {
 }
 
 /**
+ * A static cell emits an effect WITH its arguments.
+ *
+ * `Halt(reason = "cancelled")` is a reference, not a name: the dispatcher
+ * constructs it verbatim, while `TABLE` records `Halt` -- which effect a cell
+ * emits is inert data about the matrix, with what is the cell's business.
+ * `unknown-effect` therefore has to compare the name, not the reference, or
+ * every payload-carrying effect would look undeclared.
+ */
+private fun runEffectArgumentTest() {
+    // Payload-free states: a GO naming a payload state needs `args`, which is
+    // `tabula::go-target`'s business and not this test's.
+    val plain = listOf(RawVariant("Idle"), RawVariant("Running"))
+    val out = emit(buildDesc(raw(
+        states = plain,
+        effects = listOf(RawVariant("StartClock"), RawVariant("Halt", hasPayload = true)),
+        rows = listOf(
+            RawRow("Idle", listOf(RawCell("GO", target = "Running", effects = listOf("""Halt(reason = "x")""")), RawCell("IGNORE"))),
+            RawRow("Running", listOf(RawCell("IGNORE"), RawCell("HANDLE"))),
+        ),
+    )))
+    check("the dispatcher constructs the effect", out.contains("""F.Halt(reason = "x")"""))
+    check("TABLE records the name without arguments", out.contains("""Cell.Go("Running", listOf("Halt"))"""))
+
+    expectError("an effect reference naming no declared effect", "tabula::unknown-effect") {
+        buildDesc(raw(
+            states = plain,
+            rows = listOf(
+                RawRow("Idle", listOf(RawCell("GO", target = "Running", effects = listOf("Nope(reason = 1)")), RawCell("IGNORE"))),
+                RawRow("Running", listOf(RawCell("IGNORE"), RawCell("HANDLE"))),
+            ),
+        ))
+    }
+}
+
+/**
  * A child is reached through its PACKAGE, and named through its ALIAS.
  *
  * The compile stage of `kotlin-codegen` cannot tell the two apart: its child
@@ -282,13 +318,17 @@ val timerRaw = RawMachine(
         RawVariant("Tick", hasPayload = true, fields = listOf("now" to "Long")),
         RawVariant("Cancel"),
     ),
-    effects = listOf(RawVariant("StartClock"), RawVariant("StopClock")),
+    effects = listOf(
+        RawVariant("StartClock"),
+        RawVariant("StopClock"),
+        RawVariant("Halt", hasPayload = true, fields = listOf("reason" to "String")),
+    ),
     rows = listOf(
         RawRow("Idle", listOf(RawCell("HANDLE"), RawCell("IGNORE"), RawCell("IGNORE"))),
         RawRow("Running", listOf(
             RawCell("IGNORE"),
             RawCell("HANDLE"),
-            RawCell("GO", target = "Idle", effects = listOf("StopClock")),
+            RawCell("GO", target = "Idle", effects = listOf("StopClock", """Halt(reason = "cancelled")""")),
         )),
         RawRow("Done", listOf(
             RawCell("GO", target = "Running", targetArgs = "(0)", effects = listOf("StartClock")),

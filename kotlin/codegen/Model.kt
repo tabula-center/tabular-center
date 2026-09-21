@@ -122,3 +122,12 @@ sealed interface CellDesc {
     data class Emit(val effects: List<String>) : CellDesc
     data class Delegate(val child: String) : CellDesc
 }
+
+/**
+ * An effect reference without its arguments: `StopClock(reason = X)` names the
+ * effect `StopClock`.
+ *
+ * Which effect a cell emits is what validation and `TABLE` are about; with
+ * what is the dispatcher's business, and it emits the reference verbatim.
+ */
+fun effectName(ref: String): String = ref.substringBefore('(')

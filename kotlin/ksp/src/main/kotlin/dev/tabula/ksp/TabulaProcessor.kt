@@ -158,7 +158,16 @@ class TabulaProcessor(
         kind = a.enumName("kind"),
         target = a.classes("to").firstOrNull()?.simpleName?.asString()?.takeIf { it != "Unit" } ?: "",
         targetArgs = a.string("args"),
-        effects = a.classes("emit").map { it.simpleName.asString() },
+        // `emit` names payload-free effects; `emits` pairs an effect with
+        // its literal arguments. Both end up as references -- `StopClock`, or
+        // `StopClock(reason = Reason.Cancelled)` -- which is what a static
+        // cell emits verbatim.
+        effects = a.classes("emit").map { it.simpleName.asString() } +
+            a.annotations("emits").map { e ->
+                val name = e.classes("effect").firstOrNull()?.simpleName?.asString() ?: ""
+                val args = e.string("args")
+                if (args.isBlank()) name else "$name($args)"
+            },
         // A DELEGATE cell names the child's annotated declaration; the
         // matrix carries the alias the parent's members are built from, and
         // `childrenOf` carries everything else about it.

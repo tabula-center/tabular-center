@@ -3,6 +3,7 @@
 package generated.gate
 
 import dev.tabula.CellSpec
+import dev.tabula.Emit
 import dev.tabula.Kind
 import dev.tabula.Machine
 import dev.tabula.Row
@@ -16,7 +17,7 @@ import dev.tabula.Step
 )
 //                          Request                                      Arrived
 @Row(S.Closed::class,     [CellSpec(Kind.HANDLE),                       CellSpec(Kind.IGNORE)])
-@Row(S.Opening::class,    [CellSpec(Kind.IGNORE),                       CellSpec(Kind.GO, to = S.Open::class, emit = [F.Chime::class])])
+@Row(S.Opening::class,    [CellSpec(Kind.IGNORE),                       CellSpec(Kind.GO, to = S.Open::class, emits = [Emit(F.Chime::class, "volume = 3")])])
 @Row(S.Open::class,       [CellSpec(Kind.GO, to = S.Closed::class),     CellSpec(Kind.IGNORE)])
 interface GateSpec {
     /**

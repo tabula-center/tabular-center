@@ -44,10 +44,20 @@ val timerDesc = MachineDesc(
         Variant("Tick", hasPayload = true, fields = listOf("now" to "Long")),
         Variant("Cancel"),
     ),
-    effects = listOf(Variant("StartClock"), Variant("StopClock")),
+    effects = listOf(
+        Variant("StartClock"),
+        Variant("StopClock"),
+        // Carries a payload, and a static cell emits it below: the generated
+        // arm writes the constructor call, `TABLE` records the name.
+        Variant("Halt", hasPayload = true, fields = listOf("reason" to "String")),
+    ),
     rows = listOf(
         listOf(CellDesc.Handle, CellDesc.Ignore, CellDesc.Ignore),
-        listOf(CellDesc.Ignore, CellDesc.Handle, CellDesc.Go("Idle", effects = listOf("StopClock"))),
+        listOf(
+            CellDesc.Ignore,
+            CellDesc.Handle,
+            CellDesc.Go("Idle", effects = listOf("StopClock", """Halt(reason = "cancelled")""")),
+        ),
         listOf(
             CellDesc.Go("Running", "(0)", listOf("StartClock")),
             CellDesc.Ignore,
@@ -242,10 +252,10 @@ val kspTwins: Map<String, MachineDesc> = mapOf(
         initial = "Closed",
         states = listOf(Variant("Closed"), Variant("Opening"), Variant("Open")),
         actions = listOf(Variant("Request"), Variant("Arrived")),
-        effects = listOf(Variant("Chime")),
+        effects = listOf(Variant("Chime", hasPayload = true, fields = listOf("volume" to "Int"))),
         rows = listOf(
             listOf(CellDesc.Handle, CellDesc.Ignore),
-            listOf(CellDesc.Ignore, CellDesc.Go("Open", effects = listOf("Chime"))),
+            listOf(CellDesc.Ignore, CellDesc.Go("Open", effects = listOf("Chime(volume = 3)"))),
             listOf(CellDesc.Go("Closed"), CellDesc.Ignore),
         ),
         prototypeModifiers = listOf("suspend"),

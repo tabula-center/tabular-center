@@ -186,7 +186,7 @@ private fun cell(
     stateNames: List<String>,
     payloadStates: Set<String>,
 ): CellDesc {
-    fun checkEffects() = c.effects.forEach {
+    fun checkEffects() = c.effects.map { effectName(it) }.forEach {
         if (it !in effectNames) {
             fail(
                 "tabula::unknown-effect",

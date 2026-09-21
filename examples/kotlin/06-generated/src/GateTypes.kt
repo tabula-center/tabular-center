@@ -19,7 +19,8 @@ sealed interface A {
 }
 
 sealed interface F {
-    data object Chime : F
+    /** Carries a payload, and a static cell emits it: see `Gate.tb.kt`. */
+    data class Chime(val volume: Int) : F
 }
 
 /** Whatever a real gate would need. Empty here; the colour is the point. */

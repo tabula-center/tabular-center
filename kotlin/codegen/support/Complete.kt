@@ -18,4 +18,6 @@ class Complete : Cells {
 
     override suspend fun startClock(ctx: Ctx, effect: F.StartClock): A? = null
     override suspend fun stopClock(ctx: Ctx, effect: F.StopClock): A? = null
+
+    override suspend fun halt(ctx: Ctx, effect: F.Halt): A? = null
 }

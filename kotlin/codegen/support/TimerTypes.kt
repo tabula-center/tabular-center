@@ -23,6 +23,9 @@ sealed interface A {
 sealed interface F {
     data object StartClock : F
     data object StopClock : F
+
+    /** Payload-carrying, and emitted by a static cell. */
+    data class Halt(val reason: String) : F
 }
 
 class Ctx(val limit: Long)
