@@ -42,6 +42,22 @@ same way adding a state breaks every matrix.
 > Scoping a total child machine into a total parent yields a total parent,
 > and the compiler proves it by the same mechanism as everything else.
 
+A parent hands some of its cells to a child, which is written knowing nothing
+about the parent:
+
+```rust
+    //            Run                 Tick                Cancel
+    Retrying => [ DELEGATE!(retry),   DELEGATE!(retry),   GO!(Done, Log) ];
+```
+
+The parent's cell surface requires the child's, so one type implementing the
+parent must implement the child too -- a hole in the child is a build error in
+the parent, the same error as a hole in the parent itself. No runtime check,
+no registration, nothing to forget. It holds in all three languages, each with
+a compile-fail fixture proving it (`child_hole_breaks_parent`), and it holds
+through colors: a plain child composes into an `async` parent, while an `async`
+child under a plain parent does not compile.
+
 ## Status
 
 | Phase | Content | State |

@@ -1165,7 +1165,7 @@ color-mismatch is a build error in all three.
 - [x] `nested-delegate` and `retry` conformance fixtures. The child is
       conformant **on its own**: being composed does not change it, and a child
       that only works inside its parent is not a reusable machine.
-- [ ] One-way color flow. Ticked until the September 2026 audit as
+- [x] One-way color flow. Ticked until the September 2026 audit as
       "enforced by construction in Rust"; it held only vacuously, because
       Rust had no colors to mismatch. Rust has `async` now: a plain parent
       over an async child is refused by rustc, and an async parent over
@@ -1293,12 +1293,20 @@ type to be generic over an effect system it cannot abstract over.
 
 ## Phase 10 — Release
 
-- [ ] README leading with the composition property and the one guarantee
+- [x] README leading with the composition property and the one guarantee.
+      It led with both already; the composition property was a claim with no
+      demonstration, and now shows a DELEGATE row and what the compiler does
+      with a hole in the child
 - [ ] Migration guide: from Tinder StateMachine, KStateMachine, Spring
       Statemachine, TCA
 - [ ] Publish: crates.io, Maven Central, Swift Package Index
-- [ ] Semantic-versioning policy — specifically, what counts as a breaking
-      change to *generated* code
+- [x] Semantic-versioning policy — specifically, what counts as a breaking
+      change to *generated* code. `RELEASING.md`: generated code is API, one
+      `VERSION` for all three, and one test -- does an unchanged declaration
+      with an unchanged implementation still compile and behave the same.
+      A table of cases follows from it, including the two that surprise: a
+      new required member is major *because the guarantee works*, and a bug
+      fix that removes a wrongly required member is still a signature change
 - [ ] Benchmarks vs. hand-written dispatch (the honest claim is "identical after
       monomorphization"; verify it)
 
