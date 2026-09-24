@@ -291,6 +291,23 @@ let
   # nix knows where every one of those packages is, so let nix say it rather
   # than have the script guess. Both `lib` and `lib/swift/linux`, because the
   # toolchain uses both.
+  # crates.io dependencies of `examples/rust`, vendored from its Cargo.lock.
+  #
+  # The third instance of one pattern: `gradle-lock` for Kotlin, `swift-lock`
+  # for Swift, and this for Rust -- the cheapest of the three, because Cargo
+  # writes a complete, hashed lock as a matter of course and nixpkgs'
+  # `importCargoLock` consumes exactly that. Nothing to generate, nothing to
+  # keep in step: the vendor directory is a function of the committed lock.
+  #
+  # Empty today -- every example depends on `tabula` by path and nothing else
+  # -- so it passes vacuously, and says so. It stops being vacuous with the
+  # first real dependency, which is the point of landing it first: the GUI
+  # examples (iced) are what need it, and they should arrive onto machinery
+  # that already works rather than bring their own.
+  examplesVendor = pkgs.rustPlatform.importCargoLock {
+    lockFile = ../examples/rust/Cargo.lock;
+  };
+
   swiftLibraryPath = lib.concatStringsSep ":" (
     lib.concatMap (p: [ "${p}/lib" "${p}/lib/swift/linux" ]) (swiftPkgs ++ swiftLibOnly)
   );
@@ -323,6 +340,6 @@ in
     self system pkgs lib has
     rustToolchain jdk kotlinc kotlinVersion swiftAvailable swiftChecked swiftPkgs
     rustInputs kotlinInputs commonInputs
-    swiftLibraryPath gradleRepo swiftDeps swiftpmPluginSupport
+    swiftLibraryPath gradleRepo swiftDeps swiftpmPluginSupport examplesVendor
     mkCheck mkShell;
 }

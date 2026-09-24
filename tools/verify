@@ -999,6 +999,52 @@ step_kotlin_ksp_compile_fail() {
 #   unset, online        -> the real repositories. ci.yml's check-no-nix job,
 #     and a developer with network.
 #   unset, offline       -> skip, with the reason.
+# The Compose Desktop example, in bitkey's architecture.
+#
+# Gradle, like the KSP example, and for the same reason: plugins. What is new
+# is the dependency weight -- Compose Multiplatform is several hundred
+# artifacts -- so this is the first step whose offline run depends on a lock
+# that someone regenerated with a network.
+#
+# A lock without those artifacts SKIPS with the command that fixes it, rather
+# than failing with a resolution error from the middle of a Gradle build. The
+# skip is visible in the ledger, which is the difference between a gap that is
+# known and one that is quiet.
+step_kotlin_compose() {
+    if ! command -v gradle >/dev/null 2>&1; then
+        echo "skip kotlin-compose (no gradle; see examples/kotlin/07-compose/README.md)"
+        return 0
+    fi
+    require_dir examples/kotlin/07-compose || return 1
+
+    local args=(--no-daemon --console=plain)
+
+    if [ -n "${TABULA_MAVEN_REPO:-}" ]; then
+        # `compose.runtime` resolves to org.jetbrains.compose.runtime. If the
+        # lock predates this example, it is not in the offline repository.
+        if [ ! -d "$TABULA_MAVEN_REPO/org/jetbrains/compose" ]; then
+            echo "skip kotlin-compose (the locked artifact set has no Compose)"
+            echo "     re-lock on a machine with network, and commit it:"
+            echo "       nix run .#gradle-lock"
+            return 0
+        fi
+        args+=(--offline "-Dmaven.repo.local=$TABULA_MAVEN_REPO")
+        echo "note: resolving offline from $TABULA_MAVEN_REPO"
+    elif offline; then
+        echo "skip kotlin-compose (no locked artifact set: run 'nix run .#gradle-lock'"
+        echo "     on a machine with network and commit nix/gradle-lock.json)"
+        return 0
+    else
+        echo "note: resolving from the network"
+    fi
+
+    # `check` compiles the UI and RUNS the headless machine checks: see the
+    # runChecks task in build.gradle.kts. `build` alone would compile them and
+    # run nothing, which this repository has been caught by once already.
+    (cd examples/kotlin/07-compose && gradle "${args[@]}" check) || return 1
+    echo "ok   compose (bitkey-shaped, machine checked headlessly; UI compiled only)"
+}
+
 step_kotlin_ksp() {
     if ! command -v gradle >/dev/null 2>&1; then
         echo "skip kotlin-ksp (no gradle; see kotlin/ksp/README.md)"
@@ -2411,6 +2457,7 @@ steps=("$@")
            kotlin-matrix-stable rust-matrix-stable \
            matrix-covered swift-format-config diagnostics-coverage \
            fixtures-complete no-bless no-generated diagnostics-tested \
+           kotlin-compose \
            swift-matrix-stable \
            renderings-agree \
            swift swift-compile-fail swift-conformance swift-examples \
@@ -2433,6 +2480,7 @@ for s in "${steps[@]}"; do
         kotlin-codegen)      run kotlin-codegen      step_kotlin_codegen ;;
         kotlin-examples)     run kotlin-examples     step_kotlin_examples ;;
         kotlin-ksp)          run kotlin-ksp          step_kotlin_ksp ;;
+        kotlin-compose)      run kotlin-compose      step_kotlin_compose ;;
         kotlin-ksp-compile-fail) run kotlin-ksp-compile-fail step_kotlin_ksp_compile_fail ;;
         kotlin-ksp-incremental) run kotlin-ksp-incremental step_kotlin_ksp_incremental ;;
         kotlin-matrix-stable) run kotlin-matrix-stable step_kotlin_matrix_stable ;;

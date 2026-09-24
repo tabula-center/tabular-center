@@ -2177,15 +2177,41 @@ rather than letting a green check imply more than it covers:
 
 - [ ] Happy-path sugar, per the backlog above. These apps are its acceptance
       test and should not be written before it.
-- [ ] `Cargo.lock`-driven vendoring for `examples/rust`, so a crates.io
-      dependency can exist at all. Independent of the apps and worth landing
-      on its own — it is the third instance of a pattern already proven twice.
+- [x] `Cargo.lock`-driven vendoring for `examples/rust`, so a crates.io
+      dependency can exist at all. `examplesVendor` in `nix/context.nix` is
+      `importCargoLock` over the committed lock, and the `rust-examples` check
+      points cargo's `crates-io` source at it, with `--offline --locked` from
+      `tools/verify`. Nothing to generate and nothing to keep in step: the
+      vendor directory is a function of the lock. Vacuous until the first
+      real dependency, which is why it lands first. Adding one needs network
+      once, on a developer machine: `cd examples/rust && cargo add <crate>`,
+      then commit the updated `Cargo.lock` -- nix vendors the rest.
 - [ ] iced app 1: one machine, the `update`-becomes-`step` substitution, with
       the hand-written version in the README beside it for contrast.
 - [ ] iced app 2: composition and payloads. `nested-delegate` and `retry`
       already model this as fixtures; the app should be recognisably the same
       machines so a reader can move between them.
-- [ ] Compose app 1 and 2, mirroring those, over a `Driver` and a `StateFlow`.
+- [x] Compose app 1: `examples/kotlin/07-compose`, in **bitkey's**
+      architecture rather than over a `Driver` and a `StateFlow` -- the
+      repository being matched (`proto-at-block/bitkey`,
+      `app/libs/state-machine`) holds state in the Compose *runtime*:
+      `interface StateMachine<PropsT, ModelT> { @Composable fun model(props) }`,
+      machines composed by a parent calling a child's `model()`. The
+      interface is eight lines in the example; tabula ships nothing for it,
+      which is the demonstration -- tabula decides what a machine does, the
+      architecture decides where it lives. `rememberMachine` drives the
+      generated `step`/`perform` with the same enqueue-don't-recurse rule as
+      `Driver`. Machine checked headlessly, UI compiled only, nothing asserts
+      the screen -- stated in its README.
+- [x] Compose app 2: composition and payloads, as a second screen in the same
+      project -- no new dependencies, so it cannot turn the check red on
+      artifacts. `SessionSpec` delegates to `ConnectionSpec` through the KSP
+      DELEGATE surface, its state contains the child's, and the generated
+      `session.Cells` extends `connection.Cells`, satisfied by Kotlin
+      delegation to the child's implementation. The UI nests bitkey's way,
+      `model()` inside `model()`, and the nested screen sends the PARENT's
+      action: the prism decides which child action it is, so the matrix stays
+      the only place a transition is decided.
 - [ ] A screenshot in each README, which is most of why these exist.
 
 ## Every matrix survives every formatter

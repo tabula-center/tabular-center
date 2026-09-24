@@ -9,7 +9,7 @@ ctx:
 
 let
   inherit (ctx) lib has rustInputs kotlinInputs swiftPkgs swiftChecked
-    swiftLibraryPath gradleRepo swiftDeps mkCheck;
+    swiftLibraryPath gradleRepo swiftDeps examplesVendor mkCheck;
   verify = name: inputs: mkCheck name inputs "./tools/verify ${name}";
 in
 {
@@ -91,7 +91,21 @@ in
   rust-conformance = verify "conformance" rustInputs;
 }
 // lib.optionalAttrs has.examples {
-  rust-examples = verify "examples" rustInputs;
+  # Offline, with crates.io replaced by the vendor directory built from
+  # examples/rust/Cargo.lock. `tools/verify` passes `--offline --locked`, so a
+  # dependency missing from the lock, or a lock that no longer matches the
+  # manifests, fails here rather than reaching for the network.
+  rust-examples = mkCheck "examples" rustInputs ''
+    mkdir -p "$CARGO_HOME"
+    cat > "$CARGO_HOME/config.toml" <<EOF
+    [source.crates-io]
+    replace-with = "vendored-sources"
+
+    [source.vendored-sources]
+    directory = "${examplesVendor}"
+    EOF
+    ./tools/verify examples
+  '';
 }
 // lib.optionalAttrs has.kotlin {
   kotlin = verify "kotlin" kotlinInputs;
@@ -147,6 +161,21 @@ in
     else
       mkCheck "kotlin-ksp-compile-fail" [ ] ''
         echo "kotlin-ksp-compile-fail: needs nix/gradle-lock.json; see kotlin-ksp"
+        exit 1
+      '';
+
+  # The Compose Desktop example. Same wiring as kotlin-ksp; the step itself
+  # skips, loudly, when the locked artifact set predates Compose.
+  kotlin-compose =
+    if gradleRepo != null
+    then
+      mkCheck "kotlin-compose" kotlinInputs ''
+        export TABULA_MAVEN_REPO="${gradleRepo}"
+        ./tools/verify kotlin-compose
+      ''
+    else
+      mkCheck "kotlin-compose" [ ] ''
+        echo "kotlin-compose: needs nix/gradle-lock.json; see kotlin-ksp"
         exit 1
       '';
 

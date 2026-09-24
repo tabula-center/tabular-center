@@ -51,7 +51,23 @@ set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
 LOCK="nix/gradle-lock.json"
-EXAMPLE="examples/kotlin/06-generated"
+
+# Every Gradle build under examples/kotlin, discovered rather than listed.
+#
+# This was one hardcoded path, and adding the Compose example did not change
+# the lock: `nix run .#gradle-lock` resolved 06-generated, recorded exactly
+# what it already had, and reported success. The build that needed locking was
+# never asked. A directory with a settings.gradle.kts is a build; finding them
+# is the same enumerate-rather-than-name rule the checks follow.
+EXAMPLES=()
+while IFS= read -r settings; do
+    EXAMPLES+=("$(dirname "$settings")")
+done < <(find examples/kotlin -name settings.gradle.kts | sort)
+
+if [ "${#EXAMPLES[@]}" -eq 0 ]; then
+    echo "gradle-lock: no Gradle builds found under examples/kotlin"
+    exit 1
+fi
 
 # Every repository the builds declare, in the order Gradle would try them.
 # Adding a repository to a build file means adding it here; the check below
@@ -60,6 +76,13 @@ EXAMPLE="examples/kotlin/06-generated"
 REPOS=(
     "https://repo1.maven.org/maven2"
     "https://plugins.gradle.org/m2"
+    # Google's, for the androidx artifacts Compose Desktop depends on
+    # (lifecycle, annotation), which are published nowhere else.
+    "https://dl.google.com/dl/android/maven2"
+    # Compose Multiplatform. Released versions are on Maven Central, but the
+    # JetBrains repository is what the build declares as well, and a URL that
+    # cannot be recovered fails this script by name.
+    "https://maven.pkg.jetbrains.space/public/p/compose/dev"
 )
 
 check=0
@@ -95,18 +118,22 @@ echo "gradle $gradle_version"
 # worse, misses nothing, so the lock looks complete while being a superset
 # nobody can reproduce. An empty home makes the download set the dependency
 # set.
-echo "== resolving (this reaches the network) =="
-if ! GRADLE_USER_HOME="$guh" TABULA_MAVEN_REPO="" \
-    gradle --no-daemon --console=plain -p "$EXAMPLE" \
-    -Dorg.gradle.java.installations.auto-download=false \
-    build; then
-    echo
-    echo "gradle-lock: the online build failed, so there is nothing to lock."
-    echo "  This command needs Maven access. If you are inside 'nix develop'"
-    echo "  or a nix build, you do not have it -- run it on a machine that"
-    echo "  does, and commit the result."
-    exit 1
-fi
+# Every build, into ONE cache: the lock is their union, because the offline
+# repository has to satisfy all of them.
+for example in "${EXAMPLES[@]}"; do
+    echo "== resolving $example (this reaches the network) =="
+    if ! GRADLE_USER_HOME="$guh" TABULA_MAVEN_REPO="" \
+        gradle --no-daemon --console=plain -p "$example" \
+        -Dorg.gradle.java.installations.auto-download=false \
+        build; then
+        echo
+        echo "gradle-lock: the online build of $example failed, so there is"
+        echo "  nothing to lock. This command needs Maven access. If you are"
+        echo "  inside 'nix develop' or a nix build, you do not have it -- run"
+        echo "  it on a machine that does, and commit the result."
+        exit 1
+    fi
+done
 
 cache="$guh/caches/modules-2/files-2.1"
 [ -d "$cache" ] || { echo "gradle-lock: no artifact cache at $cache"; exit 1; }
