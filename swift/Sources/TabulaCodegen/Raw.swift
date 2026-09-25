@@ -18,9 +18,16 @@ public struct RawPath {
     /// See `spec/happy-paths.md`.
     public let elements: [String]
 
-    public init(name: String, elements: [String]) {
+    /// The action that walks this path backwards, or "" if it has none.
+    ///
+    /// A wizard's "back" is the route again in the opposite order, and a wrong
+    /// target there looks exactly like a right one. Named once here instead.
+    public let back: String
+
+    public init(name: String, elements: [String], back: String = "") {
         self.name = name
         self.elements = elements
+        self.back = back
     }
 
     /// States, at the even positions.
@@ -40,6 +47,14 @@ public struct RawPath {
         return (0..<(elements.count / 2)).map {
             (elements[$0 * 2], elements[$0 * 2 + 1], elements[$0 * 2 + 2])
         }
+    }
+
+    /// The same hops walked backwards: `(to, back, from)`. Empty when no back
+    /// action is named, which is why this changes nothing for a path without
+    /// one.
+    public var reverseHops: [(from: String, action: String, to: String)] {
+        guard !back.isEmpty else { return [] }
+        return hops.map { (from: $0.to, action: back, to: $0.from) }
     }
 }
 
@@ -375,11 +390,28 @@ private func validatePaths(
             }
         }
 
+        // The back action, if there is one, is an action like any other.
+        if !path.back.isEmpty, !actionNames.contains(path.back) {
+            try fail(
+                "tabula::path-unknown-state",
+                "path `\(path.name)` walks back by `\(path.back)`, which is not a "
+                    + "declared action. Actions: \(actionNames.joined(separator: " "))")
+        }
+
         // A path that never ends is a loop with a name.
+        //
+        // Walking BACK is not leaving: a path with a `back` action is
+        // travelled in both directions, so its own back column does not count
+        // against the ending.
         if let last = path.states.last {
             let lastRow = raw.rows.first { $0.state == last }
-            let leaves = lastRow?.cells.contains { c in
-                c.kind == "HANDLE" || c.kind == "DELEGATE"
+            let leaves = lastRow?.cells.enumerated().contains { j, c in
+                if !path.back.isEmpty, actionNames.indices.contains(j),
+                    actionNames[j] == path.back
+                {
+                    return false
+                }
+                return c.kind == "HANDLE" || c.kind == "DELEGATE"
                     || (c.kind == "GO" && c.target != last)
             } ?? false
             if leaves {
@@ -415,7 +447,9 @@ private func derive(
 ) -> RawCell {
     guard c.kind == "HANDLE" else { return c }
     for path in raw.paths {
-        for hop in path.hops where hop.from == state && hop.action == action {
+        // Forward hops first, then the reverse ones a `back` action declares.
+        for hop in path.hops + path.reverseHops
+        where hop.from == state && hop.action == action {
             // Constructed rather than copy-and-mutate: `RawCell`'s fields are
             // `let`, which is right for a value that represents what someone
             // wrote. The other fields come from `c` so a HANDLE carrying

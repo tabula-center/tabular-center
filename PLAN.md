@@ -2229,9 +2229,17 @@ rather than letting a green check imply more than it covers:
       right one. Derived over `HANDLE` cells only, so explicit cells win and a
       path without `back` is unchanged; unknown back actions are
       `tabula::path-unknown-state`.
-- [ ] `back` in Swift and Rust, so the three agree. Swift is a `MachineSyntax`
-      field and a `derive` line; Rust is another rule set in the generated
-      `__tabula_hop!`, keyed on the hop's far side.
+- [x] `back` in Swift: a labelled third argument on `@Path`, read by
+      `MachineSyntax`, derived by `derive` over HANDLE cells in both
+      directions, with the same two rules Kotlin gained -- an undeclared back
+      action is `path-unknown-state`, and a path's own back column does not
+      count against `path-unterminated`. Checked in the codegen check (the
+      four derivation cases) and in the macro check (that `back:` survives
+      extraction, and that neither direction leaves a cell member behind).
+- [ ] `back` in Rust: another rule set in the generated `__tabula_hop!`, keyed
+      on the hop's far side, plus the same two validation rules. The macro has
+      no validation of its own yet beyond the four `path-*` codes, so this is
+      a rule set and a `compile_error!` arm.
 - [x] A third Compose screen, `CheckoutMachine.tb.kt`: the happy path at a
       size worth showing. Five states on a `@Path`, four hops derived, two of
       them written as GOs because they emit, and the rest of the table -- back,

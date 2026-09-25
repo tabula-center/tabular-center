@@ -444,6 +444,51 @@ do {
     }
 }
 
+// MARK: - `back:` on a path, read from the surface
+//
+// The route walked in reverse, named once. A labelled third argument, so
+// every `@Path("name", [..])` already written parses exactly as before.
+do {
+    let source = """
+        @Machine
+        @Path("checkout", [.cart, .next, .addr, .next, .done], back: .back)
+        enum Checkout {
+            enum S { case cart, addr, done }
+            enum A { case next, back }
+            enum F {}
+
+            final class Ctx {}
+
+            static let initial = S.cart
+
+            //                            next      back
+            @Row(.cart) static let c = [ .handle,  .ignore ]
+            @Row(.addr) static let a = [ .handle,  .handle ]
+            @Row(.done) static let d = [ .ignore,  .handle ]
+
+            func handle(_ ctx: Ctx, _ state: S, _ action: A) -> Step<S, F> { fatalError() }
+        }
+        """
+    let tree = Parser.parse(source: source)
+    if let decl = tree.statements.compactMap({ $0.item.as(EnumDeclSyntax.self) }).first {
+        do {
+            let raw = try MachineSyntax.read(decl)
+            check(raw.paths.first?.back == "back", "the back action is read from the attribute")
+
+            let out = emit(try buildDesc(raw))
+            // Both directions derived, so neither is a cell member.
+            check(!out.contains("addrBack"), "a hop's far side stops being a cell member")
+            check(!out.contains("cartNext"), "and the forward direction still does")
+            // And the path's end may be left by its own back action.
+            check(!out.contains("doneBack"), "the end's back cell derives rather than demanding code")
+        } catch {
+            check(false, "the machine with a back action is accepted: \(error)")
+        }
+    } else {
+        check(false, "the machine with a back action parses")
+    }
+}
+
 check(TabulaMacroSyntax.surface == "see SURFACE.md", "the module links")
 
 print("")

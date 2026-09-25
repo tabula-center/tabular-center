@@ -225,7 +225,9 @@ second-class in the interface because they are second-class in the intent.
 
 ## A path may name how it is walked backwards
 
-**Kotlin only so far; Swift and Rust follow.**
+**Kotlin and Swift; Rust follows.** Swift spells it as a labelled third
+argument, `@Path("checkout", [..], back: .back)`, so every path already
+written parses unchanged.
 
 ```kotlin
 @Path("checkout", [Cart, Next, Address, Next, Payment, Next, Review, Next, Placed],

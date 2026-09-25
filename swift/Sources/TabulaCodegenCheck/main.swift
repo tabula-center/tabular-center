@@ -190,6 +190,65 @@ do {
     print("FAIL additive test: \(error)")
 }
 
+// MARK: - Happy paths: walking the route backwards
+//
+// `back` names the action that walks a path in reverse, so for each hop
+// `A -next-> B` the cell `(B, back)` derives to `GO(A)`. Over HANDLE cells
+// only, like the forward direction, so an explicit cell wins and a path
+// without `back` derives exactly what it did before.
+//
+// The machine ends at `Done`, which nothing but the back action leaves:
+// `path-unterminated` asks whether anything leaves a path's end, and walking
+// back is not leaving.
+
+func backMachine(back: String, payBack: RawCell, doneBack: RawCell = RawCell("IGNORE")) -> RawMachine {
+    RawMachine(
+        machine: "Checkout", initial: "Cart",
+        states: [RawVariant("Cart"), RawVariant("Addr"), RawVariant("Pay"), RawVariant("Done")],
+        actions: [RawVariant("Next"), RawVariant("Back")],
+        effects: [],
+        rows: [
+            RawRow("Cart", [RawCell("HANDLE"), RawCell("IGNORE")]),
+            RawRow("Addr", [RawCell("HANDLE"), RawCell("HANDLE")]),
+            RawRow("Pay", [RawCell("HANDLE"), payBack]),
+            RawRow("Done", [RawCell("IGNORE"), doneBack]),
+        ],
+        paths: [
+            RawPath(
+                name: "checkout",
+                elements: ["Cart", "Next", "Addr", "Next", "Pay", "Next", "Done"],
+                back: back)
+        ])
+}
+
+do {
+    let derived = try buildDesc(backMachine(back: "Back", payBack: RawCell("HANDLE")))
+    check("a hop's far side goes back one step", derived.rows[1][1] == .go(target: "Cart", args: "", effects: []))
+    check("and the next one goes back to the one before", derived.rows[2][1] == .go(target: "Addr", args: "", effects: []))
+    check("the forward direction still derives", derived.rows[0][0] == .go(target: "Addr", args: "", effects: []))
+
+    let ending = try buildDesc(
+        backMachine(back: "Back", payBack: RawCell("HANDLE"), doneBack: RawCell("HANDLE")))
+    check("the path's end may be left by its own back action", ending.rows[3][1] == .go(target: "Pay", args: "", effects: []))
+
+    let explicit = try buildDesc(backMachine(back: "Back", payBack: RawCell("GO", target: "Cart")))
+    check("an explicit cell wins", explicit.rows[2][1] == .go(target: "Cart", args: "", effects: []))
+
+    let plain = try buildDesc(backMachine(back: "", payBack: RawCell("HANDLE")))
+    check("no back action, no reverse derivation", plain.rows[1][1] == .handle)
+} catch {
+    check("the back-deriving machines are accepted: \(error)", false)
+}
+
+expectError("a path that can still be left", "tabula::path-unterminated") {
+    _ = try buildDesc(
+        backMachine(back: "", payBack: RawCell("HANDLE"), doneBack: RawCell("HANDLE")))
+}
+
+expectError("a back action the machine does not declare", "tabula::path-unknown-state") {
+    _ = try buildDesc(backMachine(back: "Backwards", payBack: RawCell("HANDLE")))
+}
+
 // MARK: - Golden emitted source
 
 /// `timer.tbl`, as the macro would build it from syntax -- plus `Note`, an

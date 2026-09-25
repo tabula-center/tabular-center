@@ -113,12 +113,20 @@ public enum MachineSyntax {
                         .flatMap(literalText),
                     let list = Array(args)[1].expression.as(ArrayExprSyntax.self)
                 else { return nil }
+                // `back:` is the third argument and labelled, so every
+                // `@Path("name", [..])` already written stays valid.
+                let back = Array(args)
+                    .first { $0.label?.text == "back" }?
+                    .expression.as(MemberAccessExprSyntax.self)?
+                    .declName.baseName.text
+
                 return RawPath(
                     name: name,
                     elements: list.elements.compactMap {
                         $0.expression.as(MemberAccessExprSyntax.self)?
                             .declName.baseName.text
-                    })
+                    },
+                    back: back ?? "")
             }
 
         return RawMachine(
