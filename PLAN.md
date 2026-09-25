@@ -2236,10 +2236,15 @@ rather than letting a green check imply more than it covers:
       count against `path-unterminated`. Checked in the codegen check (the
       four derivation cases) and in the macro check (that `back:` survives
       extraction, and that neither direction leaves a cell member behind).
-- [ ] `back` in Rust: another rule set in the generated `__tabula_hop!`, keyed
-      on the hop's far side, plus the same two validation rules. The macro has
-      no validation of its own yet beyond the four `path-*` codes, so this is
-      a rule set and a `compile_error!` arm.
+- [x] `back` in Rust: `checkout: [..] back Back;` in the `paths` block. A
+      second rule set in the generated `__tabula_hop!`, keyed on each hop's
+      far side, deriving a HANDLE and passing anything else through. Two
+      rules per reverse hop and no diagnostic, which is deliberate: a path has
+      no opinion about what else a back action does, and passing is also what
+      keeps a back cell clear of the `path-unterminated` rules, since walking
+      a path backwards is walking the path. The back action is checked against
+      the declared actions like any other name. All three implementations now
+      agree.
 - [x] A third Compose screen, `CheckoutMachine.tb.kt`: the happy path at a
       size worth showing. Five states on a `@Path`, four hops derived, two of
       them written as GOs because they emit, and the rest of the table -- back,

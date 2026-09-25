@@ -225,9 +225,16 @@ second-class in the interface because they are second-class in the intent.
 
 ## A path may name how it is walked backwards
 
-**Kotlin and Swift; Rust follows.** Swift spells it as a labelled third
-argument, `@Path("checkout", [..], back: .back)`, so every path already
+**All three.** Swift spells it as a labelled third argument,
+`@Path("checkout", [..], back: .back)`; Rust as a suffix in the `paths`
+block, `checkout: [..] back Back;`. Both are optional, so every path already
 written parses unchanged.
+
+One difference worth knowing: a **forward** hop's cell is checked -- it must
+be able to reach the next state, or `path-broken` -- while a **back** cell is
+not. A path has no opinion about what else a back action does, so a cell it
+does not derive passes untouched. That is also what keeps a back cell clear
+of `path-unterminated` at the path's end.
 
 ```kotlin
 @Path("checkout", [Cart, Next, Address, Next, Payment, Next, Review, Next, Placed],

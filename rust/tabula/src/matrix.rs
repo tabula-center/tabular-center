@@ -219,7 +219,7 @@ macro_rules! transition_matrix {
         states  { $($sv:ident $({ $($sf:ident : $sft:ty),* $(,)? })? ),* $(,)? }
         actions { $($av:ident $({ $($af:ident : $aft:ty),* $(,)? })? ),* $(,)? }
 
-        paths { $($pn:ident : [ $($pe:ident),* $(,)? ];)+ }
+        paths { $($pn:ident : [ $($pe:ident),* $(,)? ] $(back $pb:ident)? ;)+ }
 
         $($row:ident => [ $($cell:tt)* ];)*
     ) => {
@@ -252,7 +252,8 @@ macro_rules! transition_matrix {
             rows=[$($row => [ $($cell)* ];)*]
             acc=[]
             lasts=[]
-            paths=[$( ($pn start [$($pe),*]) )+]
+            backs=[]
+            paths=[$( ($pn start [$($pe),*] b=[$($pb)?]) )+]
         );
     };
 
@@ -264,28 +265,47 @@ macro_rules! transition_matrix {
     // `start` marks a path's first step, so a path too short to hold one hop
     // is told apart from one that has simply finished.
     (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=[$($acc:tt)*] lasts=$lasts:tt
-        paths=[ ($pn:ident $step:ident [$st:ident, $ac:ident, $nx:ident $(, $more:ident)*])
+        backs=$backs:tt
+        paths=[ ($pn:ident $step:ident [$st:ident, $ac:ident, $nx:ident $(, $more:ident)*] b=[])
             $($ps:tt)* ]
     ) => {
         __tabula_known_state!($pn $st);
         __tabula_known_action!($pn $ac);
         $crate::transition_matrix!(@hops c=$c hdr=$hdr acts=$acts rows=$rows
+            acc=[$($acc)* ($pn $st $ac $nx)] lasts=$lasts backs=$backs
+            paths=[ ($pn mid [$nx $(, $more)*] b=[]) $($ps)* ]);
+    };
+    // The same hop, for a path that names how it is walked backwards: the
+    // far side goes back to this one. Accumulated separately from the
+    // forward hops because the two are NOT checked alike -- a forward hop's
+    // cell must be able to reach the next state, while a back cell may be
+    // anything at all, including a cell this path has no opinion about.
+    (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=[$($acc:tt)*] lasts=$lasts:tt
+        backs=[$($backs:tt)*]
+        paths=[ ($pn:ident $step:ident [$st:ident, $ac:ident, $nx:ident $(, $more:ident)*]
+            b=[$pb:ident]) $($ps:tt)* ]
+    ) => {
+        __tabula_known_state!($pn $st);
+        __tabula_known_action!($pn $ac);
+        __tabula_known_action!($pn $pb);
+        $crate::transition_matrix!(@hops c=$c hdr=$hdr acts=$acts rows=$rows
             acc=[$($acc)* ($pn $st $ac $nx)] lasts=$lasts
-            paths=[ ($pn mid [$nx $(, $more)*]) $($ps)* ]);
+            backs=[$($backs)* ($nx $pb $st)]
+            paths=[ ($pn mid [$nx $(, $more)*] b=[$pb]) $($ps)* ]);
     };
     // A path ends on a state, after at least one hop.
     (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=$acc:tt lasts=[$($lasts:tt)*]
-        paths=[ ($pn:ident mid [$last:ident]) $($ps:tt)* ]
+        backs=$backs:tt paths=[ ($pn:ident mid [$last:ident] b=$b:tt) $($ps:tt)* ]
     ) => {
         __tabula_known_state!($pn $last);
         $crate::transition_matrix!(@hops c=$c hdr=$hdr acts=$acts rows=$rows acc=$acc
-            lasts=[$($lasts)* ($pn $last)] paths=[$($ps)*]);
+            lasts=[$($lasts)* ($pn $last)] backs=$backs paths=[$($ps)*]);
     };
     // Any other shape: fewer than three elements, or ending on an action.
     // Reported, and the path dropped, so the rest of the machine still
     // expands and this is the error a reader sees first.
     (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=$acc:tt lasts=$lasts:tt
-        paths=[ ($pn:ident $step:ident [$($bad:ident),*]) $($ps:tt)* ]
+        backs=$backs:tt paths=[ ($pn:ident $step:ident [$($bad:ident),*] b=$b:tt) $($ps:tt)* ]
     ) => {
         ::core::compile_error!(::core::concat!(
             "tabula::path-broken: path `",
@@ -294,7 +314,7 @@ macro_rules! transition_matrix {
             "element count is odd and at least three"
         ));
         $crate::transition_matrix!(@hops c=$c hdr=$hdr acts=$acts rows=$rows acc=$acc
-            lasts=$lasts paths=[$($ps)*]);
+            lasts=$lasts backs=$backs paths=[$($ps)*]);
     };
     // Every path paired: define the lookup, then rewrite the rows through it.
     //
@@ -302,9 +322,9 @@ macro_rules! transition_matrix {
     // own output, except as the last token of a delimited group, and the
     // lookup it defines needs metavariables of its own.
     (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=[$($acc:tt)*] lasts=[$($lasts:tt)*]
-        paths=[]
+        backs=[$($backs:tt)*] paths=[]
     ) => {
-        $crate::__tabula_define_hops! { ($) hops=[$($acc)*] lasts=[$($lasts)*] }
+        $crate::__tabula_define_hops! { ($) hops=[$($acc)*] backs=[$($backs)*] lasts=[$($lasts)*] }
         $crate::transition_matrix!(@derive c=$c hdr=$hdr acts=$acts done=[] todo=$rows);
     };
 
@@ -948,6 +968,7 @@ macro_rules! __tabula_unit {
 macro_rules! __tabula_define_hops {
     (($d:tt)
         hops=[ $( ($p:ident $st:ident $ac:ident $nx:ident) )* ]
+        backs=[ $( ($bf:ident $bact:ident $bt:ident) )* ]
         lasts=[ $( ($lp:ident $l:ident) )* ]
     ) => {
         macro_rules! __tabula_hop {
@@ -971,6 +992,20 @@ macro_rules! __tabula_define_hops {
                         ", ", ::core::stringify!($ac),
                         ") cannot reach `", ::core::stringify!($nx), "`"
                     ));
+                    $crate::transition_matrix!($d($d k)* cell=[$d($d cell)*]);
+                };
+            )*
+            // Walked backwards. Two rules per reverse hop and no diagnostic:
+            // a HANDLE goes back a step, and anything else passes untouched.
+            // A back cell is not checked the way a forward hop's is, because
+            // a path has no opinion about it -- and passing here is also what
+            // keeps it away from the `path-unterminated` rules below, since
+            // walking a path backwards is walking the path.
+            $(
+                ([$d($d k:tt)*] ; $bf $bact HANDLE) => {
+                    $crate::transition_matrix!($d($d k)* cell=[GO!($bt)]);
+                };
+                ([$d($d k:tt)*] ; $bf $bact $d($d cell:tt)*) => {
                     $crate::transition_matrix!($d($d k)* cell=[$d($d cell)*]);
                 };
             )*

@@ -91,6 +91,38 @@ mod no_path {
     }
 }
 
+/// The same route, walked in both directions.
+///
+/// `back Back` names the action that reverses each hop, so `(Connecting, Back)`
+/// goes to `Idle` and `(Live, Back)` to `Connecting` -- derived, like the
+/// forward direction, from HANDLE cells only. Nothing here implements those
+/// cells, which is what proves they were derived.
+mod both_ways {
+    use super::Ctx;
+    use tabula::transition_matrix;
+
+    transition_matrix! {
+        machine Spine;
+        context Ctx;
+        state   State;
+        action  Action;
+        effects Effect { }
+        initial Idle;
+
+        states  { Idle, Connecting, Live }
+        actions { Start, Ready, Back }
+
+        paths {
+            connect: [Idle, Start, Connecting, Ready, Live] back Back;
+        }
+
+        //              Start     Ready     Back
+        Idle       => [ HANDLE,   IGNORE,   IGNORE ];
+        Connecting => [ IGNORE,   HANDLE,   HANDLE ];
+        Live       => [ IGNORE,   IGNORE,   HANDLE ];
+    }
+}
+
 /// Implements the one cell the spine does not name, and nothing else.
 struct Impl;
 
@@ -148,4 +180,45 @@ fn a_spine_derived_machine_equals_its_longhand_twin() {
 fn without_the_path_the_same_rows_are_a_different_machine() {
     assert_ne!(no_path::TABLE, longhand::TABLE);
     assert_eq!(no_path::TABLE.coverage().required_members(), 3);
+}
+
+#[test]
+fn a_path_may_be_walked_backwards() {
+    // No `Handle` impl exists for this machine at all: every cell is derived,
+    // forwards or back, so `Impl` satisfies it by implementing nothing.
+    let s = both_ways::step(
+        &mut Impl,
+        &mut Ctx,
+        both_ways::State::Connecting(both_ways::Connecting),
+        both_ways::Action::Back(both_ways::Back),
+    );
+    assert_eq!(
+        s.outcome,
+        Outcome::Go(both_ways::State::Idle(both_ways::Idle))
+    );
+
+    // Including at the path's end: walking back is not leaving, so this is a
+    // cell rather than `tabula::path-unterminated`.
+    let s = both_ways::step(
+        &mut Impl,
+        &mut Ctx,
+        both_ways::State::Live(both_ways::Live),
+        both_ways::Action::Back(both_ways::Back),
+    );
+    assert_eq!(
+        s.outcome,
+        Outcome::Go(both_ways::State::Connecting(both_ways::Connecting))
+    );
+
+    // And the forward direction is unchanged.
+    let s = both_ways::step(
+        &mut Impl,
+        &mut Ctx,
+        both_ways::State::Idle(both_ways::Idle),
+        both_ways::Action::Start(both_ways::Start),
+    );
+    assert_eq!(
+        s.outcome,
+        Outcome::Go(both_ways::State::Connecting(both_ways::Connecting))
+    );
 }
