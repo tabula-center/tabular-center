@@ -13,7 +13,9 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun SessionUi(model: SessionModel) {
@@ -28,6 +30,8 @@ fun SessionUi(model: SessionModel) {
                     Button(onClick = button.onClick) { Text(button.label) }
                 }
             }
+            Text("The session's matrix (the connection's is below):")
+            Text(model.grid, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
             model.connection?.let { child ->
                 Divider()
                 ConnectionUi(child)

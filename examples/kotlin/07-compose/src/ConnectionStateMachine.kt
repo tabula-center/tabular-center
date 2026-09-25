@@ -16,6 +16,8 @@ import example.compose.connection.Cells
 import example.compose.connection.Ctx
 import example.compose.connection.F
 import example.compose.connection.S
+import dev.tabula.Export
+import example.compose.connection.TABLE
 import example.compose.connection.perform
 import example.compose.connection.step
 
@@ -24,6 +26,15 @@ data class ConnectionModel(
     val status: String,
     val detail: String,
     val buttons: List<Button>,
+    /**
+     * The matrix this screen is running, rendered.
+     *
+     * `TABLE` is inert data the processor generated beside the dispatcher, so
+     * a screen can show the machine it runs. Change a cell in `Machine.tb.kt`
+     * and this changes with it: the picture and the dispatch come from one
+     * table, rather than from a diagram someone has to keep current.
+     */
+    val grid: String,
 ) {
     data class Button(val label: String, val onClick: () -> Unit)
 }
@@ -99,5 +110,6 @@ fun connectionModel(state: S, send: (A) -> Unit): ConnectionModel {
             ConnectionModel.Button("Drop") { send(A.Drop) },
             ConnectionModel.Button("Retry") { send(A.Retry) },
         ),
+        grid = Export.toGrid(TABLE),
     )
 }

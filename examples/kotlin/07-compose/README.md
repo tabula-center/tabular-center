@@ -52,6 +52,16 @@ only place a transition is decided. When the prism declines — nothing sensible
 to send while the connection dials — the parent ignores, and the ignoring is
 in the table rather than in a disabled button.
 
+## The window shows the machine
+
+Both screens render their own `TABLE` — inert data the processor generated
+beside the dispatcher — so the matrix on screen is the one dispatching, not a
+diagram someone has to keep current. The nested screen shows two: the
+session's, and the connection's below it.
+
+The iced example (`examples/rust/05-iced`) does the same, which is the point
+of having both: same machine, same picture, two host architectures.
+
 ## What is checked, and what is not
 
 - **The machine is checked headlessly**, through the generated dispatcher,

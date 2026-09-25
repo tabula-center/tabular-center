@@ -15,7 +15,9 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun ConnectionUi(model: ConnectionModel) {
@@ -31,6 +33,10 @@ fun ConnectionUi(model: ConnectionModel) {
                     Button(onClick = button.onClick) { Text(button.label) }
                 }
             }
+            // The machine on screen, rendered from the same TABLE the
+            // dispatcher uses -- as the iced example's window does.
+            Text("The matrix this screen is running:")
+            Text(model.grid, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
         }
     }
 }

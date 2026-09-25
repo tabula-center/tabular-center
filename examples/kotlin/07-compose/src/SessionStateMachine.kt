@@ -23,6 +23,8 @@ import example.compose.session.Cells
 import example.compose.session.Ctx
 import example.compose.session.F
 import example.compose.session.S
+import dev.tabula.Export
+import example.compose.session.TABLE
 import example.compose.session.perform
 import example.compose.session.step
 import example.compose.connection.A as ChildA
@@ -35,6 +37,8 @@ data class SessionModel(
     val status: String,
     val connection: ConnectionModel?,
     val buttons: List<Button>,
+    /** The PARENT's matrix. The child's comes with the nested model. */
+    val grid: String,
 ) {
     data class Button(val label: String, val onClick: () -> Unit)
 }
@@ -127,6 +131,7 @@ class SessionStateMachine(private val log: (String) -> Unit = {}) :
                 SessionModel.Button("Boot") { machine.send(A.Boot) },
                 SessionModel.Button("Finish") { machine.send(A.Finish) },
             ),
+            grid = Export.toGrid(TABLE),
         )
     }
 }
