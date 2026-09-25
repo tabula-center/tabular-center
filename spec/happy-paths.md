@@ -223,6 +223,36 @@ second-class in the interface because they are second-class in the intent.
   it inside the generated member would hide an effect execution inside what
   looks like a state transition.
 
+## A path may name how it is walked backwards
+
+**Kotlin only so far; Swift and Rust follow.**
+
+```kotlin
+@Path("checkout", [Cart, Next, Address, Next, Payment, Next, Review, Next, Placed],
+      back = Back::class)
+```
+
+For each hop `A -next-> B`, the cell `(B, back)` derives to `GO(A)` — over
+`HANDLE` cells only, exactly as the forward direction derives, so an explicit
+cell is left alone and a path without `back` behaves as before.
+
+It is here because the first version of this feature did not earn its place.
+Deriving only the forward direction saved one target per step, which is not
+worth a declaration; the wizard example still wrote its whole `Back` column by
+hand, which is the route again in the opposite order — the one place where a
+wrong target looks exactly like a right one and only a reader walking the
+machine in their head can tell.
+
+What a spine is *for* is the duplication, not the character count: a route
+that exists twice can disagree with itself, and no diagnostic can catch that
+because both halves are well-formed tables. With `back` the route exists once
+in each direction it is actually travelled, and the four `path-*` codes hold
+it to the rows.
+
+What it still does not buy is a smaller machine. Decline, abandon and retry
+are a third of a checkout's cells and no route describes them. That is the
+honest limit: a path removes what was duplicated, not what was decided.
+
 ## Rust: the spine without identifier comparison
 
 **Status: A chosen and implemented -- derivation and the four `path-*`

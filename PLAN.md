@@ -2222,6 +2222,16 @@ rather than letting a green check imply more than it covers:
       generated `step`/`perform` with the same enqueue-don't-recurse rule as
       `Driver`. Machine checked headlessly, UI compiled only, nothing asserts
       the screen -- stated in its README.
+- [x] `@Path(back = ..)`, in Kotlin: the reverse of a route derives too. The
+      first version of the spine derived forward hops only, which saved one
+      target per step and left the wizard writing its whole `Back` column by
+      hand -- the route again, backwards, where a wrong target looks like a
+      right one. Derived over `HANDLE` cells only, so explicit cells win and a
+      path without `back` is unchanged; unknown back actions are
+      `tabula::path-unknown-state`.
+- [ ] `back` in Swift and Rust, so the three agree. Swift is a `MachineSyntax`
+      field and a `derive` line; Rust is another rule set in the generated
+      `__tabula_hop!`, keyed on the hop's far side.
 - [x] A third Compose screen, `CheckoutMachine.tb.kt`: the happy path at a
       size worth showing. Five states on a `@Path`, four hops derived, two of
       them written as GOs because they emit, and the rest of the table -- back,

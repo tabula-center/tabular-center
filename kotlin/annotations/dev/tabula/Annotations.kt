@@ -124,4 +124,19 @@ annotation class Machine(
 annotation class Path(
     val name: String,
     val states: Array<KClass<*>>,
+    /**
+     * The action that walks this path backwards, if it has one.
+     *
+     * A wizard's "back" is the path read in reverse, and writing it out cell
+     * by cell is writing the route a second time -- in the opposite order,
+     * where a mistake looks like an ordinary cell. Name the action here and
+     * each hop's reverse derives too: for `A -next-> B`, the cell
+     * `(B, back)` becomes `GO(A)`.
+     *
+     * Derived over `HANDLE` cells only, exactly as the forward direction is,
+     * so a row that says something else keeps saying it -- a wizard whose
+     * back from payment abandons the order, say, writes that GO and the path
+     * leaves it alone.
+     */
+    val back: KClass<*> = Unit::class,
 )

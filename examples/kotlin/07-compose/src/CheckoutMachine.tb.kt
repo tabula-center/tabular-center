@@ -2,37 +2,30 @@
  * The happy path, and everything that is not it.
  *
  * A checkout: cart, address, payment, review, placed. The `@Path` below is
- * that route, written once. Each `HANDLE` it names becomes a `GO` to the next
- * state at generation time, so no target is written twice and no two places
- * can disagree about where a step goes.
+ * that route, written once and in both directions. Each `HANDLE` on a hop
+ * becomes a `GO` to the next state; each `HANDLE` on the hop's far side, under
+ * the `back` action, becomes a `GO` to the one before.
  *
  * ## Without the path
  *
- * The same machine, spelled out, differs only in the first column -- and that
- * is the whole of what a spine buys:
+ * The same machine, spelled out, needs seven targets where this needs none:
  *
- * ```
- * //                      Next                        Back                     ...
- * @Row(Cart::class,      [C(GO, to = Address::class), C(IGNORE),               ...
- * @Row(Address::class,   [C(GO, to = Payment::class), C(GO, to = Cart::class), ...
- * @Row(Declined::class,  [C(HANDLE),                  ...
- * ```
+ *     Row(Cart)     GO(Address)   IGNORE
+ *     Row(Address)  GO(Payment)   GO(Cart)
+ *     Row(Payment)  GO(Review)    GO(Address)
+ *     Row(Review)   GO(Placed)    GO(Payment)
  *
- * Four targets instead of four `HANDLE`s: shorter by a few words, and that is
- * not the point. The point is that the route then exists in four places
- * rather than one, in an order only the row order implies, and moving a step
- * means editing two cells and hoping. With the path, the route is one line
- * that `tabula::path-broken` holds to the table: change a row without changing
- * the path and the build says so, by name, before anything runs.
+ * Both columns are the route, and the second is the route written again
+ * BACKWARDS -- where a wrong target looks exactly like a right one, and only
+ * a reader walking the wizard in their head can tell. `back = Back::class`
+ * says it once instead, and those cells become `HANDLE`s the path fills in.
  *
- * ## What it does not buy
+ * ## What it still does not buy
  *
- * Conciseness, mostly. The spine removes four cell bodies from a table of
- * twenty-eight, and the grid below is exactly as wide either way -- because
- * every other cell is a decision a wizard has to make anyway, and a list of
- * five screens cannot hold them. The rows are wide because Kotlin's annotation
- * surface is verbose, not because the machine is: Rust's `transition_matrix!`
- * writes the same matrix in half the characters.
+ * A smaller wizard. Decline, abandon and retry are a third of these
+ * twenty-eight cells and no route describes them: they are why this is a
+ * matrix and not a list of five screens. What a path removes is the part that
+ * was duplicated, which is also the only part that can rot.
  */
 package example.compose.checkout
 
@@ -71,7 +64,7 @@ private const val BANK = "(\"the bank refused the charge\")"
     effects = [Charge::class, Email::class],
     initial = Cart::class,
 )
-// The route, once. Every HANDLE it names becomes a GO to the next state.
+// The route, once, in both directions.
 @Path(
     "checkout",
     [
@@ -81,12 +74,13 @@ private const val BANK = "(\"the bank refused the charge\")"
         Review::class, Next::class,
         Placed::class,
     ],
+    back = Back::class,
 )
 //                      Next                                               Back                        Decline                                   Abandon
 @Row(Cart::class,      [C(HANDLE),                                         C(IGNORE),                  C(IGNORE),                                C(GO, to = Abandoned::class)])
-@Row(Address::class,   [C(HANDLE),                                         C(GO, to = Cart::class),    C(IGNORE),                                C(GO, to = Abandoned::class)])
-@Row(Payment::class,   [C(GO, to = Review::class, emit = [Charge::class]), C(GO, to = Address::class), C(GO, to = Declined::class, args = CARD), C(GO, to = Abandoned::class)])
-@Row(Review::class,    [C(GO, to = Placed::class, emit = [Email::class]),  C(GO, to = Payment::class), C(GO, to = Declined::class, args = BANK), C(GO, to = Abandoned::class)])
+@Row(Address::class,   [C(HANDLE),                                         C(HANDLE),                  C(IGNORE),                                C(GO, to = Abandoned::class)])
+@Row(Payment::class,   [C(GO, to = Review::class, emit = [Charge::class]), C(HANDLE),                  C(GO, to = Declined::class, args = CARD), C(GO, to = Abandoned::class)])
+@Row(Review::class,    [C(GO, to = Placed::class, emit = [Email::class]),  C(HANDLE),                  C(GO, to = Declined::class, args = BANK), C(GO, to = Abandoned::class)])
 @Row(Placed::class,    [C(IGNORE),                                         C(IGNORE),                  C(IGNORE),                                C(IGNORE)])
 @Row(Declined::class,  [C(HANDLE),                                         C(GO, to = Payment::class), C(IGNORE),                                C(GO, to = Abandoned::class)])
 @Row(Abandoned::class, [C(GO, to = Cart::class),                           C(IGNORE),                  C(IGNORE),                                C(IGNORE)])

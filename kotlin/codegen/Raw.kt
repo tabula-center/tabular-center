@@ -20,7 +20,12 @@ package codegen
  * Named because a machine may have more than one, and the narrowed calling
  * surface has to say which it narrows to.
  */
-data class RawPath(val name: String, val elements: List<String>) {
+data class RawPath(
+    val name: String,
+    val elements: List<String>,
+    /** The action that walks this path backwards, or "" if it has none. */
+    val back: String = "",
+) {
     /** States, at the even positions. */
     val states: List<String> get() = elements.filterIndexed { i, _ -> i % 2 == 0 }
 
@@ -33,6 +38,16 @@ data class RawPath(val name: String, val elements: List<String>) {
         else (0 until elements.size / 2).map {
             Triple(elements[it * 2], elements[it * 2 + 1], elements[it * 2 + 2])
         }
+
+    /**
+     * The same hops, walked backwards: `(next, back) -> previous`.
+     *
+     * Empty when the path names no back action, which is why adding this
+     * changes nothing for any machine that had one already.
+     */
+    val reverseHops: List<Triple<String, String, String>>
+        get() = if (back.isBlank()) emptyList()
+        else hops.map { (from, _, to) -> Triple(to, back, from) }
 }
 
 data class RawMachine(
@@ -321,6 +336,17 @@ private fun validatePaths(
             }
         }
 
+        // The back action, if there is one, is an action like any other. Same
+        // code as an unknown state: a path that names something the machine
+        // does not declare is the same mistake whichever column it is in.
+        if (path.back.isNotBlank() && path.back !in actionNames) {
+            fail(
+                "tabula::path-unknown-state",
+                "path `${path.name}` walks back by `${path.back}`, which is not a " +
+                    "declared action. Actions: ${actionNames.joinToString(" ")}"
+            )
+        }
+
         // Shape before content. A route is a sequence of hops, and a hop is a
         // state, an action and a state -- so the elements alternate and the
         // count is odd and at least three. Checking this first means the hop
@@ -370,11 +396,22 @@ private fun validatePaths(
         }
 
         // A path that never ends is not a happy path, it is a loop with a name.
+        //
+        // Walking BACK is not leaving: a path with a `back` action is
+        // travelled in both directions, so its own back column does not count
+        // against the ending. Without this, every wizard that can go back
+        // would be reported unterminated -- which is what the first version
+        // did, and what its own test caught.
         val last = path.states.last()
         val lastRow = raw.rows.firstOrNull { it.state == last }
-        val leaves = lastRow?.cells?.any { c ->
-            c.kind == "HANDLE" || c.kind == "DELEGATE" ||
-                (c.kind == "GO" && c.target != last)
+        val leaves = lastRow?.cells?.withIndex()?.any { (j, c) ->
+            val action = actionNames.getOrNull(j)
+            if (path.back.isNotBlank() && action == path.back) {
+                false
+            } else {
+                c.kind == "HANDLE" || c.kind == "DELEGATE" ||
+                    (c.kind == "GO" && c.target != last)
+            }
         } ?: false
         if (leaves) {
             fail(
@@ -410,8 +447,11 @@ private fun validatePaths(
  */
 private fun derive(c: RawCell, state: String, action: String, raw: RawMachine): RawCell {
     if (c.kind != "HANDLE") return c
+    // Forward hops first, then the reverse ones a `back` action declares.
+    // Both derive over HANDLE cells only, so an explicit cell always wins and
+    // a machine that declares no path is untouched.
     val to = raw.paths
-        .flatMap { it.hops }
+        .flatMap { it.hops + it.reverseHops }
         .firstOrNull { it.first == state && it.second == action }
         ?.third
         ?: return c

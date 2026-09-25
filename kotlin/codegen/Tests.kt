@@ -185,6 +185,7 @@ fun runValidationTests(): Int {
     runAdditiveTest()
     runChildPackageTest()
     runEffectArgumentTest()
+    runPathBackTest()
 
     if (failures == 0) println("ok   codegen validation ($checks checks)")
     else println("FAIL codegen validation ($failures of $checks checks failed)")
@@ -239,6 +240,72 @@ private fun runAdditiveTest() {
     // the two checks above whenever the longhand twin was written wrong.
     check("without the path, the same rows are a different machine", underived != longhand)
     check("a HANDLE no hop names is left alone", derived.rows[1][2] == CellDesc.Handle)
+}
+
+/**
+ * A path may name the action that walks it backwards.
+ *
+ * The reverse of a route is the route again, written in the opposite order,
+ * where a wrong target looks exactly like a right one. `back` says it once.
+ * Derived over HANDLE cells only, like the forward direction, so an explicit
+ * cell wins and a path without `back` derives nothing new.
+ */
+private fun runPathBackTest() {
+    val states = listOf(
+        RawVariant("Cart"), RawVariant("Addr"), RawVariant("Pay"), RawVariant("Done"),
+    )
+    val actions = listOf(RawVariant("Next"), RawVariant("Back"))
+
+    // `Done` is the path's end and a real one: nothing but the back action
+    // leaves it, so `path-unterminated` is satisfied whether or not this
+    // machine names a back action. The cell under test is `Pay x Back`.
+    fun machine(back: String, payBack: RawCell, doneBack: RawCell = RawCell("IGNORE")) = raw(
+        states = states,
+        actions = actions,
+        rows = listOf(
+            RawRow("Cart", listOf(RawCell("HANDLE"), RawCell("IGNORE"))),
+            RawRow("Addr", listOf(RawCell("HANDLE"), RawCell("HANDLE"))),
+            RawRow("Pay", listOf(RawCell("HANDLE"), payBack)),
+            RawRow("Done", listOf(RawCell("IGNORE"), doneBack)),
+        ),
+        initial = "Cart",
+    ).copy(
+        paths = listOf(
+            RawPath(
+                "checkout",
+                listOf("Cart", "Next", "Addr", "Next", "Pay", "Next", "Done"),
+                back = back,
+            ),
+        ),
+    )
+
+    val derived = buildDesc(machine("Back", RawCell("HANDLE")))
+    check("a hop's far side goes back one step", derived.rows[1][1] == CellDesc.Go("Cart"))
+    check("and the next one goes back to the one before", derived.rows[2][1] == CellDesc.Go("Addr"))
+    check("the forward direction still derives", derived.rows[0][0] == CellDesc.Go("Addr"))
+
+    // Walking back is not leaving: the path's end may have a back cell, which
+    // without this rule would be reported `path-unterminated`.
+    val ending = buildDesc(machine("Back", RawCell("HANDLE"), doneBack = RawCell("HANDLE")))
+    check("the path's end may be left by its own back action", ending.rows[3][1] == CellDesc.Go("Pay"))
+
+    // An explicit cell is not a hole, so the path does not fill it.
+    val explicit = buildDesc(machine("Back", RawCell("GO", target = "Cart")))
+    check("an explicit cell wins", explicit.rows[2][1] == CellDesc.Go("Cart"))
+
+    // Without `back`, nothing reverse is derived: the HANDLE stays a member,
+    // which is what keeps this change invisible to every existing machine.
+    val plain = buildDesc(machine("", RawCell("HANDLE")))
+    check("no back action, no reverse derivation", plain.rows[1][1] == CellDesc.Handle)
+
+    // And without it, a HANDLE at the path's end really is a way out.
+    expectError("a path that can still be left", "tabula::path-unterminated") {
+        buildDesc(machine("", RawCell("HANDLE"), doneBack = RawCell("HANDLE")))
+    }
+
+    expectError("a back action the machine does not declare", "tabula::path-unknown-state") {
+        buildDesc(machine("Backwards", RawCell("HANDLE")))
+    }
 }
 
 /**

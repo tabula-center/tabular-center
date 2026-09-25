@@ -115,6 +115,8 @@ class TabulaProcessor(
                 RawPath(
                     path.string("name"),
                     path.classes("states").map { it.simpleName.asString() },
+                    back = path.classes("back").firstOrNull()
+                        ?.simpleName?.asString()?.takeIf { it != "Unit" } ?: "",
                 )
             }
             .toList()
