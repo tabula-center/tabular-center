@@ -6,7 +6,7 @@
 
 use tabula::transition_matrix;
 
-use crate::Ctx;
+use crate::connection::Ctx;
 
 #[rustfmt::skip]
 transition_matrix! {

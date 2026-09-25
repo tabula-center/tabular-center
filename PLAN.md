@@ -2207,9 +2207,16 @@ rather than letting a green check imply more than it covers:
       and its own check on current stable. tabula's MSRV stays where it is
       worth holding -- the library, and the four examples that depend on
       nothing else -- rather than being spent on a GUI application.
-- [ ] iced app 2: composition and payloads. `nested-delegate` and `retry`
-      already model this as fixtures; the app should be recognisably the same
-      machines so a reader can move between them.
+- [x] iced app 2: composition and payloads, in the same package as app 1 --
+      a session containing a connection, the same pair as the Compose example
+      rather than the `nested-delegate` fixture, so the two GUI examples read
+      side by side. Two machines in one crate means two modules, since each
+      generates `State`, `Action`, `step` and `TABLE`; the `#[path]`
+      declarations sit at the crate root, as `04-login`'s do. One `Cells` type
+      satisfies both surfaces, so a hole in the child is a build error in the
+      parent. The prism declines while the connection dials, which is where
+      "this button does nothing right now" lives -- in the table, not in a
+      disabled button. The window shows both matrices.
 - [x] Compose app 1: `examples/kotlin/07-compose`, in **bitkey's**
       architecture rather than over a `Driver` and a `StateFlow` -- the
       repository being matched (`proto-at-block/bitkey`,

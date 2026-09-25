@@ -65,6 +65,26 @@ Every `(state, action)` pair has an answer in `machine.tb.rs`, and the four
 cells that say `IGNORE` say so on purpose. A button pressed at the wrong
 moment is a decision in the table rather than a disabled button in `view`.
 
+## Two machines, nested
+
+`session.tb.rs` contains `connection.tb.rs`: the parent's state carries the
+child's, one `Cells` type satisfies both surfaces, and the window shows both
+matrices.
+
+The nested screen's button sends the **parent's** `Tap`, and the prism decides
+which child action that is, from the child's state: one button, four meanings,
+none of which `view` knows.
+
+A composed child's effects belong to the parent. The lens LIFTS them, so the
+child's own `Perform` impls do not run inside the session -- the parent
+decides what `Dial` means, and answers with its own `Tap`, which the mailbox
+delivers. One press therefore walks Idle -> Connecting -> Live.
+
+That is worth stating because getting it wrong is easy and quiet: lift every
+child effect to one parent effect and the parent can no longer tell which
+happened, so the connection is never dialled and the app sits in Connecting.
+The tests catch exactly that.
+
 ## What drives it
 
 `tabula::Driver`, which is the whole host: an action goes in, the effects of

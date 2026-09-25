@@ -1,55 +1,59 @@
-//! The window: iced renders what the machine decided.
+//! The window: iced renders what the machines decided.
 //!
-//! Note what this file cannot do. It has no transitions and no `match` over
-//! the state deciding what happens next -- it sends an action and draws the
-//! result. A button pressed at the wrong moment is not a bug to defend
-//! against here, because the table already has an answer for that pair,
-//! usually IGNORE.
+//! Two machines, nested: a session containing a connection. The window shows
+//! both matrices, because both are inert data beside their dispatchers.
+//!
+//! Note what this file cannot do. It has no transitions and no `match` over a
+//! state deciding what happens next -- it sends an action and draws the
+//! result. Tap while the connection is dialling does nothing, and that is the
+//! prism's decision, recorded in `lib.rs` beside the table, not a disabled
+//! button here.
 
 use iced::widget::{button, column, row, text};
 use iced::{Element, Font};
-use iced_connection::{Action, Close, Connected, Retry, Start};
+use iced_connection::session::{Action, Boot, Finish, Tap};
+use iced_connection::App;
 
-/// What the GUI sends. One variant per button, mapped to the machine's own
-/// actions: the toolkit's message type and the machine's alphabet are
-/// separate vocabularies, and this is where they meet.
 #[derive(Debug, Clone, Copy)]
 enum Message {
-    Start,
-    Close,
-    Retry,
+    Boot,
+    Tap,
+    Finish,
 }
 
-fn update(app: &mut Connected, message: Message) {
+fn update(app: &mut App, message: Message) {
     app.send(match message {
-        Message::Start => Action::Start(Start),
-        Message::Close => Action::Close(Close),
-        Message::Retry => Action::Retry(Retry),
+        Message::Boot => Action::Boot(Boot),
+        Message::Tap => Action::Tap(Tap),
+        Message::Finish => Action::Finish(Finish),
     });
 }
 
-fn view(app: &Connected) -> Element<'_, Message> {
-    let (status, detail) = app.describe();
+fn view(app: &App) -> Element<'_, Message> {
+    let (status, inner) = app.describe();
+    let (session_grid, connection_grid) = app.grids();
     let log = if app.log().is_empty() {
         "(no effects yet)".to_string()
     } else {
         app.log().join("\n")
     };
 
+    let (child_status, child_detail) = inner.unwrap_or_default();
+
     column![
         text(status).size(28),
-        text(detail),
+        text(child_status).size(20),
+        text(child_detail),
         row![
-            button("Start").on_press(Message::Start),
-            button("Close").on_press(Message::Close),
-            button("Retry").on_press(Message::Retry),
+            button("Boot").on_press(Message::Boot),
+            button("Tap").on_press(Message::Tap),
+            button("Finish").on_press(Message::Finish),
         ]
         .spacing(8),
-        // The machine on screen, rendered from the same `TABLE` the
-        // dispatcher uses. Not a diagram someone drew and has to keep
-        // current: if a cell changes, this changes with it.
-        text("The matrix this window is running:").size(16),
-        text(app.grid()).font(Font::MONOSPACE).size(12),
+        text("The session's matrix:").size(16),
+        text(session_grid).font(Font::MONOSPACE).size(12),
+        text("The connection's, inside it:").size(16),
+        text(connection_grid).font(Font::MONOSPACE).size(12),
         text("Effects performed:").size(16),
         text(log).font(Font::MONOSPACE).size(12),
     ]
@@ -59,5 +63,5 @@ fn view(app: &Connected) -> Element<'_, Message> {
 }
 
 fn main() -> iced::Result {
-    iced::run("tabula :: connection", update, view)
+    iced::run("tabula :: session", update, view)
 }
