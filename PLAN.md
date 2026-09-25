@@ -2222,6 +2222,13 @@ rather than letting a green check imply more than it covers:
       generated `step`/`perform` with the same enqueue-don't-recurse rule as
       `Driver`. Machine checked headlessly, UI compiled only, nothing asserts
       the screen -- stated in its README.
+- [x] A third Compose screen, `CheckoutMachine.tb.kt`: the happy path at a
+      size worth showing. Five states on a `@Path`, four hops derived, two of
+      them written as GOs because they emit, and the rest of the table -- back,
+      decline, abandon, retry -- as the half a spine does not describe. Its
+      states are payload-free because a derived GO carries no constructor
+      arguments (`tabula::go-target` is what says so), and the payload lives
+      where an explicit GO can supply it: `Declined(reason)`.
 - [x] Compose app 2: composition and payloads, as a second screen in the same
       project -- no new dependencies, so it cannot turn the check red on
       artifacts. `SessionSpec` delegates to `ConnectionSpec` through the KSP

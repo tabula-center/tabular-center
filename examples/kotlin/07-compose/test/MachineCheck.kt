@@ -43,6 +43,7 @@ fun main() {
     // Composition, in SessionCheck.kt: one runner, because the Gradle task
     // executes one main class and a check nobody runs is not a check.
     sessionChecks()
+    checkoutChecks()
 
     Check.report("compose example")
 }

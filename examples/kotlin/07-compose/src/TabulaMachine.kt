@@ -15,10 +15,21 @@ package example.compose
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import dev.tabula.Step
+
+/**
+ * A list that survives recomposition, for what effects have done.
+ *
+ * `remember` and nothing else: the effect log is the application's, not
+ * tabula's -- a `perform` returns a follow-up action, and anything else it
+ * wants to record it records itself.
+ */
+@Composable
+fun remembering(): MutableList<String> = remember { mutableStateListOf() }
 
 /** The current state, and the one way to change it. */
 class Machine<S : Any, A : Any>(

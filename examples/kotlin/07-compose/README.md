@@ -62,6 +62,68 @@ session's, and the connection's below it.
 The iced example (`examples/rust/05-iced`) does the same, which is the point
 of having both: same machine, same picture, two host architectures.
 
+## The happy path, and everything that is not it
+
+`CheckoutMachine.tb.kt` is the third screen and the largest: a wizard whose
+route — cart, address, payment, review, placed — is declared once, as a
+`@Path`. Every `HANDLE` the path names becomes a `GO` to the next state at
+generation time, so the route is written in one place and cannot disagree with
+itself.
+
+Two things it shows that a smaller example cannot:
+
+- **A hop that emits is written as the `GO` it is.** A `HANDLE` on the path is
+  derived into a plain `GO`, which carries no effects, so the steps that charge
+  the card and send the receipt say so explicitly. The path accepts them: a
+  hop's cell may be a `GO` to the next state.
+- **The spine is the smaller half.** Back, decline, abandon and retry are the
+  rest of the table, and they are why the wizard is a matrix rather than a
+  list. The grid on screen shows the path as a diagonal, with every way off it
+  beside it.
+
+## Rows are rectangular
+
+That is the selling point, so it is worth saying what keeps them that way.
+
+A row is one line, and the cells line up in columns. Reading down a column
+answers "what does this action do, everywhere?", which is the question a list
+of screens cannot answer at all. Two things make it survive:
+
+- **Aliased imports.** `import dev.tabula.CellSpec as C` and the `Kind`
+  members, plus the nested state and action classes, so a cell reads
+  `C(GO, to = Failed::class)` rather than
+  `CellSpec(Kind.GO, to = S.Failed::class)`. That is the difference between a
+  column and a wrapped line.
+- **`.editorconfig`**, which turns off wrapping, indentation, multi-space and
+  line-length rules for `*.tb.kt`. `kotlin-matrix-stable` then runs
+  `ktlint --format` over these files on every run and compares the rows, so a
+  formatter that reflowed a matrix would fail a check rather than quietly
+  ruin it.
+
+The grid is wide. That is Kotlin's annotation surface, not the machine: the
+same matrix in Rust's `transition_matrix!` is about half the characters, and
+the Swift macro's is in between. What none of the three can do is make a
+twenty-eight cell wizard smaller than twenty-eight cells -- see below.
+
+## What a happy path is and is not worth
+
+`CheckoutMachine.tb.kt` declares its route once, as a `@Path`, and the four
+`HANDLE`s it names become `GO`s to the next state. The file comment shows the
+same machine written without it.
+
+It is **not** mainly a saving of characters: four cells change from `HANDLE`
+to `GO, to = ...`, and the grid is exactly as wide either way. What changes is
+where the route lives. Without the path it exists in four cells, in an order
+only the row order implies, and moving a step means editing two of them and
+hoping. With it, the route is one line, and `tabula::path-broken` holds that
+line to the table: change a row without changing the path and the build says
+so by name.
+
+The rest of the table is the part a spine never touches -- back, decline,
+abandon, retry -- and that is the honest measure of what a wizard costs. Five
+screens, twenty-eight cells: the four on the diagonal are the demo, and the
+twenty-four beside it are the reason this is a matrix.
+
 ## What is checked, and what is not
 
 - **The machine is checked headlessly**, through the generated dispatcher,

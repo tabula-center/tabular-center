@@ -22,6 +22,11 @@ indent_size = 2
 # giving up formatting on all the ordinary code -- a wide exemption for a
 # narrow problem. See spec/matrix-files.md.
 [*.tb.kt]
+# A matrix is as wide as it is. Wrapping one is the only way to break it, and
+# the columns are the point: `kotlin-matrix-stable` runs the formatter over
+# these files and compares the rows, so a rule that reflows them would fail
+# there rather than quietly ruining the grid.
+max_line_length = off
 ktlint_standard_no-multi-spaces = disabled
 ktlint_standard_annotation = disabled
 ktlint_standard_argument-list-wrapping = disabled
