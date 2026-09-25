@@ -2186,8 +2186,27 @@ rather than letting a green check imply more than it covers:
       real dependency, which is why it lands first. Adding one needs network
       once, on a developer machine: `cd examples/rust && cargo add <crate>`,
       then commit the updated `Cargo.lock` -- nix vendors the rest.
-- [ ] iced app 1: one machine, the `update`-becomes-`step` substitution, with
-      the hand-written version in the README beside it for contrast.
+- [x] iced app 1: `examples/rust/05-iced`. The same connection machine as the
+      Compose example, so the two read side by side: same states, same
+      effects, different hosts. iced's `update` IS the substitution -- it
+      sends an action and `Driver` does the rest, so `view` contains no
+      transitions at all. The cells and the context travel as one tuple,
+      because `dispatch` hands one environment to both closures; two closures
+      borrowing them separately do not compile, which is what `03-retry` was
+      restructured around. `tests/connection.rs` drives it with no toolkit,
+      and nothing asserts the screen. First example with a third-party
+      dependency, so the first real exercise of the Cargo vendoring -- and of
+      `guiInputs`, since winit and wgpu look for fontconfig, xkbcommon, X11
+      and wayland through pkg-config, which vendoring crates cannot supply.
+      The window renders its own `TABLE`, so the machine is visible in the
+      application rather than only behind it, and the README sets the
+      hand-written `update` beside the three-line one for contrast -- which
+      is what this item asked for.
+      It is NOT a member of `examples/rust`'s workspace: iced's tree needs
+      edition 2024, which 1.75's cargo cannot parse, so it has its own lock
+      and its own check on current stable. tabula's MSRV stays where it is
+      worth holding -- the library, and the four examples that depend on
+      nothing else -- rather than being spent on a GUI application.
 - [ ] iced app 2: composition and payloads. `nested-delegate` and `retry`
       already model this as fixtures; the app should be recognisably the same
       machines so a reader can move between them.

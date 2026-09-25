@@ -236,6 +236,29 @@ let
   };
 
   rustInputs = [ rustToolchain pkgs.cargo-expand pkgs.cargo-nextest ];
+
+  # What iced needs to BUILD, which is more than what cargo vendors.
+  #
+  # `examples/rust/05-iced` pulls winit and wgpu, and their build scripts look
+  # for system libraries through pkg-config: fontconfig for text, xkbcommon and
+  # the X11 set for input, wayland for the other display server. Vendoring the
+  # crates does not supply these -- they are not crates -- so the examples
+  # check carries them.
+  #
+  # Only the examples check does. Adding them to `rustInputs` would put an
+  # X11 stack behind `cargo test` for the library, which has nothing to draw.
+  guiInputs = [
+    pkgs.pkg-config
+    pkgs.fontconfig
+    pkgs.libxkbcommon
+    pkgs.wayland
+    pkgs.libGL
+    pkgs.vulkan-loader
+    pkgs.xorg.libX11
+    pkgs.xorg.libXcursor
+    pkgs.xorg.libXi
+    pkgs.xorg.libXrandr
+  ];
   kotlinInputs = [ jdk pkgs.gradle kotlinc pkgs.ktlint ];
   commonInputs = [ pkgs.git pkgs.jq pkgs.just pkgs.graphviz pkgs.nixpkgs-fmt ];
 
@@ -259,6 +282,23 @@ let
       ''
         export HOME="$TMPDIR/home"
         export CARGO_HOME="$TMPDIR/cargo"
+
+        # crates.io, replaced by the vendor directory built from
+        # examples/rust/Cargo.lock.
+        #
+        # Here rather than in the one check that "needs" it: `clippy` resolves
+        # the examples workspace too, and so does anything else that runs cargo
+        # outside rust/. Wiring it per check meant listing which ones touch
+        # cargo, and that list was wrong the first time -- clippy failed with
+        # "no matching package named `iced`" while the examples check was fine.
+        mkdir -p "$CARGO_HOME"
+        cat > "$CARGO_HOME/config.toml" <<VENDOR
+        [source.crates-io]
+        replace-with = "vendored-sources"
+
+        [source.vendored-sources]
+        directory = "${examplesVendor}"
+        VENDOR
         export GRADLE_USER_HOME="$TMPDIR/gradle"
         export CARGO_NET_OFFLINE=true
 
@@ -308,6 +348,21 @@ let
     lockFile = ../examples/rust/Cargo.lock;
   };
 
+  # The GUI example's own lock, and its own toolchain.
+  #
+  # iced's tree needs edition 2024, which the pinned 1.75 cannot parse. That
+  # pin is tabula's MSRV and worth keeping exactly where it is: on the library
+  # and on the four examples that depend on nothing else. This one package
+  # gets current stable instead, which is what an application would use.
+  # Null until the lock exists: `importCargoLock` on a missing file fails at
+  # EVALUATION, which would take the whole flake down rather than one check.
+  icedVendor =
+    if builtins.pathExists ../examples/rust/05-iced/Cargo.lock
+    then pkgs.rustPlatform.importCargoLock { lockFile = ../examples/rust/05-iced/Cargo.lock; }
+    else null;
+
+  rustStable = pkgs.rust-bin.stable.latest.default;
+
   swiftLibraryPath = lib.concatStringsSep ":" (
     lib.concatMap (p: [ "${p}/lib" "${p}/lib/swift/linux" ]) (swiftPkgs ++ swiftLibOnly)
   );
@@ -341,5 +396,6 @@ in
     rustToolchain jdk kotlinc kotlinVersion swiftAvailable swiftChecked swiftPkgs
     rustInputs kotlinInputs commonInputs
     swiftLibraryPath gradleRepo swiftDeps swiftpmPluginSupport examplesVendor
+    guiInputs icedVendor rustStable
     mkCheck mkShell;
 }

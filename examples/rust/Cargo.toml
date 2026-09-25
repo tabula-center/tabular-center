@@ -21,3 +21,15 @@ members = [
     "03-retry",
     "04-login",
 ]
+
+# `05-iced` is deliberately NOT a member.
+#
+# tabula's MSRV is 1.75, and these four hold it: they depend on the library by
+# path and on nothing else, so they are part of that promise. iced's dependency
+# tree needs edition 2024, which 1.75's cargo cannot even parse -- the first
+# attempt failed on a vendored `getrandom` manifest. A GUI application is not
+# the place to spend the library's MSRV, and raising it for one example would
+# have made the promise quieter rather than truer.
+#
+# So the GUI example is its own package, with its own lock and its own check on
+# a current toolchain. The rule it keeps: nothing in `rust/` moved.

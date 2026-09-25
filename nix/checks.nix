@@ -9,7 +9,8 @@ ctx:
 
 let
   inherit (ctx) lib has rustInputs kotlinInputs swiftPkgs swiftChecked
-    swiftLibraryPath gradleRepo swiftDeps examplesVendor mkCheck;
+    swiftLibraryPath gradleRepo swiftDeps examplesVendor guiInputs
+    icedVendor rustStable mkCheck;
   verify = name: inputs: mkCheck name inputs "./tools/verify ${name}";
 in
 {
@@ -91,21 +92,42 @@ in
   rust-conformance = verify "conformance" rustInputs;
 }
 // lib.optionalAttrs has.examples {
-  # Offline, with crates.io replaced by the vendor directory built from
-  # examples/rust/Cargo.lock. `tools/verify` passes `--offline --locked`, so a
-  # dependency missing from the lock, or a lock that no longer matches the
-  # manifests, fails here rather than reaching for the network.
-  rust-examples = mkCheck "examples" rustInputs ''
-    mkdir -p "$CARGO_HOME"
-    cat > "$CARGO_HOME/config.toml" <<EOF
-    [source.crates-io]
-    replace-with = "vendored-sources"
+  rust-examples = verify "examples" rustInputs;
 
-    [source.vendored-sources]
-    directory = "${examplesVendor}"
-    EOF
-    ./tools/verify examples
-  '';
+  # The GUI example: its own package, its own lock, and current stable rather
+  # than the 1.75 the rest of this repository is pinned to -- iced's tree needs
+  # edition 2024, and tabula's MSRV is not the place to pay for that.
+  #
+  # guiInputs because iced's build scripts look for fontconfig, xkbcommon, X11
+  # and wayland through pkg-config, which vendoring crates cannot supply.
+  rust-gui =
+    if icedVendor != null
+    then
+      mkCheck "rust-gui" ([ rustStable ] ++ guiInputs) ''
+        # Its own vendor directory, overriding the one mkCheck wrote.
+        cat > "$CARGO_HOME/config.toml" <<VENDOR
+        [source.crates-io]
+        replace-with = "vendored-sources"
+
+        [source.vendored-sources]
+        directory = "${icedVendor}"
+        VENDOR
+        ./tools/verify rust-gui
+      ''
+    else
+      mkCheck "rust-gui" [ ] ''
+        cat <<'MSG'
+        rust-gui: examples/rust/05-iced/Cargo.lock does not exist, so there is
+        no artifact set to build the GUI example against.
+
+        Create it once, on a machine with network:
+
+          cd examples/rust/05-iced && cargo generate-lockfile
+
+        and commit it. Nix vendors from the lock after that.
+        MSG
+        exit 1
+      '';
 }
 // lib.optionalAttrs has.kotlin {
   kotlin = verify "kotlin" kotlinInputs;

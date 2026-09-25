@@ -530,6 +530,28 @@ step_kotlin_conformance() {
 # the workspace -- so they are a separate cargo invocation, not another
 # workspace member. That separation is the point: it is the only place the
 # public API is exercised from outside.
+# The GUI example, which is its own package on its own toolchain.
+#
+# Not part of examples/rust's workspace: iced needs edition 2024 and tabula's
+# MSRV is 1.75, so the four examples that hold the library's promise stay
+# there and this one stands apart. `--locked` still: its lock is committed and
+# vendored like any other.
+step_rust_gui() {
+    if ! command -v cargo >/dev/null 2>&1; then
+        echo "skip rust-gui (\$cargo not found)"
+        return 0
+    fi
+    require_dir examples/rust/05-iced || return 1
+    if [ ! -f examples/rust/05-iced/Cargo.lock ]; then
+        echo "skip rust-gui (no lock: cd examples/rust/05-iced && cargo generate-lockfile)"
+        return 0
+    fi
+
+    # shellcheck disable=SC2086
+    (cd examples/rust/05-iced && cargo test $CARGO_FLAGS) || return 1
+    echo "ok   iced example (machine checked; the window is compiled, not opened)"
+}
+
 step_examples() {
     require_dir examples/rust || return 1
     # A workspace of four member crates now, not one crate of four modules.
@@ -2459,7 +2481,7 @@ steps=("$@")
            fixtures-complete no-bless no-generated diagnostics-tested \
            kotlin-compose \
            swift-matrix-stable \
-           renderings-agree \
+           renderings-agree rust-gui \
            swift swift-compile-fail swift-conformance swift-examples \
            swift-codegen swift-macros)
 
@@ -2494,6 +2516,7 @@ for s in "${steps[@]}"; do
         diagnostics-tested)  run diagnostics-tested  step_diagnostics_tested ;;
         swift-matrix-stable) run swift-matrix-stable step_swift_matrix_stable ;;
         renderings-agree)    run renderings-agree    step_renderings_agree ;;
+        rust-gui)            run rust-gui            step_rust_gui ;;
         swift)               run swift               step_swift ;;
         swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
         swift-conformance)   run swift-conformance   step_swift_conformance ;;

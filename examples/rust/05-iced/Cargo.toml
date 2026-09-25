@@ -1,0 +1,22 @@
+# Its own package, outside `examples/rust`'s workspace, and its own lock.
+#
+# iced needs a current toolchain; tabula needs 1.75. Both are true, and keeping
+# them in one workspace would have meant giving one of them up. `rust-version`
+# below is this application's, not the library's.
+[workspace]
+
+[package]
+name = "iced-connection"
+description = "5. A GUI: the same machine driving iced, with the toolkit knowing nothing about it"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# The first example with a third-party dependency, which is why
+# `nix/context.nix` vendors this package's own `Cargo.lock` -- the offline
+# check cannot fetch iced's several hundred transitive crates.
+[dependencies]
+tabula = { path = "../../../rust/tabula" }
+iced = "0.13"

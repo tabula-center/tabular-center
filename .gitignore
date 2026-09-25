@@ -58,6 +58,11 @@ result-*
 .DS_Store
 
 # Examples build output
+#
+# Not just 07-compose: the anchored Kotlin patterns above stop at /kotlin/, so
+# every Gradle example writes a build/ nothing was ignoring -- 06-generated
+# included, which had simply never been built in a working tree before.
+/examples/kotlin/*/build/
 /examples/rust/target/
 /examples/swift-examples/.build/
 /examples/swift-examples/Package.resolved
