@@ -543,6 +543,25 @@ rename, a development section, and one Rust sample.
       evaluation. Linux-only now -- iced on macOS uses Metal from the SDK
       stdenv carries -- and the X11 names are written `libx11 or xorg.libX11`
       across the `xorg` rename
+- [x] **Same flake.lock, different JVM.** Nix pins the JDK, not which JVM
+      Gradle picks: Gradle auto-detects installations, the Darwin sandbox is
+      not sealed, and on the macOS runner it found the runner's JDK 17 and
+      loaded a KSP processor our 21 had compiled ("class file version 65.0").
+      `JAVA_HOME` was also the JDK's package root, which on Darwin is not a
+      Java home. Now `jdk.home` everywhere, and each check writes
+      `org.gradle.java.home`, `org.gradle.java.installations.paths` and
+      `auto-detect=false` into its own `GRADLE_USER_HOME/gradle.properties`,
+      so our JDK is the only JVM Gradle can see -- without a store path in any
+      committed file
+- [x] **A lock made on one platform.** Compose Desktop's artifact is chosen by
+      OS and CPU, so the lock generated on Linux had no
+      `desktop-jvm-macos-arm64`. `07-compose` takes `-PdesktopTarget` and has
+      a `resolveForLock` task; `tools/gradle-lock` runs it for linux-x64,
+      linux-arm64, macos-x64 and macos-arm64 into one cache
+- [ ] **Regenerate the lock** (`nix run .#gradle-lock`, needs network) and
+      commit it. Until then `kotlin-compose` fails on macOS and CI's
+      "gradle lock is current" step is red -- correctly: the committed lock
+      does not match what the tool now resolves
 - [ ] `check-darwin` has never passed: the invalid workflow meant it never
       ran, so this is its first real outing. `rust-gui` building on macOS in
       the sandbox is expected, not yet observed

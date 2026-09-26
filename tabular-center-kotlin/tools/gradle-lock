@@ -121,6 +121,11 @@ echo "gradle $gradle_version"
 # set.
 # Every build, into ONE cache: the lock is their union, because the offline
 # repository has to satisfy all of them.
+# The platforms nix checks on: ci.yml runs Linux x86-64 and macOS on Apple
+# silicon, and the other two are where people develop. Keys of
+# `desktopTargets` in 07-compose/build.gradle.kts.
+DESKTOP_TARGETS=(linux-x64 linux-arm64 macos-x64 macos-arm64)
+
 for example in "${EXAMPLES[@]}"; do
     echo "== resolving $example (this reaches the network) =="
     if ! GRADLE_USER_HOME="$guh" TABULAR_CENTER_MAVEN_REPO="" \
@@ -133,6 +138,26 @@ for example in "${EXAMPLES[@]}"; do
         echo "  inside 'nix develop' or a nix build, you do not have it -- run"
         echo "  it on a machine that does, and commit the result."
         exit 1
+    fi
+
+    # Per-platform artifacts. `build` above resolved THIS machine's -- Compose
+    # Desktop's natives are chosen by OS and CPU -- and a lock holding one
+    # platform's fails every other: the macOS CI job went looking for
+    # desktop-jvm-macos-arm64 in a lock made on Linux. A build that declares
+    # `resolveForLock` takes `-PdesktopTarget` and downloads that platform's
+    # runtime classpath without building against it; each platform nix
+    # checks on goes into the same cache, so the lock is their union.
+    if grep -q 'resolveForLock' "$example/build.gradle.kts"; then
+        for target in "${DESKTOP_TARGETS[@]}"; do
+            echo "== resolving $example for $target (this reaches the network) =="
+            if ! GRADLE_USER_HOME="$guh" TABULAR_CENTER_MAVEN_REPO="" \
+                gradle --no-daemon --console=plain -p "$example" \
+                -Dorg.gradle.java.installations.auto-download=false \
+                -PdesktopTarget="$target" resolveForLock; then
+                echo "gradle-lock: resolving $example for $target failed"
+                exit 1
+            fi
+        done
     fi
 done
 

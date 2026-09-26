@@ -32,6 +32,34 @@ repositories {
     }
 }
 
+// Compose Desktop's artifact is per OS and CPU: `compose.desktop.currentOs`
+// is `desktop-jvm-linux-x64` on one machine and `desktop-jvm-macos-arm64` on
+// the next, each with native libraries of its own. The lock is generated on
+// one machine, so it held only that machine's -- and the macOS CI job failed
+// looking for an artifact the lock had never heard of.
+//
+// `-PdesktopTarget=macos-arm64` (or any key of `desktopTargets` in the
+// dependencies block) swaps in another platform's artifact.
+// tabular-center-kotlin/tools/gradle-lock passes each in turn to
+// `resolveForLock` below, so the lock carries every platform nix builds on.
+// Nothing else sets it; a normal build gets `currentOs`.
+//
+// Only the property is read here. The platform names are read INSIDE
+// `dependencies {}`, because that is the only place `compose` means the
+// dependency accessors: at the top level of this script `compose` is the
+// plugin's extension -- the thing `compose.desktop { application {} }`
+// configures -- and its `desktop` has no `currentOs`, no `macos_arm64`.
+val desktopTarget: String? = providers.gradleProperty("desktopTarget").orNull
+
+// Downloads everything the checks need at runtime, and does nothing else:
+// `build` would also compile and run a machine against another platform's
+// natives. Resolution goes through the real classpath, so the platform
+// variants are chosen by the same rules as in a normal build.
+val resolveForLock by tasks.registering {
+    val classpath = configurations.named("testRuntimeClasspath")
+    doLast { classpath.get().resolve() }
+}
+
 // tabula from source, as every other example does.
 sourceSets["main"].kotlin.srcDir("src")
 sourceSets["main"].kotlin.srcDir("../../core")
@@ -47,7 +75,17 @@ dependencies {
     // a machine is testable without a toolkit. The UI layer is what needs
     // Compose UI.
     implementation(compose.runtime)
-    implementation(compose.desktop.currentOs)
+
+    val desktopTargets: Map<String, String> = mapOf(
+        "linux-x64" to compose.desktop.linux_x64,
+        "linux-arm64" to compose.desktop.linux_arm64,
+        "macos-x64" to compose.desktop.macos_x64,
+        "macos-arm64" to compose.desktop.macos_arm64,
+    )
+    implementation(
+        desktopTarget?.let { desktopTargets[it] ?: error("desktopTarget=$it; known: ${desktopTargets.keys}") }
+            ?: compose.desktop.currentOs,
+    )
 
     testImplementation(compose.runtime)
 }

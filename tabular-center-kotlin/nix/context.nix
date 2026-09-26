@@ -60,6 +60,13 @@ let
 
   jdk = pkgs.jdk21;
 
+  # The Java home, which is not always the package root. On Linux the root
+  # happens to have a working bin/java; on Darwin the JDK lives under
+  # `.../Contents/Home`, so JAVA_HOME set to the root is not a JDK at all --
+  # and Gradle, handed a JAVA_HOME that is not one, goes looking for a JVM by
+  # itself. nixpkgs' JDKs say where home is.
+  jdkHome = jdk.home or "${jdk}";
+
   # kotlinc, pinned to the SAME version as everything else Kotlin here.
   #
   # This was `pkgs.kotlin`, which is whatever the nixpkgs channel ships. The
@@ -101,7 +108,7 @@ let
       # JAVA_HOME already; --set-default keeps a dev shell with its own
       # JAVA_HOME in charge, and gives a bare `nix shell` a working default.
       for p in "$out"/bin/*; do
-        wrapProgram "$p" --set-default JAVA_HOME "${jdk}" --prefix PATH : "${jdk}/bin"
+        wrapProgram "$p" --set-default JAVA_HOME "${jdkHome}" --prefix PATH : "${jdk}/bin"
       done
       runHook postInstall
     '';
@@ -118,7 +125,7 @@ let
         # kotlinc and ktlint are both JVM programs that look for a JDK. The
         # nixpkgs wrappers usually carry one, but "usually" is a guess and nix
         # knows the answer.
-        JAVA_HOME = "${jdk}";
+        JAVA_HOME = jdkHome;
       }
       ''
         export HOME="$TMPDIR/home"
@@ -132,6 +139,26 @@ let
         export TABULAR_CENTER_OFFLINE=1
 
         mkdir -p "$HOME" "$GRADLE_USER_HOME"
+
+        # Our JDK is the only JVM Gradle may use, for the daemon and for
+        # `jvmToolchain(21)` alike.
+        #
+        # Nix pins the JDK; it does not pin which JVM Gradle picks. Left to
+        # itself Gradle AUTO-DETECTS installations, and the Darwin sandbox is
+        # not sealed the way Linux's is: on a GitHub macOS runner it found the
+        # runner's own JDK 17, which then loaded a KSP processor compiled by
+        # our 21 -- "class file version 65.0 ... only recognizes up to 61.0".
+        # Same flake.lock, different JVM, because the choice was never locked.
+        #
+        # In GRADLE_USER_HOME's gradle.properties, which outranks the
+        # project's: the store path exists only here, so nothing committed
+        # names one, and a build outside nix keeps choosing for itself.
+        cat > "$GRADLE_USER_HOME/gradle.properties" <<PROPS
+        org.gradle.java.home=${jdkHome}
+        org.gradle.java.installations.paths=${jdkHome}
+        org.gradle.java.installations.auto-detect=false
+        org.gradle.java.installations.auto-download=false
+        PROPS
 
         # This directory, spec/, and .editorconfig -- laid out as in the
         # repository, and nothing else. tools/verify runs from the repository
@@ -162,7 +189,7 @@ let
   mkShell = name: extra: pkgs.mkShell {
     inherit name;
     packages = commonInputs ++ extra;
-    JAVA_HOME = "${jdk}";
+    JAVA_HOME = jdkHome;
     shellHook = ''
       echo "tabular-center :: ${name}"
       # Gradle's cache, kept with the Kotlin it serves. It was
@@ -176,13 +203,13 @@ let
 
 in
 {
-  inherit self system pkgs lib has specSrc langSrc editorconfig jdk kotlinc kotlinVersion kotlinInputs
+  inherit self system pkgs lib has specSrc langSrc editorconfig jdk jdkHome kotlinc kotlinVersion kotlinInputs
     commonInputs gradleRepo mkCheck mkShell;
 
   # For the root flake. See `legacyPackages` in ../flake.nix.
   toolchain = {
     inputs = kotlinInputs;
-    env = { JAVA_HOME = "${jdk}"; };
+    env = { JAVA_HOME = jdkHome; };
     setup = "";
     available = true;
   };
