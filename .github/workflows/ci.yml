@@ -53,15 +53,16 @@ jobs:
       # is the whole reason the file exists. `nix run` is not sandboxed, so
       # this job has both the flake's toolchain and a network.
       #
-      # It runs on Linux, where the Swift CHECKS are absent (see
-      # `swift-unavailable`) but `swift package resolve` works fine -- resolving
-      # needs a toolchain and a network, not a platform anyone can build on.
+      # It runs on Linux. Resolving needs a toolchain and a network, and this
+      # job has both; the Swift checks themselves run here too now that
+      # `swiftChecked` is `swiftAvailable` (ARCHITECTURE 13).
       - name: swift lock is current
         run: nix run .#swift-lock -- --check
 
-  # Swift is primary on Darwin: nixpkgs' Linux swift lags and macro plugins are
-  # toolchain-version sensitive. Gated on Package.swift so it no-ops until
-  # phase 5 rather than sitting red.
+  # Swift is primary on Darwin: macro plugins are toolchain-version sensitive,
+  # so the Darwin toolchain is checked as well as the Linux one the `check`
+  # job already runs. Gated on Package.swift, a leftover from before Phase 5
+  # that now always holds.
   check-darwin:
     runs-on: macos-14
     if: hashFiles('swift/Package.swift') != ''

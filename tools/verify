@@ -11,7 +11,8 @@
 # Steps:  version docs fmt clippy test no-std compile-fail conformance examples
 #         kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
 #         kotlin-examples kotlin-ksp kotlin-ksp-compile-fail
-#         kotlin-ksp-incremental kotlin-matrix-stable rust-matrix-stable
+#         kotlin-ksp-incremental kotlin-compose kotlin-matrix-stable
+#         rust-matrix-stable rust-gui renderings-agree
 #         matrix-covered swift-format-config swift-matrix-stable
 #         diagnostics-coverage fixtures-complete
 #         no-bless no-generated diagnostics-tested

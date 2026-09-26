@@ -51,7 +51,7 @@ let
       ''}
       ${lib.optionalString (has.swift && swiftAvailable) ''
         echo "== swift =="
-        ./tools/verify swift
+        ./tools/verify swift-conformance
       ''}
     '';
   };

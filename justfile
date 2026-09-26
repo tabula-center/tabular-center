@@ -8,7 +8,7 @@ default: verify
 verify:
     ./tools/verify
 
-# One step: fmt, clippy, test, no-std, compile-fail, conformance.
+# One step, by name: `just step test`. The header of tools/verify lists them.
 step STEP:
     ./tools/verify {{STEP}}
 
@@ -22,10 +22,6 @@ fmt:
 # Replay spec/conformance against every implementation that has landed.
 conformance:
     cd rust && cargo run -q -p tabula-conformance
-
-# Accept new golden matrix snapshots after an intended behaviour change.
-bless:
-    cd rust && cargo run -q -p tabula-conformance -- --bless
 
 # Render a machine's matrix as a diffable grid.
 table-diff FIXTURE="":

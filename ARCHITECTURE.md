@@ -846,11 +846,11 @@ tabula/
 │   ├── tabula-fmt.md            # the formatter's contract (tool not written)
 │   └── conformance/
 │       ├── README.md            # the .tbl and .trace formats
-│       ├── timer.tbl            # ── shared fixtures ──
-│       ├── toggle.tbl
-│       ├── retry.tbl
-│       ├── nested-delegate.tbl
-│       ├── effects-never.tbl
+│       ├── <name>.tbl           # ── 11 shared fixtures: timer, toggle, retry,
+│       │                         #   nested-delegate, effects-never, dead-column,
+│       │                         #   ignore-heavy, unreachable-heavy,
+│       │                         #   no-static-entry, no-static-exit,
+│       │                         #   payload-hoist ──
 │       └── traces/<name>.trace  # (state, action) → expected (state, effects)
 │                                 #   .grid/.mmd/.lint/.cov are NOT here: each
 │                                 #   implementation renders its own at check
@@ -884,7 +884,9 @@ tabula/
 │   ├── Package.swift
 │   ├── Sources/Tabula/          # core: Step, Cell, Table, Export, Lint,
 │   │                             #   Driver, AsyncDriver, Store, AsyncStore
+│   ├── Sources/TabulaTesting/   # the .tbl fixture harness, a separate product
 │   ├── Sources/TabulaCodegen/   # the emitter; no SwiftSyntax, so it builds offline
+│   ├── Sources/TabulaCodegenCheck/  # emits, then compiles against codegen-support/
 │   ├── Sources/TabulaCheck/     # reference machine + harness (no XCTest available)
 │   ├── Sources/TabulaConformance/
 │   ├── codegen-support/         # what the emitted source is compiled against:

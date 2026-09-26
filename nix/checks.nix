@@ -241,7 +241,7 @@ in
   # checks is indistinguishable from a correct one in `nix flake check` output.
   # That is exactly how `has.kotlin = pathExists ../kotlin/src` hid six checks
   # for months (0c), and how `kotlin-ksp` would have hidden itself had it been
-  # gated on the lock (0d). Six Swift checks vanish on Linux for a reason that
+  # gated on the lock (0d). Eight Swift checks vanish for a reason that
   # is real, and the reason being real does not make their absence visible.
   #
   # Passing, not failing. `kotlin-ksp` is red without its lock because the fix
@@ -255,12 +255,13 @@ in
   # greps its tally.
   swift-unavailable = mkCheck "swift-unavailable" [ ] ''
     cat <<'MSG'
-    skip swift, swift-compile-fail, swift-conformance, swift-codegen,
-         swift-examples, swift-macros (no Swift toolchain on this platform:
-         nixpkgs has no `swift` for it, so these six checks are absent from
-         `nix flake check` rather than failing)
+    skip swift, swift-matrix-stable, swift-compile-fail, swift-conformance,
+         swift-examples, swift-codegen, swift-macro-support, swift-macros
+         (no Swift toolchain on this platform: nixpkgs has no `swift` for it,
+         so these eight checks are absent from `nix flake check` rather than
+         failing)
 
-    They are not unchecked: ci.yml's check-darwin job runs all six on macOS,
+    They are not unchecked: ci.yml's check-darwin job runs all eight on macOS,
     and `nix develop .#swift` plus `./tools/verify swift` runs them here if a
     toolchain is installed by hand.
     MSG

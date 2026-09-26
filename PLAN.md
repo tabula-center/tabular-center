@@ -45,12 +45,13 @@ One exception to the table, found by the audit below: Rust had no prototype
 colors. It has one now, `async`, composing in both directions the rule
 allows (see the audit's Rust-colors items).
 
-105 Rust tests; 56 compile-fail fixtures (17 Rust, 4 Kotlin, 3 Kotlin-codegen,
+106 Rust tests; 56 compile-fail fixtures (17 Rust, 4 Kotlin, 3 Kotlin-codegen,
 12 Kotlin-KSP, 4 Swift, 11 Swift macro-syntax, 5 Swift-codegen); 11
 conformance fixtures (96
-trace steps), every one with an adapter in all three languages; 11 each of
-golden `.grid`, `.mmd`, `.lint`, `.cov`. Every runtime lint is tripped by at
-least one fixture.
+trace steps), every one with an adapter in all three languages. No golden
+`.grid`, `.mmd`, `.lint` or `.cov` is committed any more: each harness renders
+its own at check time and `renderings-agree` diffs them (see the audit below).
+Every runtime lint is tripped by at least one fixture.
 
 These counts are checked against the tree, not remembered. Regenerate with:
 
@@ -310,6 +311,141 @@ The other direction, in priority order:
       takes the part before `(` for validation and `TABLE`. The `Gate`
       example's `Chime` now carries a volume and is emitted by a static cell,
       so KSP, the twin and the generated code are checked end to end
+
+---
+
+## Re-audit, September 2026: second pass
+
+The first audit re-derived the status block. This one re-read the files that
+describe the tree -- this plan, `ARCHITECTURE.md`, `README.md`, the flake, the
+workflow and the `justfile` -- against what they describe, before the rename
+below moves every path in them. Fixing drift first means the rename diff is
+paths and nothing else.
+
+- [x] The status counts: 106 Rust tests, not 105; and the "11 each of golden
+      `.grid`, `.mmd`, `.lint`, `.cov`" line survived the patch that deleted
+      all 44 of them
+- [x] `nix run .#conformance` ran `./tools/verify swift` for Swift -- the whole
+      Swift suite -- where Rust and Kotlin ran their conformance steps. Now
+      `swift-conformance`
+- [x] `just bless` passed `--bless` to a harness that stopped accepting it when
+      the goldens went. Removed; nothing is blessed any more (`no-bless`)
+- [x] `swift-unavailable` said six Swift checks were absent; there are eight
+- [x] Stale toolchain history presented as current: `context.nix` said the
+      pinned nixpkgs has Swift 5.8 (it is 26.05), and `ci.yml` said the Swift
+      checks are absent on Linux (they run there)
+- [x] `tools/verify`'s header omitted `rust-gui`, `renderings-agree` and
+      `kotlin-compose`
+- [x] ARCHITECTURE 12 listed five of eleven conformance fixtures and two of
+      the Swift targets were missing; README's "exist in only one language"
+      list omitted the Compose and iced examples
+- [x] Phase 0 ticked a license and a `continue-on-error` Swift job. The job is
+      gone for a good reason and the box now says so; the license files were
+      never there, and that box is reopened
+
+---
+
+## Rename to `tabular-center`
+
+The project becomes **tabular-center**, and each implementation directory is
+named for it: `rust/` -> `tabular-center-rust/`, `kotlin/` ->
+`tabular-center-kotlin/`, `swift/` -> `tabular-center-swift/`. Each of those
+becomes a flake of its own -- `flake.nix`, `nix/` and `tools/` inside it --
+and the root `flake.nix` composes the three.
+
+Staged so that each step is one reviewable patch that leaves the tree green,
+and so that the breaking part is last and alone. Nothing has been published
+(Phase 10's publish box is open), so no stage needs a compatibility shim or a
+deprecation period, and `VERSION` stays where it is.
+
+### R1. Directories -- paths only
+
+- [ ] `git mv` the three directories. Nothing inside them is renamed
+- [ ] Every path that names them: `tools/`, `nix/`, `.gitignore`, `ci.yml`,
+      the `justfile`, the docs, and the example manifests' `path =` lines
+- [ ] SwiftPM names a path dependency by its directory's basename, so
+      `.product(name: "Tabula", package: "swift")` becomes
+      `package: "tabular-center-swift"` in `examples/swift-examples` and in
+      `swift/macros`. The one place a directory name is an identifier
+- [ ] Gradle is unaffected: included builds are named by `rootProject.name`,
+      which each `settings.gradle.kts` already sets
+- [ ] `examples/<lang>/` keeps its name. It is not an implementation and the
+      rename is about those
+
+### R2. One flake per implementation, composed at the root
+
+- [ ] Each `tabular-center-<lang>/` holds `flake.nix`, `nix/` and `tools/`,
+      and `nix flake check ./tabular-center-<lang>` checks that language
+      alone, with only that language's toolchain in its closure
+- [ ] What moves: each language's `tools/verify` steps, toolchain, shells,
+      checks and apps; the Kotlin Gradle lock and offline repository; the
+      Swift lock, offline checkouts and `CompilerPluginSupport` build;
+      `tools/compile-fail` (Rust), `tools/gradle-lock` (Kotlin),
+      `tools/swift-lock` and `tools/swift-probe` (Swift)
+- [ ] What stays at the root: everything that reads more than one
+      implementation -- `version`, `docs`, `renderings-agree`,
+      `matrix-covered`, `diagnostics-coverage`, `diagnostics-tested`,
+      `fixtures-complete`, `no-bless`, `no-generated` -- plus `release` and
+      `publish`, `spec/`, `examples/` and the combined dev shell
+- [ ] **Still one definition of green.** Root `tools/verify` runs its own
+      steps and hands every other step to the `tools/verify` that owns it, so
+      `./tools/verify`, `./tools/verify test` and CI are unchanged. Step names
+      are unchanged, and so are the root flake's check names
+- [ ] Each language flake reaches `spec/` and `examples/` through
+      `self.sourceInfo`, which is the whole repository both when the flake is
+      checked on its own from a git checkout and when the root composes it
+      through a relative `path:` input (Nix 2.26 or later)
+- [ ] Each language flake's `flake.lock` pins the same revisions as the root's,
+      and the root makes every shared input `follows` its own, so composing
+      cannot fetch a second nixpkgs
+- [ ] `renderings-agree` needs all three toolchains in one derivation. The
+      root takes them from each language flake's `legacyPackages.<system>`
+      rather than rebuilding the list, so a toolchain is declared once
+- [ ] Commit the root `flake.lock` that `nix flake lock` writes once the three
+      relative inputs exist. Written by nix rather than by hand: the format of
+      a relative-path node is nix's to decide
+
+### R3. The name in prose and tooling -- nothing a user compiles against
+
+- [ ] Titles and descriptions: `README.md`, `ARCHITECTURE.md`, this file,
+      `CONTRIBUTING.md`, `RELEASING.md`, flake descriptions, dev-shell banners
+- [ ] Derivation and app names: `tabula-check-<step>` ->
+      `tabular-center-check-<step>`, `tabula-verify` ->
+      `tabular-center-verify`, and so on
+- [ ] Environment variables: `TABULA_OFFLINE`, `TABULA_MAVEN_REPO`,
+      `TABULA_SWIFT_DEPS` -> `TABULAR_CENTER_*`. `no-bless` already scans for
+      the one variable that must never come back; it keeps doing so under
+      either spelling
+- [ ] The repository URL in `Cargo.toml`, once the new one exists
+
+### R4. Public identifiers -- the breaking stage, decisions first
+
+Every name below is API. Each needs a decision before it needs work, and the
+proposals are only proposals.
+
+- [ ] Rust: crate `tabula` -> `tabular-center` (imported as
+      `tabular_center`), `tabula-conformance` -> `tabular-center-conformance`.
+      Check crates.io availability first. `transition_matrix!` keeps its name:
+      it names what it does, not whose it is
+- [ ] Kotlin: a package cannot contain `-`, so `dev.tabula` becomes one of
+      `dev.tabularcenter` or `dev.tabular.center`. Proposed: the first -- one
+      segment, as now, so no import gains a level. Artifacts `tabula-core` ...
+      `tabula-testing` -> `tabular-center-core` ... `tabular-center-testing`.
+      The KSP processor's option keys and generated-file names follow
+- [ ] Swift: products and modules `Tabula`, `TabulaTesting`, `TabulaCodegen`,
+      `TabulaMacros` -> `TabularCenter`, `TabularCenterTesting`, ... The
+      package name follows; the directory already did in R1
+- [ ] Diagnostic codes: `tabula::row-arity` -> `tabular-center::row-arity`.
+      `spec/diagnostics.md` is normative and every compile-fail fixture's
+      `//~ EXPECT:` names a code, so this is one commit across all three
+      implementations and the spec, or `diagnostics-tested` and
+      `diagnostics-coverage` go red in between -- which is the point of them
+- [ ] `tabula-fmt` (backlog, unwritten) -> `tabular-center-fmt`, and
+      `spec/tabula-fmt.md` with it. The `*.tb.*` matrix-file suffix is kept:
+      it is short, unclaimed, and `spec/matrix-files.md` explains it without
+      reference to the old name
+- [ ] Order: spec first, then Rust, Kotlin, Swift, each green on its own
+      flake before the next, then the examples
 
 ---
 
@@ -693,10 +829,17 @@ green in CI for all three languages.
 - [x] Per-language dev shells (`.#rust`, `.#kotlin`, `.#swift`) + combined default
 - [x] `nix flake check` wired to all three (empty suites for now)
 - [x] Repo skeleton per ARCHITECTURE §12
-- [x] CI matrix: Linux (Rust, Kotlin), macOS (all three); Swift-on-Linux marked
-      `continue-on-error`
-- [x] `CONTRIBUTING.md`, license, `.editorconfig` (incl. ktlint alignment
+- [x] CI matrix: Linux (all three, through `nix flake check`), macOS (all
+      three), and `check-no-nix` on both. Swift-on-Linux is no longer
+      `continue-on-error`: it is a normal check since `swiftChecked` became
+      `swiftAvailable` (ARCHITECTURE 13)
+- [x] `CONTRIBUTING.md`, `.editorconfig` (incl. ktlint alignment
       exemptions for annotated declarations)
+- [ ] License files. Every manifest declares `MIT OR Apache-2.0`, but the tree
+      has no `LICENSE-MIT` or `LICENSE-APACHE`. This box was ticked with the
+      two above; the September 2026 re-audit found nothing behind it. Needs
+      the copyright holder's name, which is not something to guess at, and
+      must land before any Phase 10 publication
 
 **Risk:** Swift toolchain on Linux via nixpkgs is the known-flaky piece. Do not
 let it block Phase 0 — pin it, mark it best-effort, move on.

@@ -8,9 +8,11 @@ let
     overlays = [ (import rust-overlay) ];
   };
 
-  # Swift comes from its own input: the pinned nixpkgs has 5.8, below the 5.9
-  # macros require. Keeping it separate means chasing a Swift toolchain never
-  # moves the Rust or Kotlin ones.
+  # Swift comes from its own input. It was added when the pinned nixpkgs
+  # (25.05) had Swift 5.8, below the 5.9 macros require; `nixpkgs` is 26.05
+  # now and the input is on its way out (see the note in flake.nix). Keeping
+  # it separate still means chasing a Swift toolchain never moves the Rust or
+  # Kotlin ones.
   swiftPkgsSet = import nixpkgs-swift { inherit system; };
 
   inherit (pkgs) lib stdenv;
