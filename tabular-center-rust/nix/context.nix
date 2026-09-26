@@ -11,10 +11,10 @@ let
 
   # The whole repository, not just this directory.
   #
-  # The checks run `tabular-center-rust/tools/verify` from the repository
-  # root, because the conformance fixtures are in spec/ and the example
-  # projects in examples/rust -- shared with the other two languages, so they
-  # cannot live here. `self.outPath` is this directory; `self.sourceInfo` is
+  # The checks need spec/, the conformance contract all three languages
+  # share, which is the one thing outside this directory they read (the
+  # examples live in ./examples). `self.outPath` is this directory;
+  # `self.sourceInfo` is
   # the source tree it was found in, which is the whole checkout both when
   # this flake is checked on its own from git (`?dir=`) and when the root
   # flake composes it through a relative `path:` input (Nix 2.26 or later).
@@ -30,14 +30,14 @@ let
     else
       throw ''
         tabular-center-rust: this flake's source is not the whole repository,
-        so spec/ and examples/ are out of reach. Check it from a git checkout
+        so spec/ is out of reach. Check it from a git checkout
         (`nix flake check ./tabular-center-rust`), or through the root flake,
         with Nix 2.26 or later.
       '';
 
   has = {
     conformance = builtins.pathExists ../tabula-conformance/Cargo.toml;
-    examples = builtins.pathExists (root + "/examples/rust/Cargo.toml");
+    examples = builtins.pathExists ../examples/Cargo.toml;
   };
 
   rustToolchain =
@@ -53,7 +53,7 @@ let
 
   # What iced needs to BUILD, which is more than what cargo vendors.
   #
-  # `examples/rust/05-iced` pulls winit and wgpu, and their build scripts look
+  # `tabular-center-rust/examples/05-iced` pulls winit and wgpu, and their build scripts look
   # for system libraries through pkg-config: fontconfig for text, xkbcommon and
   # the X11 set for input, wayland for the other display server. Vendoring the
   # crates does not supply these -- they are not crates -- so the GUI check
@@ -76,7 +76,7 @@ let
 
   commonInputs = [ pkgs.git pkgs.jq pkgs.just pkgs.graphviz pkgs.nixpkgs-fmt ];
 
-  # crates.io dependencies of `examples/rust`, vendored from its Cargo.lock.
+  # crates.io dependencies of `tabular-center-rust/examples`, vendored from its Cargo.lock.
   #
   # Cargo writes a complete, hashed lock as a matter of course and nixpkgs'
   # `importCargoLock` consumes exactly that, so there is nothing to generate
@@ -84,7 +84,7 @@ let
   # committed lock. Empty today -- every example depends on the library by
   # path and nothing else -- so it passes vacuously.
   examplesVendor = pkgs.rustPlatform.importCargoLock {
-    lockFile = root + "/examples/rust/Cargo.lock";
+    lockFile = ../examples/Cargo.lock;
   };
 
   # The GUI example's own lock, and its own toolchain.
@@ -96,8 +96,8 @@ let
   # use. Null until the lock exists: `importCargoLock` on a missing file fails
   # at EVALUATION, which would take the whole flake down rather than one check.
   icedVendor =
-    if builtins.pathExists (root + "/examples/rust/05-iced/Cargo.lock")
-    then pkgs.rustPlatform.importCargoLock { lockFile = root + "/examples/rust/05-iced/Cargo.lock"; }
+    if builtins.pathExists ../examples/05-iced/Cargo.lock
+    then pkgs.rustPlatform.importCargoLock { lockFile = ../examples/05-iced/Cargo.lock; }
     else null;
 
   rustStable = pkgs.rust-bin.stable.latest.default;
@@ -115,7 +115,7 @@ let
         export CARGO_HOME="$TMPDIR/cargo"
 
         # crates.io, replaced by the vendor directory built from
-        # examples/rust/Cargo.lock.
+        # tabular-center-rust/examples/Cargo.lock.
         #
         # Here rather than in the one check that "needs" it: `clippy` resolves
         # the examples workspace too, and so does anything else that runs cargo
@@ -139,7 +139,19 @@ let
 
         mkdir -p "$HOME"
 
-        cp -r ${root} src && chmod -R u+w src && cd src
+        # This directory, spec/, and .editorconfig -- laid out as in the
+        # repository, and nothing else. tools/verify runs from the repository
+        # root and names paths from there, so the layout is kept; what is left
+        # out is the other two languages and the root's own files. A step that
+        # reached into either would fail here rather than quietly working,
+        # which is what makes "independent" a checked property instead of a
+        # claim. spec/ is the one thing all three share by design: it is the
+        # cross-language contract.
+        mkdir src
+        cp -r ${root}/spec src/spec
+        cp -r ${root}/tabular-center-rust src/tabular-center-rust
+        cp ${root}/.editorconfig src/.editorconfig
+        chmod -R u+w src && cd src
         ${script}
         touch $out
       '';

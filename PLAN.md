@@ -434,6 +434,47 @@ deprecation period, and `VERSION` stays where it is.
       either spelling
 - [ ] The repository URL in `Cargo.toml`, once the new one exists
 
+### R5. Each implementation owns its examples
+
+- [x] `examples/rust` -> `tabular-center-rust/examples`,
+      `examples/kotlin` -> `tabular-center-kotlin/examples`,
+      `examples/swift-examples` -> `tabular-center-swift/examples`. The root
+      `examples/` is gone; its README is split three ways, each keeping the
+      shared framing (the same four machines, why these four) and only its
+      own language's sections
+- [x] Each example still depends on its library by path, the way a user
+      would, now from inside the library's directory: `path = "../../tabula"`,
+      `srcDir("../../core")` and `includeBuild("../../ksp")`,
+      `.package(path: "..")`. Each set is still outside its library's build:
+      its own cargo workspace, its own `kotlinc` and Gradle builds, its own
+      SwiftPM package
+- [x] `05-iced` gets its own `rust-toolchain.toml` (stable). It now sits under
+      `tabular-center-rust/rust-toolchain.toml`, and rustup takes the NEAREST
+      one, so under rustup -- ci.yml's check-no-nix -- it would otherwise build
+      on the MSRV, which cannot parse iced's edition-2024 crates
+- [x] The scans that listed the examples as a second root
+      (`rust-matrix-stable`, `kotlin-matrix-stable`) now list one: the second
+      would have been copied into the first (`examples/examples`) and each
+      example matrix counted twice. `rust-matrix-stable` still formats both
+      cargo workspaces in its copy, since `cargo fmt` never descends into a
+      nested one. `kotlin-ksp-incremental` copies one tree instead of two
+- [x] The Rust flake vendors the examples' crates from `../examples/*.lock`,
+      a path inside its own directory, rather than through the repository root
+- [x] **Independence, checked.** Each language's checks are handed only their
+      own directory, `spec/` and `.editorconfig`, laid out as in the
+      repository. A step that reached into another language, or anywhere else
+      at the root, fails instead of working by accident. `spec/` is the one
+      shared input, on purpose
+- [x] `GRADLE_USER_HOME` is `tabular-center-kotlin/.gradle-home` in both dev
+      shells, found from the git root. It was `./.gradle-home`, relative to
+      wherever `nix develop` was typed
+- [ ] Not decoupled yet: every check still depends on the whole checkout's
+      store path, so a change anywhere rebuilds every check, even though each
+      now reads only its own subtree. Content-addressing each subtree
+      (`builtins.path` on it) would fix that, and depends on how Nix treats a
+      path below `self.sourceInfo` from a subdirectory flake -- worth a
+      deliberate experiment, not a guess folded into this patch
+
 ### Found by the first composed run
 
 - [x] **`swiftpm-plugin-support`'s own assertion could lie, and did.** R3

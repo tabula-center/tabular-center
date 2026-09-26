@@ -15,4 +15,4 @@ publish = false
 # with no features at all. If the macro ever grows an allocation, this fails
 # here rather than on someone's firmware.
 [dependencies]
-tabula = { path = "../../../tabular-center-rust/tabula", default-features = false }
+tabula = { path = "../../tabula", default-features = false }

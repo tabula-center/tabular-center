@@ -15,10 +15,10 @@ import PackageDescription
 //     cyclic dependency declaration found: TabulaExamples -> TabulaExamples
 //
 // — the package appearing to depend on itself. The directory is
-// `examples/swift-examples` so the two identities differ. The library is
+// `tabular-center-swift/examples` so the two identities differ. The library is
 // `tabular-center-swift/` now, so the clash is gone, but the name stays: it
 // costs nothing and the next rename should not have to rediscover this. It breaks the
-// symmetry with `examples/rust` and `examples/kotlin`, which is a smaller cost
+// symmetry with `tabular-center-rust/examples` and `tabular-center-kotlin/examples`, which is a smaller cost
 // than a package that cannot resolve.
 let package = Package(
     name: "TabulaExamples",
@@ -31,7 +31,7 @@ let package = Package(
         .executable(name: "spec-check", targets: ["SpecCheck"]),
     ],
     dependencies: [
-        .package(path: "../../tabular-center-swift")
+        .package(path: "..")
     ],
     targets: [
         // The assertion harness, as its own target, so every example depends

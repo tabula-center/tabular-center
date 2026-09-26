@@ -14,7 +14,7 @@ use crate::cell::{Cell, CellKind};
 /// every machine, so a machine built with `--no-default-features` failed to
 /// compile on a path nothing exercised: the library's own `no-std` check
 /// builds `-p tabula` without features, and a machine is a *consumer* of the
-/// macro. `examples/rust/01-traffic-light` is that consumer, and it found this
+/// macro. `tabular-center-rust/examples/01-traffic-light` is that consumer, and it found this
 /// on its first build.
 ///
 /// The alias needs no allocation and never did; it was in `lint` because that

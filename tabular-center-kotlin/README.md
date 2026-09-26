@@ -49,7 +49,7 @@ by hand writes wherever you point `-d`, so prefer the script — a stray
 already.
 
 Every one is a `nix flake check` check. Gradle appears in exactly two places,
-both for KSP: `ksp/` (the processor) and `examples/kotlin/06-generated` (its
+both for KSP: `ksp/` (the processor) and `tabular-center-kotlin/examples/06-generated` (its
 consumer), resolved offline from `tabular-center-kotlin/nix/gradle-lock.json`. Maven publication is
 still to come (`RELEASING.md`).
 

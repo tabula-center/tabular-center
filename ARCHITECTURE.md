@@ -867,9 +867,12 @@ tabular-center/
 │   │       ├── timer_matrix.rs      # same machine via the macro; parity tests
 │   │       ├── scale.rs             # the measured 8×12 machine
 │   │       └── compile_fail/        # one fixture per diagnostic
-│   └── tabula-conformance/      # runs spec/conformance; hosts bin/table-diff
-│                                 #   (whose renderer is in the lib, so it is
-│                                 #   testable)
+│   ├── tabula-conformance/      # runs spec/conformance; hosts bin/table-diff
+│   │                             #   (whose renderer is in the lib, so it is
+│   │                             #   testable)
+│   └── examples/                # its own cargo workspace, outside the one above:
+│                                 #   01-04 on the MSRV, 05-iced its own package,
+│                                 #   lock and rust-toolchain.toml (stable)
 │
 ├── tabular-center-kotlin/       # a flake; built by kotlinc directly — no Gradle
 │   ├── flake.nix  flake.lock
@@ -885,7 +888,9 @@ tabular-center/
 │   ├── ksp/                     # JVM processor — Gradle, offline via nix/gradle-lock.json
 │   ├── test/                    # reference machine + harness
 │   ├── conformance/
-│   └── compile_fail/
+│   ├── compile_fail/
+│   └── examples/                # 01-05 by kotlinc; 06-generated and 07-compose
+│                                 #   by Gradle (KSP), offline from nix/gradle-lock.json
 │
 ├── tabular-center-swift/         # a flake
 │   ├── flake.nix  flake.lock    # the only flake with `nixpkgs-swift`
@@ -907,14 +912,10 @@ tabular-center/
 │   ├── codegen-support/         # what the emitted source is compiled against:
 │   │                             #   types, complete impls, and refusals
 │   ├── compile_fail/
-│   └── macros/                  # separate package: the only one linking
-│                                 #   swift-syntax. MachineSyntax + fixtures/;
-│                                 #   the .macro target waits in pending/
-│
-├── examples/                    # outside every workspace, on purpose: the only
-│   ├── rust/                    #   place the public API is used from outside
-│   ├── kotlin/
-│   └── swift-examples/
+│   ├── macros/                  # separate package: the only one linking
+│   │                             #   swift-syntax. MachineSyntax + fixtures/;
+│   │                             #   the .macro target waits in pending/
+│   └── examples/                # separate package, `.package(path: "..")`
 │
 └── tools/
     ├── verify                   # the single definition of green: runs the
@@ -939,22 +940,28 @@ changed without the other two in the closure. The root flake composes the
 three, merges their checks under the names they always had, and adds only what
 no single language can check -- `renderings-agree` above all, which takes the
 three toolchains from the language flakes' `legacyPackages.<system>.toolchain`
-rather than naming them again. `spec/` and `examples/` stay at the root because
-all three read them; the language flakes reach them through `self.sourceInfo`,
-which is the whole checkout for a flake found in a git subdirectory and for a
-relative `path:` input (Nix 2.26 or later).
+rather than naming them again. `spec/` stays at the root because all three
+read it -- it is the contract they are held to -- and it is the only thing
+outside its own directory a language needs. The language flakes reach it
+through `self.sourceInfo`, which is the whole checkout for a flake found in a
+git subdirectory and for a relative `path:` input (Nix 2.26 or later), and
+each language check is handed only its own directory, `spec/` and
+`.editorconfig`: a step that reached into another language would fail, so the
+independence is checked rather than claimed.
 
 **The Kotlin library has no build system.** `kotlinc` is driven directly, and
 that is not a workaround to be tidied up later: compiling each artifact against
 only its declared classpath is what enforces the zero-runtime-dependency rule
 by construction rather than by a dependency report. Gradle exists only where
-KSP needs it — `tabular-center-kotlin/ksp` and `examples/kotlin/06-generated` —
+KSP needs it — `tabular-center-kotlin/ksp` and `tabular-center-kotlin/examples/06-generated` —
 and resolves offline from `tabular-center-kotlin/nix/gradle-lock.json`. The
 Kotlin flake pins `kotlinc` to the same 2.1.20 those builds name, so a nixpkgs
 bump cannot move the compiler whose messages the compile-fail fixtures match.
 
-**Examples sit outside every workspace.** They depend on the library by path,
-the way a user would. That is the only place the public API is exercised from
+**Examples sit outside every workspace**, though inside their language's
+directory: each set is its own cargo workspace, its own `kotlinc` or Gradle
+build, its own SwiftPM package. They depend on the library by path, the way a
+user would. That is the only place the public API is exercised from
 outside, and it is where `Driver::run` was found not to compile for any
 realistic caller.
 
@@ -1020,7 +1027,7 @@ ships no `CompilerPluginSupport`; `tabular-center-swift/nix/swiftpm-plugin-suppo
 `swift-macro-support` probe track how far that has been pushed. It reports
 `skip` with its reason rather than passing quietly.
 
-`examples/kotlin/06-generated` used to be the second item here. It is not any
+`tabular-center-kotlin/examples/06-generated` used to be the second item here. It is not any
 more: Gradle resolves from `tabular-center-kotlin/nix/gradle-repo.nix`, a
 directory nix assembles from `tabular-center-kotlin/nix/gradle-lock.json` with
 one `fetchurl` per artifact, so the annotation processor runs in the sandbox

@@ -54,12 +54,12 @@ in
     else
       mkCheck "rust-gui" [ ] ''
         cat <<'MSG'
-        rust-gui: examples/rust/05-iced/Cargo.lock does not exist, so there is
+        rust-gui: tabular-center-rust/examples/05-iced/Cargo.lock does not exist, so there is
         no artifact set to build the GUI example against.
 
         Create it once, on a machine with network:
 
-          cd examples/rust/05-iced && cargo generate-lockfile
+          cd tabular-center-rust/examples/05-iced && cargo generate-lockfile
 
         and commit it. Nix vendors from the lock after that.
         MSG

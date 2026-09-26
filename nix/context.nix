@@ -50,9 +50,15 @@ let
   mkShell = name: extra: env: pkgs.mkShell ({
     inherit name;
     packages = commonInputs ++ extra;
-    GRADLE_USER_HOME = "./.gradle-home";
     shellHook = ''
       echo "tabular-center :: ${name}"
+      # Gradle's cache, kept with the Kotlin it serves -- the same place the
+      # Kotlin shell puts it (tabular-center-kotlin/nix/context.nix). It was
+      # `./.gradle-home`, relative to wherever `nix develop` was typed, so it
+      # landed at the repository root -- or in whichever subdirectory you
+      # happened to be in -- and the root carried a Kotlin-only directory.
+      # Anchored to the checkout instead, so every shell finds the same one.
+      export GRADLE_USER_HOME="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/tabular-center-kotlin/.gradle-home"
       ${lib.optionalString (!toolchains.swift.available) ''
         echo "  note: no swift toolchain on ${system}; tabular-center-swift/ is skipped."
       ''}

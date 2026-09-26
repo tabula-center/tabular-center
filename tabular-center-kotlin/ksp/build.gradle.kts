@@ -1,5 +1,5 @@
 // The processor's build. It runs: `nix flake check` builds it as an included
-// build of examples/kotlin/06-generated (the `kotlin-ksp` check), resolving
+// build of tabular-center-kotlin/examples/06-generated (the `kotlin-ksp` check), resolving
 // from the artifact set pinned in nix/gradle-lock.json. See README.md.
 //
 // Written from the KSP documentation before it could run, and reviewed by
@@ -10,7 +10,7 @@ plugins {
 
 // A coordinate, so a consuming build can substitute this project for it.
 // Nothing publishes to it; it exists to be named. See
-// examples/kotlin/06-generated/settings.gradle.kts.
+// tabular-center-kotlin/examples/06-generated/settings.gradle.kts.
 group = "dev.tabula"
 version = "0.1.0"
 

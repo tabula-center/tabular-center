@@ -1,10 +1,10 @@
 # A GUI, with the transitions in a table
 
-The same connection machine as `examples/kotlin/07-compose`, so the two GUI
+The same connection machine as `tabular-center-kotlin/examples/07-compose`, so the two GUI
 examples read side by side: same states, same effects, different hosts.
 
 Run it with `cargo run` (from this directory — it is not a member of
-`examples/rust`'s workspace; see `Cargo.toml` for why).
+`tabular-center-rust/examples`'s workspace; see `Cargo.toml` for why).
 
 ## What the window shows
 

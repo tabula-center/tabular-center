@@ -5,7 +5,7 @@
 #
 # Unanchored, because Gradle writes a `.gradle/` beside every build file and
 # this repository now has four: tabular-center-kotlin/ksp, tabular-center-kotlin/ksp/compile-fail,
-# examples/kotlin/06-generated, and whatever comes next. The anchored patterns
+# tabular-center-kotlin/examples/06-generated, and whatever comes next. The anchored patterns
 # below reached only the first level, so `tabular-center-kotlin/ksp/.gradle/executionHistory`
 # was committed -- caches, locks and machine-specific paths in git history.
 #
@@ -22,6 +22,9 @@
 /tabular-center-kotlin/codegen/emitted/
 /tabular-center-kotlin/*/build/
 /tabular-center-kotlin/.gradle-home/
+# The dev shells anchor GRADLE_USER_HOME at tabular-center-kotlin/.gradle-home.
+# Kept unanchored as well, for a shell entered before that change, which put
+# it wherever `nix develop` was typed.
 .gradle-home/
 # Kotlin
 #
@@ -62,10 +65,11 @@ result-*
 # Not just 07-compose: the anchored Kotlin patterns above stop at /kotlin/, so
 # every Gradle example writes a build/ nothing was ignoring -- 06-generated
 # included, which had simply never been built in a working tree before.
-/examples/kotlin/*/build/
-/examples/rust/target/
-/examples/swift-examples/.build/
-/examples/swift-examples/Package.resolved
+/tabular-center-kotlin/examples/*/build/
+/tabular-center-rust/examples/target/
+/tabular-center-rust/examples/05-iced/target/
+/tabular-center-swift/examples/.build/
+/tabular-center-swift/examples/Package.resolved
 
 # Rendered locally by `nix run .#docs`. The published site is built by GitHub
 # Pages from docs/ itself, so this directory is a preview artifact only.

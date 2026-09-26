@@ -1,6 +1,6 @@
 //! The matrix, in a file of its own. See `spec/matrix-files.md`.
 //!
-//! The same connection as `examples/kotlin/07-compose`, so the two GUI
+//! The same connection as `tabular-center-kotlin/examples/07-compose`, so the two GUI
 //! examples can be read side by side: the machine is the same, the host
 //! architectures are not.
 

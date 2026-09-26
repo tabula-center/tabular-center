@@ -6,9 +6,9 @@
   #
   #   nix flake check ./tabular-center-rust
   #
-  # from a git checkout. It still needs the rest of the repository -- spec/
-  # holds the conformance contract and examples/rust the example projects --
-  # and reaches it through `self.sourceInfo`; see nix/context.nix.
+  # from a git checkout. Its examples are in ./examples; the one thing it needs
+  # from outside this directory is spec/, the conformance contract, reached
+  # through `self.sourceInfo` -- see nix/context.nix.
   #
   # The pins in flake.lock are the root flake's, copied, and the root makes
   # every one of these inputs `follows` its own, so the two cannot disagree

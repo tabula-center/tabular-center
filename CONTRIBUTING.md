@@ -61,7 +61,7 @@ and dead code but no clippy-only lint — `module_inception` reached CI exactly
 this way. If you are working without clippy, `nix flake check` is the
 authority.
 
-**There are two cargo workspaces.** `tabular-center-rust/` and `examples/rust/`, the second
+**There are two cargo workspaces.** `tabular-center-rust/` and `tabular-center-rust/examples/`, the second
 deliberately outside the first so the examples depend on tabula the way a user
 would. Every Rust step must run in both. It has now cost us three times —
 clippy missed five warnings, `cargo fmt --check` passed a file with trailing
@@ -83,7 +83,7 @@ project is worse than no claim, because someone believes it.
 
 The non-Nix path also covers something Nix cannot. The sandbox has no network,
 so Gradle and the KSP processor are skipped in every Nix job; with Maven
-reachable, `examples/kotlin/06-generated` is the only consumer of the processor
+reachable, `tabular-center-kotlin/examples/06-generated` is the only consumer of the processor
 and that job is where it runs at all.
 
 ## Reviewing: ask what is uncompared
@@ -138,12 +138,12 @@ avoids it entirely.
 ## After a version change
 
 `VERSION` is the single source of truth; `tabular-center-rust/Cargo.toml` and **both**
-`Cargo.lock` files are derived from it. `examples/rust/Cargo.lock` records
+`Cargo.lock` files are derived from it. `tabular-center-rust/examples/Cargo.lock` records
 tabula's version too, because the examples depend on it by path — which is easy
 to forget, and produces a failure that looks like a problem with the examples:
 
 ```
-error: the lock file examples/rust/Cargo.lock needs to be updated
+error: the lock file tabular-center-rust/examples/Cargo.lock needs to be updated
        but --locked was passed to prevent this
 ```
 

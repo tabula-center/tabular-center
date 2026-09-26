@@ -7,8 +7,9 @@ let
   inherit (pkgs) lib;
 
   # The whole repository, not just this directory: the checks run
-  # `tabular-center-kotlin/tools/verify` from the root, and read spec/ and
-  # examples/kotlin. See the same binding in
+  # `tabular-center-kotlin/tools/verify` from the root, and read spec/ -- the
+  # one thing outside this directory they need; the examples live here. See
+  # the same binding in
   # ../../tabular-center-rust/nix/context.nix for why `self.sourceInfo` and
   # why it is checked.
   root =
@@ -18,7 +19,7 @@ let
     else
       throw ''
         tabular-center-kotlin: this flake's source is not the whole repository,
-        so spec/ and examples/ are out of reach. Check it from a git checkout
+        so spec/ is out of reach. Check it from a git checkout
         (`nix flake check ./tabular-center-kotlin`), or through the root flake,
         with Nix 2.26 or later.
       '';
@@ -112,7 +113,19 @@ let
 
         mkdir -p "$HOME" "$GRADLE_USER_HOME"
 
-        cp -r ${root} src && chmod -R u+w src && cd src
+        # This directory, spec/, and .editorconfig -- laid out as in the
+        # repository, and nothing else. tools/verify runs from the repository
+        # root and names paths from there, so the layout is kept; what is left
+        # out is the other two languages and the root's own files. A step that
+        # reached into either would fail here rather than quietly working,
+        # which is what makes "independent" a checked property instead of a
+        # claim. spec/ is the one thing all three share by design: it is the
+        # cross-language contract.
+        mkdir src
+        cp -r ${root}/spec src/spec
+        cp -r ${root}/tabular-center-kotlin src/tabular-center-kotlin
+        cp ${root}/.editorconfig src/.editorconfig
+        chmod -R u+w src && cd src
         ${script}
         touch $out
       '';
@@ -121,9 +134,14 @@ let
     inherit name;
     packages = commonInputs ++ extra;
     JAVA_HOME = "${jdk}";
-    GRADLE_USER_HOME = "./.gradle-home";
     shellHook = ''
       echo "tabular-center :: ${name}"
+      # Gradle's cache, kept with the Kotlin it serves. It was
+      # `./.gradle-home`, relative to wherever `nix develop` was typed, so it
+      # landed at the repository root -- or in whichever subdirectory you
+      # happened to be in -- and the root carried a Kotlin-only directory.
+      # Anchored to the checkout instead, so every shell finds the same one.
+      export GRADLE_USER_HOME="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/tabular-center-kotlin/.gradle-home"
     '';
   };
 

@@ -18,8 +18,9 @@ let
   inherit (pkgs) lib stdenv;
 
   # The whole repository, not just this directory: the checks run
-  # `tabular-center-swift/tools/verify` from the root, and read spec/ and
-  # examples/swift-examples. See the same binding in
+  # `tabular-center-swift/tools/verify` from the root, and read spec/ -- the
+  # one thing outside this directory they need; the examples live here. See
+  # the same binding in
   # ../../tabular-center-rust/nix/context.nix for why `self.sourceInfo` and
   # why it is checked.
   root =
@@ -29,7 +30,7 @@ let
     else
       throw ''
         tabular-center-swift: this flake's source is not the whole repository,
-        so spec/ and examples/ are out of reach. Check it from a git checkout
+        so spec/ is out of reach. Check it from a git checkout
         (`nix flake check ./tabular-center-swift`), or through the root flake,
         with Nix 2.26 or later.
       '';
@@ -197,7 +198,19 @@ let
 
         mkdir -p "$HOME"
 
-        cp -r ${root} src && chmod -R u+w src && cd src
+        # This directory, spec/, and .editorconfig -- laid out as in the
+        # repository, and nothing else. tools/verify runs from the repository
+        # root and names paths from there, so the layout is kept; what is left
+        # out is the other two languages and the root's own files. A step that
+        # reached into either would fail here rather than quietly working,
+        # which is what makes "independent" a checked property instead of a
+        # claim. spec/ is the one thing all three share by design: it is the
+        # cross-language contract.
+        mkdir src
+        cp -r ${root}/spec src/spec
+        cp -r ${root}/tabular-center-swift src/tabular-center-swift
+        cp ${root}/.editorconfig src/.editorconfig
+        chmod -R u+w src && cd src
         ${script}
         touch $out
       '';
@@ -215,7 +228,7 @@ let
       # there, so a bare `swift build` fails with "Could not find
       # Package.swift". There are three of them, and which one you want is not
       # guessable -- so say so rather than cd somewhere on someone's behalf.
-      echo "  swift packages: tabular-center-swift/ (core)  examples/swift-examples/  tabular-center-swift/macros/"
+      echo "  swift packages: tabular-center-swift/ (core)  tabular-center-swift/examples/  tabular-center-swift/macros/"
       echo "  cd into one before \`swift build\`, or run ./tools/verify swift"
     '';
   };

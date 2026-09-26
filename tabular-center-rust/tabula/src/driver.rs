@@ -26,7 +26,7 @@
 //! error[E0499]: cannot borrow `cells` as mutable more than once at a time
 //! ```
 //!
-//! Found by writing `examples/rust/src/retry.rs` — the first caller that
+//! Found by writing `tabular-center-rust/examples/src/retry.rs` — the first caller that
 //! actually needed both closures to touch the same state, which none of the
 //! unit tests did. Both now receive `&mut E` instead of capturing, so the
 //! caller keeps one environment and the borrow checker is satisfied.

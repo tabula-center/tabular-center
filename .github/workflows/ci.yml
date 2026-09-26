@@ -121,7 +121,7 @@ jobs:
           unzip -q kotlin.zip -d "$HOME"
           echo "$HOME/kotlinc/bin" >> "$GITHUB_PATH"
 
-      # Gradle for `examples/kotlin/06-generated` only. With Maven reachable,
+      # Gradle for `tabular-center-kotlin/examples/06-generated` only. With Maven reachable,
       # this is the first place the KSP processor actually runs.
       - uses: gradle/actions/setup-gradle@v4
 
@@ -140,6 +140,6 @@ jobs:
       # that were never meant to match.
       #
       # What this job still does for KSP is better: `./tools/verify` builds
-      # examples/kotlin/06-generated online, against the real repositories,
+      # tabular-center-kotlin/examples/06-generated online, against the real repositories,
       # with an ordinary Gradle. That is the no-nix claim tested rather than
       # asserted, and it is the one thing the sandbox genuinely cannot do.

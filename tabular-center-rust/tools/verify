@@ -130,7 +130,7 @@ run() {
 step_fmt() {
     local ok=0
     (cd tabular-center-rust && cargo fmt --all -- --check) || ok=1
-    (cd examples/rust && cargo fmt --all -- --check) || ok=1
+    (cd tabular-center-rust/examples && cargo fmt --all -- --check) || ok=1
     return "$ok"
 }
 
@@ -149,7 +149,7 @@ step_clippy() {
     local ok=0
     if (cd tabular-center-rust && cargo clippy --version >/dev/null 2>&1); then
         (cd tabular-center-rust && cargo clippy --all-targets --all-features $CARGO_FLAGS -- -D warnings) || ok=1
-        (cd examples/rust && cargo clippy --all-targets $CARGO_FLAGS -- -D warnings) || ok=1
+        (cd tabular-center-rust/examples && cargo clippy --all-targets $CARGO_FLAGS -- -D warnings) || ok=1
     else
         # The fallback covers rustc's own lints (unused imports, dead code)
         # but NOT clippy-only ones. `module_inception` reached CI this way.
@@ -160,7 +160,7 @@ step_clippy() {
         echo "  clippy-only lints (module_inception, needless_range_loop, ...)"
         echo "  are NOT checked here. Run 'nix flake check' before trusting green."
         (cd tabular-center-rust && RUSTFLAGS="-D warnings" cargo check --all-targets --all-features $CARGO_FLAGS) || ok=1
-        (cd examples/rust && RUSTFLAGS="-D warnings" cargo check --all-targets $CARGO_FLAGS) || ok=1
+        (cd tabular-center-rust/examples && RUSTFLAGS="-D warnings" cargo check --all-targets $CARGO_FLAGS) || ok=1
     fi
     return "$ok"
 }
@@ -175,7 +175,7 @@ step_no_std() {
     # compiled here -- and the macro emitted `$crate::lint::Payloads` for every
     # machine while `lint` is gated on `alloc`, so no machine built without
     # features for as long as PAYLOADS has existed. `step_examples` builds
-    # `examples/rust/01-traffic-light` alone for exactly that reason; a
+    # `tabular-center-rust/examples/01-traffic-light` alone for exactly that reason; a
     # consumer of the macro is the only thing that can check the macro.
     #
     # The fallback is only for a genuinely missing cross target. An earlier
@@ -229,7 +229,7 @@ step_conformance() {
 
 # The GUI example, which is its own package on its own toolchain.
 #
-# Not part of examples/rust's workspace: iced needs edition 2024 and tabula's
+# Not part of tabular-center-rust/examples's workspace: iced needs edition 2024 and tabula's
 # MSRV is 1.75, so the four examples that hold the library's promise stay
 # there and this one stands apart. `--locked` still: its lock is committed and
 # vendored like any other.
@@ -238,14 +238,14 @@ step_rust_gui() {
         echo "skip rust-gui (\$cargo not found)"
         return 0
     fi
-    require_dir examples/rust/05-iced || return 1
-    if [ ! -f examples/rust/05-iced/Cargo.lock ]; then
-        echo "skip rust-gui (no lock: cd examples/rust/05-iced && cargo generate-lockfile)"
+    require_dir tabular-center-rust/examples/05-iced || return 1
+    if [ ! -f tabular-center-rust/examples/05-iced/Cargo.lock ]; then
+        echo "skip rust-gui (no lock: cd tabular-center-rust/examples/05-iced && cargo generate-lockfile)"
         return 0
     fi
 
     # shellcheck disable=SC2086
-    (cd examples/rust/05-iced && cargo test $CARGO_FLAGS) || return 1
+    (cd tabular-center-rust/examples/05-iced && cargo test $CARGO_FLAGS) || return 1
     echo "ok   iced example (machine checked; the window is compiled, not opened)"
 }
 
@@ -254,20 +254,20 @@ step_rust_gui() {
 # workspace member. That separation is the point: it is the only place the
 # public API is exercised from outside.
 step_examples() {
-    require_dir examples/rust || return 1
+    require_dir tabular-center-rust/examples || return 1
     # A workspace of four member crates now, not one crate of four modules.
     # `cargo test` covers every member, including the tests/ directories the
     # split moved them into.
-    (cd examples/rust && cargo test $CARGO_FLAGS) || return 1
+    (cd tabular-center-rust/examples && cargo test $CARGO_FLAGS) || return 1
     # 01-traffic-light takes tabula with no features at all. Building it under
     # the workspace does not prove that: cargo unifies features across members,
     # so 02's `alloc` would be enabled for everyone. Built alone, it is the
     # only place `--no-default-features` is checked through the macro rather
     # than through the library's own surface.
-    (cd examples/rust && cargo test -p traffic-light $CARGO_FLAGS) || return 1
+    (cd tabular-center-rust/examples && cargo test -p traffic-light $CARGO_FLAGS) || return 1
     # And run the one example that has something to show. A driver is a loop;
     # a loop nobody has watched is a loop nobody has watched.
-    (cd examples/rust && cargo run -q -p retry $CARGO_FLAGS) >/dev/null || return 1
+    (cd tabular-center-rust/examples && cargo run -q -p retry $CARGO_FLAGS) >/dev/null || return 1
 }
 
 # Matrix rows must survive `cargo fmt`, the same claim kotlin-matrix-stable
@@ -292,8 +292,14 @@ step_rust_matrix_stable() {
     fi
     require_dir tabular-center-rust || return 1
 
+    # One tree to copy and scan -- the examples live inside it -- but two cargo
+    # workspaces to format in it: `cargo fmt` formats its own workspace's
+    # members and never descends into a nested one. Listing the examples as a
+    # second root instead would copy them into themselves and count each of
+    # their matrices twice.
     local roots=(tabular-center-rust)
-    [ -d examples/rust ] && roots+=(examples/rust)
+    local fmt_dirs=(tabular-center-rust)
+    [ -d tabular-center-rust/examples ] && fmt_dirs+=(tabular-center-rust/examples)
 
     local scratch bad=0 found=0 f root
     scratch="$(mktemp -d)"
@@ -304,8 +310,9 @@ step_rust_matrix_stable() {
     [ -f rustfmt.toml ] && cp rustfmt.toml "$scratch/"
     [ -f .rustfmt.toml ] && cp .rustfmt.toml "$scratch/"
 
-    for root in "${roots[@]}"; do
-        (cd "$scratch/$root" && cargo fmt >/dev/null 2>&1) || true
+    local d
+    for d in "${fmt_dirs[@]}"; do
+        (cd "$scratch/$d" && cargo fmt >/dev/null 2>&1) || true
     done
 
     for root in "${roots[@]}"; do

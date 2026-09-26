@@ -48,7 +48,7 @@ rootProject.name = "tabula-example-generated"
 // says "resolve that from source, here". Nothing is published to that
 // coordinate; it exists to be named, which is the point -- when the processor
 // is published, deleting this block is the whole migration.
-includeBuild("../../../tabular-center-kotlin/ksp") {
+includeBuild("../../ksp") {
     dependencySubstitution {
         substitute(module("dev.tabula:tabula-ksp"))
             .using(project(":"))

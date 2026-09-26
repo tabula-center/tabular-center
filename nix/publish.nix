@@ -65,7 +65,7 @@ in
       # everywhere and the error names the lockfile rather than the bump.
       echo "== refreshing lockfiles =="
       (cd tabular-center-rust && cargo update --workspace --offline)
-      (cd examples/rust && cargo update --workspace --offline)
+      (cd tabular-center-rust/examples && cargo update --workspace --offline)
 
       echo "== verifying =="
       ./tools/verify

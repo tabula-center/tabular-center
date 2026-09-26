@@ -87,7 +87,7 @@ val toggleDesc = MachineDesc(
 /**
  * A receiver-colored, internal machine: the two prototype properties the other
  * two leave at their defaults. The same machine as
- * `examples/kotlin/06-generated/src/Stopwatch.tb.kt`, so it doubles as that
+ * `tabular-center-kotlin/examples/06-generated/src/Stopwatch.tb.kt`, so it doubles as that
  * machine's KSP twin in [kspTwins] -- the processor's extraction and this
  * hand-built description must emit the same characters.
  */
@@ -210,7 +210,7 @@ private val refused = mapOf(
 
 /**
  * What the KSP processor must extract from each machine in
- * `examples/kotlin/06-generated/src`, keyed by the file KSP writes.
+ * `tabular-center-kotlin/examples/06-generated/src`, keyed by the file KSP writes.
  *
  * Stated by hand, deliberately. Extraction is the one step between the
  * annotations and `emit` that nothing else checks: the example compiling

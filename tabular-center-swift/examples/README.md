@@ -1,4 +1,4 @@
-# Examples
+# Examples — Swift
 
 Four machines, the same four in every language, ordered by what they add:
 
@@ -17,25 +17,19 @@ Each is a working machine with tests, and each is written twice — once per
 language — because the second writing is a review of the first. Two findings
 that changed the design came out of exactly that (see `PLAN.md`).
 
-## Compile-time generation, per language
+The same four machines exist in every implementation, each directory holding
+its own: `tabular-center-rust/examples`, `tabular-center-kotlin/examples`,
+`tabular-center-swift/examples`. Each language's set lives inside that
+language's directory so the directory stands alone -- its flake checks its
+examples with nothing from the other two.
+
+## Compile-time generation
 
 The library's whole claim is that the dispatcher is generated. An example that
 hand-writes one demonstrates the runtime and nothing else, so what each
 language's examples do about generation is worth stating plainly — the three
 are in genuinely different positions, and only one of them needs a build
 configuration for it.
-
-**Rust: every example, with no configuration at all.** `transition_matrix!` is
-a `macro_rules!` macro, so expansion is `rustc`'s job. There is no build
-script, no plugin, and nothing written to disk — which is why all four Rust
-examples exercise the generator by existing, and why there is nothing here to
-gitignore. `cargo build` is the whole story.
-
-**Kotlin: `06-generated`, which needs Gradle.** KSP is a Maven artifact and
-runs as a build step, so that example carries its own `settings.gradle.kts` and
-`build.gradle.kts`, and its generated sources land in `build/generated/ksp/`
-and are not committed. Skipped where Gradle is absent, because the alternative
-is standing in for the processor by hand.
 
 **Swift: not yet, and not for want of an example.** There is no compile-time
 generator to consume. `TabulaMacros` is still blocked on the swift-syntax
@@ -54,46 +48,11 @@ They were four modules in a single crate per language. They are now four
 directory. An example is read as a template for a real project, and a real
 project does not keep its tests in a `mod tests` at the bottom of `lib.rs`.
 
-Splitting them also lets each cover a different **configuration**, which a
-single crate structurally cannot — one set of features, one edition, one shape
-for everybody:
-
-| | crate | configuration it covers |
-|---|---|---|
-| 1 | `traffic-light` | `#![no_std]`, tabula with `default-features = false` |
-| 2 | `timer` | default features: `TABLE`, export, lint |
-| 3 | `retry` | a **binary** as well as a library, so the driver is watched and not only asserted on |
-| 4 | `login` | two machines in one crate, parent and child |
-
-`tools/verify examples` builds `traffic-light` **on its own** as well as with
-the workspace. That is not belt and braces: cargo unifies features across the
-members it is building, so under the workspace `timer`'s `alloc` is enabled for
-everyone and the `no_std` claim is never tested. Alone, it is the only place
-`--no-default-features` is exercised through the macro rather than through the
-library's own surface.
-
-One workspace rather than four detached packages, for one reason: a single
-`Cargo.lock`, which `tools/verify version` checks against `VERSION`. Four
-lockfiles would be four chances to forget.
-
-Kotlin has no build system, so "its own project" means its own `kotlinc`
-invocation: `<n>/src/` compiled alone, then `<n>/test/` compiled against that
-output rather than alongside it, then run. Compiling the tests as a separate
-unit is the point — a test in the same unit can reach anything, so it never
-demonstrates that the example's public surface is usable. The Rust half learned
-that the hard way when `login`'s test turned out to be reaching through a
-private alias.
-
 Swift splits by SwiftPM *target*: one executable per example, each naming its
 own dependencies. The checks sit beside the implementation rather than in a
 separate module, which is weaker than the other two and deliberate — the
 example types are not `public`, and making them so would be a sweep across
 every example for the harness's benefit rather than a reader's.
-
-The configuration axis there is the **classpath**. `01-traffic-light` is built
-against `core` alone, with no annotations and no testing module, because the
-minimum a machine needs is a claim worth checking and a shared classpath checks
-it for nobody.
 
 ## Why these four
 
@@ -113,28 +72,25 @@ They are chosen to cover the edges rather than to look impressive:
 - **`login`** is a parent and a child, so it exercises `DELEGATE`, the lens,
   and the property that a hole in the child breaks the parent's build.
 
-For the N×M cost at realistic scale, see `tabular-center-rust/tabula/tests/scale.rs` — a
+For the N×M cost at realistic scale, see `tabula/tests/scale.rs` in tabular-center-rust — a
 genuine 8×12 machine, measured rather than described.
 
 ## Running them
 
 ```sh
-./tools/verify examples          # Rust
-./tools/verify kotlin-examples   # Kotlin
-./tools/verify swift-examples    # Swift
+./tools/verify swift-examples
 ```
 
-All three are part of `nix flake check`.
+Part of `nix flake check`, at the root and in this language's own flake.
 
-Each language's examples live in a package that depends on tabula **by path,
-the way a user would**, outside the main build: `examples/rust` is its own cargo
-workspace and `examples/swift-examples` its own SwiftPM package.
+The examples are their own SwiftPM package, depending on the library by path
+(`.package(path: "..")`), the way a user would. SwiftPM names a path
+dependency by its directory's basename, so the products are
+`.product(name: "Tabula", package: "tabular-center-swift")`.
 
-That last directory is not called `swift` because SwiftPM derives a path
-dependency's identity from its directory basename: with the library at `swift/`,
-as it was before the tabular-center rename, and the examples at
-`examples/swift/`, both became `swift` and the package appeared to depend on
-itself. The library is `tabular-center-swift/` now; the name stays. That is the only place
-the public API is exercised from outside, and it is how the driver's borrow bug
-was found — every unit test had passed because none of them needed two closures
-to touch the same state.
+History worth keeping: this directory was `examples/swift-examples`, not
+`examples/swift`, because with the library at `swift/` both basenames were
+`swift` and the package appeared to depend on itself (`cyclic dependency
+declaration found`). Here the package's own identity is `examples` and the
+library's is `tabular-center-swift`, so nothing collides; a future rename
+that makes them equal would bring the cycle back.

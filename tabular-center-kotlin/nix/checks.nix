@@ -58,11 +58,11 @@ in
   # just source: a failure here means a stale lock or a broken processor, and
   # burying that in the examples step would make it read as an example being
   # broken.
-  kotlin-ksp = withRepo "kotlin-ksp" "examples/kotlin/06-generated";
+  kotlin-ksp = withRepo "kotlin-ksp" "tabular-center-kotlin/examples/06-generated";
   kotlin-ksp-compile-fail = withRepo "kotlin-ksp-compile-fail" "the KSP compile-fail fixtures";
   kotlin-ksp-incremental = withRepo "kotlin-ksp-incremental" "the incremental-KSP experiment";
 
   # The Compose Desktop example. The step itself skips, loudly, when the
   # locked artifact set predates Compose.
-  kotlin-compose = withRepo "kotlin-compose" "examples/kotlin/07-compose";
+  kotlin-compose = withRepo "kotlin-compose" "tabular-center-kotlin/examples/07-compose";
 }

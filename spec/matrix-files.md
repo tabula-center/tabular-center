@@ -125,14 +125,14 @@ namespace, not a move of text. Worth knowing before starting, and worth the
 
 Two examples carry it, one per language that can:
 
-- `examples/kotlin/06-generated/src/Machine.tb.kt` — the annotated declaration
+- `tabular-center-kotlin/examples/06-generated/src/Machine.tb.kt` — the annotated declaration
   KSP reads.
-- `examples/kotlin/01`–`05` — each hand-written example's `Table` literal, in
+- `tabular-center-kotlin/examples/01`–`05` — each hand-written example's `Table` literal, in
   `<Name>.tb.kt` beside the handlers. `04-login` holds two, as top-level
   `AUTH_TABLE` and `SESSION_TABLE`, because an `object` cannot span files;
   `auth.TABLE` and `session.TABLE` still name them. `kotlin-matrix-stable`
   checks every `.tb.kt`, `Cell.` rows included, and fails one with no rows.
-- `examples/swift-examples/Sources/SpecCheck/Turnstile.tb.swift` — the `Table`
+- `tabular-center-swift/examples/Sources/SpecCheck/Turnstile.tb.swift` — the `Table`
   literal, moved out of `Turnstile.swift` into an extension. `TrafficLight`,
   `Retry`, `ObservableCounter` and `Timer` the same way; `Login`'s table was
   a top-level `SESSION_TABLE` and stays one, in `Login.tb.swift`. None is
@@ -141,7 +141,7 @@ Two examples carry it, one per language that can:
   macro fixtures. `swift-matrix-stable` runs swift-format over every one and
   requires it back byte for byte; `swift-format-config` requires the directive
   itself, and holds where no toolchain exists.
-- `examples/rust/01-traffic-light/src/machine.tb.rs` — the
+- `tabular-center-rust/examples/01-traffic-light/src/machine.tb.rs` — the
   `transition_matrix!` invocation, reached with `#[path]`. Every Rust example
   now: `02-timer` and `03-retry` the same way, and `04-login`'s two matrices
   as `auth.tb.rs` and `session.tb.rs`, private modules at the crate root

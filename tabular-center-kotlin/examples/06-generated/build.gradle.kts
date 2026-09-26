@@ -31,8 +31,8 @@ repositories {
 // example that demonstrated nothing.
 sourceSets["main"].kotlin.srcDir("src")
 
-sourceSets["main"].kotlin.srcDir("../../../tabular-center-kotlin/core")
-sourceSets["main"].kotlin.srcDir("../../../tabular-center-kotlin/annotations")
+sourceSets["main"].kotlin.srcDir("../../core")
+sourceSets["main"].kotlin.srcDir("../../annotations")
 
 // Same for the checks, which are in `test/`. They are a separate compilation
 // unit compiled against the generated dispatcher, which is the property the

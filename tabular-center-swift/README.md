@@ -294,7 +294,7 @@ languages differ, follow the language.
 
 ### Path dependencies are named by their directory
 
-`examples/swift-examples` depends on the library by path. It is not called
+`tabular-center-swift/examples` depends on the library by path. It is not called
 `examples/swift`: SwiftPM derives a path dependency's identity from its
 directory basename, so two directories named `swift` become one identity and
 the package appears to depend on itself —

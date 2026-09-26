@@ -59,7 +59,7 @@ beside the dispatcher — so the matrix on screen is the one dispatching, not a
 diagram someone has to keep current. The nested screen shows two: the
 session's, and the connection's below it.
 
-The iced example (`examples/rust/05-iced`) does the same, which is the point
+The iced example (`tabular-center-rust/examples/05-iced`) does the same, which is the point
 of having both: same machine, same picture, two host architectures.
 
 ## The happy path, and everything that is not it
@@ -138,7 +138,7 @@ twenty-four beside it are the reason this is a matrix.
 ## Running it
 
 ```sh
-cd examples/kotlin/07-compose && gradle run     # needs a network the first time
+cd tabular-center-kotlin/examples/07-compose && gradle run     # needs a network the first time
 ```
 
 Offline builds resolve from `tabular-center-kotlin/nix/gradle-lock.json`. Compose Multiplatform adds

@@ -532,7 +532,7 @@ step_swift_examples() {
         echo "skip swift-examples (\$SWIFT not found)"
         return 0
     fi
-    require_dir examples/swift-examples || return 1
+    require_dir tabular-center-swift/examples || return 1
 
     local scratch
     scratch="$(mktemp -d)"
@@ -544,7 +544,7 @@ step_swift_examples() {
     local out rc=0 one ex
     for ex in traffic-light timer retry login observable-counter spec-check; do
         # shellcheck disable=SC2046
-        out="$( (cd examples/swift-examples && "$SWIFT" run -c release \
+        out="$( (cd tabular-center-swift/examples && "$SWIFT" run -c release \
             $(swift_paths "$scratch") "$ex") 2>&1 )"
         one=$?
         printf '%s\n' "$out"

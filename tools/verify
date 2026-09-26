@@ -136,7 +136,7 @@ run() {
 #   error: the lock file ... needs to be updated but --locked was passed
 #
 # which names the lockfile and says nothing about the version bump that staled
-# it. Worse, `examples/rust/Cargo.lock` records tabula's version too, so a bump
+# it. Worse, `tabular-center-rust/examples/Cargo.lock` records tabula's version too, so a bump
 # that refreshes only the main workspace leaves exactly one step failing --
 # which reads like a problem with the examples rather than with the release.
 # docs/ is generated from spec/ and GitHub Pages serves it. Checked rather than
@@ -159,7 +159,7 @@ step_version() {
     # Both lockfiles record tabula's version: the workspace's own, and the
     # examples' because they depend on it by path.
     local lock
-    for lock in tabular-center-rust/Cargo.lock examples/rust/Cargo.lock; do
+    for lock in tabular-center-rust/Cargo.lock tabular-center-rust/examples/Cargo.lock; do
         [ -f "$lock" ] || continue
         if ! grep -A1 '^name = "tabula"$' "$lock" | grep -q "^version = \"$want\"$"; then
             echo "$lock does not record tabula $want"
@@ -171,7 +171,7 @@ step_version() {
         echo
         echo "  to resync after a version change:"
         echo "    (cd tabular-center-rust && cargo update --workspace --offline)"
-        echo "    (cd examples/rust && cargo update --workspace --offline)"
+        echo "    (cd tabular-center-rust/examples && cargo update --workspace --offline)"
         echo "  or to abandon it:  git checkout -- ."
         return 1
     fi
@@ -537,7 +537,7 @@ step_diagnostics_coverage() {
 #
 # That is not hypothetical. `kotlin-matrix-stable` scanned `tabular-center-kotlin/` alone for
 # as long as it existed, and
-# examples/kotlin/06-generated/src/Machine.tb.kt sat outside it the whole time
+# tabular-center-kotlin/examples/06-generated/src/Machine.tb.kt sat outside it the whole time
 # while both checks were green.
 #
 # So this enumerates the `.tb.` files that exist and asks which scan reaches
@@ -550,12 +550,12 @@ step_matrix_covered() {
         total=$((total + 1))
         case "$f" in
             # Roots that `kotlin-matrix-stable` copies and ktlints.
-            ./tabular-center-kotlin/*.tb.kt|./examples/kotlin/*.tb.kt)
+            ./tabular-center-kotlin/*.tb.kt)
                 covered=$((covered + 1))
                 echo "ok   $f (kotlin-matrix-stable)"
                 ;;
             # Roots that `rust-matrix-stable` copies and cargo-fmts.
-            ./tabular-center-rust/*.tb.rs|./examples/rust/*.tb.rs)
+            ./tabular-center-rust/*.tb.rs)
                 covered=$((covered + 1))
                 echo "ok   $f (rust-matrix-stable)"
                 ;;

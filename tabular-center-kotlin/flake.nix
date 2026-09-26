@@ -7,8 +7,9 @@
   #
   #   nix flake check ./tabular-center-kotlin
   #
-  # from a git checkout. spec/ and examples/kotlin are reached through
-  # `self.sourceInfo`; see nix/context.nix. The pins in flake.lock are the
+  # from a git checkout. Its examples are in ./examples; the one thing it needs
+  # from outside this directory is spec/, the conformance contract, reached
+  # through `self.sourceInfo` -- see nix/context.nix. The pins in flake.lock are the
   # root flake's, copied, and the root makes these inputs `follows` its own.
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";

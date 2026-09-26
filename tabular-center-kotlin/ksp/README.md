@@ -21,7 +21,7 @@ subtly wrong generated code.
 
 ## It ran
 
-`gradle build` in `examples/kotlin/06-generated` succeeded. The processor read
+`gradle build` in `tabular-center-kotlin/examples/06-generated` succeeded. The processor read
 `@Machine` and `@Row` off `Machine.tb.kt`, built a `MachineDesc`, handed it to
 `TabulaCodegen`, and the emitted dispatcher compiled — with `Impl.kt`
 satisfying a `Cells` interface that did not exist until the build ran.

@@ -147,7 +147,7 @@ kotlin_available() { command -v "$KOTLINC" >/dev/null 2>&1; }
 kotlin_version_note() {
     local want have
     want="$(sed -n 's|.*kotlin("jvm") version "\([^"]*\)".*|\1|p' \
-        examples/kotlin/06-generated/build.gradle.kts 2>/dev/null | head -1)"
+        tabular-center-kotlin/examples/06-generated/build.gradle.kts 2>/dev/null | head -1)"
     have="$("$KOTLINC" -version 2>&1 | grep -oE 'kotlinc-jvm [0-9][0-9A-Za-z.-]*' \
         | awk '{print $2}' | head -1)"
     [ -n "$want" ] && [ -n "$have" ] || return 0
@@ -256,7 +256,7 @@ step_kotlin_examples() {
         kotlin_artifacts "$out" || exit 1
         KCP="$(kotlin_cp "$out")"
         [ -d "$out/core" ] || { echo "core failed to compile"; exit 1; }
-        cd ../examples/kotlin || exit 1
+        cd examples || exit 1
 
         # The harness once, shared by every example's tests.
         "$KOTLINC" harness/Check.kt -d "$out/harness" 2>&1 | grep -v "^info:" || true
@@ -335,30 +335,25 @@ step_kotlin_ksp_incremental() {
         echo "     'nix run .#gradle-lock' with network and commit it)"
         return 0
     fi
-    require_dir examples/kotlin/06-generated || return 1
+    require_dir tabular-center-kotlin/examples/06-generated || return 1
 
     local scratch rc bad=0 gen
     scratch="$(mktemp -d)"
-    mkdir -p "$scratch/examples" "$scratch/tabular-center-kotlin"
-
-    # `examples/kotlin` whole, for the reason `tabular-center-kotlin/` is copied whole one
-    # line below. Copying only `06-generated` left `:compileTestKotlin`
-    # failing: the example's test source set reaches `../harness/Check.kt`,
-    # the assertion helper every Kotlin example shares. A relative path out of
-    # the directory being copied is invisible until the copy is built, and
-    # this check exists precisely to build a copy.
-    cp -r examples/kotlin "$scratch/examples/kotlin"
-    # The whole `tabular-center-kotlin/` tree, not four directories out of it.
+    # The whole `tabular-center-kotlin/` tree, examples included, not a subset.
     #
     # Naming a subset means knowing every path the example and the processor
     # reach through, and those are relative paths spread across three build
-    # files. The tree is small and the copy is cheap; guessing which parts
-    # matter is how the first run of this check died with nothing to say.
-    rmdir "$scratch/tabular-center-kotlin"
+    # files: `../harness` for the shared assertion helper (copying only
+    # `06-generated` once left `:compileTestKotlin` failing on it), and
+    # `../../core`, `../../annotations`, `../../ksp` for the library. A
+    # relative path out of the directory being copied is invisible until the
+    # copy is built, and this check exists precisely to build a copy. The
+    # examples used to live outside this tree and were copied separately, at a
+    # matching depth; inside it, one copy carries every relative path intact.
     cp -r tabular-center-kotlin "$scratch/tabular-center-kotlin"
     chmod -R u+w "$scratch"
 
-    local ex="$scratch/examples/kotlin/06-generated"
+    local ex="$scratch/tabular-center-kotlin/examples/06-generated"
 
     # Output kept, not discarded.
     #
@@ -601,10 +596,10 @@ step_kotlin_ksp_compile_fail() {
 # known and one that is quiet.
 step_kotlin_compose() {
     if ! command -v gradle >/dev/null 2>&1; then
-        echo "skip kotlin-compose (no gradle; see examples/kotlin/07-compose/README.md)"
+        echo "skip kotlin-compose (no gradle; see tabular-center-kotlin/examples/07-compose/README.md)"
         return 0
     fi
-    require_dir examples/kotlin/07-compose || return 1
+    require_dir tabular-center-kotlin/examples/07-compose || return 1
 
     local args=(--no-daemon --console=plain)
 
@@ -630,7 +625,7 @@ step_kotlin_compose() {
     # `check` compiles the UI and RUNS the headless machine checks: see the
     # runChecks task in build.gradle.kts. `build` alone would compile them and
     # run nothing, which this repository has been caught by once already.
-    (cd examples/kotlin/07-compose && gradle "${args[@]}" check) || return 1
+    (cd tabular-center-kotlin/examples/07-compose && gradle "${args[@]}" check) || return 1
     echo "ok   compose (bitkey-shaped, machine checked headlessly; UI compiled only)"
 }
 
@@ -639,7 +634,7 @@ step_kotlin_ksp() {
         echo "skip kotlin-ksp (no gradle; see tabular-center-kotlin/ksp/README.md)"
         return 0
     fi
-    require_dir examples/kotlin/06-generated || return 1
+    require_dir tabular-center-kotlin/examples/06-generated || return 1
 
     local args=(--no-daemon --console=plain)
 
@@ -685,7 +680,7 @@ step_kotlin_ksp() {
         echo "note: resolving from the network"
     fi
 
-    (cd examples/kotlin/06-generated && gradle "${args[@]}" build) || return 1
+    (cd tabular-center-kotlin/examples/06-generated && gradle "${args[@]}" build) || return 1
     echo "ok   generated (ksp)"
 
     # Extraction, checked against hand-stated twins rather than committed
@@ -749,13 +744,13 @@ step_kotlin_ksp() {
             echo "     drifting. Change the twin only if the annotations changed."
             bad=1
         fi
-    done < <(find examples/kotlin/06-generated/build/generated -name '*Generated.kt' \
+    done < <(find tabular-center-kotlin/examples/06-generated/build/generated -name '*Generated.kt' \
         -type f 2>/dev/null | sort)
 
     for twin in "$twins/out/ksp-twins"/*.kt; do
         [ -e "$twin" ] || continue
         name="$(basename "$twin")"
-        if [ -z "$(find examples/kotlin/06-generated/build/generated -name "$name" \
+        if [ -z "$(find tabular-center-kotlin/examples/06-generated/build/generated -name "$name" \
             -type f 2>/dev/null | head -1)" ]; then
             echo "FAIL kspTwins states $name, and KSP generated no such file."
             echo "     Look under build/generated/, or drop the twin if the"
@@ -796,12 +791,15 @@ step_kotlin_matrix_stable() {
     #
     # This scanned `tabular-center-kotlin/` alone, which reached exactly one file --
     # tabular-center-kotlin/test/TimerSpec.tb.kt -- and missed
-    # examples/kotlin/06-generated/src/Machine.tb.kt entirely. The example is
+    # tabular-center-kotlin/examples/06-generated/src/Machine.tb.kt entirely. The example is
     # the matrix a user copies, so it was the more important of the two and the
     # one nothing checked. `.editorconfig`'s `[*.tb.kt]` already covered it;
     # only the scan did not.
+    #
+    # One root now: the examples moved inside `tabular-center-kotlin/`, and
+    # listing them as a second root copied them into themselves
+    # (`examples/examples`) and counted each of their matrices twice.
     local roots=(tabular-center-kotlin)
-    [ -d examples/kotlin ] && roots+=(examples/kotlin)
 
     local scratch bad=0 found=0 f root
     scratch="$(mktemp -d)"

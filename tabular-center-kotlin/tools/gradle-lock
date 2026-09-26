@@ -53,7 +53,7 @@ cd "$(dirname "$0")/../.." || exit 1
 
 LOCK="tabular-center-kotlin/nix/gradle-lock.json"
 
-# Every Gradle build under examples/kotlin, discovered rather than listed.
+# Every Gradle build under tabular-center-kotlin/examples, discovered rather than listed.
 #
 # This was one hardcoded path, and adding the Compose example did not change
 # the lock: `nix run .#gradle-lock` resolved 06-generated, recorded exactly
@@ -63,10 +63,10 @@ LOCK="tabular-center-kotlin/nix/gradle-lock.json"
 EXAMPLES=()
 while IFS= read -r settings; do
     EXAMPLES+=("$(dirname "$settings")")
-done < <(find examples/kotlin -name settings.gradle.kts | sort)
+done < <(find tabular-center-kotlin/examples -name settings.gradle.kts | sort)
 
 if [ "${#EXAMPLES[@]}" -eq 0 ]; then
-    echo "gradle-lock: no Gradle builds found under examples/kotlin"
+    echo "gradle-lock: no Gradle builds found under tabular-center-kotlin/examples"
     exit 1
 fi
 
