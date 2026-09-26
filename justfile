@@ -8,7 +8,7 @@ default: verify
 verify:
     ./tools/verify
 
-# One step, by name: `just step test`. The header of tools/verify lists them.
+# One step, by name: `just step test`. `./tools/verify --list` lists them.
 step STEP:
     ./tools/verify {{STEP}}
 

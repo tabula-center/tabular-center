@@ -45,7 +45,7 @@
 # `tabular-center-swift/macros/Package.resolved` is deliberately NOT ignored, unlike the one
 # above it. The main package has no dependencies, so its resolved file pins
 # nothing and committing it would be noise. This one pins swift-syntax to a
-# revision, and `tools/swift-lock` reads that revision to build the offline
+# revision, and `tabular-center-swift/tools/swift-lock` reads that revision to build the offline
 # artifact set -- so it is the input to a lock rather than a build artifact.
 # Nix
 .direnv/

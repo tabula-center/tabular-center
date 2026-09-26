@@ -11,12 +11,18 @@
 ctx:
 
 let
-  inherit (ctx) pkgs lib has rustInputs kotlinInputs swiftPkgs swiftAvailable commonInputs;
+  inherit (ctx) pkgs lib has toolchains commonInputs;
+  rustInputs = toolchains.rust.inputs;
+  kotlinInputs = toolchains.kotlin.inputs;
+  # Empty where there is no Swift toolchain, so it can be appended as is.
+  swiftInputs = toolchains.swift.inputs;
 in
 {
   release = pkgs.writeShellApplication {
     name = "tabula-release";
-    runtimeInputs = commonInputs ++ rustInputs ++ lib.optionals has.kotlin kotlinInputs;
+    # Rust and Kotlin, as before the split: without Swift on PATH the Swift
+    # steps report `skip`, which is what a release run on Linux always did.
+    runtimeInputs = commonInputs ++ rustInputs ++ kotlinInputs;
     text = ''
       version="''${1:-}"
       if [ -z "$version" ]; then
@@ -79,9 +85,7 @@ in
 
   publish = pkgs.writeShellApplication {
     name = "tabula-publish";
-    runtimeInputs = commonInputs ++ rustInputs
-      ++ lib.optionals has.kotlin kotlinInputs
-      ++ lib.optionals (has.swift && swiftAvailable) swiftPkgs;
+    runtimeInputs = commonInputs ++ rustInputs ++ kotlinInputs ++ swiftInputs;
     text = ''
       execute=0
       for a in "$@"; do [ "$a" = "--execute" ] && execute=1; done

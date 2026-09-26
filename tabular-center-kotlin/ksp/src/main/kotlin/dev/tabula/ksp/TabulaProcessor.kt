@@ -32,7 +32,7 @@ import java.io.OutputStreamWriter
  * KSP is a Maven artifact and the environment this was first developed in
  * could not reach Maven, so this adapter was written unverified while
  * everything it feeds into was covered. It now runs against the artifact set
- * pinned in `nix/gradle-lock.json` (`kotlin-ksp`, `kotlin-ksp-compile-fail`,
+ * pinned in `tabular-center-kotlin/nix/gradle-lock.json` (`kotlin-ksp`, `kotlin-ksp-compile-fail`,
  * `kotlin-ksp-incremental`). The arrangement is kept because it paid: the work
  * went into making this file as small and as dumb as possible.
  *

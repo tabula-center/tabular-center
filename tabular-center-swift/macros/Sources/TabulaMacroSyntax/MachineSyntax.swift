@@ -193,7 +193,7 @@ public enum MachineSyntax {
     /// The text of a plain string literal, or nil if it is not one.
     ///
     /// `representedLiteralValue` does this in one call and is swift-syntax 510;
-    /// `nix/swift-lock.json` pins 509.1.1, so the segments are read directly.
+    /// `tabular-center-swift/nix/swift-lock.json` pins 509.1.1, so the segments are read directly.
     ///
     /// Returning nil for an interpolated literal is the correct answer rather
     /// than a limitation. `@Path("connect", ...)` names a path, and a name

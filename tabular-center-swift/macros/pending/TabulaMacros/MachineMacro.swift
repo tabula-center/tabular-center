@@ -7,7 +7,7 @@
 ///
 /// It could not exist until now. A `.macro` target needs
 /// `CompilerPluginSupport`, which nixpkgs' SwiftPM did not ship;
-/// `nix/swiftpm-plugin-support.nix` builds it, and `tools/verify
+/// `tabular-center-swift/nix/swiftpm-plugin-support.nix` builds it, and `tools/verify
 /// swift-macro-support` reports whether the toolchain in use has it.
 import SwiftCompilerPlugin
 import SwiftParser

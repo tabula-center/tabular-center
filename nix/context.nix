@@ -1,319 +1,45 @@
-# Everything the other modules share: package set, toolchains, and the two
-# builders. Imported once per system and threaded through as `ctx`.
-{ self, system, nixpkgs, nixpkgs-swift, rust-overlay }:
+# What the root modules share: a package set for the cross-language checks,
+# the three language toolchains as their flakes export them, and the builders.
+# Imported once per system and threaded through as `ctx`.
+{ self, system, nixpkgs, langs }:
 
 let
-  pkgs = import nixpkgs {
-    inherit system;
-    overlays = [ (import rust-overlay) ];
-  };
+  pkgs = import nixpkgs { inherit system; };
+  inherit (pkgs) lib;
 
-  # Swift comes from its own input. It was added when the pinned nixpkgs
-  # (25.05) had Swift 5.8, below the 5.9 macros require; `nixpkgs` is 26.05
-  # now and the input is on its way out (see the note in flake.nix). Keeping
-  # it separate still means chasing a Swift toolchain never moves the Rust or
-  # Kotlin ones.
-  swiftPkgsSet = import nixpkgs-swift { inherit system; };
+  # Each language flake's `legacyPackages.<system>.toolchain`:
+  #   { inputs; env; setup; available; }
+  # A toolchain is declared once, in its own flake; the root only combines.
+  toolchains = lib.mapAttrs (_: l: l.legacyPackages.${system}.toolchain) langs;
 
-  inherit (pkgs) lib stdenv;
+  allInputs = lib.concatMap (t: t.inputs) (builtins.attrValues toolchains);
+  allEnv = lib.foldl' (acc: t: acc // t.env) { } (builtins.attrValues toolchains);
+  allSetup = lib.concatMapStringsSep "\n" (t: t.setup) (builtins.attrValues toolchains);
 
-  # Phases land one language at a time, so nothing may be declared for a
-  # directory that is not there. Gate on the build file rather than the
-  # directory: a stub created early in a phase should not switch checks on
-  # before the tooling can actually run.
-  #
-  # Kotlin has no build file, deliberately -- kotlinc is driven directly, so
-  # that the zero-runtime-dependency rule holds by construction rather than by
-  # a dependency report (ARCHITECTURE 11.2, 12). So the gate is the core source
-  # every Kotlin step compiles first.
-  #
-  # It used to read `../kotlin/src`, a directory this tree has never had. The
-  # gate was therefore always false and `nix flake check` silently ran NONE of
-  # the six Kotlin checks -- while `tools/verify` ran them all, and ci.yml's
-  # `check` job runs only the flake. Three paths, one definition of green, and
-  # a whole language missing from two of them because a path was wrong by one
-  # word. A gate that names a path which does not exist cannot report that it
-  # is off; that is what makes this class of bug expensive.
   has = {
-    kotlin = builtins.pathExists ../tabular-center-kotlin/core/dev/tabula/Step.kt;
     # Read by nix/publish.nix only: Maven publication needs a Gradle build the
-    # library does not have yet (RELEASING.md). No CHECK gates on this -- the
-    # zero-runtime-dependency rule is enforced by the `kotlin` step compiling
-    # tabula-core against an empty classpath, not by a dependency report.
+    # library does not have yet (RELEASING.md), and ARCHITECTURE 12 says it
+    # will not get one. No check gates on this.
     kotlinGradle = builtins.pathExists ../tabular-center-kotlin/settings.gradle.kts;
-    swift = builtins.pathExists ../tabular-center-swift/Package.swift;
-    rustConformance = builtins.pathExists ../tabular-center-rust/tabula-conformance/Cargo.toml;
-    examples = builtins.pathExists ../examples/rust/Cargo.toml;
-
-    # The KSP example can build offline exactly when the lock exists. Gating on
-    # the lock rather than on `gradle` being installed is the whole point of
-    # the rewrite: gradle is always present in these checks -- kotlinInputs
-    # ships it -- and what was ever missing is the artifacts.
-    gradleLock = builtins.pathExists ../nix/gradle-lock.json;
-
-    # Same gate, same reasoning, for SwiftPM. `tabular-center-swift/macros` is the only thing
-    # in the repository that links a remote package.
-    swiftLock = builtins.pathExists ../nix/swift-lock.json;
   };
 
-  # The offline Maven repository, or null when nothing has been locked yet.
-  gradleRepo =
-    if has.gradleLock
-    then import ./gradle-repo.nix { inherit pkgs lib; lockFile = ../nix/gradle-lock.json; }
-    else null;
-
-  # nixpkgs' SwiftPM with `CompilerPluginSupport` added. See the header of
-  # that file; null where there is no Swift to augment.
-  swiftpmPluginSupport =
-    if swiftAvailable && builtins.hasAttr "swiftpm" swiftPkgsSet
-    then
-      import ./swiftpm-plugin-support.nix {
-        inherit pkgs lib swiftPkgsSet;
-      }
-    else null;
-
-  swiftDeps =
-    if has.swiftLock
-    then import ./swift-deps.nix { inherit pkgs lib; lockFile = ../nix/swift-lock.json; }
-    else null;
-
-  rustToolchain =
-    if builtins.pathExists ../tabular-center-rust/rust-toolchain.toml
-    then pkgs.rust-bin.fromRustupToolchainFile ../tabular-center-rust/rust-toolchain.toml
-    else
-      pkgs.rust-bin.stable."1.75.0".default.override {
-        extensions = [ "rust-src" "rust-analyzer" "clippy" "rustfmt" ];
-        targets = [ "thumbv7em-none-eabihf" ];
-      };
-
-  jdk = pkgs.jdk21;
-
-  # Swift is first-class on Darwin. On Linux nixpkgs' swift lags and macro
-  # plugins are toolchain-version sensitive, so treat the Linux path as
-  # best-effort. See ARCHITECTURE.md section 13.
-  swiftAvailable = stdenv.isDarwin || builtins.hasAttr "swift" swiftPkgsSet;
-
-  # Whether `nix flake check` runs the Swift checks.
-  #
-  # Back on for Linux. It was Darwin-only for four rounds while nixpkgs'
-  # packaging was worked out -- NIX_CC, a target-triple mismatch, a missing
-  # `ar`, and finally libdispatch not being on the loader path because the
-  # corelibs are separate derivations from the `swift` wrapper. None of it was
-  # our code, and `nix flake check` should not fail on a dependency's
-  # packaging while that is being untangled.
-  #
-  # It is untangled: the Swift checks pass on Linux. See swiftCorelibs above
-  # for the piece that was missing.
-  swiftChecked = swiftAvailable;
-
-  # Swift's setup-hook reads NIX_CC and dies with `NIX_CC: unbound variable`
-  # without it. The obvious fix -- putting `stdenv.cc` in the inputs -- is
-  # WRONG: it puts gcc on the hook's path, swiftc then takes its default target
-  # from gcc (`x86_64-pc-linux-gnu`), and Swift's own stdlib is built for
-  # `x86_64-unknown-linux-gnu`. The result is
-  #
-  #   could not find module '_Concurrency' for target 'x86_64-pc-linux-gnu'
-  #
-  # which reads like a missing module and is really a triple mismatch. NIX_CC
-  # is supplied as a plain environment variable instead (see mkCheck), so the
-  # hook is satisfied without changing what swiftc thinks it targets.
-  # Every part of the Swift toolchain comes from the SAME nixpkgs.
-  #
-  # I had `binutils` from the pinned 25.05 next to `swift` from unstable, which
-  # is a mistake worth naming: two nixpkgs generations disagree about the host
-  # triple, and swiftc then reports `glibc not found for x86_64-pc-linux-gnu`
-  # while its own modules are built for `x86_64-unknown-linux-gnu`. Every Swift
-  # failure so far has carried that warning; it was the cause, not noise.
-  # The corelibs, which are separate derivations from the `swift` wrapper.
-  #
-  # `${swiftPkgsSet.swift}/lib/swift/linux` does not exist: the wrapper and the
-  # runtime live in different store paths, which is why a library path built
-  # only from `swift` still had no libdispatch.so in it. Named with `or null`
-  # so the set can differ between nixpkgs revisions without breaking eval.
-  #
-  # XCTest is in this list on purpose: if it turns out to be present, the
-  # checks can go back to being a real test target.
-  swiftCorelibs = lib.optionals (builtins.hasAttr "swiftPackages" swiftPkgsSet) (
-    lib.filter (x: x != null) (
-      map (n: swiftPkgsSet.swiftPackages.${n} or null) [
-        "Dispatch"
-        "Foundation"
-        "FoundationNetworking"
-        "XCTest"
-        "swift-corelibs-libdispatch"
-      ]
-    )
-  );
-
-  # Packages whose LIBRARIES are needed but whose `bin` must stay off PATH.
-  #
-  # `swift-unwrapped` is the compiler without nix's wrapper. Putting it in the
-  # inputs shadowed `swift-wrapper/bin/swiftc`, and the unwrapped compiler does
-  # not know nix's target triple, so it reported
-  #
-  #   could not find module 'Swift' for target 'x86_64-pc-linux-gnu';
-  #   found: x86_64-unknown-linux-gnu
-  #
-  # -- the same triple mismatch as round 2, caused the same way: by adding a
-  # package to fix a library path and changing which compiler runs. Its `lib`
-  # output is still wanted, so it contributes to swiftLibraryPath only.
-  swiftLibOnly = lib.optionals (builtins.hasAttr "swiftPackages" swiftPkgsSet) (
-    lib.filter (x: x != null) (
-      map (n: swiftPkgsSet.swiftPackages.${n} or null) [ "swift-unwrapped" ]
-    )
-  );
-
-  # Everything needed to COMPILE Swift, minus SwiftPM itself.
-  #
-  # Split out for one reason: `swiftpmPluginSupport` compiles Swift, so it
-  # needs this list, and `swiftPkgs` below CONTAINS its result. Passing the
-  # whole of `swiftPkgs` to it would be an infinite recursion, and passing a
-  # hand-picked subset is what cost four rounds of missing `NIX_CC`, missing
-  # binutils and missing `Foundation`. One list, named, used twice.
-  swiftBase = lib.optionals swiftAvailable (
-    [ swiftPkgsSet.swift swiftPkgsSet.binutils swiftPkgsSet.stdenv.cc ]
-    ++ swiftCorelibs
-  );
-
-  swiftBaseLibraryPath = lib.concatStringsSep ":" (
-    lib.concatMap (p: [ "${p}/lib" "${p}/lib/swift/linux" ]) (swiftBase ++ swiftLibOnly)
-  );
-
-  swiftPkgs = swiftBase
-    # The augmented SwiftPM where there is one, so `import
-    # CompilerPluginSupport` resolves for every check and shell rather than
-    # only for whoever remembered to build the package. `tools/verify
-    # swift-macro-support` reports which is in effect.
-    ++ lib.optionals (builtins.hasAttr "swiftpm" swiftPkgsSet) [
-      (if swiftpmPluginSupport != null then swiftpmPluginSupport else swiftPkgsSet.swiftpm)
-    ]
-    ++ lib.optionals (builtins.hasAttr "swift-format" swiftPkgsSet) [ swiftPkgsSet.swift-format ];
-
-  # kotlinc, pinned to the SAME version as everything else Kotlin here.
-  #
-  # This was `pkgs.kotlin`, which is whatever the nixpkgs channel ships. The
-  # rest of the repository says 2.1.20 in four places -- both Gradle builds'
-  # `kotlin("jvm")`, the KSP pair `2.1.20-1.0.32`, ci.yml's check-no-nix
-  # download, and tabular-center-kotlin/README.md's "verified against kotlinc 2.1.20" -- and
-  # the flake alone floated. Moving `nixpkgs` from 25.05 to 26.05 for Swift
-  # therefore moved the Kotlin compiler as a side effect, which is the exact
-  # shape 0c warned about: a change to one language's toolchain landing in
-  # another's checks.
-  #
-  # It matters more for Kotlin than for most compilers because four fixtures
-  # assert on kotlinc's own message text (`//~ EXPECT:` in compile_fail/), and
-  # that text is the compiler's, not ours -- spec/diagnostics.md says so and
-  # says it must not be normalised. A compiler upgrade is allowed to reword
-  # it; the fixtures should move when WE move the compiler, on purpose.
-  #
-  # Owned rather than overridden: `pkgs.kotlin.overrideAttrs` would depend on
-  # the shape of nixpkgs' installPhase for a release it was not written for.
-  # The distribution is a zip of shell scripts and jars; wrapping it is five
-  # lines. Bump `kotlinVersion` and the hash together, and the two Gradle
-  # builds and ci.yml with them.
-  kotlinVersion = "2.1.20";
-  kotlinc = pkgs.stdenvNoCC.mkDerivation {
-    pname = "kotlinc";
-    version = kotlinVersion;
-    src = pkgs.fetchurl {
-      url = "https://github.com/JetBrains/kotlin/releases/download/v${kotlinVersion}/kotlin-compiler-${kotlinVersion}.zip";
-      hash = "sha256-oRgZew3lX/qyvI1c0DpeOQM8+1M4PWkxvHYd7AeEiRo=";
-    };
-    nativeBuildInputs = [ pkgs.unzip pkgs.makeWrapper ];
-    dontConfigure = true;
-    dontBuild = true;
-    installPhase = ''
-      runHook preInstall
-      rm -f bin/*.bat
-      mkdir -p "$out"
-      cp -r . "$out/"
-      # The scripts find java through JAVA_HOME or PATH. mkCheck sets
-      # JAVA_HOME already; --set-default keeps a dev shell with its own
-      # JAVA_HOME in charge, and gives a bare `nix shell` a working default.
-      for p in "$out"/bin/*; do
-        wrapProgram "$p" --set-default JAVA_HOME "${jdk}" --prefix PATH : "${jdk}/bin"
-      done
-      runHook postInstall
-    '';
-  };
-
-  rustInputs = [ rustToolchain pkgs.cargo-expand pkgs.cargo-nextest ];
-
-  # What iced needs to BUILD, which is more than what cargo vendors.
-  #
-  # `examples/rust/05-iced` pulls winit and wgpu, and their build scripts look
-  # for system libraries through pkg-config: fontconfig for text, xkbcommon and
-  # the X11 set for input, wayland for the other display server. Vendoring the
-  # crates does not supply these -- they are not crates -- so the examples
-  # check carries them.
-  #
-  # Only the examples check does. Adding them to `rustInputs` would put an
-  # X11 stack behind `cargo test` for the library, which has nothing to draw.
-  guiInputs = [
-    pkgs.pkg-config
-    pkgs.fontconfig
-    pkgs.libxkbcommon
-    pkgs.wayland
-    pkgs.libGL
-    pkgs.vulkan-loader
-    pkgs.xorg.libX11
-    pkgs.xorg.libXcursor
-    pkgs.xorg.libXi
-    pkgs.xorg.libXrandr
-  ];
-  kotlinInputs = [ jdk pkgs.gradle kotlinc pkgs.ktlint ];
   commonInputs = [ pkgs.git pkgs.jq pkgs.just pkgs.graphviz pkgs.nixpkgs-fmt ];
 
-  # `runCommand` gives no writable HOME, and cargo wants one for its registry
-  # cache even with zero dependencies. Every check is --offline --locked so it
-  # can never silently reach the network.
+  # The root's checks are text-only except `renderings-agree`, which takes
+  # every toolchain and every toolchain's environment. `env` is merged into
+  # the derivation for all of them: it is only variables (JAVA_HOME, NIX_CC),
+  # and one builder is simpler than two that differ by an attribute set.
   mkCheck = name: inputs: script:
     pkgs.runCommand "tabula-check-${name}"
-      {
+      ({
         nativeBuildInputs = commonInputs ++ inputs;
-        # For Swift's setup-hook. A variable, not a package on the path -- see
-        # the note on swiftPkgs above.
-        NIX_CC = "${pkgs.stdenv.cc}";
-
-        # kotlinc and ktlint are both JVM programs that look for a JDK. The
-        # nixpkgs wrappers usually carry one, but "usually" is a guess and nix
-        # knows the answer -- the same reason swiftLibraryPath is computed here
-        # rather than searched for by the script.
-        JAVA_HOME = "${jdk}";
-      }
+      } // allEnv)
       ''
         export HOME="$TMPDIR/home"
         export CARGO_HOME="$TMPDIR/cargo"
-
-        # crates.io, replaced by the vendor directory built from
-        # examples/rust/Cargo.lock.
-        #
-        # Here rather than in the one check that "needs" it: `clippy` resolves
-        # the examples workspace too, and so does anything else that runs cargo
-        # outside tabular-center-rust/. Wiring it per check meant listing which ones touch
-        # cargo, and that list was wrong the first time -- clippy failed with
-        # "no matching package named `iced`" while the examples check was fine.
-        mkdir -p "$CARGO_HOME"
-        cat > "$CARGO_HOME/config.toml" <<VENDOR
-        [source.crates-io]
-        replace-with = "vendored-sources"
-
-        [source.vendored-sources]
-        directory = "${examplesVendor}"
-        VENDOR
         export GRADLE_USER_HOME="$TMPDIR/gradle"
         export CARGO_NET_OFFLINE=true
-
-        # The sandbox has no network, and the steps that need one must SKIP
-        # rather than fail. Stated, not detected: a probe would be the script
-        # guessing at something nix already knows for certain, and a wrong
-        # guess turns a skip into a red check or, worse, the other way round.
-        #
-        # `tools/verify` reads this. Unset everywhere else, so the same script
-        # in ci.yml's check-no-nix job -- which HAS Maven -- still runs the
-        # Gradle and KSP path that only that job can reach.
         export TABULA_OFFLINE=1
-
         mkdir -p "$HOME" "$CARGO_HOME" "$GRADLE_USER_HOME"
 
         cp -r ${self} src && chmod -R u+w src && cd src
@@ -321,83 +47,21 @@ let
         touch $out
       '';
 
-  # Where the Swift runtime actually is.
-  #
-  # `swiftc -print-target-info` reports the *module* search paths, and
-  # libdispatch.so is not in them: nixpkgs splits the toolchain across store
-  # paths, so the linker finds it via -L flags the wrapper injects while the
-  # loader knows nothing about it. Hence
-  #
-  #   error while loading shared libraries: libdispatch.so
-  #
-  # nix knows where every one of those packages is, so let nix say it rather
-  # than have the script guess. Both `lib` and `lib/swift/linux`, because the
-  # toolchain uses both.
-  # crates.io dependencies of `examples/rust`, vendored from its Cargo.lock.
-  #
-  # The third instance of one pattern: `gradle-lock` for Kotlin, `swift-lock`
-  # for Swift, and this for Rust -- the cheapest of the three, because Cargo
-  # writes a complete, hashed lock as a matter of course and nixpkgs'
-  # `importCargoLock` consumes exactly that. Nothing to generate, nothing to
-  # keep in step: the vendor directory is a function of the committed lock.
-  #
-  # Empty today -- every example depends on `tabula` by path and nothing else
-  # -- so it passes vacuously, and says so. It stops being vacuous with the
-  # first real dependency, which is the point of landing it first: the GUI
-  # examples (iced) are what need it, and they should arrive onto machinery
-  # that already works rather than bring their own.
-  examplesVendor = pkgs.rustPlatform.importCargoLock {
-    lockFile = ../examples/rust/Cargo.lock;
-  };
-
-  # The GUI example's own lock, and its own toolchain.
-  #
-  # iced's tree needs edition 2024, which the pinned 1.75 cannot parse. That
-  # pin is tabula's MSRV and worth keeping exactly where it is: on the library
-  # and on the four examples that depend on nothing else. This one package
-  # gets current stable instead, which is what an application would use.
-  # Null until the lock exists: `importCargoLock` on a missing file fails at
-  # EVALUATION, which would take the whole flake down rather than one check.
-  icedVendor =
-    if builtins.pathExists ../examples/rust/05-iced/Cargo.lock
-    then pkgs.rustPlatform.importCargoLock { lockFile = ../examples/rust/05-iced/Cargo.lock; }
-    else null;
-
-  rustStable = pkgs.rust-bin.stable.latest.default;
-
-  swiftLibraryPath = lib.concatStringsSep ":" (
-    lib.concatMap (p: [ "${p}/lib" "${p}/lib/swift/linux" ]) (swiftPkgs ++ swiftLibOnly)
-  );
-
   mkShell = name: extra: env: pkgs.mkShell ({
     inherit name;
     packages = commonInputs ++ extra;
-    JAVA_HOME = "${jdk}";
     GRADLE_USER_HOME = "./.gradle-home";
     shellHook = ''
       echo "tabula :: ${name}"
-      ${lib.optionalString (!swiftAvailable) ''
+      ${lib.optionalString (!toolchains.swift.available) ''
         echo "  note: no swift toolchain on ${system}; tabular-center-swift/ is skipped."
       ''}
-      ${lib.optionalString (name == "swift" || name == "all") ''
-        # The shell opens at the repository root and there is no Package.swift
-        # here, so a bare `swift build` fails with "Could not find
-        # Package.swift". There are three of them, and which one you want is
-        # not guessable -- so say so rather than cd somewhere on someone's
-        # behalf.
-        echo "  swift packages: tabular-center-swift/ (core)  examples/swift-examples/  tabular-center-swift/macros/ (will not build here)"
-        echo "  cd into one before \`swift build\`, or run ./tools/verify swift"
-      ''}
+      echo "  one language only: nix develop .#rust / .#kotlin / .#swift"
     '';
   } // env);
 
 in
 {
-  inherit
-    self system pkgs lib has
-    rustToolchain jdk kotlinc kotlinVersion swiftAvailable swiftChecked swiftPkgs
-    rustInputs kotlinInputs commonInputs
-    swiftLibraryPath gradleRepo swiftDeps swiftpmPluginSupport examplesVendor
-    guiInputs icedVendor rustStable
-    mkCheck mkShell;
+  inherit self system pkgs lib has toolchains allInputs allEnv allSetup
+    commonInputs mkCheck mkShell;
 }

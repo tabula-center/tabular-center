@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Record every Maven artifact the KSP example needs, with its URL and hash.
 #
-#   ./tools/gradle-lock            regenerate nix/gradle-lock.json
-#   ./tools/gradle-lock --check    verify the committed lock is complete
+#   ./tabular-center-kotlin/tools/gradle-lock            regenerate nix/gradle-lock.json
+#   ./tabular-center-kotlin/tools/gradle-lock --check    verify the committed lock is complete
 #
 # NEEDS NETWORK. That is the point: this is the one command in the repository
 # that reaches Maven, it is run by a person or by CI, and its output is
@@ -48,9 +48,10 @@
 # change.
 set -uo pipefail
 
-cd "$(dirname "$0")/.." || exit 1
+# Repo root: the builds it resolves are under examples/, the lock is ours.
+cd "$(dirname "$0")/../.." || exit 1
 
-LOCK="nix/gradle-lock.json"
+LOCK="tabular-center-kotlin/nix/gradle-lock.json"
 
 # Every Gradle build under examples/kotlin, discovered rather than listed.
 #
@@ -214,7 +215,7 @@ generated="$scratch/lock.json"
 if [ "$check" -eq 1 ]; then
     if [ ! -f "$LOCK" ]; then
         echo
-        echo "gradle-lock: $LOCK does not exist; run ./tools/gradle-lock"
+        echo "gradle-lock: $LOCK does not exist; run ./tabular-center-kotlin/tools/gradle-lock"
         exit 1
     fi
     if diff -u "$LOCK" "$generated"; then
@@ -223,7 +224,7 @@ if [ "$check" -eq 1 ]; then
         exit 0
     fi
     echo
-    echo "gradle-lock: $LOCK is stale; run ./tools/gradle-lock"
+    echo "gradle-lock: $LOCK is stale; run ./tabular-center-kotlin/tools/gradle-lock"
     exit 1
 fi
 

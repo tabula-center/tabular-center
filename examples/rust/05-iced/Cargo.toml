@@ -15,7 +15,7 @@ license = "MIT OR Apache-2.0"
 publish = false
 
 # The first example with a third-party dependency, which is why
-# `nix/context.nix` vendors this package's own `Cargo.lock` -- the offline
+# `tabular-center-rust/nix/context.nix` vendors this package's own `Cargo.lock` -- the offline
 # check cannot fetch iced's several hundred transitive crates.
 [dependencies]
 tabula = { path = "../../../tabular-center-rust/tabula" }

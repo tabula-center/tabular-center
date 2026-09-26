@@ -2,8 +2,8 @@
 // come from -- the same offline switch `06-generated` uses.
 //
 // The first build file here with heavyweight third-party dependencies: Compose
-// Multiplatform pulls in hundreds of artifacts, so `nix/gradle-lock.json` has
-// to carry them before this builds offline. `tools/gradle-lock` regenerates
+// Multiplatform pulls in hundreds of artifacts, so `tabular-center-kotlin/nix/gradle-lock.json` has
+// to carry them before this builds offline. `tabular-center-kotlin/tools/gradle-lock` regenerates
 // it, with a network, on a developer machine.
 plugins {
     kotlin("jvm") version "2.1.20"

@@ -6,7 +6,7 @@
  * dispatcher at build time, into `build/generated/ksp/`.
  *
  * It is the only example that needs Gradle, because KSP is a Maven artifact.
- * `nix flake check` builds it offline against `nix/gradle-lock.json`; without
+ * `nix flake check` builds it offline against `tabular-center-kotlin/nix/gradle-lock.json`; without
  * nix and without network it is **skipped**, not faked: there is no `Cells`
  * interface for `Impl.kt` to implement until the processor has run.
  *

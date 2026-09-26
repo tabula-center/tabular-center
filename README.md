@@ -82,11 +82,13 @@ an iced app in Rust, `ObservableStore` and `TabulaTesting` in Swift).
 ## Development
 
 ```sh
-./tools/verify       # everything CI checks
-./tools/verify test  # one step
+./tools/verify         # everything CI checks
+./tools/verify test    # one step
+./tools/verify --list  # every step, and which language owns it
 
-nix develop          # all three toolchains
-nix flake check      # the same steps, sandboxed, as CI runs them
+nix develop            # all three toolchains; .#rust, .#kotlin, .#swift for one
+nix flake check        # the same steps, sandboxed, as CI runs them
+nix flake check ./tabular-center-kotlin   # one language on its own
 nix run .#conformance
 nix run .#table-diff
 
@@ -94,7 +96,9 @@ nix run .#release -- 0.1.0   # set the version everywhere, verify, tag
 nix run .#publish            # dry run; --execute to ship
 ```
 
-`flake.nix` is a table of contents; the pieces live in `nix/`. `VERSION` is the
+Each implementation is a flake of its own (`tabular-center-{rust,kotlin,swift}/`,
+each with `flake.nix`, `nix/` and `tools/`), and the root `flake.nix` composes
+the three; see ARCHITECTURE 12 and 13. `VERSION` is the
 single source of truth for the version number and every manifest is derived
 from it — three files drifting apart is the normal way a polyglot release goes
 wrong.

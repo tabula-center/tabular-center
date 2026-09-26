@@ -3,7 +3,7 @@
 KSP is a Maven artifact. The environment this was first written in could not
 reach Maven, so `TabulaProcessor.kt` was written unverified while **everything
 it feeds into was already covered**. It now runs under `nix flake check` against
-the artifact set pinned in `nix/gradle-lock.json` (see below).
+the artifact set pinned in `tabular-center-kotlin/nix/gradle-lock.json` (see below).
 
 The arrangement is kept because it paid: the work went into making this file as
 small and as dumb as possible.
@@ -104,8 +104,8 @@ output.
 
 ## Where the artifacts come from
 
-Not from Maven, under nix. `nix/gradle-lock.json` pins every artifact this
-build and the example need, by URL and hash; `nix/gradle-repo.nix` turns that
+Not from Maven, under nix. `tabular-center-kotlin/nix/gradle-lock.json` pins every artifact this
+build and the example need, by URL and hash; `tabular-center-kotlin/nix/gradle-repo.nix` turns that
 into a directory; `TABULA_MAVEN_REPO` points both builds at it. Nothing
 resolves over the network inside a nix build, which is what the fixed-output
 derivation this replaced kept failing to do.
@@ -113,8 +113,8 @@ derivation this replaced kept failing to do.
 Regenerating the lock needs network and is not a derivation:
 
 ```
-./tools/gradle-lock          # rewrites nix/gradle-lock.json
-./tools/gradle-lock --check  # CI: is the committed lock still complete?
+./tabular-center-kotlin/tools/gradle-lock          # rewrites tabular-center-kotlin/nix/gradle-lock.json
+./tabular-center-kotlin/tools/gradle-lock --check  # CI: is the committed lock still complete?
 ```
 
 Run it after changing a version in either `build.gradle.kts`, and commit the

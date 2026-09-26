@@ -374,33 +374,42 @@ deprecation period, and `VERSION` stays where it is.
 
 ### R2. One flake per implementation, composed at the root
 
-- [ ] Each `tabular-center-<lang>/` holds `flake.nix`, `nix/` and `tools/`,
+- [x] Each `tabular-center-<lang>/` holds `flake.nix`, `nix/` and `tools/`,
       and `nix flake check ./tabular-center-<lang>` checks that language
       alone, with only that language's toolchain in its closure
-- [ ] What moves: each language's `tools/verify` steps, toolchain, shells,
+- [x] What moves: each language's `tools/verify` steps, toolchain, shells,
       checks and apps; the Kotlin Gradle lock and offline repository; the
       Swift lock, offline checkouts and `CompilerPluginSupport` build;
       `tools/compile-fail` (Rust), `tools/gradle-lock` (Kotlin),
-      `tools/swift-lock` and `tools/swift-probe` (Swift)
-- [ ] What stays at the root: everything that reads more than one
+      `tools/swift-lock` and `tools/swift-probe` (Swift). Each script's step
+      bodies moved byte for byte; two comment blocks that had drifted away
+      from their functions (the Kotlin-codegen note above `step_rust_gui`, the
+      ktlint note above `step_no_bless`) went back to them on the way
+- [x] What stays at the root: everything that reads more than one
       implementation -- `version`, `docs`, `renderings-agree`,
       `matrix-covered`, `diagnostics-coverage`, `diagnostics-tested`,
       `fixtures-complete`, `no-bless`, `no-generated` -- plus `release` and
       `publish`, `spec/`, `examples/` and the combined dev shell
-- [ ] **Still one definition of green.** Root `tools/verify` runs its own
+- [x] **Still one definition of green.** Root `tools/verify` runs its own
       steps and hands every other step to the `tools/verify` that owns it, so
       `./tools/verify`, `./tools/verify test` and CI are unchanged. Step names
       are unchanged, and so are the root flake's check names
-- [ ] Each language flake reaches `spec/` and `examples/` through
+- [x] Each language flake reaches `spec/` and `examples/` through
       `self.sourceInfo`, which is the whole repository both when the flake is
       checked on its own from a git checkout and when the root composes it
       through a relative `path:` input (Nix 2.26 or later)
-- [ ] Each language flake's `flake.lock` pins the same revisions as the root's,
+- [x] Each language flake's `flake.lock` pins the same revisions as the root's,
       and the root makes every shared input `follows` its own, so composing
       cannot fetch a second nixpkgs
-- [ ] `renderings-agree` needs all three toolchains in one derivation. The
+- [x] `renderings-agree` needs all three toolchains in one derivation. The
       root takes them from each language flake's `legacyPackages.<system>`
-      rather than rebuilding the list, so a toolchain is declared once
+      rather than rebuilding the list, so a toolchain is declared once. Each
+      language renders through a `<lang>-render` step in its own script, into
+      a directory the root names; the root only diffs
+- [x] The root `verify` and `conformance` apps put Swift on PATH without the
+      runtime library path every Swift check exports, so a Swift binary they
+      built could not load libdispatch. They take the Swift flake's `setup`
+      now, as `renderings-agree` does
 - [ ] Commit the root `flake.lock` that `nix flake lock` writes once the three
       relative inputs exist. Written by nix rather than by hand: the format of
       a relative-path node is nix's to decide

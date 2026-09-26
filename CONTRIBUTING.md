@@ -35,8 +35,16 @@ CI runs the flake, so all three paths execute the same commands.
 ```sh
 ./tools/verify              # everything
 ./tools/verify clippy       # one step
+./tools/verify --list       # every step and the script that owns it
 nix flake check             # sandboxed, exactly as CI runs it
 ```
+
+It is four files. The root `tools/verify` owns the steps that read more than
+one implementation; `tabular-center-<lang>/tools/verify` owns that language's
+steps, and the root hands them over by name. A new step goes in the script of
+whoever runs it, in its `STEPS_DEFAULT` array and its `case`, and gets a check
+of the same name in the `nix/checks.nix` beside that script. Nothing else lists
+steps, so nothing else needs editing.
 
 This is not tidiness. Three lints reached CI because the workflow, the flake,
 and the local loop each checked slightly different things — most recently an

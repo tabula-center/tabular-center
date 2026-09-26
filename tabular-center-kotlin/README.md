@@ -50,14 +50,14 @@ already.
 
 Every one is a `nix flake check` check. Gradle appears in exactly two places,
 both for KSP: `ksp/` (the processor) and `examples/kotlin/06-generated` (its
-consumer), resolved offline from `nix/gradle-lock.json`. Maven publication is
+consumer), resolved offline from `tabular-center-kotlin/nix/gradle-lock.json`. Maven publication is
 still to come (`RELEASING.md`).
 
 **One compiler version, everywhere: 2.1.20.** The flake pins `kotlinc` to it
-(`kotlinVersion` in `nix/context.nix`) rather than taking whatever the nixpkgs
+(`kotlinVersion` in `tabular-center-kotlin/nix/context.nix`) rather than taking whatever the nixpkgs
 channel ships, because the compile-fail fixtures match kotlinc's own wording
 and the Gradle builds and KSP (`2.1.20-1.0.32`) are tied to it. Bump it in
-`nix/context.nix`, both `build.gradle.kts` files, `ci.yml` and this line
+`tabular-center-kotlin/nix/context.nix`, both `build.gradle.kts` files, `ci.yml` and this line
 together; `tools/verify` prints a `note:` when the `kotlinc` on PATH differs.
 
 A side effect worth keeping: with no build system there is no classpath but the
@@ -112,7 +112,7 @@ core/               tabula-core        runtime; compiles against nothing
 annotations/        tabula-annotations compile-time only
 testing/            tabula-testing     fixture parser; needs only core
 codegen/            tabula-codegen     validation and the emitter
-ksp/                tabula-ksp         the processor (Gradle; artifacts from nix/gradle-lock.json)
+ksp/                tabula-ksp         the processor (Gradle; artifacts from tabular-center-kotlin/nix/gradle-lock.json)
 test/               the reference machine (KSP's specification) and its tests
 conformance/        the shared spec/conformance fixtures, run against Kotlin
 compile_fail/       one fixture per guarantee

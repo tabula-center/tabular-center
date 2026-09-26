@@ -62,7 +62,7 @@ in Glibc, and importing a C module is precisely what keeps breaking here.
   ```
 
   **nix supplies `LD_LIBRARY_PATH`** — `swiftLibraryPath` in
-  `nix/context.nix`, exported by the `swift` dev shell and the Darwin check.
+  `tabular-center-swift/nix/context.nix`, exported by the `swift` dev shell and the Darwin check.
   nix knows where every package in the toolchain is; the script would be
   guessing.
 
@@ -79,11 +79,11 @@ in Glibc, and importing a C module is precisely what keeps breaking here.
   contributes to the library path and never to PATH. `tools/verify swift` now
   prints which `swiftc` it is using, because the two are indistinguishable from
   the version string. They
-  are named explicitly in `swiftCorelibs` (`nix/context.nix`), guarded with
+  are named explicitly in `swiftCorelibs` (`tabular-center-swift/nix/context.nix`), guarded with
   `or null` so the set can differ between nixpkgs revisions without breaking
   eval.
 
-  If it still is not found, `tools/swift-probe` prints what the toolchain
+  If it still is not found, `tabular-center-swift/tools/swift-probe` prints what the toolchain
   advertises, which `LD_LIBRARY_PATH` entries actually contain
   `libdispatch.so`, and where it is under the toolchain root. That output is
   worth more than another round of guessing.
@@ -131,7 +131,7 @@ It did fix it — the library compiled on the next run, and rounds 6 to 8 were
 about running the checks rather than building the library.
 
 The lesson worth keeping is round 8's: I spent three rounds guessing at a store
-layout I could not see. `tools/swift-probe` answers it in one run, and should
+layout I could not see. `tabular-center-swift/tools/swift-probe` answers it in one run, and should
 be the first thing tried next time.
 
 ## Which shape Swift takes
@@ -371,7 +371,7 @@ hook's path makes swiftc take its default target from gcc
 `x86_64-unknown-linux-gnu`.
 
 `NIX_CC` is therefore supplied as a plain environment variable in
-`nix/context.nix`'s `mkCheck`, satisfying the hook without changing what swiftc
+`tabular-center-swift/nix/context.nix`'s `mkCheck`, satisfying the hook without changing what swiftc
 thinks it targets.
 
 If the mismatch reappears anyway, the honest next step is to gate the *check*

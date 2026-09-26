@@ -818,18 +818,14 @@ are all just tokens the macro splices, which is exactly the prototype scheme.
 ## 12. Repository layout
 
 ```
-tabula/
-├── flake.nix                    # a table of contents; the substance is in nix/
-├── flake.lock
+tabular-center/
+├── flake.nix                    # composes the three language flakes; adds the
+├── flake.lock                   #   cross-language checks. One lock for all.
 ├── nix/
-│   ├── context.nix              # toolchains, per-system
-│   ├── shells.nix               # devShells
-│   ├── checks.nix               # nix flake check — every entry calls tools/verify
-│   ├── apps.nix                 # nix run .#conformance, .#table-diff, .#verify,
-│   │                            #   .#gradle-lock, .#swift-lock
-│   ├── gradle-lock.json  gradle-repo.nix     # Maven artifacts for KSP, offline
-│   ├── swift-lock.json   swift-deps.nix      # swift-syntax checkouts, offline
-│   ├── swiftpm-plugin-support.nix            # CompilerPluginSupport for macros
+│   ├── context.nix              # combines the language flakes' toolchains
+│   ├── shells.nix               # the combined devShell (per-language: re-exported)
+│   ├── checks.nix               # the cross-language checks — each calls tools/verify
+│   ├── apps.nix                 # nix run .#verify, .#conformance, .#docs
 │   └── publish.nix              # release + publish, allowed to touch the network
 ├── justfile                     # thin aliases over tools/verify
 ├── VERSION                      # single source of truth; every manifest derives
@@ -856,7 +852,12 @@ tabula/
 │                                 #   implementation renders its own at check
 │                                 #   time and `renderings-agree` diffs them
 │
-├── tabular-center-rust/
+├── tabular-center-rust/         # a flake: `nix flake check ./tabular-center-rust`
+│   ├── flake.nix  flake.lock    # pins copied from the root's; the root `follows`
+│   ├── nix/                     # context (toolchain, vendored example crates),
+│   │                             #   checks, shells, apps (.#table-diff)
+│   ├── tools/verify             # the Rust steps
+│   ├── tools/compile-fail       # diagnostic fixtures; bash, not trybuild
 │   ├── Cargo.toml               # workspace
 │   ├── tabula/                  # core + macro_rules! (single crate, no deps)
 │   │   ├── src/{lib,step,cell,table,matrix,machine,delegate,driver}.rs
@@ -870,7 +871,13 @@ tabula/
 │                                 #   (whose renderer is in the lib, so it is
 │                                 #   testable)
 │
-├── tabular-center-kotlin/       # built by kotlinc directly — no Gradle, no Maven
+├── tabular-center-kotlin/       # a flake; built by kotlinc directly — no Gradle
+│   ├── flake.nix  flake.lock
+│   ├── nix/                     # context (pinned kotlinc, JDK), checks, shells,
+│   │                             #   apps (.#gradle-lock), and the Maven set for
+│   │                             #   KSP: gradle-lock.json + gradle-repo.nix
+│   ├── tools/verify             # the Kotlin steps
+│   ├── tools/gradle-lock        # writes nix/gradle-lock.json (network)
 │   ├── core/dev/tabula/         # Step, Cell, Table, Export, Lint, Driver
 │   ├── annotations/dev/tabula/  # @Machine, @Row, @Path, cell markers
 │   ├── testing/dev/tabula/testing/
@@ -880,7 +887,15 @@ tabula/
 │   ├── conformance/
 │   └── compile_fail/
 │
-├── tabular-center-swift/
+├── tabular-center-swift/         # a flake
+│   ├── flake.nix  flake.lock    # the only flake with `nixpkgs-swift`
+│   ├── nix/                     # context (the Swift toolchain and its runtime
+│   │                             #   path), checks, shells, apps (.#swift-lock),
+│   │                             #   swift-lock.json + swift-deps.nix (swift-syntax
+│   │                             #   offline), swiftpm-plugin-support.nix
+│   ├── tools/verify             # the Swift steps
+│   ├── tools/swift-lock         # writes nix/swift-lock.json (network)
+│   ├── tools/swift-probe        # toolchain triage for the Linux Swift path
 │   ├── Package.swift
 │   ├── Sources/Tabula/          # core: Step, Cell, Table, Export, Lint,
 │   │                             #   Driver, AsyncDriver, Store, AsyncStore
@@ -902,27 +917,41 @@ tabula/
 │   └── swift-examples/
 │
 └── tools/
-    ├── verify                   # the single definition of green
-    ├── compile-fail             # diagnostic fixtures; bash, not trybuild
-    ├── gradle-lock  swift-lock  # write the offline dependency locks (network)
-    ├── docs                     # renders the Pages site; not committed
-    └── swift-probe              # toolchain triage for the Linux Swift path
+    ├── verify                   # the single definition of green: runs the
+    │                             #   cross-language steps, hands the rest to
+    │                             #   tabular-center-*/tools/verify by name
+    └── docs                     # renders the Pages site; not committed
 ```
 
 Three things about this layout are decisions rather than accidents.
 
 **`tools/verify` is the only definition of green.** `nix flake check` runs its
 steps in a sandbox and CI runs the flake, so all three paths execute the same
-commands. A new check goes in `tools/verify`, never directly into the workflow.
+commands. A new check goes in `tools/verify`, never directly into the workflow
+-- in the root script if it reads more than one implementation, and in the
+owning language's `tabular-center-<lang>/tools/verify` otherwise. The root
+script finds a language's steps by asking its script (`--list`), so a step is
+declared in one place and `./tools/verify <step>` reaches every one of them.
+
+**Each implementation is a flake of its own.** A language directory carries
+its toolchain, its checks and its locks, so it can be checked, entered and
+changed without the other two in the closure. The root flake composes the
+three, merges their checks under the names they always had, and adds only what
+no single language can check -- `renderings-agree` above all, which takes the
+three toolchains from the language flakes' `legacyPackages.<system>.toolchain`
+rather than naming them again. `spec/` and `examples/` stay at the root because
+all three read them; the language flakes reach them through `self.sourceInfo`,
+which is the whole checkout for a flake found in a git subdirectory and for a
+relative `path:` input (Nix 2.26 or later).
 
 **The Kotlin library has no build system.** `kotlinc` is driven directly, and
 that is not a workaround to be tidied up later: compiling each artifact against
 only its declared classpath is what enforces the zero-runtime-dependency rule
 by construction rather than by a dependency report. Gradle exists only where
 KSP needs it — `tabular-center-kotlin/ksp` and `examples/kotlin/06-generated` —
-and resolves offline from `nix/gradle-lock.json`. The flake pins `kotlinc` to
-the same 2.1.20 those builds name, so a nixpkgs bump cannot move the compiler
-whose messages the compile-fail fixtures match.
+and resolves offline from `tabular-center-kotlin/nix/gradle-lock.json`. The
+Kotlin flake pins `kotlinc` to the same 2.1.20 those builds name, so a nixpkgs
+bump cannot move the compiler whose messages the compile-fail fixtures match.
 
 **Examples sit outside every workspace.** They depend on the library by path,
 the way a user would. That is the only place the public API is exercised from
@@ -944,18 +973,27 @@ should produce recognizably the same message in all three.
 
 ## 13. `flake.nix`
 
-The flake pins all three toolchains, provides per-language and combined dev
-shells, and exposes `nix flake check` running every implementation's test suite
-plus the cross-language conformance runner.
+Four flakes: one per implementation, each pinning its own toolchain, and the
+root, which composes them. The root provides the per-language dev shells (the
+language flakes' own, re-exported) and a combined one, and its `nix flake check`
+runs every implementation's suite plus the cross-language checks.
 
 ```
-nix develop              # everything
-nix develop .#rust       # rustc + cargo + clippy + rust-analyzer
-nix develop .#kotlin     # JDK 21 + kotlinc 2.1.20 (pinned) + Gradle + ktlint
-nix develop .#swift      # Swift 5.10 (Linux and Darwin; checks run on both)
-nix flake check          # fmt + lint + test, all three + conformance
-nix run .#conformance    # cross-language conformance runner
+nix develop                            # everything
+nix develop .#rust                     # rustc + cargo + clippy + rust-analyzer
+nix develop .#kotlin                   # JDK 21 + kotlinc 2.1.20 (pinned) + Gradle + ktlint
+nix develop .#swift                    # Swift 5.10 (Linux and Darwin; checks run on both)
+nix flake check                        # all three + the cross-language checks
+nix flake check ./tabular-center-rust  # one language alone (from a git checkout)
+nix run .#conformance                  # cross-language conformance runner
 ```
+
+The language flakes are relative `path:` inputs of the root, and every input
+they share with it -- `nixpkgs`, `flake-utils`, `rust-overlay`,
+`nixpkgs-swift` -- `follows` the root's, so the composed flake has one of each
+and one `flake.lock` pins them. Each language flake also has a `flake.lock` of
+its own, for being checked alone; it holds the same revisions as the root's,
+and a bump is made in all four together.
 
 **Swift is checked on Linux, not merely available there.** That was not always
 true and the reasons it was not are worth keeping: the then-pinned nixpkgs 25.05
@@ -978,20 +1016,20 @@ for it.
 **One thing still does not run here, and it is not a choice.**
 
 `tabular-center-swift/macros` cannot declare a `.macro` target with nixpkgs' SwiftPM, which
-ships no `CompilerPluginSupport`; `nix/swiftpm-plugin-support.nix` and the
+ships no `CompilerPluginSupport`; `tabular-center-swift/nix/swiftpm-plugin-support.nix` and the
 `swift-macro-support` probe track how far that has been pushed. It reports
 `skip` with its reason rather than passing quietly.
 
 `examples/kotlin/06-generated` used to be the second item here. It is not any
-more: Gradle resolves from `nix/gradle-repo.nix`, a directory nix assembles
-from `nix/gradle-lock.json` with one `fetchurl` per artifact, so the
-annotation processor runs in the sandbox (`kotlin-ksp`,
-`kotlin-ksp-compile-fail`, `kotlin-ksp-incremental`). `check-no-nix` still
+more: Gradle resolves from `tabular-center-kotlin/nix/gradle-repo.nix`, a
+directory nix assembles from `tabular-center-kotlin/nix/gradle-lock.json` with
+one `fetchurl` per artifact, so the annotation processor runs in the sandbox
+(`kotlin-ksp`, `kotlin-ksp-compile-fail`, `kotlin-ksp-incremental`). `check-no-nix` still
 builds it online, which is the no-nix claim tested rather than asserted.
 
-`flake.nix` itself is a table of contents. Toolchains, shells, checks, apps,
-and publication live in `nix/`, because a flake that grows past a screen stops
-being read and starts being copied.
+Every `flake.nix` is a table of contents. Toolchains, shells, checks, apps,
+and publication live in the `nix/` beside it, because a flake that grows past a
+screen stops being read and starts being copied.
 
 ---
 

@@ -19,9 +19,9 @@
 // this build and leave the processor still reaching for the network, which
 // fails later, elsewhere, and reads like a different problem.
 //
-// Set: nix/gradle-repo.nix built it from nix/gradle-lock.json and `nix flake
+// Set: tabular-center-kotlin/nix/gradle-repo.nix built it from tabular-center-kotlin/nix/gradle-lock.json and `nix flake
 // check` points here at the store path. Unset: the online repositories, which
-// is what tools/gradle-lock and ci.yml's check-no-nix job use.
+// is what tabular-center-kotlin/tools/gradle-lock and ci.yml's check-no-nix job use.
 pluginManagement {
     val tabulaRepo: String? = System.getenv("TABULA_MAVEN_REPO")?.takeIf { it.isNotBlank() }
     repositories {

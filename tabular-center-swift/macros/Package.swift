@@ -7,7 +7,7 @@
 // failed to COMPILE -- before dependency resolution, which is why vendoring
 // swift-syntax would not have helped and why the fix had to come first.
 //
-// `nix/swiftpm-plugin-support.nix` builds the module now, rebuilding
+// `tabular-center-swift/nix/swiftpm-plugin-support.nix` builds the module now, rebuilding
 // `PackageDescription` alongside it because `CompilerPluginSupport` reaches
 // its internals through `@_spi` and nixpkgs ships only a public interface.
 // `tools/verify swift-macro-support` reports whether the toolchain in hand has

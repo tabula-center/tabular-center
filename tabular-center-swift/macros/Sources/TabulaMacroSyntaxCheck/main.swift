@@ -240,7 +240,7 @@ do {
 // `SwiftParser` -> `MachineSyntax` -> `buildDesc`, and a malformed matrix is
 // rejected by the third step regardless of who called it. So these fixtures
 // run the same pipeline the macro would and assert the same diagnostic, in the
-// same `//~ EXPECT:` form as `tools/compile-fail` and the KSP harness.
+// same `//~ EXPECT:` form as `tabular-center-rust/tools/compile-fail` and the KSP harness.
 //
 // The one property this cannot check is the one expansion adds: that the error
 // arrives attached to a source position. The Kotlin harness checks exactly

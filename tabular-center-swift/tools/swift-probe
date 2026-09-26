@@ -1,6 +1,8 @@
 # A standalone probe: what does this toolchain actually expose, and where is
 # libdispatch.so? Run inside `nix develop .#swift` if the check still fails.
 set -u
+# The ldd line below names a path from the repository root.
+cd "$(dirname "$0")/../.." || exit 1
 echo "== swiftc =="; command -v swiftc; swiftc --version 2>&1 | head -1
 echo; echo "== print-target-info paths =="
 swiftc -print-target-info 2>/dev/null | jq '.paths' 2>/dev/null || echo "(no jq output)"

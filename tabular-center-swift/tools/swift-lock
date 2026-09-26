@@ -41,9 +41,9 @@
 # any machine and `nix hash` is not.
 set -uo pipefail
 
-cd "$(dirname "$0")/.." || exit 1
+cd "$(dirname "$0")/../.." || exit 1
 
-LOCK="nix/swift-lock.json"
+LOCK="tabular-center-swift/nix/swift-lock.json"
 PKG="tabular-center-swift/macros"
 
 check=0

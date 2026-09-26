@@ -30,7 +30,7 @@ jobs:
       # Lock freshness, and it belongs HERE rather than in check-no-nix.
       #
       # It was in that job first, on the reasoning that it is the one with
-      # network. True, and not sufficient: nix/gradle-lock.json records what
+      # network. True, and not sufficient: tabular-center-kotlin/nix/gradle-lock.json records what
       # THE FLAKE'S gradle resolves, and check-no-nix installs its own through
       # setup-gradle. Two different Gradle versions can want two different
       # artifact sets for the same build, so --check there would have gone red
@@ -48,7 +48,7 @@ jobs:
         run: nix run .#gradle-lock -- --check
 
       # The same question for SwiftPM, and it belongs in the same job for the
-      # same reason: `nix flake check` consumes nix/swift-lock.json and cannot
+      # same reason: `nix flake check` consumes tabular-center-swift/nix/swift-lock.json and cannot
       # tell whether it is current, because being unable to reach the network
       # is the whole reason the file exists. `nix run` is not sandboxed, so
       # this job has both the flake's toolchain and a network.
@@ -82,7 +82,7 @@ jobs:
   #
   # It also covers a case Nix cannot -- though no longer the one this comment
   # used to claim. The KSP example is not skipped under Nix any more: it
-  # resolves from nix/gradle-lock.json through fetchurl, so `kotlin-ksp` runs
+  # resolves from tabular-center-kotlin/nix/gradle-lock.json through fetchurl, so `kotlin-ksp` runs
   # in the sandbox like every other check. What is left here is the harder
   # question, which is whether the build still works against real repositories
   # with an ordinary Gradle rather than against a pinned directory.

@@ -1,6 +1,26 @@
 {
-  description = "tabula — transition-matrix state machines for Rust, Kotlin, and Swift";
+  description = "tabular-center — transition-matrix state machines for Rust, Kotlin, and Swift";
 
+  # The root flake composes three language flakes, one per implementation:
+  #
+  #   tabular-center-rust/flake.nix     checks, shell and apps for Rust
+  #   tabular-center-kotlin/flake.nix   ... for Kotlin, plus the Gradle lock
+  #   tabular-center-swift/flake.nix    ... for Swift, plus the SwiftPM lock
+  #
+  # Each is checkable on its own (`nix flake check ./tabular-center-rust`).
+  # This one adds what no single language can check -- the steps that read
+  # more than one implementation, `renderings-agree` above all -- and merges
+  # the rest, so `nix flake check` here runs exactly the checks it always did,
+  # under the same names.
+  #
+  # The language flakes are relative `path:` inputs, which needs Nix 2.26 or
+  # later: older versions lock such an input as a separate copy of the
+  # subdirectory, and the language flakes need the whole repository (they say
+  # so, rather than failing on a missing file).
+  #
+  # Every input a language flake shares with this one `follows` it, so the
+  # composed flake has one nixpkgs, one rust-overlay and one nixpkgs-swift, all
+  # pinned by the flake.lock beside this file.
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     flake-utils.url = "github:numtide/flake-utils";
@@ -9,91 +29,73 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Swift only, and on its way out.
-    #
-    # It existed because nixos-25.05 shipped Swift 5.8, below the 5.9 macros
-    # require. nixos-26.05 is newer, so the main input should now carry a Swift
-    # that can build tabular-center-swift/macros -- specifically, a SwiftPM that ships
-    # `CompilerPluginSupport`, which is what actually blocks that package. See
-    # tabular-center-swift/macros/README.md.
-    #
-    # Kept pointing at unstable for one release rather than deleted in the same
-    # commit as the bump. If 26.05's Swift turns out to lag again, the fallback
-    # is `nixpkgs-swift.follows`-style surgery in nix/context.nix rather than
-    # re-adding an input under pressure. Delete it once a Darwin run confirms
-    # `./tools/verify swift-macros` passes on the main input alone.
+    # Swift only, and on its way out; see tabular-center-swift/flake.nix.
+    # Declared here so the Swift flake can follow it and the pin stays in one
+    # lock.
     nixpkgs-swift.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+    tabular-center-rust = {
+      url = "path:./tabular-center-rust";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+      inputs.rust-overlay.follows = "rust-overlay";
+    };
+    tabular-center-kotlin = {
+      url = "path:./tabular-center-kotlin";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
+    tabular-center-swift = {
+      url = "path:./tabular-center-swift";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.nixpkgs-swift.follows = "nixpkgs-swift";
+      inputs.flake-utils.follows = "flake-utils";
+    };
   };
 
-  # This file stays a table of contents. Toolchains, shells, checks, apps, and
-  # publication live in ./nix, because a flake that grows past a screen stops
-  # being read and starts being copied.
-  outputs = { self, nixpkgs, nixpkgs-swift, flake-utils, rust-overlay }:
+  # This file stays a table of contents. The cross-language checks, the
+  # combined shell, and release and publication live in ./nix; each language's
+  # toolchain lives in its own flake.
+  outputs = { self, nixpkgs, flake-utils, ... }@inputs:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        ctx = import ./nix/context.nix {
-          inherit self system nixpkgs nixpkgs-swift rust-overlay;
+        langs = {
+          rust = inputs.tabular-center-rust;
+          kotlin = inputs.tabular-center-kotlin;
+          swift = inputs.tabular-center-swift;
         };
+        ctx = import ./nix/context.nix { inherit self system nixpkgs langs; };
+        per = attr: nixpkgs.lib.foldl' (acc: l: acc // (l.${attr}.${system} or { })) { }
+          (builtins.attrValues langs);
       in
       {
-        devShells = import ./nix/shells.nix ctx;
-        checks = import ./nix/checks.nix ctx;
-        apps = import ./nix/apps.nix ctx;
-
-        # Not a check, and not built by `nix flake check`.
-        #
-        # The offline Maven repository `kotlin-ksp` resolves against, exposed
-        # so it can be built and inspected on purpose:
-        #
-        #   nix build .#gradle-repo
-        #   ls result
-        #
-        # It reaches no network: every artifact is a `fetchurl` with a hash
-        # pinned in nix/gradle-lock.json. Regenerating that lock is
-        # `./tools/gradle-lock`, which does need network and is deliberately
-        # not a derivation -- see the header of that script for why the
-        # fixed-output derivation this replaces was the wrong shape.
-        #
-        # Absent until the lock exists, so a fresh clone that has never run
-        # the generator gets "attribute 'gradle-repo' missing" rather than an
-        # evaluation error about a file that is not there.
-        packages = ctx.lib.optionalAttrs (ctx.gradleRepo != null) {
-          gradle-repo = ctx.gradleRepo;
-        }
-        // ctx.lib.optionalAttrs (ctx.swiftDeps != null) {
-          # The Swift half of the same thing:
-          #
-          #   nix build .#swift-deps
-          #   ls result/checkouts
-          #   cat result/workspace-state.json
-          #
-          # Worth being buildable on its own rather than only as a dependency
-          # of `swift-macros`. The two values in `workspace-state.json` that
-          # SwiftPM will silently reject -- the schema version and the checkout
-          # directory name -- are inspectable here in one command, where inside
-          # the check they surface as a re-resolve that dies offline.
-          #
-          # This was missing when the check first ran, so `nix build
-          # .#swift-deps` answered "no such attribute" rather than building the
-          # thing the error message was about.
-          swift-deps = ctx.swiftDeps;
-        }
-        // ctx.lib.optionalAttrs (ctx.swiftpmPluginSupport != null) {
-          # nixpkgs' SwiftPM with `CompilerPluginSupport` added:
-          #
-          #   nix build .#swiftpm-plugin-support
-          #   ls result/lib/swift/pm/ManifestAPI
-          #
-          # A package rather than something the checks pull in, until it is
-          # known to work. Building it through the flake matters: the same
-          # expression evaluated against an ambient `<nixpkgs>` picks a
-          # different Swift with no cached build, and nixpkgs' swift does not
-          # compile from source on a current gcc -- which is a fact about that
-          # channel and nothing to do with this derivation.
-          swiftpm-plugin-support = ctx.swiftpmPluginSupport;
+        # Each language's own shell under its name, and all three together as
+        # the default.
+        devShells = import ./nix/shells.nix ctx // {
+          rust = langs.rust.devShells.${system}.default;
+          kotlin = langs.kotlin.devShells.${system}.default;
+          swift = langs.swift.devShells.${system}.default;
         };
 
-        # `nix fmt` formats the flake. Deliberately not a `nix flake check`: a
+        # Every language's checks, plus the ones that span languages. The
+        # names do not collide: each language's are prefixed with it, and the
+        # root's are the cross-language step names.
+        checks = per "checks" // import ./nix/checks.nix ctx;
+
+        # The language flakes' apps worth having at the root, by name, and the
+        # root's own. The languages' `verify` and `default` are deliberately
+        # not merged: at the root, `verify` means every step.
+        apps = {
+          inherit (langs.rust.apps.${system}) table-diff;
+          inherit (langs.kotlin.apps.${system}) gradle-lock;
+          inherit (langs.swift.apps.${system}) swift-lock;
+        } // import ./nix/apps.nix ctx;
+
+        # gradle-repo, swift-deps, swiftpm-plugin-support: inspectable
+        # artifacts, not checks. See the language flakes for what each is.
+        packages = per "packages";
+
+        # `nix fmt` formats the flakes. Deliberately not a `nix flake check`: a
         # formatter version bump should not fail CI on a file nobody touched.
         formatter = ctx.pkgs.nixpkgs-fmt;
       });

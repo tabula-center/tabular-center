@@ -5,7 +5,7 @@
 // share an invocation with one that must succeed.
 //
 // Nothing new is resolved here: the same two plugins and the same processor
-// the example already uses, so nix/gradle-lock.json covers this build without
+// the example already uses, so tabular-center-kotlin/nix/gradle-lock.json covers this build without
 // being regenerated. That was the constraint worth designing around --
 // KSP compile-testing as a library would have meant a new dependency, a
 // re-lock, and an embedded Kotlin compiler in the offline artifact set.

@@ -141,7 +141,7 @@ twenty-four beside it are the reason this is a matrix.
 cd examples/kotlin/07-compose && gradle run     # needs a network the first time
 ```
 
-Offline builds resolve from `nix/gradle-lock.json`. Compose Multiplatform adds
+Offline builds resolve from `tabular-center-kotlin/nix/gradle-lock.json`. Compose Multiplatform adds
 several hundred artifacts to it, so after changing dependencies here, re-lock:
 
 ```sh
