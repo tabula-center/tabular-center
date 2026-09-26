@@ -571,6 +571,20 @@ rename, a development section, and one Rust sample.
       succeeded: Mach-O has no ELF dynamic table, whatever nixpkgs names the
       file. `nm -gU` on Darwin; Linux's command is unchanged, so the Linux
       derivation does not rebuild
+- [x] **"Stale" was locale.** `tools/gradle-lock` sorted the lock with a bare
+      `sort`, which follows the locale: a desktop's en_US.UTF-8 ignores
+      punctuation, CI's C compares bytes. Same 283 artifacts, different order
+      (`annotation/1.9.1/` before or after `annotation-jvm/`), so the lock was
+      current on the machine that wrote it and stale everywhere else.
+      `LC_ALL=C` in `tools/gradle-lock`, and in `tools/docs`, whose diagnostics
+      index is sorted the same way into a committed file
+- [x] `swift-examples` named its failures only inline, far above the 25 lines
+      nix shows of a failed check, so a macOS failure read "FAILED" under a
+      passing spec-check. It now ends with the failing examples by name
+- [ ] Which Swift example fails on macOS. Suspect: `observable-counter`, the
+      only one whose code path differs by platform -- it skips off Darwin, so
+      until this macOS run, `ObservableStore`'s real path had never executed
+      anywhere. If so, it is likely a genuine bug, not a CI one
 - [ ] **Regenerate the lock** (`nix run .#gradle-lock`, needs network) and
       commit it. Until then `kotlin-compose` fails on macOS and CI's
       "gradle lock is current" step is red -- correctly: the committed lock

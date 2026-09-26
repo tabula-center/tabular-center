@@ -48,6 +48,14 @@
 # change.
 set -uo pipefail
 
+# Byte order, whoever runs this. The output is committed and `--check`
+# regenerates it and diffs, so every `sort` here must order the same way on
+# every machine -- and `sort` follows the locale: en_US.UTF-8 ignores
+# punctuation, C compares bytes. A lock written on a desktop put
+# `annotation/1.9.1/` before `annotation-jvm/`; CI, in C, put it after, and
+# called an up-to-date lock stale.
+export LC_ALL=C
+
 # Repo root: the builds it resolves are under examples/, the lock is ours.
 cd "$(dirname "$0")/../.." || exit 1
 

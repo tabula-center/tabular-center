@@ -35,6 +35,13 @@
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
+# Byte order, whoever runs this. doc/ is committed and `--check` regenerates
+# and diffs it, and the diagnostics page's code index is built with `sort`,
+# which follows the locale: en_US.UTF-8 ignores punctuation, C compares bytes.
+# Regenerated on a desktop, the index could come out in an order CI -- in C --
+# calls stale. tools/gradle-lock hit exactly that.
+export LC_ALL=C
+
 # One place to change if the repository moves. spec/diagnostics.md tells every
 # implementation to end a message with a link under DOCS_BASE, so it is
 # deliberately not spread across three implementations.
