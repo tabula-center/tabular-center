@@ -827,6 +827,8 @@ tabular-center/
 │   ├── checks.nix               # the cross-language checks — each calls tools/verify
 │   ├── apps.nix                 # nix run .#verify, .#conformance, .#docs
 │   └── publish.nix              # release + publish, allowed to touch the network
+├── doc/                         # the Pages site, served from the branch; written by
+│                                 #   tools/docs from spec/ and code samples, never by hand
 ├── justfile                     # thin aliases over tools/verify
 ├── VERSION                      # single source of truth; every manifest derives
 ├── ARCHITECTURE.md              # this file
@@ -921,7 +923,8 @@ tabular-center/
     ├── verify                   # the single definition of green: runs the
     │                             #   cross-language steps, hands the rest to
     │                             #   tabular-center-*/tools/verify by name
-    └── docs                     # renders the Pages site; not committed
+    └── docs                     # writes doc/, the Pages site: generated, committed,
+                                  #   and checked for staleness by `tools/verify docs`
 ```
 
 Three things about this layout are decisions rather than accidents.
@@ -1031,8 +1034,8 @@ ships no `CompilerPluginSupport`; `tabular-center-swift/nix/swiftpm-plugin-suppo
 more: Gradle resolves from `tabular-center-kotlin/nix/gradle-repo.nix`, a
 directory nix assembles from `tabular-center-kotlin/nix/gradle-lock.json` with
 one `fetchurl` per artifact, so the annotation processor runs in the sandbox
-(`kotlin-ksp`, `kotlin-ksp-compile-fail`, `kotlin-ksp-incremental`). `check-no-nix` still
-builds it online, which is the no-nix claim tested rather than asserted.
+(`kotlin-ksp`, `kotlin-ksp-compile-fail`, `kotlin-ksp-incremental`). Without
+nix, `tools/verify` builds it online against the real repositories.
 
 Every `flake.nix` is a table of contents. Toolchains, shells, checks, apps,
 and publication live in the `nix/` beside it, because a flake that grows past a

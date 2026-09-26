@@ -76,15 +76,15 @@ CI runs the flake, so all three paths execute the same commands. Nothing needs
 Nix to work.
 
 With `cargo`, `kotlinc` and `swift` on `$PATH`, `./tools/verify` runs
-everything available and reports `skip` for what is not. That is checked rather
-than asserted: `ci.yml` has a `check-no-nix` job on Linux and macOS using
-toolchains installed the ordinary way. An untested claim about how to build a
-project is worse than no claim, because someone believes it.
+everything available and reports `skip` for what is not, and with network the
+Gradle builds resolve against the real repositories rather than the locked
+set.
 
-The non-Nix path also covers something Nix cannot. The sandbox has no network,
-so Gradle and the KSP processor are skipped in every Nix job; with Maven
-reachable, `tabular-center-kotlin/examples/06-generated` is the only consumer of the processor
-and that job is where it runs at all.
+Supported, and **not exercised by CI**. A `check-no-nix` job used to run it on
+Linux and macOS with ordinarily installed toolchains; it was removed, so CI
+checks only the Nix path now. The no-Nix path is kept working by the scripts
+being plain bash with no Nix in them -- which is a weaker guarantee than a job,
+and worth knowing if you rely on it.
 
 ## Reviewing: ask what is uncompared
 

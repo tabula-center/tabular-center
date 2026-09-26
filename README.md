@@ -2,10 +2,9 @@
 
 State machines whose declaration *is* the transition matrix.
 
-**Documentation: <https://tabula-center.github.io/tabular-center/>** -- a page
-per language ([Rust](https://tabula-center.github.io/tabular-center/rust),
-[Kotlin](https://tabula-center.github.io/tabular-center/kotlin),
-[Swift](https://tabula-center.github.io/tabular-center/swift)), with the same
+**Documentation: <https://tabula-center.github.io/tabular-center/doc/>** -- a
+page per language ([Rust](doc/rust.md), [Kotlin](doc/kotlin.md),
+[Swift](doc/swift.md)), with the same
 machine in each, the code you write around it, and what the compiler says when
 a cell is missing.
 

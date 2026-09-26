@@ -1,16 +1,26 @@
 #!/usr/bin/env bash
-# Generate docs/ from spec/.
+# Generate doc/ from spec/ and the code.
 #
-# GitHub Pages serves docs/, and diagnostic messages link into it. The pages are
-# GENERATED and NOT COMMITTED: spec/ is normative, and a second copy of
-# normative text in the tree is a copy someone has to remember to regenerate.
-# .github/workflows/pages.yml runs this and publishes the result as an
-# artifact. Same rule that keeps generated dispatchers out of the examples.
+# GitHub Pages serves doc/ straight from the branch -- no workflow, no build
+# artifact, no Pages setting to get right -- and diagnostic messages link into
+# it. So doc/ is COMMITTED, and GENERATED: spec/ stays normative, the code
+# samples stay the code, and doc/ is a rendering of both. Nobody edits it.
+#
+# Committed-and-generated is a copy that can go stale, which is why `--check`
+# regenerates and diffs rather than trusting it: a spec edit, a moved sample
+# or a changed fixture message without `./tools/docs` fails
+# `tools/verify docs`, and the fix is to run this and commit what it writes.
+#
+# It used to be generated in CI and never committed, published by a pages.yml
+# workflow. That only works with Pages' source set to GitHub Actions; with the
+# source left on the branch, Pages rendered README.md and nothing else, and
+# every language page was a 404.
 #
 #   ./tools/docs          regenerate
-#   ./tools/docs --check  render, and verify every diagnostic code has an
-#                         anchor for its messages to link to, and every code
-#                         sample below still resolves (verify runs this)
+#   ./tools/docs --check  render into a scratch directory and require: every
+#                         code sample resolves, every diagnostic code has an
+#                         anchor, and the result is byte-identical to the
+#                         committed doc/ (verify runs this)
 #
 # The language pages -- index, rust, kotlin, swift -- show real code. Every
 # sample is INCLUDED from the tree at generation time, by file and line range,
@@ -28,14 +38,17 @@ cd "$(dirname "$0")/.." || exit 1
 # One place to change if the repository moves. spec/diagnostics.md tells every
 # implementation to end a message with a link under DOCS_BASE, so it is
 # deliberately not spread across three implementations.
-DOCS_BASE="https://tabula-center.github.io/tabular-center"
+DOCS_BASE="https://tabula-center.github.io/tabular-center/doc"
 REPO_URL="https://github.com/tabula-center/tabular-center"
 
 check=0
 [ "${1:-}" = "--check" ] && check=1
 
-out="docs"
+out="doc"
 [ "$check" -eq 1 ] && out="$(mktemp -d)"
+# Regenerating starts from nothing, so a page the generator stopped writing
+# does not linger in a directory that is committed.
+[ "$check" -eq 0 ] && rm -rf doc
 mkdir -p "$out"
 
 # Anchors, explicitly. Jekyll and GitHub derive heading anchors by rules that
@@ -272,9 +285,9 @@ MD
 code $R/examples/02-timer/src/machine.tb.rs rust 'transition_matrix! \{' '^\}'
 prose <<'MD'
 The header names the generated types: `State` and `Action` are enums of the
-listed variants, and each variant with a payload is also its own struct --
-`Running { since }`, `Tick { now }`. `effects` declares the effect enum the
-same way. Each row is a state, each column an action, and each cell one of
+listed variants, and every variant is also a struct of its own -- `Idle`,
+`Running { since }`, `Tick { now }` -- which is what lets a cell receive
+exactly its state and action. `effects` declares the effect enum the same way. Each row is a state, each column an action, and each cell one of
 six kinds ([Cells](cells)):
 
 | | |
@@ -562,10 +575,6 @@ if [ "$include_failures" -ne 0 ]; then
 fi
 
 if [ "$check" -eq 1 ]; then
-    # Not a staleness check any more: docs/ is generated in CI and is not in
-    # the repository, so there is nothing committed to be stale against. This
-    # checks the thing that can actually break.
-    #
     # Every code in spec/diagnostics.md must have an anchor in the rendered
     # page, because diagnostic messages link to those anchors by name. A code
     # that gains a section without an anchor produces a link that silently
@@ -581,13 +590,27 @@ if [ "$check" -eq 1 ]; then
         fi
     done
     n="$(printf '%s\n' "$codes" | grep -c .)"
+
+    # And the committed doc/ is what this renders, byte for byte. Stale pages
+    # are the cost of committing generated output; this is what keeps that
+    # cost at "run ./tools/docs" instead of "a published page that lies".
+    if [ ! -d doc ]; then
+        echo "doc/ is not committed; run ./tools/docs and commit doc/"
+        rc=1
+    elif ! diff -r -q doc "$out" >/dev/null 2>&1; then
+        echo "doc/ is stale -- it is not what ./tools/docs renders from this tree:"
+        diff -r -q doc "$out" 2>&1 | sed "s|$out|<rendered>|g; s/^/  /" | head -20
+        echo "  run ./tools/docs and commit doc/"
+        rc=1
+    fi
+
     rm -rf "$out"
     if [ "$rc" -eq 0 ]; then
-        echo "ok   docs render, $n diagnostic anchors present"
+        echo "ok   doc/ is current: $n diagnostic anchors, every sample resolved"
     else
         echo "FAILED: docs"
     fi
     exit "$rc"
 fi
 
-echo "wrote docs/ from spec/"
+echo "wrote doc/"

@@ -63,9 +63,8 @@ let
   # kotlinc, pinned to the SAME version as everything else Kotlin here.
   #
   # This was `pkgs.kotlin`, which is whatever the nixpkgs channel ships. The
-  # rest of the repository says 2.1.20 in four places -- both Gradle builds'
-  # `kotlin("jvm")`, the KSP pair `2.1.20-1.0.32`, ci.yml's check-no-nix
-  # download, and tabular-center-kotlin/README.md's "verified against kotlinc 2.1.20" -- and
+  # rest of the repository says 2.1.20 in three places -- both Gradle builds'
+  # `kotlin("jvm")`, the KSP pair `2.1.20-1.0.32`, and tabular-center-kotlin/README.md's "verified against kotlinc 2.1.20" -- and
   # the flake alone floated. Moving `nixpkgs` from 25.05 to 26.05 for Swift
   # therefore moved the Kotlin compiler as a side effect, which is the exact
   # shape 0c warned about: a change to one language's toolchain landing in
@@ -127,8 +126,9 @@ let
 
         # The sandbox has no network, and the steps that need one must SKIP
         # rather than fail. Stated, not detected: tools/verify reads it, and
-        # it is unset everywhere else, so ci.yml's check-no-nix job -- which
-        # HAS Maven -- still runs the Gradle and KSP path online.
+        # it is unset everywhere else, so a developer running tools/verify
+        # without nix -- who HAS Maven -- still gets the Gradle and KSP path,
+        # online.
         export TABULAR_CENTER_OFFLINE=1
 
         mkdir -p "$HOME" "$GRADLE_USER_HOME"

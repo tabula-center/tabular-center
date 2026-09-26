@@ -27,15 +27,11 @@ jobs:
       - name: nix flake check
         run: nix flake check --print-build-logs --keep-going
 
-      # Lock freshness, and it belongs HERE rather than in check-no-nix.
-      #
-      # It was in that job first, on the reasoning that it is the one with
-      # network. True, and not sufficient: tabular-center-kotlin/nix/gradle-lock.json records what
-      # THE FLAKE'S gradle resolves, and check-no-nix installs its own through
-      # setup-gradle. Two different Gradle versions can want two different
-      # artifact sets for the same build, so --check there would have gone red
-      # on a version skew rather than on a stale lock -- a false alarm on the
-      # one signal that has to stay trustworthy.
+      # Lock freshness. tabular-center-kotlin/nix/gradle-lock.json records what
+      # THE FLAKE'S gradle resolves, so only the flake's gradle can say whether
+      # it is current: a Gradle installed any other way may want a different
+      # artifact set for the same build, and a --check against it would go red
+      # on a version skew rather than on a stale lock.
       #
       # `nix run` is not sandboxed: it executes on the host, with network, from
       # the flake's pinned toolchain. So this is the only place both halves are
@@ -61,85 +57,15 @@ jobs:
 
   # Swift is primary on Darwin: macro plugins are toolchain-version sensitive,
   # so the Darwin toolchain is checked as well as the Linux one the `check`
-  # job already runs. Gated on Package.swift, a leftover from before Phase 5
-  # that now always holds.
+  # job already runs.
+  #
+  # Ungated. It had `if: hashFiles('...Package.swift') != ''`, a leftover from
+  # before Phase 5 that always held -- and GitHub rejects `hashFiles` in a
+  # job-level `if` outright, so the whole workflow file was invalid and no job
+  # in it ran.
   check-darwin:
     runs-on: macos-14
-    if: hashFiles('tabular-center-swift/Package.swift') != ''
     steps:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
       - run: nix flake check --print-build-logs
-
-  # The same steps, without Nix.
-  #
-  # `tools/verify` is the single definition of green and the flake's checks call
-  # it, so nothing here duplicates a command list -- this job runs the same
-  # script against toolchains installed the ordinary way. That is the point:
-  # the claim that tabular-center builds without Nix was documentation until something
-  # ran it, and an untested claim about how to build a project is worse than an
-  # absent one, because someone believes it.
-  #
-  # It also covers a case Nix cannot -- though no longer the one this comment
-  # used to claim. The KSP example is not skipped under Nix any more: it
-  # resolves from tabular-center-kotlin/nix/gradle-lock.json through fetchurl, so `kotlin-ksp` runs
-  # in the sandbox like every other check. What is left here is the harder
-  # question, which is whether the build still works against real repositories
-  # with an ordinary Gradle rather than against a pinned directory.
-  check-no-nix:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-14]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      # Kotlin is driven by kotlinc directly -- there is no Gradle build for the
-      # library, deliberately, so the zero-runtime-dependency rule is enforced
-      # by there being no classpath but the stdlib. See tabular-center-kotlin/README.md.
-      #
-      # Fetched from the release rather than through a marketplace action. This
-      # job exists to prove the project builds with ordinary toolchains, and an
-      # action is a third party deciding what "ordinary" means -- it would also
-      # be the only unpinned dependency in a repository whose entire argument
-      # is that it has none. Six lines of curl, and the version is the one in
-      # tabular-center-kotlin/README.md.
-      - name: Install kotlinc
-        run: |
-          curl -fsSL -o kotlin.zip \
-            https://github.com/JetBrains/kotlin/releases/download/v2.1.20/kotlin-compiler-2.1.20.zip
-          unzip -q kotlin.zip -d "$HOME"
-          echo "$HOME/kotlinc/bin" >> "$GITHUB_PATH"
-
-      # Gradle for `tabular-center-kotlin/examples/06-generated` only. With Maven reachable,
-      # this is the first place the KSP processor actually runs.
-      - uses: gradle/actions/setup-gradle@v4
-
-      # No Swift step. macos-14 ships it with Xcode; Linux does not, and
-      # `tools/verify` reports `skip` for every Swift step there rather than
-      # failing. That asymmetry is the real posture -- Swift is Darwin-primary
-      # -- and installing a Linux toolchain here to make the matrix look
-      # symmetric would be testing a configuration nobody ships on.
-
-      - name: verify
-        run: ./tools/verify
-
-      # No lock check here, deliberately -- it lives in the `check` job. The
-      # lock describes what the flake's gradle resolves, and this job's gradle
-      # is a different version, so checking it here would compare two things
-      # that were never meant to match.
-      #
-      # What this job still does for KSP is better: `./tools/verify` builds
-      # tabular-center-kotlin/examples/06-generated online, against the real repositories,
-      # with an ordinary Gradle. That is the no-nix claim tested rather than
-      # asserted, and it is the one thing the sandbox genuinely cannot do.

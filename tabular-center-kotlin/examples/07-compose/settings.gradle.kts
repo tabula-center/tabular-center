@@ -21,7 +21,7 @@
 //
 // Set: tabular-center-kotlin/nix/gradle-repo.nix built it from tabular-center-kotlin/nix/gradle-lock.json and `nix flake
 // check` points here at the store path. Unset: the online repositories, which
-// is what tabular-center-kotlin/tools/gradle-lock and ci.yml's check-no-nix job use.
+// is what tabular-center-kotlin/tools/gradle-lock uses, and a build without nix.
 pluginManagement {
     val tabulaRepo: String? = System.getenv("TABULAR_CENTER_MAVEN_REPO")?.takeIf { it.isNotBlank() }
     repositories {

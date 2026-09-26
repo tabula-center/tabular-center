@@ -12,9 +12,10 @@ ctx:
 let
   inherit (ctx) pkgs allInputs allSetup commonInputs;
 
-  # Every app operates on the working tree -- regenerating docs/, running
+  # Every app operates on the working tree -- regenerating doc/, running
   # cargo, reading spec/ -- so every one of them assumed it was launched from
-  # the repository root. `nix run .#docs` from inside docs/ found that out:
+  # the repository root. `nix run .#docs` from inside docs/ (as it then was)
+  # found that out:
   #
   #   /nix/store/...-tabula-docs/bin/tabula-docs: line 14: ./tools/docs:
   #   No such file or directory
@@ -63,7 +64,7 @@ let
       ${cdRoot}
       cmd="''${1:-serve}"
 
-      # Always regenerate first. docs/ is generated from spec/ and serving a
+      # Always regenerate first. doc/ is generated from spec/ and serving a
       # stale tree is exactly the failure `tools/verify docs` exists to catch;
       # a preview that shows something the repository does not contain is worse
       # than no preview.
@@ -73,21 +74,21 @@ let
       # a local render would die on `theme: jekyll-theme-primer`. Rendering
       # without it is honest about what this is -- a content preview, not a
       # pixel-accurate copy of the published site. The config is overridden
-      # rather than edited so docs/_config.yml stays correct for Pages.
+      # rather than edited so doc/_config.yml stays as generated.
       scratch="$(mktemp -d)"
       trap 'rm -rf "$scratch"' EXIT
-      grep -v '^theme:' docs/_config.yml > "$scratch/config.yml"
+      grep -v '^theme:' doc/_config.yml > "$scratch/config.yml"
 
       case "$cmd" in
         build)
-          jekyll build --source docs --destination "''${2:-docs/_site}" \
+          jekyll build --source doc --destination "''${2:-doc/_site}" \
             --config "$scratch/config.yml"
-          echo "built into ''${2:-docs/_site}"
+          echo "built into ''${2:-doc/_site}"
           ;;
         serve)
-          echo "serving docs/ on http://127.0.0.1:4000 -- content preview;"
+          echo "serving doc/ on http://127.0.0.1:4000 -- content preview;"
           echo "the published site adds the primer theme, which nixpkgs' jekyll lacks."
-          jekyll serve --source docs --destination "$scratch/site" \
+          jekyll serve --source doc --destination "$scratch/site" \
             --config "$scratch/config.yml" --host 127.0.0.1 --port 4000
           ;;
         *)
@@ -123,7 +124,7 @@ in
     "Run the same checks nix flake check runs, without the sandbox";
 
   docs = app docs "tabular-center-docs"
-    "Regenerate docs/ from spec/ and serve it (nix run .#docs -- build)";
+    "Regenerate doc/ and serve it (nix run .#docs -- build)";
 
   release = app publish.release "tabular-center-release"
     "Set the version everywhere, verify, and tag";

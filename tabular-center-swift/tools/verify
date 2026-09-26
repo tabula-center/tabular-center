@@ -938,8 +938,9 @@ echo
 # made two missing suites invisible. Anything listed here did not run, and a
 # run with no list is the only one that means what it says.
 # POSIX classes, not \s. BSD grep and sed do not understand \s, and
-# ci.yml's check-no-nix job runs this on macos-14 -- where the ledger would
-# have silently matched nothing, which is the exact failure it exists to stop.
+# this script runs without nix too, and on macOS that means BSD tools -- where
+# the ledger would have silently matched nothing, which is the exact failure
+# it exists to stop.
 if grep -q '^[[:space:]]*skip ' "$TALLY"; then
     echo "verify: skipped ---------------------------------------------"
     grep '^[[:space:]]*skip ' "$TALLY" | sed 's/^[[:space:]]*/  /'

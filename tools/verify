@@ -139,11 +139,10 @@ run() {
 # it. Worse, `tabular-center-rust/examples/Cargo.lock` records tabula's version too, so a bump
 # that refreshes only the main workspace leaves exactly one step failing --
 # which reads like a problem with the examples rather than with the release.
-# docs/ is generated from spec/ and GitHub Pages serves it. Checked rather than
-# trusted: the pages are what diagnostic messages link to, so a stale tree means
-# a developer following a link from an error reads a description of a different
-# error. Same reason the conformance goldens are checked rather than blessed on
-# every run.
+# doc/ is generated from spec/ and the code, committed, and served by GitHub
+# Pages from the branch. Checked rather than trusted: the pages are what
+# diagnostic messages link to, so a stale page means a developer following a
+# link from an error reads a description of a different error.
 step_docs() { ./tools/docs --check; }
 
 step_version() {
@@ -682,8 +681,9 @@ echo
 # made two missing suites invisible. Anything listed here did not run, and a
 # run with no list is the only one that means what it says.
 # POSIX classes, not \s. BSD grep and sed do not understand \s, and
-# ci.yml's check-no-nix job runs this on macos-14 -- where the ledger would
-# have silently matched nothing, which is the exact failure it exists to stop.
+# this script runs without nix too, and on macOS that means BSD tools -- where
+# the ledger would have silently matched nothing, which is the exact failure
+# it exists to stop.
 if grep -q '^[[:space:]]*skip ' "$TALLY"; then
     echo "verify: skipped ---------------------------------------------"
     grep '^[[:space:]]*skip ' "$TALLY" | sed 's/^[[:space:]]*/  /'

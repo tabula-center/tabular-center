@@ -1,3 +1,12 @@
+---
+layout: default
+title: Diagnostics
+---
+
+<!-- Generated from spec/diagnostics.md by tools/docs. Do not edit. -->
+
+[Home](./) · [Rust](rust) · [Kotlin](kotlin) · [Swift](swift) · [Cells](cells) · [Diagnostics](diagnostics) · [Matrix files](matrix-files) · [Source](https://github.com/tabula-center/tabular-center)
+
 # Diagnostics
 
 Normative across all three implementations. The three code generators will
@@ -59,6 +68,8 @@ fix is `HANDLE`.
 
 ---
 
+<a id="tabula-row-arity"></a>
+
 ## `tabula::row-arity`
 
 A row has a different number of cells than the machine has actions.
@@ -81,6 +92,8 @@ Swift `TabulaCodegen/Raw.swift`).
 
 ---
 
+<a id="tabula-missing-row"></a>
+
 ## `tabula::missing-row` / `tabula::extra-row`
 
 A declared state has no row, or a row names something that is not a declared
@@ -101,6 +114,8 @@ against the incidental one.
 
 ---
 
+<a id="tabula-unknown-cell"></a>
+
 ## `tabula::unknown-cell`
 
 A cell is not one of the six kinds.
@@ -118,6 +133,8 @@ Phase 6, so the Rust message now reads
 `IGNORE, HANDLE, UNREACHABLE, GO!(..), EMIT!(..), DELEGATE!(..)`.
 
 ---
+
+<a id="tabula-go-target"></a>
 
 ## `tabula::go-target`
 
@@ -225,6 +242,8 @@ that: it compares behaviour, and no fixture writes a forbidden cell.
 | `path-unterminated` | yes | yes | yes |
 | `path-duplicate` | by rustc | yes | yes |
 
+<a id="tabula-unsupported-color"></a>
+
 ### `tabula::unsupported-color`
 
 ```
@@ -239,6 +258,8 @@ Rust's cell surface is a library trait, so each color needs a colored twin of
 it, and `async` is the only one a trait method can carry on stable. Named,
 rather than left to `no rules expected the token`, because the right fix is a
 different prototype, and the generic error would not say which.
+
+<a id="tabula-empty-emit"></a>
 
 ### `tabula::empty-emit`
 
@@ -268,6 +289,8 @@ Kotlin and Swift emit them. Rust does not, and that is not a gap — Rust has no
 rejections are `compile_error!`, exactly as `extra-row` already is.
 `spec/diagnostics-coverage.md` records it.
 
+<a id="tabula-path-broken"></a>
+
 ### `tabula::path-broken`
 
 ```
@@ -289,6 +312,8 @@ A one-state path reports here too. A route that goes nowhere is broken in the
 same sense, and inventing a fifth code for it would split one idea across two
 pages a reader has to find separately.
 
+<a id="tabula-path-unterminated"></a>
+
 ### `tabula::path-unterminated`
 
 ```
@@ -299,6 +324,8 @@ left; a path ends where the machine is done.
 A path that never ends is a loop with a name. The test is the same one
 `tabula::no-static-exit` uses — a `GO` elsewhere, a `HANDLE`, or a `DELEGATE` —
 so the two agree about what "can be left" means rather than each deciding.
+
+<a id="tabula-path-unknown-state"></a>
 
 ### `tabula::path-unknown-state`
 
@@ -311,6 +338,8 @@ Lists the declared states, so a typo is fixed from the message. Separate from
 `tabula::unknown-state`, which is about a cell's target: the two have different
 remedies, and a shared code would mean a shared doc page explaining both.
 
+<a id="tabula-path-duplicate"></a>
+
 ### `tabula::path-duplicate`
 
 ```
@@ -321,6 +350,8 @@ names the path it narrows to, so names must be unique.
 The message says why rather than just what. A developer reading it has probably
 copied a `@Path` and edited the states without the name, and the reason names
 must be unique is the thing that makes the fix obvious.
+
+<a id="tabula-color-mismatch"></a>
 
 ## `tabula::color-mismatch` — reserved, emitted by nobody
 
@@ -396,6 +427,8 @@ the `dead-row` subsumption, the fully-static gate on reachability.
 
 ---
 
+<a id="tabula-payload-hoist"></a>
+
 ## `tabula::payload-hoist`
 
 ```
@@ -457,3 +490,32 @@ Width is why the vocabulary stops where it does. `u8` and `u64` both become
 `int`, which loses information the lint was never using: the suggestion is
 *this field belongs to the machine rather than to any one state*, and that is
 true at every width.
+
+---
+
+## All codes
+
+Every code, including the ones described as a group above.
+
+- [`tabula::color-mismatch`](#tabula-color-mismatch)
+- <a id="tabula-dead-column"></a>`tabula::dead-column`
+- <a id="tabula-dead-row"></a>`tabula::dead-row`
+- [`tabula::empty-emit`](#tabula-empty-emit)
+- <a id="tabula-extra-row"></a>`tabula::extra-row`
+- [`tabula::go-target`](#tabula-go-target)
+- <a id="tabula-ignore-heavy"></a>`tabula::ignore-heavy`
+- [`tabula::missing-row`](#tabula-missing-row)
+- <a id="tabula-no-static-entry"></a>`tabula::no-static-entry`
+- <a id="tabula-no-static-exit"></a>`tabula::no-static-exit`
+- [`tabula::path-broken`](#tabula-path-broken)
+- [`tabula::path-duplicate`](#tabula-path-duplicate)
+- [`tabula::path-unknown-state`](#tabula-path-unknown-state)
+- [`tabula::path-unterminated`](#tabula-path-unterminated)
+- [`tabula::payload-hoist`](#tabula-payload-hoist)
+- [`tabula::row-arity`](#tabula-row-arity)
+- [`tabula::unknown-cell`](#tabula-unknown-cell)
+- <a id="tabula-unknown-child"></a>`tabula::unknown-child`
+- <a id="tabula-unknown-effect"></a>`tabula::unknown-effect`
+- <a id="tabula-unknown-state"></a>`tabula::unknown-state`
+- <a id="tabula-unreachable-heavy"></a>`tabula::unreachable-heavy`
+- [`tabula::unsupported-color`](#tabula-unsupported-color)

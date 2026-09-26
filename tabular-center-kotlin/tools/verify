@@ -580,8 +580,8 @@ step_kotlin_ksp_compile_fail() {
 #
 #   TABULAR_CENTER_MAVEN_REPO set -> resolve offline from that directory. nix builds it
 #     from tabular-center-kotlin/nix/gradle-lock.json and nix/checks.nix points here at it.
-#   unset, online        -> the real repositories. ci.yml's check-no-nix job,
-#     and a developer with network.
+#   unset, online        -> the real repositories: a developer with network
+#     and no nix.
 #   unset, offline       -> skip, with the reason.
 # The Compose Desktop example, in bitkey's architecture.
 #
@@ -1085,8 +1085,9 @@ echo
 # made two missing suites invisible. Anything listed here did not run, and a
 # run with no list is the only one that means what it says.
 # POSIX classes, not \s. BSD grep and sed do not understand \s, and
-# ci.yml's check-no-nix job runs this on macos-14 -- where the ledger would
-# have silently matched nothing, which is the exact failure it exists to stop.
+# this script runs without nix too, and on macOS that means BSD tools -- where
+# the ledger would have silently matched nothing, which is the exact failure
+# it exists to stop.
 if grep -q '^[[:space:]]*skip ' "$TALLY"; then
     echo "verify: skipped ---------------------------------------------"
     grep '^[[:space:]]*skip ' "$TALLY" | sed 's/^[[:space:]]*/  /'

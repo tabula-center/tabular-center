@@ -510,13 +510,31 @@ rename, a development section, and one Rust sample.
       `TabulaMacroSyntaxCheck` parses on every run, and the page says the
       macro is pending and shows the form written today
 - [x] The README's rename note is gone; it points at the site instead
-- [ ] **Repository setting, not code:** Settings -> Pages -> Build and
-      deployment -> Source: **GitHub Actions**. Until then Pages keeps
-      rendering the README from the branch and `pages.yml`'s artifact is never
-      served
+- [x] **`doc/`, committed.** The first version relied on Pages' source being
+      set to GitHub Actions; it was left on the branch, so only the README was
+      a page and every language link was a 404. The pages are now written to
+      `doc/` and committed, and Pages serves them from the branch at
+      `/tabular-center/doc/` with no setting to get right. `pages.yml` is
+      removed: it built an artifact nothing served. This reverses Open
+      decision 0 ("docs/ is no longer committed") -- deliberately, and with the
+      cost that decision named paid in a check: `tools/verify docs` now
+      regenerates and diffs against the committed `doc/`, so a stale page
+      fails CI and the fix is `./tools/docs` and a commit. The docs base
+      diagnostics link under is `.../tabular-center/doc`
 - [ ] The language pages name the libraries by their current identifiers
       (`tabula`, `dev.tabula`, `Tabula`). R4 changes them; the pages follow in
       the same patches, since the samples are included from the renamed code
+
+### CI
+
+- [x] `ci.yml` was an invalid workflow file, so none of its jobs ran:
+      `check-darwin` was gated on `hashFiles(...)` in a job-level `if`, which
+      GitHub rejects. The gate was a leftover from before Phase 5 that always
+      held; removed
+- [x] `check-no-nix` removed. CI checks the Nix path only. `tools/verify`
+      still runs without Nix -- the scripts are plain bash and nothing in them
+      needs Nix -- but that path is supported and no longer exercised, and
+      CONTRIBUTING says so rather than claiming a check that is gone
 
 ### Found by the first composed run
 
@@ -749,7 +767,12 @@ and this is the only job that exercises it. Expect it to be the noisy one:
 `tabular-center-kotlin/ksp` has never executed and two bugs in its build file were found by
 reading alone.
 
-### 0. docs/ is no longer committed
+### 0. docs/ is no longer committed -- reversed
+
+*Reversed in September 2026: the pages are committed again, as `doc/`, because
+Pages serves from the branch; `tools/verify docs` diffs them against a fresh
+render. See "The documentation site" under the rename. Kept for the reasoning.*
+
 
 Generated output does not belong in the tree — the rule that keeps generated
 dispatchers out of `examples/kotlin/06-generated` applies to `docs/` too, and

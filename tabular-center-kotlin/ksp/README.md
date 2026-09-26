@@ -120,5 +120,5 @@ Regenerating the lock needs network and is not a derivation:
 Run it after changing a version in either `build.gradle.kts`, and commit the
 result. `ci.yml`'s `check` job runs `nix run .#gradle-lock -- --check`: `nix
 run` is not sandboxed, so that job has both the flake's pinned Gradle and a
-network, which is what the question needs. (It used to be `check-no-nix`,
-whose own Gradle version would have reported version skew as staleness.)
+network, which is what the question needs. (A job with its own Gradle would
+report version skew as staleness.)
