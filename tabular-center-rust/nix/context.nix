@@ -73,17 +73,26 @@ let
   #
   # Only the GUI check does. Adding them to `rustInputs` would put an X11 stack
   # behind `cargo test` for the library, which has nothing to draw.
-  guiInputs = [
-    pkgs.pkg-config
+  #
+  # Linux only. On macOS iced draws through Metal and AppKit, which come from
+  # the Apple SDK the default stdenv already carries, and none of the list
+  # below exists there: nixpkgs refuses to even EVALUATE `wayland` for Darwin,
+  # and that one refusal took every Darwin check down with it, not just this
+  # one. pkg-config stays on both -- it is a build tool, and harmless.
+  #
+  # The X11 libraries moved out of `xorg` (`xorg.libX11` -> `libx11`, and so
+  # on) and the old names now warn. Written `new or old` so the pin can move in
+  # either direction without an edit here.
+  guiInputs = [ pkgs.pkg-config ] ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [
     pkgs.fontconfig
     pkgs.libxkbcommon
     pkgs.wayland
     pkgs.libGL
     pkgs.vulkan-loader
-    pkgs.xorg.libX11
-    pkgs.xorg.libXcursor
-    pkgs.xorg.libXi
-    pkgs.xorg.libXrandr
+    (pkgs.libx11 or pkgs.xorg.libX11)
+    (pkgs.libxcursor or pkgs.xorg.libXcursor)
+    (pkgs.libxi or pkgs.xorg.libXi)
+    (pkgs.libxrandr or pkgs.xorg.libXrandr)
   ];
 
   commonInputs = [ pkgs.git pkgs.jq pkgs.just pkgs.graphviz pkgs.nixpkgs-fmt ];
@@ -164,6 +173,15 @@ let
         cp -r ${langSrc} src/tabular-center-rust
         cp ${editorconfig} src/.editorconfig
         chmod -R u+w src && cd src
+
+        # Every script here starts `#!/usr/bin/env bash`, and the build
+        # sandbox has no /usr/bin/env: on a strict sandbox (CI) the first step
+        # died "bad interpreter", while a local nix with the sandbox relaxed
+        # saw the host's /usr/bin/env and passed. patchShebangs points each
+        # shebang at the store's bash -- the verify scripts, and every script
+        # they call by path (compile-fail, the language scripts the root hands
+        # steps to) -- so the check no longer depends on the host at all.
+        patchShebangs --build . >/dev/null
         ${script}
         touch $out
       '';

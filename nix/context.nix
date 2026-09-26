@@ -43,6 +43,15 @@ let
         mkdir -p "$HOME" "$CARGO_HOME" "$GRADLE_USER_HOME"
 
         cp -r ${self} src && chmod -R u+w src && cd src
+
+        # Every script here starts `#!/usr/bin/env bash`, and the build
+        # sandbox has no /usr/bin/env: on a strict sandbox (CI) the first step
+        # died "bad interpreter", while a local nix with the sandbox relaxed
+        # saw the host's /usr/bin/env and passed. patchShebangs points each
+        # shebang at the store's bash -- the verify scripts, and every script
+        # they call by path (compile-fail, the language scripts the root hands
+        # steps to) -- so the check no longer depends on the host at all.
+        patchShebangs --build . >/dev/null
         ${script}
         touch $out
       '';

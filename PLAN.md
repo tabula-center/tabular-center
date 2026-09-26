@@ -531,6 +531,21 @@ rename, a development section, and one Rust sample.
       `check-darwin` was gated on `hashFiles(...)` in a job-level `if`, which
       GitHub rejects. The gate was a leftover from before Phase 5 that always
       held; removed
+- [x] **The first CI run found what local runs could not.** Every check died
+      `/usr/bin/env: bad interpreter`: the scripts start
+      `#!/usr/bin/env bash`, and a strict sandbox has no /usr/bin/env. Local
+      runs passed with the sandbox relaxed. Each check builder now runs
+      `patchShebangs` over its copy before any step, which also covers the
+      scripts the verify scripts call by path
+- [x] **And Darwin could not evaluate.** `rust-gui` listed wayland, X11,
+      Vulkan and libGL unconditionally; nixpkgs refuses to evaluate `wayland`
+      for Darwin, and one refused package fails the whole platform's
+      evaluation. Linux-only now -- iced on macOS uses Metal from the SDK
+      stdenv carries -- and the X11 names are written `libx11 or xorg.libX11`
+      across the `xorg` rename
+- [ ] `check-darwin` has never passed: the invalid workflow meant it never
+      ran, so this is its first real outing. `rust-gui` building on macOS in
+      the sandbox is expected, not yet observed
 - [x] `check-no-nix` removed. CI checks the Nix path only. `tools/verify`
       still runs without Nix -- the scripts are plain bash and nothing in them
       needs Nix -- but that path is supported and no longer exercised, and
