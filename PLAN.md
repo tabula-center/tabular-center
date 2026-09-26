@@ -432,7 +432,10 @@ deprecation period, and `VERSION` stays where it is.
       that read `TABULAR_CENTER_MAVEN_REPO`. `no-bless` already scans for
       the one variable that must never come back; it keeps doing so under
       either spelling
-- [ ] The repository URL in `Cargo.toml`, once the new one exists
+- [x] The repository URL: `https://github.com/tabula-center/tabular-center`,
+      in `Cargo.toml` and in `tools/docs`, which also moves the docs base to
+      `https://tabula-center.github.io/tabular-center` -- the address
+      `spec/diagnostics.md` tells every message to end with
 
 ### R5. Each implementation owns its examples
 
@@ -482,6 +485,38 @@ deprecation period, and `VERSION` stays where it is.
 - [ ] Confirmed on a real run: a Rust check's `drvPath` is unchanged by an
       edit under `tabular-center-kotlin/`, and changed by one under `spec/`.
       Written, not yet observed; the commands are in the patch's message
+
+### The documentation site
+
+The published site was the repository's README, rendered by Pages from the
+branch -- not the site `tools/docs` builds, which `pages.yml` was building and
+uploading for nobody. So the page a visitor saw carried a note about the
+rename, a development section, and one Rust sample.
+
+- [x] `tools/docs` writes a front page and a page per language -- Rust,
+      Kotlin, Swift -- beside the spec pages it already rendered. Each language
+      page walks the same Timer: the matrix, the code you write around it,
+      what the generator produces, the compiler's message when a cell is
+      missing, composition, colors and setup. The front page leads with the
+      matrix and the measured 8x12 machine (96 cells, 9 methods written,
+      asserted by `scale.rs`)
+- [x] **Every sample is included from the tree**, by file and line range, at
+      generation time -- never pasted. They are code CI compiles and runs, and
+      the compiler messages are the `//~ EXPECT:` lines the compile-fail steps
+      require, so a page cannot show a machine or an error that no longer
+      exists. A range that stops matching fails `tools/docs`, and so
+      `tools/verify docs`, rather than publishing a page with a hole in it
+- [x] Honest about Swift: the `@Machine` surface shown is the block
+      `TabulaMacroSyntaxCheck` parses on every run, and the page says the
+      macro is pending and shows the form written today
+- [x] The README's rename note is gone; it points at the site instead
+- [ ] **Repository setting, not code:** Settings -> Pages -> Build and
+      deployment -> Source: **GitHub Actions**. Until then Pages keeps
+      rendering the README from the branch and `pages.yml`'s artifact is never
+      served
+- [ ] The language pages name the libraries by their current identifiers
+      (`tabula`, `dev.tabula`, `Tabula`). R4 changes them; the pages follow in
+      the same patches, since the samples are included from the renamed code
 
 ### Found by the first composed run
 

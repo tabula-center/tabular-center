@@ -2,11 +2,12 @@
 
 State machines whose declaration *is* the transition matrix.
 
-> **Renamed from tabula.** The project, its directories and its tooling are
-> tabular-center now. The libraries' own identifiers -- the `tabula` crate,
-> the `dev.tabula` Kotlin package, the `Tabula` Swift module and the
-> `tabula::` diagnostic codes -- keep their names until the breaking stage of
-> the rename (PLAN.md, R4), which needs decisions first.
+**Documentation: <https://tabula-center.github.io/tabular-center/>** -- a page
+per language ([Rust](https://tabula-center.github.io/tabular-center/rust),
+[Kotlin](https://tabula-center.github.io/tabular-center/kotlin),
+[Swift](https://tabula-center.github.io/tabular-center/swift)), with the same
+machine in each, the code you write around it, and what the compiler says when
+a cell is missing.
 
 ```rust
 transition_matrix! {
