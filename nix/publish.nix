@@ -19,7 +19,7 @@ let
 in
 {
   release = pkgs.writeShellApplication {
-    name = "tabula-release";
+    name = "tabular-center-release";
     # Rust and Kotlin, as before the split: without Swift on PATH the Swift
     # steps report `skip`, which is what a release run on Linux always did.
     runtimeInputs = commonInputs ++ rustInputs ++ kotlinInputs;
@@ -74,7 +74,7 @@ in
       trap - ERR
       git add -A
       git commit -m "release: $version"
-      git tag -a "v$version" -m "tabula $version"
+      git tag -a "v$version" -m "tabular-center $version"
 
       echo
       echo "tagged v$version. Nothing has been pushed or published."
@@ -84,7 +84,7 @@ in
   };
 
   publish = pkgs.writeShellApplication {
-    name = "tabula-publish";
+    name = "tabular-center-publish";
     runtimeInputs = commonInputs ++ rustInputs ++ kotlinInputs ++ swiftInputs;
     text = ''
       execute=0

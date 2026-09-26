@@ -21,7 +21,7 @@ let
   };
 
   verify = pkgs.writeShellApplication {
-    name = "tabula-verify-swift";
+    name = "tabular-center-verify-swift";
     runtimeInputs = commonInputs ++ [ pkgs.git ] ++ lib.optionals swiftChecked swiftPkgs;
     text = ''
       ${cdRoot}
@@ -34,7 +34,7 @@ let
   # See the header of tools/swift-lock, and the Kotlin flake's gradle-lock for
   # the same shape against Maven.
   swiftLock = pkgs.writeShellApplication {
-    name = "tabula-swift-lock";
+    name = "tabular-center-swift-lock";
     runtimeInputs = commonInputs ++ swiftPkgs ++ [
       pkgs.git
       pkgs.curl
@@ -52,11 +52,11 @@ let
   };
 in
 {
-  verify = app verify "tabula-verify-swift"
+  verify = app verify "tabular-center-verify-swift"
     "Run the Swift steps of tools/verify, without the sandbox";
 
-  swift-lock = app swiftLock "tabula-swift-lock"
+  swift-lock = app swiftLock "tabular-center-swift-lock"
     "Resolve tabular-center-swift/macros against the network and write tabular-center-swift/nix/swift-lock.json";
 
-  default = app verify "tabula-verify-swift" "Run the Swift checks";
+  default = app verify "tabular-center-verify-swift" "Run the Swift checks";
 }

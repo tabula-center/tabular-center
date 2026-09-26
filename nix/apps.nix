@@ -25,7 +25,7 @@ let
     if root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
       cd "$root"
     else
-      echo "not inside a git checkout of tabula; these apps work on the tree" >&2
+      echo "not inside a git checkout of tabular-center; these apps work on the tree" >&2
       exit 1
     fi
   '';
@@ -37,7 +37,7 @@ let
   };
 
   conformance = pkgs.writeShellApplication {
-    name = "tabula-conformance";
+    name = "tabular-center-conformance";
     runtimeInputs = commonInputs ++ [ pkgs.git ] ++ allInputs;
     text = ''
       ${cdRoot}
@@ -57,7 +57,7 @@ let
   # of it in the repository: adding it to the shells would put Ruby on the path
   # of everyone working on Rust.
   docs = pkgs.writeShellApplication {
-    name = "tabula-docs";
+    name = "tabular-center-docs";
     runtimeInputs = commonInputs ++ [ pkgs.git pkgs.jekyll ];
     text = ''
       ${cdRoot}
@@ -99,7 +99,7 @@ let
   };
 
   verify = pkgs.writeShellApplication {
-    name = "tabula-verify";
+    name = "tabular-center-verify";
     runtimeInputs = commonInputs ++ [ pkgs.git ] ++ allInputs;
     # `allSetup` below exports the Swift runtime path, the way every Swift
     # check does. This app used to put Swift on PATH without it, so a Swift
@@ -116,20 +116,20 @@ let
 
 in
 {
-  conformance = app conformance "tabula-conformance"
+  conformance = app conformance "tabular-center-conformance"
     "Run every implementation against spec/conformance";
 
-  verify = app verify "tabula-verify"
+  verify = app verify "tabular-center-verify"
     "Run the same checks nix flake check runs, without the sandbox";
 
-  docs = app docs "tabula-docs"
+  docs = app docs "tabular-center-docs"
     "Regenerate docs/ from spec/ and serve it (nix run .#docs -- build)";
 
-  release = app publish.release "tabula-release"
+  release = app publish.release "tabular-center-release"
     "Set the version everywhere, verify, and tag";
 
-  publish = app publish.publish "tabula-publish"
+  publish = app publish.publish "tabular-center-publish"
     "Publish every language's package (dry run unless --execute)";
 
-  default = app verify "tabula-verify" "Run the checks";
+  default = app verify "tabular-center-verify" "Run the checks";
 }

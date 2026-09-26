@@ -74,13 +74,13 @@ swiftPkgsSet.swiftpm.overrideAttrs (old: {
       [ -n "$found" ] && src="$(dirname "$(dirname "$found")")"
     fi
     if [ -z "$src" ]; then
-      echo "tabula: could not find Sources/CompilerPluginSupport under $NIX_BUILD_TOP"
+      echo "tabular-center: could not find Sources/CompilerPluginSupport under $NIX_BUILD_TOP"
       echo "  This override compiles two modules out of swiftpm's own checkout."
       echo "  Contents of the build directory:"
       ls -1 "$NIX_BUILD_TOP" | head -20
       exit 1
     fi
-    echo "tabula: swiftpm sources at $src"
+    echo "tabular-center: swiftpm sources at $src"
 
     # ONE library, two modules.
     #
@@ -140,20 +140,34 @@ swiftPkgsSet.swiftpm.overrideAttrs (old: {
     # them reported success. This is the assertion that makes "it built" and
     # "it worked" the same statement.
     [ -e "$api/CompilerPluginSupport.swiftmodule" ] || {
-      echo "tabula: CompilerPluginSupport.swiftmodule is missing after postFixup"
+      echo "tabular-center: CompilerPluginSupport.swiftmodule is missing after postFixup"
       exit 1
     }
     # And the symbols, not just the module. Two earlier attempts produced a
     # findable module whose code the linker could not reach, and both reported
     # success here.
-    nm -D --defined-only "$api/libPackageDescription.so" \
-      | grep -q CompilerPluginSupport || {
-      echo "tabula: libPackageDescription.so defines no CompilerPluginSupport"
+    #
+    # Through a file, never `nm ... | grep -q`. stdenv runs this with
+    # `set -o pipefail`, and `grep -q` exits at its first match: `nm`, still
+    # writing a symbol table far larger than a pipe buffer, dies of SIGPIPE,
+    # and pipefail turns a FOUND symbol into a failed pipeline. That reported
+    # "defines no CompilerPluginSupport symbols" for a library that did --
+    # an assertion lying in the opposite direction from the five rounds above,
+    # and just as hard to see, because whether it lies depends on where in
+    # nm's output the first match falls.
+    nm -D --defined-only "$api/libPackageDescription.so" > "$TMPDIR/lib.syms"
+    if ! grep -q CompilerPluginSupport "$TMPDIR/lib.syms"; then
+      echo "tabular-center: libPackageDescription.so defines no CompilerPluginSupport"
       echo "  symbols; the module is findable and will not link."
+      # Which half lost them: the object (compile) or the library (link).
+      nm --defined-only "$TMPDIR/CompilerPluginSupport.o" > "$TMPDIR/obj.syms" || true
+      echo "  CompilerPluginSupport.o: $(grep -c CompilerPluginSupport "$TMPDIR/obj.syms" || true) matching symbol(s)"
+      echo "  libPackageDescription.so: $(wc -l < "$TMPDIR/lib.syms") exported symbol(s) in all"
       exit 1
-    }
+    fi
+    echo "tabular-center: $(grep -c CompilerPluginSupport "$TMPDIR/lib.syms") CompilerPluginSupport symbol(s) exported"
 
-    echo "tabula: ManifestAPI now holds"
+    echo "tabular-center: ManifestAPI now holds"
     ls -1 "$api"
   '';
 })

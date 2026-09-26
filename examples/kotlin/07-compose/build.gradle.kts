@@ -16,7 +16,7 @@ plugins {
     id("com.google.devtools.ksp") version "2.1.20-1.0.32"
 }
 
-val tabulaRepo: String? = System.getenv("TABULA_MAVEN_REPO")?.takeIf { it.isNotBlank() }
+val tabulaRepo: String? = System.getenv("TABULAR_CENTER_MAVEN_REPO")?.takeIf { it.isNotBlank() }
 
 repositories {
     if (tabulaRepo != null) {

@@ -14,10 +14,10 @@ plugins {
 group = "dev.tabula"
 version = "0.1.0"
 
-// Same TABULA_MAVEN_REPO switch as the example. This is an included build, so
+// Same TABULAR_CENTER_MAVEN_REPO switch as the example. This is an included build, so
 // it resolves independently -- its own pluginManagement lives in the
 // settings.gradle.kts next to this file.
-val tabulaRepo: String? = System.getenv("TABULA_MAVEN_REPO")?.takeIf { it.isNotBlank() }
+val tabulaRepo: String? = System.getenv("TABULAR_CENTER_MAVEN_REPO")?.takeIf { it.isNotBlank() }
 
 repositories {
     if (tabulaRepo != null) maven { url = uri(tabulaRepo) } else mavenCentral()

@@ -106,7 +106,7 @@ let
   # cache even with zero dependencies. Every check is --offline --locked so it
   # can never silently reach the network.
   mkCheck = name: inputs: script:
-    pkgs.runCommand "tabula-check-${name}"
+    pkgs.runCommand "tabular-center-check-${name}"
       {
         nativeBuildInputs = commonInputs ++ inputs;
       }
@@ -135,7 +135,7 @@ let
 
         # The sandbox has no network, and a step that needs one must SKIP
         # rather than fail. Stated, not detected; tools/verify reads it.
-        export TABULA_OFFLINE=1
+        export TABULAR_CENTER_OFFLINE=1
 
         mkdir -p "$HOME"
 
@@ -148,7 +148,7 @@ let
     inherit name;
     packages = commonInputs ++ extra;
     shellHook = ''
-      echo "tabula :: ${name}"
+      echo "tabular-center :: ${name}"
     '';
   };
 

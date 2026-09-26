@@ -63,7 +63,7 @@ for f in "$FIXTURES"/*.rs; do
         echo "FAIL $name -- compiled, but was expected to fail"
         [ -n "$err" ] && printf '%s\n' "$err" | head -3 | sed 's/^/       /'
         fail=$((fail + 1))
-    elif printf '%s' "$err" | grep -qF -- "$expect"; then
+    elif grep -qF -- "$expect" <<<"$err"; then
         echo "ok   $name"
         pass=$((pass + 1))
     else

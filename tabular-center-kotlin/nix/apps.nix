@@ -21,7 +21,7 @@ let
   };
 
   verify = pkgs.writeShellApplication {
-    name = "tabula-verify-kotlin";
+    name = "tabular-center-verify-kotlin";
     runtimeInputs = commonInputs ++ [ pkgs.git ] ++ kotlinInputs;
     text = ''
       ${cdRoot}
@@ -42,7 +42,7 @@ let
   # listed because `writeShellApplication` PREPENDS runtimeInputs to PATH, and
   # on macOS the fallback is BSD `find` and `sed`.
   gradleLock = pkgs.writeShellApplication {
-    name = "tabula-gradle-lock";
+    name = "tabular-center-gradle-lock";
     runtimeInputs = commonInputs ++ kotlinInputs ++ [
       pkgs.git
       pkgs.curl
@@ -59,11 +59,11 @@ let
   };
 in
 {
-  verify = app verify "tabula-verify-kotlin"
+  verify = app verify "tabular-center-verify-kotlin"
     "Run the Kotlin steps of tools/verify, without the sandbox";
 
-  gradle-lock = app gradleLock "tabula-gradle-lock"
+  gradle-lock = app gradleLock "tabular-center-gradle-lock"
     "Resolve the KSP examples against Maven and write tabular-center-kotlin/nix/gradle-lock.json";
 
-  default = app verify "tabula-verify-kotlin" "Run the Kotlin checks";
+  default = app verify "tabular-center-verify-kotlin" "Run the Kotlin checks";
 }

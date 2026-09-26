@@ -22,7 +22,7 @@ let
   };
 
   verify = pkgs.writeShellApplication {
-    name = "tabula-verify-rust";
+    name = "tabular-center-verify-rust";
     runtimeInputs = commonInputs ++ [ pkgs.git ] ++ rustInputs;
     text = ''
       ${cdRoot}
@@ -31,7 +31,7 @@ let
   };
 
   tableDiff = pkgs.writeShellApplication {
-    name = "tabula-table-diff";
+    name = "tabular-center-table-diff";
     runtimeInputs = commonInputs ++ [ pkgs.git ] ++ rustInputs;
     text = ''
       ${cdRoot}
@@ -41,11 +41,11 @@ let
   };
 in
 {
-  verify = app verify "tabula-verify-rust"
+  verify = app verify "tabular-center-verify-rust"
     "Run the Rust steps of tools/verify, without the sandbox";
 
-  table-diff = app tableDiff "tabula-table-diff"
+  table-diff = app tableDiff "tabular-center-table-diff"
     "Render a machine's matrix as a diffable grid";
 
-  default = app verify "tabula-verify-rust" "Run the Rust checks";
+  default = app verify "tabular-center-verify-rust" "Run the Rust checks";
 }

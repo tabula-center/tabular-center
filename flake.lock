@@ -55,7 +55,10 @@
         "flake-utils": "flake-utils",
         "nixpkgs": "nixpkgs",
         "nixpkgs-swift": "nixpkgs-swift",
-        "rust-overlay": "rust-overlay"
+        "rust-overlay": "rust-overlay",
+        "tabular-center-kotlin": "tabular-center-kotlin",
+        "tabular-center-rust": "tabular-center-rust",
+        "tabular-center-swift": "tabular-center-swift"
       }
     },
     "rust-overlay": {
@@ -92,6 +95,69 @@
         "repo": "default",
         "type": "github"
       }
+    },
+    "tabular-center-kotlin": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "path": "./tabular-center-kotlin",
+        "type": "path"
+      },
+      "original": {
+        "path": "./tabular-center-kotlin",
+        "type": "path"
+      },
+      "parent": []
+    },
+    "tabular-center-rust": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "rust-overlay": [
+          "rust-overlay"
+        ]
+      },
+      "locked": {
+        "path": "./tabular-center-rust",
+        "type": "path"
+      },
+      "original": {
+        "path": "./tabular-center-rust",
+        "type": "path"
+      },
+      "parent": []
+    },
+    "tabular-center-swift": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "nixpkgs-swift": [
+          "nixpkgs-swift"
+        ]
+      },
+      "locked": {
+        "path": "./tabular-center-swift",
+        "type": "path"
+      },
+      "original": {
+        "path": "./tabular-center-swift",
+        "type": "path"
+      },
+      "parent": []
     }
   },
   "root": "root",

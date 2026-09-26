@@ -91,7 +91,7 @@ let
   commonInputs = [ pkgs.git pkgs.jq pkgs.just pkgs.graphviz pkgs.nixpkgs-fmt ];
 
   mkCheck = name: inputs: script:
-    pkgs.runCommand "tabula-check-${name}"
+    pkgs.runCommand "tabular-center-check-${name}"
       {
         nativeBuildInputs = commonInputs ++ inputs;
 
@@ -108,7 +108,7 @@ let
         # rather than fail. Stated, not detected: tools/verify reads it, and
         # it is unset everywhere else, so ci.yml's check-no-nix job -- which
         # HAS Maven -- still runs the Gradle and KSP path online.
-        export TABULA_OFFLINE=1
+        export TABULAR_CENTER_OFFLINE=1
 
         mkdir -p "$HOME" "$GRADLE_USER_HOME"
 
@@ -123,7 +123,7 @@ let
     JAVA_HOME = "${jdk}";
     GRADLE_USER_HOME = "./.gradle-home";
     shellHook = ''
-      echo "tabula :: ${name}"
+      echo "tabular-center :: ${name}"
     '';
   };
 

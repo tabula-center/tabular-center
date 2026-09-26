@@ -123,7 +123,7 @@ echo "gradle $gradle_version"
 # repository has to satisfy all of them.
 for example in "${EXAMPLES[@]}"; do
     echo "== resolving $example (this reaches the network) =="
-    if ! GRADLE_USER_HOME="$guh" TABULA_MAVEN_REPO="" \
+    if ! GRADLE_USER_HOME="$guh" TABULAR_CENTER_MAVEN_REPO="" \
         gradle --no-daemon --console=plain -p "$example" \
         -Dorg.gradle.java.installations.auto-download=false \
         build; then

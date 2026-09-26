@@ -94,7 +94,7 @@ require_fixtures() {
 #
 # Declared rather than probed. nix knows; the script would be guessing, and the
 # same reasoning already governs swiftLibraryPath and NIX_CC.
-offline() { [ -n "${TABULA_OFFLINE:-}" ]; }
+offline() { [ -n "${TABULAR_CENTER_OFFLINE:-}" ]; }
 
 # Every skip, collected.
 #
@@ -188,7 +188,7 @@ step_no_std() {
     rc=$?
     [ "$rc" -eq 0 ] && return 0
 
-    if printf '%s' "$out" | grep -qE "may not be installed|not find specification for target"; then
+    if grep -qE "may not be installed|not find specification for target" <<<"$out"; then
         echo "note: thumbv7em-none-eabihf unavailable; checking --no-default-features on host"
         (cd tabular-center-rust && cargo build -p tabula --no-default-features $CARGO_FLAGS)
         return $?
@@ -343,7 +343,7 @@ step_rust_matrix_stable() {
     return "$bad"
 }
 
-# Render every conformance fixture into $TABULA_RENDER_DIR.
+# Render every conformance fixture into $TABULAR_CENTER_RENDER_DIR.
 #
 # Not a check on its own and not in the default list: the root's
 # `renderings-agree` calls it once per implementation, into one directory
@@ -355,8 +355,8 @@ step_rust_matrix_stable() {
 # having written nothing and printed a `skip` line (no toolchain), anything
 # else is a failure to render.
 step_rust_render() {
-    [ -n "${TABULA_RENDER_DIR:-}" ] || {
-        echo "rust-render: TABULA_RENDER_DIR is not set; the root's renderings-agree sets it"
+    [ -n "${TABULAR_CENTER_RENDER_DIR:-}" ] || {
+        echo "rust-render: TABULAR_CENTER_RENDER_DIR is not set; the root's renderings-agree sets it"
         return 2
     }
     require_fixtures || return 1
@@ -366,7 +366,7 @@ step_rust_render() {
     fi
     # shellcheck disable=SC2086
     (cd tabular-center-rust && cargo run -q -p tabula-conformance $CARGO_FLAGS -- \
-        "--emit=$TABULA_RENDER_DIR" ../spec/conformance) >/dev/null
+        "--emit=$TABULAR_CENTER_RENDER_DIR" ../spec/conformance) >/dev/null
 }
 
 STEPS_DEFAULT=(fmt clippy test no-std compile-fail conformance examples rust-matrix-stable rust-gui)
@@ -403,7 +403,7 @@ echo
 # Called by the root tools/verify, which keeps one ledger for the whole run:
 # its tee already saw every `skip` line printed above, and a second ledger
 # here would list each of them twice.
-[ -n "${TABULA_NESTED:-}" ] && exit "$fail"
+[ -n "${TABULAR_CENTER_NESTED:-}" ] && exit "$fail"
 
 # The ledger, before the verdict, because "all green" read on its own is what
 # made two missing suites invisible. Anything listed here did not run, and a

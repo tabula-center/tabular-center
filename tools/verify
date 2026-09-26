@@ -98,7 +98,7 @@ require_fixtures() {
 #
 # Declared rather than probed. nix knows; the script would be guessing, and the
 # same reasoning already governs swiftLibraryPath and NIX_CC.
-offline() { [ -n "${TABULA_OFFLINE:-}" ]; }
+offline() { [ -n "${TABULAR_CENTER_OFFLINE:-}" ]; }
 
 # Every skip, collected.
 #
@@ -212,7 +212,7 @@ step_renderings_agree() {
             continue
         fi
         mkdir -p "$scratch/$lang"
-        if TABULA_NESTED=1 TABULA_RENDER_DIR="$scratch/$lang" "$sc" "$lang-render"; then
+        if TABULAR_CENTER_NESTED=1 TABULAR_CENTER_RENDER_DIR="$scratch/$lang" "$sc" "$lang-render"; then
             if [ -n "$(ls -A "$scratch/$lang")" ]; then
                 present+=("$lang")
             fi
@@ -478,7 +478,7 @@ step_diagnostics_coverage() {
             esac
             expected=no
             case " $langs " in *" $lang "*) expected=yes ;; esac
-            if printf '%s\n' "$actual" | grep -qx "$code"; then
+            if grep -qx "$code" <<<"$actual"; then
                 if [ "$expected" = no ]; then
                     echo "FAIL $lang emits $code but $doc does not list it"
                     echo "     A new diagnostic needs a row here and a section"
@@ -622,7 +622,7 @@ owner_of() {
 # nested, so it prints no ledger or verdict of its own.
 delegate() {
     local sc="$1" s="$2"
-    TABULA_NESTED=1 "$sc" "$s" 2>&1 | tee -a "$TALLY"
+    TABULAR_CENTER_NESTED=1 "$sc" "$s" 2>&1 | tee -a "$TALLY"
     [ "${PIPESTATUS[0]}" -eq 0 ] || fail=1
 }
 

@@ -95,7 +95,7 @@ require_fixtures() {
 #
 # Declared rather than probed. nix knows; the script would be guessing, and the
 # same reasoning already governs swiftLibraryPath and NIX_CC.
-offline() { [ -n "${TABULA_OFFLINE:-}" ]; }
+offline() { [ -n "${TABULAR_CENTER_OFFLINE:-}" ]; }
 
 # Every skip, collected.
 #
@@ -330,7 +330,7 @@ step_kotlin_ksp_incremental() {
         echo "skip kotlin-ksp-incremental (\$gradle not found)"
         return 0
     fi
-    if [ -z "${TABULA_MAVEN_REPO:-}" ] && offline; then
+    if [ -z "${TABULAR_CENTER_MAVEN_REPO:-}" ] && offline; then
         echo "skip kotlin-ksp-incremental (no locked artifact set; run"
         echo "     'nix run .#gradle-lock' with network and commit it)"
         return 0
@@ -391,7 +391,7 @@ step_kotlin_ksp_incremental() {
     fi
 
     gen="$(find "$ex/build/generated" -name 'TurnstileGenerated.kt' | head -1)"
-    if printf '%s' "$(cat "$gen")" | grep -q "since"; then
+    if grep -q "since" <<<"$(cat "$gen")"; then
         echo "FAIL the first build already mentions \`since\`; the fixture is wrong"
         rm -rf "$scratch"
         return 1
@@ -489,7 +489,7 @@ step_kotlin_ksp_compile_fail() {
         echo "skip kotlin-ksp-compile-fail (\$gradle not found)"
         return 0
     fi
-    if [ -z "${TABULA_MAVEN_REPO:-}" ] && offline; then
+    if [ -z "${TABULAR_CENTER_MAVEN_REPO:-}" ] && offline; then
         echo "skip kotlin-ksp-compile-fail (no locked artifact set; run"
         echo "     'nix run .#gradle-lock' with network and commit it)"
         return 0
@@ -536,13 +536,13 @@ step_kotlin_ksp_compile_fail() {
         if [ "$rc" -eq 0 ]; then
             echo "FAIL $name -- compiled, but was expected to fail"
             bad=1
-        elif ! printf '%s' "$out" | grep -qF -- "$expect"; then
+        elif ! grep -qF -- "$expect" <<<"$out"; then
             echo "FAIL $name -- failed, but not with \`$expect\`"
             printf '%s' "$out" | grep -iE "^e:|error:" | head -3 | sed 's/^/       /'
             bad=1
         elif ! check_position "$dir" "$src" "$expect" "$out"; then
             bad=1
-        elif ! printf '%s' "$out" | grep -qF -- "$(basename "$src")"; then
+        elif ! grep -qF -- "$(basename "$src")" <<<"$out"; then
             # The position, not just the message.
             #
             # PLAN asks for diagnostics "via KSPLogger.error with node
@@ -583,7 +583,7 @@ step_kotlin_ksp_compile_fail() {
 #
 # Three ways to run, and the first is the one that made this stop being a skip:
 #
-#   TABULA_MAVEN_REPO set -> resolve offline from that directory. nix builds it
+#   TABULAR_CENTER_MAVEN_REPO set -> resolve offline from that directory. nix builds it
 #     from tabular-center-kotlin/nix/gradle-lock.json and nix/checks.nix points here at it.
 #   unset, online        -> the real repositories. ci.yml's check-no-nix job,
 #     and a developer with network.
@@ -608,17 +608,17 @@ step_kotlin_compose() {
 
     local args=(--no-daemon --console=plain)
 
-    if [ -n "${TABULA_MAVEN_REPO:-}" ]; then
+    if [ -n "${TABULAR_CENTER_MAVEN_REPO:-}" ]; then
         # `compose.runtime` resolves to org.jetbrains.compose.runtime. If the
         # lock predates this example, it is not in the offline repository.
-        if [ ! -d "$TABULA_MAVEN_REPO/org/jetbrains/compose" ]; then
+        if [ ! -d "$TABULAR_CENTER_MAVEN_REPO/org/jetbrains/compose" ]; then
             echo "skip kotlin-compose (the locked artifact set has no Compose)"
             echo "     re-lock on a machine with network, and commit it:"
             echo "       nix run .#gradle-lock"
             return 0
         fi
-        args+=(--offline "-Dmaven.repo.local=$TABULA_MAVEN_REPO")
-        echo "note: resolving offline from $TABULA_MAVEN_REPO"
+        args+=(--offline "-Dmaven.repo.local=$TABULAR_CENTER_MAVEN_REPO")
+        echo "note: resolving offline from $TABULAR_CENTER_MAVEN_REPO"
     elif offline; then
         echo "skip kotlin-compose (no locked artifact set: run 'nix run .#gradle-lock'"
         echo "     on a machine with network and commit tabular-center-kotlin/nix/gradle-lock.json)"
@@ -643,7 +643,7 @@ step_kotlin_ksp() {
 
     local args=(--no-daemon --console=plain)
 
-    if [ -n "${TABULA_MAVEN_REPO:-}" ]; then
+    if [ -n "${TABULAR_CENTER_MAVEN_REPO:-}" ]; then
         # The lock records the Gradle that produced it. A different one can
         # legitimately want a different artifact set, and when it does the
         # failure is `Could not find <artifact>` against a directory that looks
@@ -676,7 +676,7 @@ step_kotlin_ksp() {
         # by one local directory, so there is no remote left to try, and every
         # version is pinned so nothing goes looking for metadata. The sandbox
         # has no route either way, and refuses immediately rather than hanging.
-        echo "note: resolving offline from $TABULA_MAVEN_REPO"
+        echo "note: resolving offline from $TABULAR_CENTER_MAVEN_REPO"
     elif offline; then
         echo "skip kotlin-ksp (no locked artifact set: run 'nix run .#gradle-lock'"
         echo "     on a machine with network and commit tabular-center-kotlin/nix/gradle-lock.json)"
@@ -948,7 +948,7 @@ step_kotlin_codegen() {
             if [ "$rc" -eq 0 ]; then
                 echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
                 bad=1
-            elif printf '%s' "$err" | grep -qF -- "$exp"; then
+            elif grep -qF -- "$exp" <<<"$err"; then
                 echo "ok   $(basename "$f")"
             else
                 echo "FAIL $(basename "$f")"
@@ -991,7 +991,7 @@ step_kotlin_compile_fail() {
         if [ "$rc" -eq 0 ]; then
             echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
             bad=1
-        elif printf '%s' "$err" | grep -qF -- "$exp"; then
+        elif grep -qF -- "$exp" <<<"$err"; then
             echo "ok   $(basename "$f")"
         else
             echo "FAIL $(basename "$f")"
@@ -1005,7 +1005,7 @@ step_kotlin_compile_fail() {
     return "$bad"
 }
 
-# Render every conformance fixture into $TABULA_RENDER_DIR.
+# Render every conformance fixture into $TABULAR_CENTER_RENDER_DIR.
 #
 # Not a check on its own and not in the default list: the root's
 # `renderings-agree` calls it once per implementation, into one directory
@@ -1017,8 +1017,8 @@ step_kotlin_compile_fail() {
 # having written nothing and printed a `skip` line (no toolchain), anything
 # else is a failure to render.
 step_kotlin_render() {
-    [ -n "${TABULA_RENDER_DIR:-}" ] || {
-        echo "kotlin-render: TABULA_RENDER_DIR is not set; the root's renderings-agree sets it"
+    [ -n "${TABULAR_CENTER_RENDER_DIR:-}" ] || {
+        echo "kotlin-render: TABULAR_CENTER_RENDER_DIR is not set; the root's renderings-agree sets it"
         return 2
     }
     require_fixtures || return 1
@@ -1035,7 +1035,7 @@ step_kotlin_render() {
                 -d "$out/c.jar" 2>&1 | grep -v "^info:" || true
             [ -f "$out/c.jar" ] || { echo "conformance failed to compile"; exit 1; }
             java -cp "$out/c.jar:$KCP:$out/comp" conformance.MainKt \
-                ../spec/conformance "--emit=$TABULA_RENDER_DIR"
+                ../spec/conformance "--emit=$TABULAR_CENTER_RENDER_DIR"
         ) >/dev/null; then
             rm -rf "$out"
             return 0
@@ -1081,7 +1081,7 @@ echo
 # Called by the root tools/verify, which keeps one ledger for the whole run:
 # its tee already saw every `skip` line printed above, and a second ledger
 # here would list each of them twice.
-[ -n "${TABULA_NESTED:-}" ] && exit "$fail"
+[ -n "${TABULAR_CENTER_NESTED:-}" ] && exit "$fail"
 
 # The ledger, before the verdict, because "all green" read on its own is what
 # made two missing suites invisible. Anything listed here did not run, and a

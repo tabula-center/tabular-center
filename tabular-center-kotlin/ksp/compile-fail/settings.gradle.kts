@@ -10,7 +10,7 @@
 // KSP compile-testing as a library would have meant a new dependency, a
 // re-lock, and an embedded Kotlin compiler in the offline artifact set.
 pluginManagement {
-    val tabulaRepo: String? = System.getenv("TABULA_MAVEN_REPO")?.takeIf { it.isNotBlank() }
+    val tabulaRepo: String? = System.getenv("TABULAR_CENTER_MAVEN_REPO")?.takeIf { it.isNotBlank() }
     repositories {
         if (tabulaRepo != null) {
             maven { url = uri(tabulaRepo) }

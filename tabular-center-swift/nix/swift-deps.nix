@@ -95,7 +95,7 @@ let
   };
 
 in
-pkgs.runCommand "tabula-swift-deps"
+pkgs.runCommand "tabular-center-swift-deps"
 {
   passthru.dependencyCount = builtins.length lock.dependencies;
 }

@@ -181,7 +181,7 @@ let
   commonInputs = [ pkgs.git pkgs.jq pkgs.just pkgs.graphviz pkgs.nixpkgs-fmt ];
 
   mkCheck = name: inputs: script:
-    pkgs.runCommand "tabula-check-${name}"
+    pkgs.runCommand "tabular-center-check-${name}"
       {
         nativeBuildInputs = commonInputs ++ inputs;
         # For Swift's setup-hook. A variable, not a package on the path -- see
@@ -193,7 +193,7 @@ let
 
         # The sandbox has no network, and the steps that need one must SKIP
         # rather than fail. Stated, not detected; tools/verify reads it.
-        export TABULA_OFFLINE=1
+        export TABULAR_CENTER_OFFLINE=1
 
         mkdir -p "$HOME"
 
@@ -207,7 +207,7 @@ let
     packages = commonInputs ++ extra;
     LD_LIBRARY_PATH = swiftLibraryPath;
     shellHook = ''
-      echo "tabula :: ${name}"
+      echo "tabular-center :: ${name}"
       ${lib.optionalString (!swiftAvailable) ''
         echo "  note: no swift toolchain on ${system}; tabular-center-swift/ is skipped."
       ''}

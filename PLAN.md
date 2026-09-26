@@ -1,4 +1,4 @@
-# tabula — Implementation Plan
+# tabular-center — Implementation Plan
 
 Companion to `ARCHITECTURE.md`. Ordered by risk retirement, not by convenience.
 
@@ -416,16 +416,45 @@ deprecation period, and `VERSION` stays where it is.
 
 ### R3. The name in prose and tooling -- nothing a user compiles against
 
-- [ ] Titles and descriptions: `README.md`, `ARCHITECTURE.md`, this file,
-      `CONTRIBUTING.md`, `RELEASING.md`, flake descriptions, dev-shell banners
-- [ ] Derivation and app names: `tabula-check-<step>` ->
+- [x] Titles and descriptions: `README.md`, `ARCHITECTURE.md`, this file, the
+      Kotlin and Swift READMEs, flake descriptions, dev-shell banners, and the
+      prose that names the *project*. Prose naming the *library* ("the
+      examples depend on tabula by path") stays until R4 renames the library;
+      README says so up front
+- [x] Derivation and app names: `tabula-check-<step>` ->
       `tabular-center-check-<step>`, `tabula-verify` ->
-      `tabular-center-verify`, and so on
-- [ ] Environment variables: `TABULA_OFFLINE`, `TABULA_MAVEN_REPO`,
-      `TABULA_SWIFT_DEPS` -> `TABULAR_CENTER_*`. `no-bless` already scans for
+      `tabular-center-verify`, and so on; the offline Gradle repository and
+      swift-syntax checkouts too. Store paths change, so the first run after
+      this rebuilds everything, `swiftpm-plugin-support` included
+- [x] Environment variables: `TABULA_OFFLINE`, `TABULA_MAVEN_REPO`,
+      `TABULA_SWIFT_DEPS`, and R2's `TABULA_NESTED` and `TABULA_RENDER_DIR`
+      -> `TABULAR_CENTER_*`, in the flakes, the scripts and the Gradle builds
+      that read `TABULAR_CENTER_MAVEN_REPO`. `no-bless` already scans for
       the one variable that must never come back; it keeps doing so under
       either spelling
 - [ ] The repository URL in `Cargo.toml`, once the new one exists
+
+### Found by the first composed run
+
+- [x] **`swiftpm-plugin-support`'s own assertion could lie, and did.** R3
+      renamed its log prefix, which changed the derivation and forced its
+      first rebuild in a while -- and it failed with "libPackageDescription.so
+      defines no CompilerPluginSupport symbols" after both modules had
+      compiled and linked cleanly. The check was `nm -D ... | grep -q`, and
+      stdenv runs builders with `set -o pipefail`: `grep -q` exits at its first
+      match, `nm` is killed by SIGPIPE writing the rest of a large symbol table,
+      and pipefail reports the pipeline failed. Whether it lies depends on where
+      in the output the first match falls, which is how it could pass once and
+      fail on an identical rebuild. Now through a file, and on a real failure
+      it says whether the object or the library lost the symbols
+- [x] **The same trap in the definition of green.** Every `tools/verify` runs
+      with `set -o pipefail`, and twelve places matched compiler output with
+      `printf '%s' "$out" | grep -q`. With output past a pipe buffer and an
+      early match, `printf` dies of SIGPIPE and a message that WAS there reads
+      as absent: a compile-fail fixture reported FAIL for the right error, or
+      `no-std` skipping its fallback. All twelve are here-strings now
+      (`grep -q ... <<<"$out"`). Three pipelines are left, each fed a few lines
+      at most -- a lock entry, a doc block, `--list-all` -- well under a buffer
 
 ### R4. Public identifiers -- the breaking stage, decisions first
 

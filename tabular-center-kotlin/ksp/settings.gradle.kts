@@ -18,7 +18,7 @@
 rootProject.name = "tabula-ksp"
 
 pluginManagement {
-    val tabulaRepo: String? = System.getenv("TABULA_MAVEN_REPO")?.takeIf { it.isNotBlank() }
+    val tabulaRepo: String? = System.getenv("TABULAR_CENTER_MAVEN_REPO")?.takeIf { it.isNotBlank() }
     repositories {
         if (tabulaRepo != null) {
             maven { url = uri(tabulaRepo) }

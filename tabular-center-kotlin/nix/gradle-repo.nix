@@ -54,7 +54,7 @@ let
     files;
 
 in
-pkgs.runCommand "tabula-gradle-repo"
+pkgs.runCommand "tabular-center-gradle-repo"
 {
   # Visible in the build log and in `nix why-depends` output, so a jump in the
   # artifact count shows up as a number rather than as a longer list nobody
@@ -69,5 +69,5 @@ pkgs.runCommand "tabula-gradle-repo"
     # the checksum sidecars a real server publishes. It will not ask for them
     # and will not warn about their absence; recording them in the lock would
     # double its size to satisfy nothing.
-    echo "tabula: ${toString (builtins.length lock.artifacts)} artifacts" > "$out/.tabula-repo"
+    echo "tabular-center: ${toString (builtins.length lock.artifacts)} artifacts" > "$out/.tabular-center-repo"
   ''

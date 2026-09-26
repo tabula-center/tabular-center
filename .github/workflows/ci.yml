@@ -76,7 +76,7 @@ jobs:
   # `tools/verify` is the single definition of green and the flake's checks call
   # it, so nothing here duplicates a command list -- this job runs the same
   # script against toolchains installed the ordinary way. That is the point:
-  # the claim that tabula builds without Nix was documentation until something
+  # the claim that tabular-center builds without Nix was documentation until something
   # ran it, and an untested claim about how to build a project is worse than an
   # absent one, because someone believes it.
   #

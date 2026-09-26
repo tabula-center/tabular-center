@@ -14,7 +14,7 @@ plugins {
 // made twice: plugin resolution and dependency resolution read different
 // repository lists, and an offline build that finds its plugins and not its
 // dependencies fails halfway through with a message about neither.
-val tabulaRepo: String? = System.getenv("TABULA_MAVEN_REPO")?.takeIf { it.isNotBlank() }
+val tabulaRepo: String? = System.getenv("TABULAR_CENTER_MAVEN_REPO")?.takeIf { it.isNotBlank() }
 
 repositories {
     if (tabulaRepo != null) maven { url = uri(tabulaRepo) } else mavenCentral()

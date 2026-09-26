@@ -73,7 +73,7 @@ dependency graph.
 
 One `VERSION` for all three languages, so a major bump in one is a major bump
 in all: the conformance suite holds them to one behaviour, and a user reading
-"tabula 2.0" should not have to ask *which* tabula.
+"tabular-center 2.0" should not have to ask *which* tabular-center.
 
 The public API is larger than the runtime. **Generated code is API**: a
 developer implements the members the generator demands, so what the generator
@@ -88,7 +88,7 @@ breaking.
 | A generated member renamed, removed, or re-signatured (`idleStart`, `retryChildState`, a narrowed type, where a color is placed) | major | every implementation stops compiling |
 | A new required member for a declaration that did not require it | major | the guarantee turned on an existing machine -- the one change that is breaking *because the library works* |
 | A diagnostic that refuses a declaration which used to compile | major | the declaration is unchanged and no longer builds |
-| A diagnostic that refuses what was already refused, now in tabula's words instead of the compiler's | patch | nothing that built stops building |
+| A diagnostic that refuses what was already refused, now in tabular-center's words instead of the compiler's | patch | nothing that built stops building |
 | A diagnostic **code** renamed or removed | major | codes are normative (`spec/diagnostics.md`); tooling matches on them |
 | A diagnostic **message** reworded, code unchanged | patch | match on codes, not prose |
 | New grammar that old declarations do not use (`paths`, `prototype`, `Emit`) | minor | additive: an old declaration generates the same code. `happy-paths.md`'s additive test is this rule, checked |

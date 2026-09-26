@@ -21,7 +21,7 @@ let
       mkCheck name kotlinInputs ''
         # Exported rather than guessed at by the script: nix built the
         # directory and knows where it is.
-        export TABULA_MAVEN_REPO="${gradleRepo}"
+        export TABULAR_CENTER_MAVEN_REPO="${gradleRepo}"
         ./tabular-center-kotlin/tools/verify ${name}
       ''
     else

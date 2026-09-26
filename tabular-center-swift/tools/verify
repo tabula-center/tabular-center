@@ -95,7 +95,7 @@ require_fixtures() {
 #
 # Declared rather than probed. nix knows; the script would be guessing, and the
 # same reasoning already governs swiftLibraryPath and NIX_CC.
-offline() { [ -n "${TABULA_OFFLINE:-}" ]; }
+offline() { [ -n "${TABULAR_CENTER_OFFLINE:-}" ]; }
 
 # Every skip, collected.
 #
@@ -366,13 +366,13 @@ step_swift() {
 
     # A triple mismatch reads like a missing module. Say what it actually is,
     # because the message sends you looking for the wrong thing.
-    if printf '%s' "$out" | grep -q "could not find module .* for target"; then
+    if grep -q "could not find module .* for target" <<<"$out"; then
         echo
         echo "  This is a target-triple mismatch, not a missing module."
         echo "  See the note on swiftPkgs in tabular-center-swift/nix/context.nix, and ARCHITECTURE"
         echo "  section 13 on nixpkgs' Linux Swift being best-effort."
     fi
-    if printf '%s' "$out" | grep -q "cannot open shared object file"; then
+    if grep -q "cannot open shared object file" <<<"$out"; then
         echo
         echo "  The build succeeded; only the loader failed. See the note"
         echo "  above: if libdispatch.so was not found, LD_LIBRARY_PATH is the"
@@ -419,12 +419,12 @@ step_swift_macros() {
     # reads like the checkouts were ignored rather than like the state file was
     # missing -- worth knowing before debugging it.
     local args=(build)
-    if [ -n "${TABULA_SWIFT_DEPS:-}" ]; then
-        echo "note: resolving offline from $TABULA_SWIFT_DEPS"
+    if [ -n "${TABULAR_CENTER_SWIFT_DEPS:-}" ]; then
+        echo "note: resolving offline from $TABULAR_CENTER_SWIFT_DEPS"
         rm -rf tabular-center-swift/macros/.build/checkouts tabular-center-swift/macros/.build/workspace-state.json
         mkdir -p tabular-center-swift/macros/.build
-        cp -r "$TABULA_SWIFT_DEPS/checkouts" tabular-center-swift/macros/.build/checkouts
-        cp "$TABULA_SWIFT_DEPS/workspace-state.json" tabular-center-swift/macros/.build/
+        cp -r "$TABULAR_CENTER_SWIFT_DEPS/checkouts" tabular-center-swift/macros/.build/checkouts
+        cp "$TABULAR_CENTER_SWIFT_DEPS/workspace-state.json" tabular-center-swift/macros/.build/
         chmod -R u+w tabular-center-swift/macros/.build
         args+=(--disable-automatic-resolution)
     fi
@@ -504,7 +504,7 @@ step_swift_macros() {
             # run, so this pattern matches whatever the real failure was -- it
             # reported "reached the network despite a locked checkout set" for
             # a compiler that cannot declare macros.
-            if [ -n "${TABULA_SWIFT_DEPS:-}" ]; then
+            if [ -n "${TABULAR_CENTER_SWIFT_DEPS:-}" ]; then
                 # A locked set was supplied and SwiftPM went to the network
                 # anyway. That is a failure, not an environment: the state file
                 # was rejected, or a dependency appeared that the lock does not
@@ -636,7 +636,7 @@ step_swift_codegen() {
         if [ "$rc" -eq 0 ]; then
             echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
             bad=1
-        elif printf '%s' "$err" | grep -qF -- "$exp"; then
+        elif grep -qF -- "$exp" <<<"$err"; then
             echo "ok   $(basename "$f")"
         else
             echo "FAIL $(basename "$f")"
@@ -717,7 +717,7 @@ step_swift_compile_fail() {
         if [ "$rc" -eq 0 ]; then
             echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
             bad=1
-        elif printf '%s' "$err" | grep -qF -- "$exp"; then
+        elif grep -qF -- "$exp" <<<"$err"; then
             echo "ok   $(basename "$f")"
         else
             echo "FAIL $(basename "$f")"
@@ -865,7 +865,7 @@ step_swift_format_config() {
     return "$bad"
 }
 
-# Render every conformance fixture into $TABULA_RENDER_DIR.
+# Render every conformance fixture into $TABULAR_CENTER_RENDER_DIR.
 #
 # Not a check on its own and not in the default list: the root's
 # `renderings-agree` calls it once per implementation, into one directory
@@ -877,8 +877,8 @@ step_swift_format_config() {
 # having written nothing and printed a `skip` line (no toolchain), anything
 # else is a failure to render.
 step_swift_render() {
-    [ -n "${TABULA_RENDER_DIR:-}" ] || {
-        echo "swift-render: TABULA_RENDER_DIR is not set; the root's renderings-agree sets it"
+    [ -n "${TABULAR_CENTER_RENDER_DIR:-}" ] || {
+        echo "swift-render: TABULAR_CENTER_RENDER_DIR is not set; the root's renderings-agree sets it"
         return 2
     }
     require_fixtures || return 1
@@ -888,7 +888,7 @@ step_swift_render() {
         swift_home "$sw"
         # shellcheck disable=SC2046
         if (cd tabular-center-swift && "$SWIFT" run -c release $(swift_paths "$sw") \
-            tabula-conformance ../spec/conformance "--emit=$TABULA_RENDER_DIR") >/dev/null 2>&1; then
+            tabula-conformance ../spec/conformance "--emit=$TABULAR_CENTER_RENDER_DIR") >/dev/null 2>&1; then
             rm -rf "$sw"
             return 0
         fi
@@ -932,7 +932,7 @@ echo
 # Called by the root tools/verify, which keeps one ledger for the whole run:
 # its tee already saw every `skip` line printed above, and a second ledger
 # here would list each of them twice.
-[ -n "${TABULA_NESTED:-}" ] && exit "$fail"
+[ -n "${TABULAR_CENTER_NESTED:-}" ] && exit "$fail"
 
 # The ledger, before the verdict, because "all green" read on its own is what
 # made two missing suites invisible. Anything listed here did not run, and a

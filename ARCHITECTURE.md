@@ -1,4 +1,4 @@
-# tabula — Architecture
+# tabular-center — Architecture
 
 A state machine library whose declaration *is* the transition matrix, and whose
 completeness is enforced by the compiler rather than by convention.

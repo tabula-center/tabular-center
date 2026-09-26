@@ -106,7 +106,7 @@ output.
 
 Not from Maven, under nix. `tabular-center-kotlin/nix/gradle-lock.json` pins every artifact this
 build and the example need, by URL and hash; `tabular-center-kotlin/nix/gradle-repo.nix` turns that
-into a directory; `TABULA_MAVEN_REPO` points both builds at it. Nothing
+into a directory; `TABULAR_CENTER_MAVEN_REPO` points both builds at it. Nothing
 resolves over the network inside a nix build, which is what the fixed-output
 derivation this replaced kept failing to do.
 

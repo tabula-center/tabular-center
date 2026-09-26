@@ -13,7 +13,7 @@
 // their marker artifacts there too, so resolution has a second source that is
 // the same one the dependencies already come from.
 //
-// TABULA_MAVEN_REPO switches the whole set for one offline directory. An
+// TABULAR_CENTER_MAVEN_REPO switches the whole set for one offline directory. An
 // environment variable, not a Gradle property: `-P` does not cross into an
 // included build, and `tabular-center-kotlin/ksp` is one -- so a property would configure
 // this build and leave the processor still reaching for the network, which
@@ -23,7 +23,7 @@
 // check` points here at the store path. Unset: the online repositories, which
 // is what tabular-center-kotlin/tools/gradle-lock and ci.yml's check-no-nix job use.
 pluginManagement {
-    val tabulaRepo: String? = System.getenv("TABULA_MAVEN_REPO")?.takeIf { it.isNotBlank() }
+    val tabulaRepo: String? = System.getenv("TABULAR_CENTER_MAVEN_REPO")?.takeIf { it.isNotBlank() }
     repositories {
         if (tabulaRepo != null) {
             maven { url = uri(tabulaRepo) }

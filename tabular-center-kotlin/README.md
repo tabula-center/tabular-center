@@ -1,4 +1,4 @@
-# tabula — Kotlin
+# tabular-center — Kotlin
 
 ## Status: M2 passed
 

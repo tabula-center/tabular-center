@@ -68,7 +68,7 @@ in
     ${lib.optionalString (swiftDeps != null) ''
       # The offline checkout set, exported rather than searched for: nix built
       # the directory and knows where it is.
-      export TABULA_SWIFT_DEPS="${swiftDeps}"
+      export TABULAR_CENTER_SWIFT_DEPS="${swiftDeps}"
     ''}
     ./tabular-center-swift/tools/verify swift-macros
   '';

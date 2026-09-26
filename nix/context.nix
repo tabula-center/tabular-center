@@ -30,7 +30,7 @@ let
   # the derivation for all of them: it is only variables (JAVA_HOME, NIX_CC),
   # and one builder is simpler than two that differ by an attribute set.
   mkCheck = name: inputs: script:
-    pkgs.runCommand "tabula-check-${name}"
+    pkgs.runCommand "tabular-center-check-${name}"
       ({
         nativeBuildInputs = commonInputs ++ inputs;
       } // allEnv)
@@ -39,7 +39,7 @@ let
         export CARGO_HOME="$TMPDIR/cargo"
         export GRADLE_USER_HOME="$TMPDIR/gradle"
         export CARGO_NET_OFFLINE=true
-        export TABULA_OFFLINE=1
+        export TABULAR_CENTER_OFFLINE=1
         mkdir -p "$HOME" "$CARGO_HOME" "$GRADLE_USER_HOME"
 
         cp -r ${self} src && chmod -R u+w src && cd src
@@ -52,7 +52,7 @@ let
     packages = commonInputs ++ extra;
     GRADLE_USER_HOME = "./.gradle-home";
     shellHook = ''
-      echo "tabula :: ${name}"
+      echo "tabular-center :: ${name}"
       ${lib.optionalString (!toolchains.swift.available) ''
         echo "  note: no swift toolchain on ${system}; tabular-center-swift/ is skipped."
       ''}

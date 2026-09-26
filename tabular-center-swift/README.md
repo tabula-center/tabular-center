@@ -1,4 +1,4 @@
-# tabula — Swift
+# tabular-center — Swift
 
 ## Status: passing
 
