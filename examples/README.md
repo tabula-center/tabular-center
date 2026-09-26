@@ -113,7 +113,7 @@ They are chosen to cover the edges rather than to look impressive:
 - **`login`** is a parent and a child, so it exercises `DELEGATE`, the lens,
   and the property that a hole in the child breaks the parent's build.
 
-For the N×M cost at realistic scale, see `rust/tabula/tests/scale.rs` — a
+For the N×M cost at realistic scale, see `tabular-center-rust/tabula/tests/scale.rs` — a
 genuine 8×12 machine, measured rather than described.
 
 ## Running them
@@ -131,9 +131,10 @@ the way a user would**, outside the main build: `examples/rust` is its own cargo
 workspace and `examples/swift-examples` its own SwiftPM package.
 
 That last directory is not called `swift` because SwiftPM derives a path
-dependency's identity from its directory basename: with the library at `swift/`
-and the examples at `examples/swift/`, both become `swift` and the package
-appears to depend on itself. That is the only place
+dependency's identity from its directory basename: with the library at `swift/`,
+as it was before the tabular-center rename, and the examples at
+`examples/swift/`, both became `swift` and the package appeared to depend on
+itself. The library is `tabular-center-swift/` now; the name stays. That is the only place
 the public API is exercised from outside, and it is how the driver's borrow bug
 was found — every unit test had passed because none of them needed two closures
 to touch the same state.

@@ -49,16 +49,16 @@ in
       # VERSION is the single source of truth; every manifest is derived from
       # it. Three files drifting apart is the normal way a polyglot release
       # goes wrong.
-      sed -i "s/^version = \".*\"$/version = \"$version\"/" rust/Cargo.toml
-      if [ -f kotlin/build.gradle.kts ]; then
-        sed -i "s/^version = \".*\"$/version = \"$version\"/" kotlin/build.gradle.kts
+      sed -i "s/^version = \".*\"$/version = \"$version\"/" tabular-center-rust/Cargo.toml
+      if [ -f tabular-center-kotlin/build.gradle.kts ]; then
+        sed -i "s/^version = \".*\"$/version = \"$version\"/" tabular-center-kotlin/build.gradle.kts
       fi
 
       # Bumping a version stales every Cargo.lock that records it -- including
       # the examples', which pin tabula by path. Without this, `--locked` fails
       # everywhere and the error names the lockfile rather than the bump.
       echo "== refreshing lockfiles =="
-      (cd rust && cargo update --workspace --offline)
+      (cd tabular-center-rust && cargo update --workspace --offline)
       (cd examples/rust && cargo update --workspace --offline)
 
       echo "== verifying =="
@@ -98,9 +98,9 @@ in
       # library it is declared in, so there is nothing to separate. The
       # conformance harness and the examples are publish = false.
       if [ "$execute" -eq 1 ]; then
-        (cd rust && cargo publish -p tabula)   # needs CARGO_REGISTRY_TOKEN
+        (cd tabular-center-rust && cargo publish -p tabula)   # needs CARGO_REGISTRY_TOKEN
       else
-        (cd rust && cargo publish -p tabula --dry-run)
+        (cd tabular-center-rust && cargo publish -p tabula --dry-run)
       fi
 
       ${lib.optionalString has.kotlinGradle ''
@@ -112,9 +112,9 @@ in
         for m in tabula-core tabula-annotations tabula-codegen tabula-ksp tabula-testing; do
           echo "  -> $m"
           if [ "$execute" -eq 1 ]; then
-            (cd kotlin && gradle --no-daemon ":$m:publish")
+            (cd tabular-center-kotlin && gradle --no-daemon ":$m:publish")
           else
-            (cd kotlin && gradle --no-daemon ":$m:publishToMavenLocal")
+            (cd tabular-center-kotlin && gradle --no-daemon ":$m:publishToMavenLocal")
           fi
         done
       ''}

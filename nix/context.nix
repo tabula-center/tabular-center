@@ -35,14 +35,14 @@ let
   # word. A gate that names a path which does not exist cannot report that it
   # is off; that is what makes this class of bug expensive.
   has = {
-    kotlin = builtins.pathExists ../kotlin/core/dev/tabula/Step.kt;
+    kotlin = builtins.pathExists ../tabular-center-kotlin/core/dev/tabula/Step.kt;
     # Read by nix/publish.nix only: Maven publication needs a Gradle build the
     # library does not have yet (RELEASING.md). No CHECK gates on this -- the
     # zero-runtime-dependency rule is enforced by the `kotlin` step compiling
     # tabula-core against an empty classpath, not by a dependency report.
-    kotlinGradle = builtins.pathExists ../kotlin/settings.gradle.kts;
-    swift = builtins.pathExists ../swift/Package.swift;
-    rustConformance = builtins.pathExists ../rust/tabula-conformance/Cargo.toml;
+    kotlinGradle = builtins.pathExists ../tabular-center-kotlin/settings.gradle.kts;
+    swift = builtins.pathExists ../tabular-center-swift/Package.swift;
+    rustConformance = builtins.pathExists ../tabular-center-rust/tabula-conformance/Cargo.toml;
     examples = builtins.pathExists ../examples/rust/Cargo.toml;
 
     # The KSP example can build offline exactly when the lock exists. Gating on
@@ -51,7 +51,7 @@ let
     # ships it -- and what was ever missing is the artifacts.
     gradleLock = builtins.pathExists ../nix/gradle-lock.json;
 
-    # Same gate, same reasoning, for SwiftPM. `swift/macros` is the only thing
+    # Same gate, same reasoning, for SwiftPM. `tabular-center-swift/macros` is the only thing
     # in the repository that links a remote package.
     swiftLock = builtins.pathExists ../nix/swift-lock.json;
   };
@@ -78,8 +78,8 @@ let
     else null;
 
   rustToolchain =
-    if builtins.pathExists ../rust/rust-toolchain.toml
-    then pkgs.rust-bin.fromRustupToolchainFile ../rust/rust-toolchain.toml
+    if builtins.pathExists ../tabular-center-rust/rust-toolchain.toml
+    then pkgs.rust-bin.fromRustupToolchainFile ../tabular-center-rust/rust-toolchain.toml
     else
       pkgs.rust-bin.stable."1.75.0".default.override {
         extensions = [ "rust-src" "rust-analyzer" "clippy" "rustfmt" ];
@@ -194,7 +194,7 @@ let
   # This was `pkgs.kotlin`, which is whatever the nixpkgs channel ships. The
   # rest of the repository says 2.1.20 in four places -- both Gradle builds'
   # `kotlin("jvm")`, the KSP pair `2.1.20-1.0.32`, ci.yml's check-no-nix
-  # download, and kotlin/README.md's "verified against kotlinc 2.1.20" -- and
+  # download, and tabular-center-kotlin/README.md's "verified against kotlinc 2.1.20" -- and
   # the flake alone floated. Moving `nixpkgs` from 25.05 to 26.05 for Swift
   # therefore moved the Kotlin compiler as a side effect, which is the exact
   # shape 0c warned about: a change to one language's toolchain landing in
@@ -290,7 +290,7 @@ let
         #
         # Here rather than in the one check that "needs" it: `clippy` resolves
         # the examples workspace too, and so does anything else that runs cargo
-        # outside rust/. Wiring it per check meant listing which ones touch
+        # outside tabular-center-rust/. Wiring it per check meant listing which ones touch
         # cargo, and that list was wrong the first time -- clippy failed with
         # "no matching package named `iced`" while the examples check was fine.
         mkdir -p "$CARGO_HOME"
@@ -377,7 +377,7 @@ let
     shellHook = ''
       echo "tabula :: ${name}"
       ${lib.optionalString (!swiftAvailable) ''
-        echo "  note: no swift toolchain on ${system}; swift/ is skipped."
+        echo "  note: no swift toolchain on ${system}; tabular-center-swift/ is skipped."
       ''}
       ${lib.optionalString (name == "swift" || name == "all") ''
         # The shell opens at the repository root and there is no Package.swift
@@ -385,7 +385,7 @@ let
         # Package.swift". There are three of them, and which one you want is
         # not guessable -- so say so rather than cd somewhere on someone's
         # behalf.
-        echo "  swift packages: swift/ (core)  examples/swift-examples/  swift/macros/ (will not build here)"
+        echo "  swift packages: tabular-center-swift/ (core)  examples/swift-examples/  tabular-center-swift/macros/ (will not build here)"
         echo "  cd into one before \`swift build\`, or run ./tools/verify swift"
       ''}
     '';

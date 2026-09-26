@@ -18,5 +18,5 @@ publish = false
 # `nix/context.nix` vendors this package's own `Cargo.lock` -- the offline
 # check cannot fetch iced's several hundred transitive crates.
 [dependencies]
-tabula = { path = "../../../rust/tabula" }
+tabula = { path = "../../../tabular-center-rust/tabula" }
 iced = "0.13"

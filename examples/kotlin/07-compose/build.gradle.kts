@@ -34,8 +34,8 @@ repositories {
 
 // tabula from source, as every other example does.
 sourceSets["main"].kotlin.srcDir("src")
-sourceSets["main"].kotlin.srcDir("../../../kotlin/core")
-sourceSets["main"].kotlin.srcDir("../../../kotlin/annotations")
+sourceSets["main"].kotlin.srcDir("../../../tabular-center-kotlin/core")
+sourceSets["main"].kotlin.srcDir("../../../tabular-center-kotlin/annotations")
 sourceSets["test"].kotlin.srcDir("test")
 sourceSets["test"].kotlin.srcDir("../harness")
 

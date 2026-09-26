@@ -20,7 +20,7 @@ that interface, reproduced in eight lines.
 
 That is the point of the example. tabula decides *what a machine does*; this
 decides *where the machine lives*, and the two are separable. Nothing in
-`kotlin/core` knows about Compose, and nothing here changes tabula.
+`tabular-center-kotlin/core` knows about Compose, and nothing here changes tabula.
 
 ## What each layer may do
 

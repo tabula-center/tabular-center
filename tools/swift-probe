@@ -12,4 +12,4 @@ root="$(dirname "$(dirname "$(readlink -f "$(command -v swiftc)")")")"
 echo "toolchain root: $root"
 find "$root" -name 'libdispatch*' 2>/dev/null | head -5
 echo; echo "== what the binary wants =="
-ldd swift/.build/*/release/tabula-check 2>/dev/null | grep -i 'not found' | head -5
+ldd tabular-center-swift/.build/*/release/tabula-check 2>/dev/null | grep -i 'not found' | head -5

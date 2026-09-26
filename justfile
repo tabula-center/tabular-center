@@ -17,16 +17,16 @@ check:
     nix flake check --print-build-logs
 
 fmt:
-    cd rust && cargo fmt --all
+    cd tabular-center-rust && cargo fmt --all
 
 # Replay spec/conformance against every implementation that has landed.
 conformance:
-    cd rust && cargo run -q -p tabula-conformance
+    cd tabular-center-rust && cargo run -q -p tabula-conformance
 
 # Render a machine's matrix as a diffable grid.
 table-diff FIXTURE="":
-    cd rust && cargo run -q -p tabula-conformance --bin table-diff -- {{FIXTURE}}
+    cd tabular-center-rust && cargo run -q -p tabula-conformance --bin table-diff -- {{FIXTURE}}
 
 # Read what the macro actually generates. Reviewing this is a real exit criterion.
 expand TEST="timer_matrix":
-    cd rust && cargo expand --test {{TEST}}
+    cd tabular-center-rust && cargo expand --test {{TEST}}

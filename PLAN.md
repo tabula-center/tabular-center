@@ -56,12 +56,12 @@ Every runtime lint is tripped by at least one fixture.
 These counts are checked against the tree, not remembered. Regenerate with:
 
 ```
-grep -rho '#\[test\]' rust/ | wc -l
-ls rust/tabula/tests/compile_fail/*.rs | grep -vc _prelude
-ls -d kotlin/ksp/compile-fail/fixtures/*/ | wc -l
-ls -d swift/macros/fixtures/*/ | wc -l
-ls kotlin/compile_fail/*.kt kotlin/codegen/compile_fail/*.kt | wc -l
-ls swift/compile_fail/*.swift swift/codegen-support/compile_fail/*.swift | wc -l
+grep -rho '#\[test\]' tabular-center-rust/ | wc -l
+ls tabular-center-rust/tabula/tests/compile_fail/*.rs | grep -vc _prelude
+ls -d tabular-center-kotlin/ksp/compile-fail/fixtures/*/ | wc -l
+ls -d tabular-center-swift/macros/fixtures/*/ | wc -l
+ls tabular-center-kotlin/compile_fail/*.kt tabular-center-kotlin/codegen/compile_fail/*.kt | wc -l
+ls tabular-center-swift/compile_fail/*.swift tabular-center-swift/codegen-support/compile_fail/*.swift | wc -l
 grep -h '=>' spec/conformance/traces/*.trace | wc -l
 ls spec/conformance/*.tbl | wc -l
 ```
@@ -86,7 +86,7 @@ Breaking for every machine, which is why it was held back to its own patch.
 The gate the whole plan hung on. Kotlin 2.1.20 turned out to be reachable
 after all — the compiler ships as a GitHub release, and only *Gradle* needs
 Maven. Three properties verified, each with a fixture in
-`kotlin/compile_fail/`:
+`tabular-center-kotlin/compile_fail/`:
 
 1. Omitting a cell fails to compile, with an error that names the cell and
    shows its narrowed argument types. Arguably better than Rust's trait-bound
@@ -130,7 +130,7 @@ The other direction, in priority order:
   copied, never enumerated (ARCHITECTURE 5), but `Handle` is a *library* trait
   and has no declaration to copy them onto.
 - **`kotlin-no-runtime-deps` could never exist.** It was gated on
-  `kotlin/settings.gradle.kts`, which ARCHITECTURE 12 says the library will
+  `tabular-center-kotlin/settings.gradle.kts`, which ARCHITECTURE 12 says the library will
   never have, ran `:tabula-core` from a Gradle build that does not exist, and
   bypassed `tools/verify`. A permanently absent check -- the shape 0c and 0d
   both warn about -- guarding a rule the `kotlin` step already enforces by
@@ -251,12 +251,12 @@ The other direction, in priority order:
       for. What is lost: a lint or coverage change no longer shows as a diff
       in review, only as agreement or disagreement.
 - [x] **Generated code is not committed** -- as source or as a golden. The
-      emitted-source goldens (`kotlin/codegen/golden/`, `kotlin/ksp/golden/`,
-      `swift/codegen-golden/`) are gone, and each guarantee they carried is
+      emitted-source goldens (`tabular-center-kotlin/codegen/golden/`, `tabular-center-kotlin/ksp/golden/`,
+      `tabular-center-swift/codegen-golden/`) are gone, and each guarantee they carried is
       checked from source instead. That the output is valid and enforces the
       guarantee: the compile stages of `kotlin-codegen` and `swift-codegen`,
       which were always the half that mattered. Determinism: each check emits
-      twice. KSP extraction: `kspTwins` in `kotlin/codegen/Main.kt` states
+      twice. KSP extraction: `kspTwins` in `tabular-center-kotlin/codegen/Main.kt` states
       what each example machine must extract to, and `kotlin-ksp` diffs the
       twins' output against what KSP generated -- both produced at check
       time, both directions enumerated. `no-generated` fails on `*.golden`,
@@ -360,16 +360,16 @@ deprecation period, and `VERSION` stays where it is.
 
 ### R1. Directories -- paths only
 
-- [ ] `git mv` the three directories. Nothing inside them is renamed
-- [ ] Every path that names them: `tools/`, `nix/`, `.gitignore`, `ci.yml`,
+- [x] `git mv` the three directories. Nothing inside them is renamed
+- [x] Every path that names them: `tools/`, `nix/`, `.gitignore`, `ci.yml`,
       the `justfile`, the docs, and the example manifests' `path =` lines
-- [ ] SwiftPM names a path dependency by its directory's basename, so
+- [x] SwiftPM names a path dependency by its directory's basename, so
       `.product(name: "Tabula", package: "swift")` becomes
       `package: "tabular-center-swift"` in `examples/swift-examples` and in
-      `swift/macros`. The one place a directory name is an identifier
-- [ ] Gradle is unaffected: included builds are named by `rootProject.name`,
+      `tabular-center-swift/macros`. The one place a directory name is an identifier
+- [x] Gradle is unaffected: included builds are named by `rootProject.name`,
       which each `settings.gradle.kts` already sets
-- [ ] `examples/<lang>/` keeps its name. It is not an implementation and the
+- [x] `examples/<lang>/` keeps its name. It is not an implementation and the
       rename is about those
 
 ### R2. One flake per implementation, composed at the root
@@ -458,7 +458,7 @@ is committed (108 artifacts, produced by gradle 8.14.4). Kept for the record:
 
 1. **`nix flake update`.** `flake.nix` now asks for `nixos-26.05` instead of
    `nixos-25.05`, to get a Swift whose SwiftPM ships `CompilerPluginSupport` —
-   the thing that actually blocks `swift/macros`, ahead of swift-syntax being
+   the thing that actually blocks `tabular-center-swift/macros`, ahead of swift-syntax being
    remote. `flake.lock` still pins 25.05 and cannot be regenerated offline.
 2. **One run of `./tools/gradle-lock`.** It resolves the KSP example against
    real repositories and writes `nix/gradle-lock.json`. Commit that and
@@ -483,12 +483,13 @@ lockfile; Gradle has no equivalent, so 0d writes one.
 
 `nix/context.nix` gated every Kotlin check on `builtins.pathExists
 ../kotlin/src`. There is no `kotlin/src` and there never has been: the tree is
-`kotlin/{core,annotations,testing,codegen,test,conformance,compile_fail,ksp}`.
+`kotlin/{core,annotations,testing,codegen,test,conformance,compile_fail,ksp}`
+(`tabular-center-kotlin/` since the rename).
 So `has.kotlin` was always false, `nix/checks.nix` dropped all six Kotlin
 checks, and `ci.yml`'s `check` job — which runs `nix flake check` and nothing
 else — ran none of them. Kotlin was covered only by `check-no-nix`.
 
-The gate now names `kotlin/core/dev/tabula/Step.kt`, which is the file every
+The gate now names `tabular-center-kotlin/core/dev/tabula/Step.kt`, which is the file every
 Kotlin step compiles first. Kotlin has no build file to gate on, deliberately
 (ARCHITECTURE 11.2), so the core source is the honest stand-in.
 
@@ -509,9 +510,9 @@ Two things this is worth recording for:
   2. `kotlin-matrix-stable` is gated on ktlint being present *and* on
      `has.kotlin`. `check-no-nix` installs no ktlint and the flake dropped the
      check, so it had executed in neither. With `pkgs.ktlint` it runs — and the
-     matrix it guards was in `kotlin/test/ReferenceTimer.kt`, outside the
+     matrix it guards was in `tabular-center-kotlin/test/ReferenceTimer.kt`, outside the
      `[*.tb.kt]` exemption in `.editorconfig`. Moved to
-     `kotlin/test/TimerSpec.tb.kt`; see `spec/matrix-files.md`, which had
+     `tabular-center-kotlin/test/TimerSpec.tb.kt`; see `spec/matrix-files.md`, which had
      already written down that the library's own matrices had not moved yet.
 
 `docs` was in `nix/checks.nix` but not in `tools/verify`'s default step list,
@@ -565,7 +566,7 @@ what the check builds.
       job. That job has network and the nix jobs do not, so it is the only
       place lock drift can be caught.
 - [x] `nix/gradle-repo.nix`, `nix build .#gradle-repo`, `has.gradleLock`.
-- [x] `kotlin/ksp/settings.gradle.kts`. Its absence was recorded as "harmless
+- [x] `tabular-center-kotlin/ksp/settings.gradle.kts`. Its absence was recorded as "harmless
       for a build, wrong for publication" and stopped being harmless: an
       included build resolves plugins through its own `pluginManagement`, so
       without it the processor reached for the plugin portal no matter how the
@@ -623,7 +624,7 @@ It also reaches what the Nix jobs structurally cannot: the sandbox has no
 network, so Gradle and KSP are skipped in all of them. With Maven available,
 `examples/kotlin/06-generated` is the only consumer of the annotation processor
 and this is the only job that exercises it. Expect it to be the noisy one:
-`kotlin/ksp` has never executed and two bugs in its build file were found by
+`tabular-center-kotlin/ksp` has never executed and two bugs in its build file were found by
 reading alone.
 
 ### 0. docs/ is no longer committed
@@ -779,9 +780,9 @@ owner.
 It runs now: see 0d, and 0f below. The rest of this entry is the history of
 getting there.
 
-`kotlin/ksp/` was the only code in the repository that had never executed —
+`tabular-center-kotlin/ksp/` was the only code in the repository that had never executed —
 there is no Gradle, and KSP is a Maven artifact this environment cannot reach.
-`kotlin/ksp/README.md` records what will break first, re-read against the code
+`tabular-center-kotlin/ksp/README.md` records what will break first, re-read against the code
 rather than remembered. The headline: `getDeclaredFunctions` cannot compile as
 written — the shim calls a KSP *extension* by fully-qualified name with the
 receiver as an argument, which is not Kotlin. Expect the first failure there,
@@ -844,7 +845,7 @@ green in CI for all three languages.
 **Risk:** Swift toolchain on Linux via nixpkgs is the known-flaky piece. Do not
 let it block Phase 0 — pin it, mark it best-effort, move on.
 
-**Outcome:** done. Swift jobs in CI are gated on `hashFiles('swift/Package.swift')`
+**Outcome:** done. Swift jobs in CI are gated on `hashFiles('tabular-center-swift/Package.swift')`
 so they no-op until Phase 5 rather than sitting red.
 
 ---
@@ -865,7 +866,7 @@ defines the target.
 - [x] Tests: every cell, plus a trace-replay harness
 
 **Deliverable that matters:** the hand-written dispatcher is the macro's
-specification. It lives at `rust/tabula/tests/reference_timer.rs` — a test
+specification. It lives at `tabular-center-rust/tabula/tests/reference_timer.rs` — a test
 rather than an example, so `cargo test` keeps it honest — and must keep
 building forever.
 
@@ -1087,7 +1088,7 @@ the build with a comprehensible message; the developer's source file contains no
       a dependency report: with no build system there is no classpath but the
       stdlib, and the `kotlin` step compiles `tabula-core` against an empty
       one. A Gradle dependency-report check once sat in `nix/checks.nix`,
-      gated on a `kotlin/settings.gradle.kts` the library will never have;
+      gated on a `tabular-center-kotlin/settings.gradle.kts` the library will never have;
       removed by the September 2026 audit.
 - [x] `SuspendDriver` exercised. It was not, until after Swift's `AsyncDriver`
       turned out to have the same gap — the blocking driver had checks from the
@@ -1124,7 +1125,7 @@ the build with a comprehensible message; the developer's source file contains no
       builds `examples/kotlin/06-generated` against the locked artifact set
       (see 0d), and the processor is exercised on every check rather than on a
       machine that happens to have Maven.
-- [x] The output held to a golden, `kotlin/ksp/golden/TurnstileGenerated.kt`.
+- [x] The output held to a golden, `tabular-center-kotlin/ksp/golden/TurnstileGenerated.kt`.
       The example compiling was the weaker claim: it proves `Cells` has a
       member `Impl.kt` can override and that `step` type-checks, and nothing
       about the table. Rows read out of order, an effect dropped from a `GO`
@@ -1138,7 +1139,7 @@ The split is worth keeping after KSP lands. A generator whose logic can only be
 exercised through a compiler plugin is a generator nobody refactors.
 
 **4c-old. KSP processor** *(the shape it must emit is fixed by
-`kotlin/test/ReferenceTimer.kt` and `codegen/golden/`)*
+`tabular-center-kotlin/test/ReferenceTimer.kt` and `codegen/golden/`)*
 - [x] Core (`Step`, `Cell`, `Table`, `Export`, `Lint`, `Driver`,
       `SuspendDriver`, annotations), compiled by `kotlinc` with no build system
 - [x] Hand-written reference machine — KSP's specification, the exact
@@ -1149,8 +1150,8 @@ exercised through a compiler plugin is a generator nobody refactors.
       there is no classpath but the stdlib. `SuspendDriver` needs only the
       `suspend` keyword, proven by driving it with `kotlin.coroutines`
       intrinsics in `test/RunSuspend.kt`.
-Re-read against `kotlin/ksp/src/main/kotlin/dev/tabula/ksp/TabulaProcessor.kt`
-and `kotlin/ksp/golden/`, not guessed (0f asked for exactly this pass):
+Re-read against `tabular-center-kotlin/ksp/src/main/kotlin/dev/tabula/ksp/TabulaProcessor.kt`
+and `tabular-center-kotlin/ksp/golden/`, not guessed (0f asked for exactly this pass):
 
 - [x] ~~Resolve sealed hierarchies to ordered variant lists~~ — **superseded.**
       Order is declared, not discovered: `@Machine(states = [...], actions =
@@ -1175,7 +1176,7 @@ and `kotlin/ksp/golden/`, not guessed (0f asked for exactly this pass):
       arrived in Kotlin 2.2.0 as a preview behind `-Xcontext-parameters` and
       are stable only from 2.4, and the flake pins kotlinc 2.1.20, where the
       syntax does not parse. Bumping it moves the message text the
-      `kotlin/compile_fail/` fixtures match (0f), and KSP with it — a decision
+      `tabular-center-kotlin/compile_fail/` fixtures match (0f), and KSP with it — a decision
       of its own. Once made, this is one more branch in `prototypeModifiers`
       and a `-Xcontext-parameters` in the example build.
 - [x] ~~Emit abstract class~~ — **superseded** by `codegen/Emit.kt`: the
@@ -1235,7 +1236,7 @@ four fixtures pass, with the same golden `.grid` and `.lint` files.
 
 - [x] `Step`, `Cell`, `Table`, `Export`, `Lint`, `Driver`, testing harness
 - [x] Reference machine and compile-fail suite, the counterparts of
-      `reference_timer.rs` and `kotlin/compile_fail/`
+      `reference_timer.rs` and `tabular-center-kotlin/compile_fail/`
 - [x] `Sources/TabulaCodegen`: the same `MachineDesc -> String` split Kotlin
       took, with 13 declaration diagnostics. *Its golden diff was later
       removed with every other emitted-source golden: `swift-codegen`
@@ -1255,7 +1256,7 @@ four fixtures pass, with the same golden `.grid` and `.lint` files.
       a SwiftUI view reading it would subscribe to nothing and never update.
       The copy is confined to this one type.
 - [x] First coverage for `AsyncDriver`, which had none. Sixty lines of
-      duplicated loop, documented in `swift/README.md`, run by nothing. The
+      duplicated loop, documented in `tabular-center-swift/README.md`, run by nothing. The
       check asserts the two colors report identical `Progress` for identical
       input, since that is the property duplication threatens
 - [ ] `@Machine` attached macro (SwiftSyntax, **build-time only** — assert with
@@ -1524,7 +1525,7 @@ comparatively cheap; everything after it assumes M2 held.
 | KSP incremental processing misses sealed-hierarchy changes | 4c | Explicit dependency tracking + a regression test that edits `S` |
 | Swift macro diagnostics land on wrong source lines | 5 | Accept row-level positions in v1, document in spec |
 | Three implementations drift | 3+ | Conformance suite gates merges. Phase 2 proved this must compare **behaviour**, not generated source: Rust names cells by trait bound, Kotlin and Swift by identifier. |
-| ~~N×M cell count makes real machines unpleasant~~ | any | **Measured** on a genuine 8×12 order machine: 96 cells, 78% `IGNORE`, **9 members to write**. Two costs found and recorded — a raised `recursion_limit` past ~7×10, and `ignore-heavy` firing on a machine that arguably is two machines. See `rust/tabula/tests/scale.rs`. |
+| ~~N×M cell count makes real machines unpleasant~~ | any | **Measured** on a genuine 8×12 order machine: 96 cells, 78% `IGNORE`, **9 members to write**. Two costs found and recorded — a raised `recursion_limit` past ~7×10, and `ignore-heavy` firing on a machine that arguably is two machines. See `tabular-center-rust/tabula/tests/scale.rs`. |
 
 ---
 
@@ -1645,7 +1646,7 @@ The Swift generator's logic is done and testable (`Sources/TabulaCodegen`, 13
 diagnostics plus a golden diff). What was left was the macro that parses syntax
 into a `RawMachine`, and one packaging decision that had to come first.
 
-**Chosen: option 2.** `swift/macros/` is its own SwiftPM package, built in the
+**Chosen: option 2.** `tabular-center-swift/macros/` is its own SwiftPM package, built in the
 dev shell and reported as `skip` by `nix flake check` rather than passing
 silently.
 
@@ -1655,7 +1656,7 @@ macro's *declaration* must live wherever users import it from, and
 `Tabula` makes `Tabula` depend on the macro target and therefore on
 swift-syntax. **There is no arrangement where the macro lives in the main
 package and the main package stays offline-buildable.** The declaration
-therefore lives in `swift/macros` too, and a user who wants the macro takes a
+therefore lives in `tabular-center-swift/macros` too, and a user who wants the macro takes a
 second dependency while a user who does not pays nothing.
 
 Option 1 — vendoring swift-syntax with `swiftpm2nix` or a fixed-output
@@ -1670,7 +1671,7 @@ adopted later without moving any code: only `nix/` changes.
       resolution. No macro package can be declared with it. Vendoring
       swift-syntax would not help; this needs a SwiftPM that ships the module,
       which in practice means Darwin or a non-nix toolchain.
-- [x] `swift/macros/SURFACE.md`: the declaration surface and its field-by-field
+- [x] `tabular-center-swift/macros/SURFACE.md`: the declaration surface and its field-by-field
       mapping to `RawMachine`. The reviewable half, settled first because the
       traversal's shape follows from it and nothing here can compile a
       traversal. Rows are **aligned array literals**, matching Rust and Kotlin:
@@ -1736,7 +1737,7 @@ extension narrows that to exactly the files that need it.
 - [ ] `tabula-fmt` itself, at the repository root in `tabula-fmt/`. One tool
       for all three languages: the matrices differ in punctuation and agree in
       structure, and a tool that parses neither Rust nor Kotlin is correct for
-      both. Root rather than inside `rust/` because a home in one language's
+      both. Root rather than inside `tabular-center-rust/` because a home in one language's
       directory would imply an ownership that is not true — it belongs to the
       `.tb.` format, which is language-agnostic.
 
@@ -1871,7 +1872,7 @@ gets far enough to use. So (2) has to be answered first, and answering it is
 one command on a machine with a Swift toolchain:
 
 ```
-cd swift/macros && swift build
+cd tabular-center-swift/macros && swift build
 ```
 
 `no such module 'CompilerPluginSupport'` means (2) is live and the lock is
@@ -1903,9 +1904,9 @@ from an older toolchain -- and the lock is the whole remaining job.
       the part with no decisions in it. `SURFACE.md`'s two open questions
       become answerable by a test rather than by a toolchain upgrade.
 
-- [x] Export `TabulaCodegen` as a product of `swift/Package.swift`. With the
+- [x] Export `TabulaCodegen` as a product of `tabular-center-swift/Package.swift`. With the
       manifest compiling, resolution got far enough to find the next blocker,
-      which had been sitting behind it since `swift/macros` was written:
+      which had been sitting behind it since `tabular-center-swift/macros` was written:
 
       ```
       error: 'macros': product 'TabulaCodegen' required by package 'macros'
@@ -1933,11 +1934,11 @@ from an older toolchain -- and the lock is the whole remaining job.
 - [x] The half of `MachineMacro` that needs no plugin wiring:
       `Sources/TabulaMacroSyntax/MachineSyntax.swift`, SwiftSyntax to
       `RawMachine`, checked by `TabulaMacroSyntaxCheck` against the 11
-      rejection fixtures in `swift/macros/fixtures/`.
+      rejection fixtures in `tabular-center-swift/macros/fixtures/`.
 - [ ] Restore `pending/Machine.swift` and the `.macro` target on a SwiftPM
       that ships `CompilerPluginSupport`. Only `Package.swift` changes.
       `nix/swiftpm-plugin-support.nix` now builds the module; what remains, per
-      the note at the top of `swift/macros/Package.swift`, is that
+      the note at the top of `tabular-center-swift/macros/Package.swift`, is that
       `swift build` still loads nixpkgs' original ManifestAPI rather than the
       augmented one. `tools/verify swift-macro-support` reports which.
 
@@ -1951,9 +1952,9 @@ anything.
 **The flake's kotlinc floated.** `kotlinInputs` took `pkgs.kotlin`, whatever
 the channel ships. Every other place names 2.1.20: both `build.gradle.kts`
 files, the KSP pair `2.1.20-1.0.32`, `ci.yml`'s check-no-nix download, and
-`kotlin/README.md`. The bump from `nixos-25.05` to `nixos-26.05` -- made for
+`tabular-center-kotlin/README.md`. The bump from `nixos-25.05` to `nixos-26.05` -- made for
 Swift -- therefore changed the Kotlin compiler too, silently, and the four
-`kotlin/compile_fail/` fixtures plus `codegen/compile_fail/` match kotlinc's
+`tabular-center-kotlin/compile_fail/` fixtures plus `codegen/compile_fail/` match kotlinc's
 own message text, which a compiler release is free to reword. Same shape as
 0c: a change to one language's toolchain landing in another's checks.
 
@@ -1967,7 +1968,7 @@ own message text, which a compiler release is free to reword. Same shape as
 
 **`06-generated`'s checks were compiled and never run.** `test/GeneratedTest.kt`
 and `test/GateTest.kt` are `main` functions; `gradle build` compiled them and
-its JUnit `test` task found nothing to discover and passed. `kotlin/ksp/README.md`
+its JUnit `test` task found nothing to discover and passed. `tabular-center-kotlin/ksp/README.md`
 said "the behavioural checks passing against it". They had never executed --
 including `GateTest`, the only check on the suspend machine driven by
 `SuspendDriver`.
@@ -1978,8 +1979,8 @@ including `GateTest`, the only check on the suspend machine driven by
 - [x] `GateImpl.chime`'s doc described a follow-up the code does not return.
 
 **Docs that had fallen behind the tree**, corrected in the same patch:
-`ARCHITECTURE` 12/13 and `kotlin/README.md` still said KSP had never run and
-that 06-generated is skipped under nix; `kotlin/ksp/build.gradle.kts` was
+`ARCHITECTURE` 12/13 and `tabular-center-kotlin/README.md` still said KSP had never run and
+that 06-generated is skipped under nix; `tabular-center-kotlin/ksp/build.gradle.kts` was
 headed UNVERIFIED; the 0b and 0d boxes above were open for work that is in
 the tree; the status counts were a release behind.
 
@@ -2432,7 +2433,7 @@ check cannot cover three.
   would then demand the collapsed form forever after.
 - **Swift.** Nothing to check against yet, which is not the same as safe.
 
-- [x] `rust-matrix-stable`, scanning `rust/` and `examples/rust/`. Separate
+- [x] `rust-matrix-stable`, scanning `tabular-center-rust/` and `examples/rust/`. Separate
       from `rust-fmt` because `cargo fmt --check` asks whether the tree matches
       rustfmt's opinion, and this asks whether rustfmt has one about matrices
       at all.
@@ -2478,12 +2479,12 @@ in `rust-fmt`; ktlint is on the path and a contributor may reach for it.
 `swift-format` is not used anywhere in this repository, so a
 `swift-matrix-stable` would guard a formatter nobody invokes.
 
-**What it costs.** A second remote SwiftPM dependency in `swift/macros`, which
+**What it costs.** A second remote SwiftPM dependency in `tabular-center-swift/macros`, which
 means `nix run .#swift-lock` again and swift-format's own tree — swift-syntax,
 swift-argument-parser and more — entering every `swift-macros` build.
 
 **And a version trap.** swift-format's releases track swift-syntax's:
-swift-format 510 requires swift-syntax 510, and `swift/macros` pins
+swift-format 510 requires swift-syntax 510, and `tabular-center-swift/macros` pins
 `from: "509.0.0"`, resolving to 509.1.1. Taking swift-format 510 drags
 swift-syntax to 510 underneath `MachineSyntax`, so the traversal's API surface
 moves as a side effect of adding a formatter check. swift-format 509.0.0 avoids

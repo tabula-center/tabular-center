@@ -61,7 +61,7 @@ let
     runtimeInputs = commonInputs ++ [ pkgs.git ] ++ rustInputs;
     text = ''
       ${cdRoot}
-      cd rust
+      cd tabular-center-rust
       cargo run -q -p tabula-conformance --bin table-diff --offline --locked -- "$@"
     '';
   };
@@ -202,7 +202,7 @@ in
     "Run the same checks nix flake check runs, without the sandbox";
 
   swift-lock = app swiftLock "tabula-swift-lock"
-    "Resolve swift/macros against the network and write nix/swift-lock.json";
+    "Resolve tabular-center-swift/macros against the network and write nix/swift-lock.json";
 
   gradle-lock = app gradleLock "tabula-gradle-lock"
     "Resolve the KSP example against Maven and write nix/gradle-lock.json";

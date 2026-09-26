@@ -1,4 +1,4 @@
-// The KSP example's settings. This build has run: see kotlin/ksp/README.md,
+// The KSP example's settings. This build has run: see tabular-center-kotlin/ksp/README.md,
 // where the missing `../harness` source set was found by running it.
 // Where plugins come from, declared rather than defaulted.
 //
@@ -15,7 +15,7 @@
 //
 // TABULA_MAVEN_REPO switches the whole set for one offline directory. An
 // environment variable, not a Gradle property: `-P` does not cross into an
-// included build, and `kotlin/ksp` is one -- so a property would configure
+// included build, and `tabular-center-kotlin/ksp` is one -- so a property would configure
 // this build and leave the processor still reaching for the network, which
 // fails later, elsewhere, and reads like a different problem.
 //
@@ -48,7 +48,7 @@ rootProject.name = "tabula-example-compose"
 // says "resolve that from source, here". Nothing is published to that
 // coordinate; it exists to be named, which is the point -- when the processor
 // is published, deleting this block is the whole migration.
-includeBuild("../../../kotlin/ksp") {
+includeBuild("../../../tabular-center-kotlin/ksp") {
     dependencySubstitution {
         substitute(module("dev.tabula:tabula-ksp"))
             .using(project(":"))

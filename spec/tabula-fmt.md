@@ -4,7 +4,7 @@ A formatter for `*.tb.rs`, `*.tb.kt` and `*.tb.swift`. It has exactly one job:
 **pad cells so the columns line up.** Everything else it might plausibly do is
 listed below as something it must not.
 
-Written before the tool, for the reason `swift/macros/SURFACE.md` was: the
+Written before the tool, for the reason `tabular-center-swift/macros/SURFACE.md` was: the
 contract is the part that can be reviewed by reading, and a formatter's
 contract is almost all of its risk.
 
@@ -79,11 +79,11 @@ every review into a diff of whitespace.
 
 ## Where it lives
 
-At the repository root, as `tabula-fmt/` — not inside `rust/`, `kotlin/` or
-`swift/`.
+At the repository root, as `tabula-fmt/` — not inside `tabular-center-rust/`, `tabular-center-kotlin/` or
+`tabular-center-swift/`.
 
 That placement is the same argument as the tool being one tool. A formatter
-that lived in `rust/` would be a Rust-workspace member that Kotlin and Swift
+that lived in `tabular-center-rust/` would be a Rust-workspace member that Kotlin and Swift
 developers build in order to format their own files, and its home would imply
 an ownership that is not true: it belongs to the `.tb.` format, which is
 language-agnostic, and to `spec/matrix-files.md`, which is where that format is

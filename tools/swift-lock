@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Record swift/macros' SwiftPM dependencies, with URLs and hashes.
+# Record tabular-center-swift/macros' SwiftPM dependencies, with URLs and hashes.
 #
 #   nix run .#swift-lock            regenerate nix/swift-lock.json
 #   nix run .#swift-lock -- --check verify the committed lock is current
@@ -9,7 +9,7 @@
 # different package manager, and deliberately the same shape so that reading
 # one teaches you the other.
 #
-# Why the macro package needs this at all: `swift/macros` is the only thing
+# Why the macro package needs this at all: `tabular-center-swift/macros` is the only thing
 # here that links swift-syntax, which is a remote SwiftPM package. Every other
 # Swift target builds offline, which is exactly why the macro lives in its own
 # package (PLAN, "TabulaMacros -- decided: a separate package").
@@ -44,7 +44,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
 LOCK="nix/swift-lock.json"
-PKG="swift/macros"
+PKG="tabular-center-swift/macros"
 
 check=0
 [ "${1:-}" = "--check" ] && check=1

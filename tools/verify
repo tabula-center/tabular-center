@@ -132,7 +132,7 @@ run() {
 # of trailing whitespace reached a patch that `cargo fmt --check` had passed.
 step_fmt() {
     local ok=0
-    (cd rust && cargo fmt --all -- --check) || ok=1
+    (cd tabular-center-rust && cargo fmt --all -- --check) || ok=1
     (cd examples/rust && cargo fmt --all -- --check) || ok=1
     return "$ok"
 }
@@ -159,16 +159,16 @@ step_version() {
     local want got bad=0
     want="$(cat VERSION)"
 
-    got="$(sed -n 's/^version = "\(.*\)"$/\1/p' rust/Cargo.toml | head -1)"
+    got="$(sed -n 's/^version = "\(.*\)"$/\1/p' tabular-center-rust/Cargo.toml | head -1)"
     if [ "$want" != "$got" ]; then
-        echo "VERSION says $want but rust/Cargo.toml says $got"
+        echo "VERSION says $want but tabular-center-rust/Cargo.toml says $got"
         bad=1
     fi
 
     # Both lockfiles record tabula's version: the workspace's own, and the
     # examples' because they depend on it by path.
     local lock
-    for lock in rust/Cargo.lock examples/rust/Cargo.lock; do
+    for lock in tabular-center-rust/Cargo.lock examples/rust/Cargo.lock; do
         [ -f "$lock" ] || continue
         if ! grep -A1 '^name = "tabula"$' "$lock" | grep -q "^version = \"$want\"$"; then
             echo "$lock does not record tabula $want"
@@ -179,7 +179,7 @@ step_version() {
     if [ "$bad" -ne 0 ]; then
         echo
         echo "  to resync after a version change:"
-        echo "    (cd rust && cargo update --workspace --offline)"
+        echo "    (cd tabular-center-rust && cargo update --workspace --offline)"
         echo "    (cd examples/rust && cargo update --workspace --offline)"
         echo "  or to abandon it:  git checkout -- ."
         return 1
@@ -197,11 +197,11 @@ step_clippy() {
     # then fails clippy in CI. That exact gap escaped three times.
     #
     # Both cargo workspaces, not just the main one. The examples deliberately
-    # sit outside the workspace, so `cd rust && cargo clippy` never saw them --
+    # sit outside the workspace, so `cd tabular-center-rust && cargo clippy` never saw them --
     # and five warnings sat there until someone ran `cargo check` by hand.
     local ok=0
-    if (cd rust && cargo clippy --version >/dev/null 2>&1); then
-        (cd rust && cargo clippy --all-targets --all-features $CARGO_FLAGS -- -D warnings) || ok=1
+    if (cd tabular-center-rust && cargo clippy --version >/dev/null 2>&1); then
+        (cd tabular-center-rust && cargo clippy --all-targets --all-features $CARGO_FLAGS -- -D warnings) || ok=1
         (cd examples/rust && cargo clippy --all-targets $CARGO_FLAGS -- -D warnings) || ok=1
     else
         # The fallback covers rustc's own lints (unused imports, dead code)
@@ -212,13 +212,13 @@ step_clippy() {
         echo "  Falling back to rustc lints over the same targets."
         echo "  clippy-only lints (module_inception, needless_range_loop, ...)"
         echo "  are NOT checked here. Run 'nix flake check' before trusting green."
-        (cd rust && RUSTFLAGS="-D warnings" cargo check --all-targets --all-features $CARGO_FLAGS) || ok=1
+        (cd tabular-center-rust && RUSTFLAGS="-D warnings" cargo check --all-targets --all-features $CARGO_FLAGS) || ok=1
         (cd examples/rust && RUSTFLAGS="-D warnings" cargo check --all-targets $CARGO_FLAGS) || ok=1
     fi
     return "$ok"
 }
 
-step_test() { (cd rust && cargo test --all-features $CARGO_FLAGS); }
+step_test() { (cd tabular-center-rust && cargo test --all-features $CARGO_FLAGS); }
 
 step_no_std() {
     # Phase 1 exit criterion: the core must build without std.
@@ -236,14 +236,14 @@ step_no_std() {
     # stale-lockfile error as "target unavailable" and sent a real bug looking
     # in the wrong place for an afternoon.
     local out rc
-    out="$( (cd rust && cargo build -p tabula --no-default-features $CARGO_FLAGS \
+    out="$( (cd tabular-center-rust && cargo build -p tabula --no-default-features $CARGO_FLAGS \
         --target thumbv7em-none-eabihf) 2>&1 )"
     rc=$?
     [ "$rc" -eq 0 ] && return 0
 
     if printf '%s' "$out" | grep -qE "may not be installed|not find specification for target"; then
         echo "note: thumbv7em-none-eabihf unavailable; checking --no-default-features on host"
-        (cd rust && cargo build -p tabula --no-default-features $CARGO_FLAGS)
+        (cd tabular-center-rust && cargo build -p tabula --no-default-features $CARGO_FLAGS)
         return $?
     fi
 
@@ -287,7 +287,7 @@ step_renderings_agree() {
 
     if command -v cargo >/dev/null 2>&1; then
         # shellcheck disable=SC2086
-        if (cd rust && cargo run -q -p tabula-conformance $CARGO_FLAGS -- \
+        if (cd tabular-center-rust && cargo run -q -p tabula-conformance $CARGO_FLAGS -- \
             "--emit=$scratch/rust" ../spec/conformance) >/dev/null; then
             present+=(rust)
         else
@@ -302,7 +302,7 @@ step_renderings_agree() {
         local out
         out="$(mktemp -d)"
         if (
-            cd kotlin || exit 1
+            cd tabular-center-kotlin || exit 1
             kotlin_artifacts "$out" || exit 1
             KCP="$(kotlin_cp "$out")"
             "$KOTLINC" -cp "$KCP" test/Composition.kt -d "$out/comp" 2>&1 \
@@ -328,7 +328,7 @@ step_renderings_agree() {
         sw="$(mktemp -d)"
         swift_home "$sw"
         # shellcheck disable=SC2046
-        if (cd swift && "$SWIFT" run -c release $(swift_paths "$sw") \
+        if (cd tabular-center-swift && "$SWIFT" run -c release $(swift_paths "$sw") \
             tabula-conformance ../spec/conformance "--emit=$scratch/swift") >/dev/null 2>&1; then
             present+=(swift)
         else
@@ -388,15 +388,15 @@ step_renderings_agree() {
 
 step_conformance() {
     require_fixtures || return 1
-    (cd rust && cargo run -q -p tabula-conformance $CARGO_FLAGS) || return 1
+    (cd tabular-center-rust && cargo run -q -p tabula-conformance $CARGO_FLAGS) || return 1
     # Smoke-run table-diff. It is a documented tool with a `just` recipe and a
     # `nix run` app, and until now nothing ever executed it -- `cargo clippy
     # --all-targets` compiled it and stopped there. Its rendering is unit
     # tested; this covers the argument handling and the exit codes, which are
     # the rest of it.
-    (cd rust && cargo run -q -p tabula-conformance --bin table-diff $CARGO_FLAGS -- timer) \
+    (cd tabular-center-rust && cargo run -q -p tabula-conformance --bin table-diff $CARGO_FLAGS -- timer) \
         >/dev/null || { echo "table-diff failed on a fixture that exists"; return 1; }
-    if (cd rust && cargo run -q -p tabula-conformance --bin table-diff $CARGO_FLAGS \
+    if (cd tabular-center-rust && cargo run -q -p tabula-conformance --bin table-diff $CARGO_FLAGS \
         -- no-such-fixture) >/dev/null 2>&1; then
         echo "table-diff exited 0 for a fixture that does not exist"
         return 1
@@ -445,7 +445,7 @@ kotlin_version_note() {
 # compile-time only and must not reach for the runtime. `tabula-testing` may
 # use core and nothing else.
 #
-# Run from the `kotlin/` directory.
+# Run from the `tabular-center-kotlin/` directory.
 # The classpath the artifacts compile to. Derived rather than exported,
 # because `kotlin_artifacts` is sometimes called inside a subshell and a
 # variable set there does not survive.
@@ -478,8 +478,8 @@ step_kotlin() {
     local out
     out="$(mktemp -d)"
     (
-        require_dir kotlin || exit 1
-        cd kotlin || exit 1
+        require_dir tabular-center-kotlin || exit 1
+        cd tabular-center-kotlin || exit 1
         kotlin_artifacts "$out" || exit 1
         KCP="$(kotlin_cp "$out")"
         [ -d "$out/core" ] || { echo "core failed to compile"; exit 1; }
@@ -501,8 +501,8 @@ step_kotlin_conformance() {
     local out
     out="$(mktemp -d)"
     (
-        require_dir kotlin || exit 1
-        cd kotlin || exit 1
+        require_dir tabular-center-kotlin || exit 1
+        cd tabular-center-kotlin || exit 1
         kotlin_artifacts "$out" || exit 1
         KCP="$(kotlin_cp "$out")"
         [ -d "$out/core" ] || { echo "core failed to compile"; exit 1; }
@@ -578,8 +578,8 @@ step_kotlin_examples() {
     local out
     out="$(mktemp -d)"
     (
-        require_dir kotlin || exit 1
-        cd kotlin || exit 1
+        require_dir tabular-center-kotlin || exit 1
+        cd tabular-center-kotlin || exit 1
         kotlin_artifacts "$out" || exit 1
         KCP="$(kotlin_cp "$out")"
         [ -d "$out/core" ] || { echo "core failed to compile"; exit 1; }
@@ -691,7 +691,7 @@ PROBE
 
     if [ "$rc" -eq 0 ]; then
         echo "ok   CompilerPluginSupport is available"
-        echo "     The .macro target can be restored: see swift/macros/Package.swift"
+        echo "     The .macro target can be restored: see tabular-center-swift/macros/Package.swift"
         echo "     and pending/Machine.swift. PLAN 0e covers what that unblocks."
         return 0
     fi
@@ -773,23 +773,23 @@ step_kotlin_ksp_incremental() {
 
     local scratch rc bad=0 gen
     scratch="$(mktemp -d)"
-    mkdir -p "$scratch/examples" "$scratch/kotlin"
+    mkdir -p "$scratch/examples" "$scratch/tabular-center-kotlin"
 
-    # `examples/kotlin` whole, for the reason `kotlin/` is copied whole one
+    # `examples/kotlin` whole, for the reason `tabular-center-kotlin/` is copied whole one
     # line below. Copying only `06-generated` left `:compileTestKotlin`
     # failing: the example's test source set reaches `../harness/Check.kt`,
     # the assertion helper every Kotlin example shares. A relative path out of
     # the directory being copied is invisible until the copy is built, and
     # this check exists precisely to build a copy.
     cp -r examples/kotlin "$scratch/examples/kotlin"
-    # The whole `kotlin/` tree, not four directories out of it.
+    # The whole `tabular-center-kotlin/` tree, not four directories out of it.
     #
     # Naming a subset means knowing every path the example and the processor
     # reach through, and those are relative paths spread across three build
     # files. The tree is small and the copy is cheap; guessing which parts
     # matter is how the first run of this check died with nothing to say.
-    rmdir "$scratch/kotlin"
-    cp -r kotlin "$scratch/kotlin"
+    rmdir "$scratch/tabular-center-kotlin"
+    cp -r tabular-center-kotlin "$scratch/tabular-center-kotlin"
     chmod -R u+w "$scratch"
 
     local ex="$scratch/examples/kotlin/06-generated"
@@ -800,7 +800,7 @@ step_kotlin_ksp_incremental() {
     # `kotlin-ksp` already covers whether the example builds. It does -- in the
     # SOURCE TREE. Here the example is a copy at a different depth, and
     # `settings.gradle.kts` reaches its processor through
-    # `includeBuild("../../../kotlin/ksp")`, so anything the layout gets wrong
+    # `includeBuild("../../../tabular-center-kotlin/ksp")`, so anything the layout gets wrong
     # shows up only here. Reporting "the first build failed" with no log left
     # this check unable to explain its own failure.
     local first
@@ -928,10 +928,10 @@ step_kotlin_ksp_compile_fail() {
         echo "     'nix run .#gradle-lock' with network and commit it)"
         return 0
     fi
-    require_dir kotlin/ksp/compile-fail/fixtures || return 1
+    require_dir tabular-center-kotlin/ksp/compile-fail/fixtures || return 1
 
     local dir name expect src out bad=0 n=0
-    for dir in kotlin/ksp/compile-fail/fixtures/*/; do
+    for dir in tabular-center-kotlin/ksp/compile-fail/fixtures/*/; do
         [ -d "$dir" ] || continue
         name="$(basename "$dir")"
         n=$((n + 1))
@@ -960,7 +960,7 @@ step_kotlin_ksp_compile_fail() {
         fi
         expect="$expects"
 
-        out="$( (cd kotlin/ksp/compile-fail && gradle --no-daemon --console=plain \
+        out="$( (cd tabular-center-kotlin/ksp/compile-fail && gradle --no-daemon --console=plain \
             -PtabulaFixture="$name" build 2>&1) )"
         local rc=$?
 
@@ -1000,7 +1000,7 @@ step_kotlin_ksp_compile_fail() {
     done
 
     if [ "$n" -eq 0 ]; then
-        echo "FAIL no fixtures in kotlin/ksp/compile-fail/fixtures"
+        echo "FAIL no fixtures in tabular-center-kotlin/ksp/compile-fail/fixtures"
         bad=1
     fi
     return "$bad"
@@ -1070,7 +1070,7 @@ step_kotlin_compose() {
 
 step_kotlin_ksp() {
     if ! command -v gradle >/dev/null 2>&1; then
-        echo "skip kotlin-ksp (no gradle; see kotlin/ksp/README.md)"
+        echo "skip kotlin-ksp (no gradle; see tabular-center-kotlin/ksp/README.md)"
         return 0
     fi
     require_dir examples/kotlin/06-generated || return 1
@@ -1131,10 +1131,10 @@ step_kotlin_ksp() {
     # to the wrong state -- all compile, and `TABLE` and `PAYLOADS` are inert
     # data the example never reads.
     #
-    # So `kotlin/codegen/Main.kt` states, by hand, what each example machine
+    # So `tabular-center-kotlin/codegen/Main.kt` states, by hand, what each example machine
     # should extract to (`kspTwins`), and this emits those and diffs them
     # against what KSP just generated. Both sides are produced here; nothing
-    # generated is committed. That replaced `kotlin/ksp/golden/`, which held
+    # generated is committed. That replaced `tabular-center-kotlin/ksp/golden/`, which held
     # the expected side as committed generator output.
     #
     # Both directions are enumerated, not named: a KSP output with no twin is
@@ -1145,10 +1145,10 @@ step_kotlin_ksp() {
     # Built exactly as kotlin-codegen builds it: against tabula-core. The
     # codegen check's tests reach `dev.tabula` by qualified name with no
     # import, so a build without the classpath fails there -- which is how
-    # this step first failed. From `kotlin/`, because the helpers are.
+    # this step first failed. From `tabular-center-kotlin/`, because the helpers are.
     local built
     built="$( (
-        cd kotlin || exit 1
+        cd tabular-center-kotlin || exit 1
         kotlin_artifacts "$twins" || exit 1
         tcp="$(kotlin_cp "$twins")"
         "$KOTLINC" -cp "$tcp" codegen/*.kt -include-runtime -d "$twins/cg.jar" 2>&1 \
@@ -1171,7 +1171,7 @@ step_kotlin_ksp() {
         n=$((n + 1))
         twin="$twins/out/ksp-twins/$name.kt"
         if [ ! -f "$twin" ]; then
-            echo "FAIL KSP emitted $name.kt, and kspTwins in kotlin/codegen/Main.kt"
+            echo "FAIL KSP emitted $name.kt, and kspTwins in tabular-center-kotlin/codegen/Main.kt"
             echo "     states no twin for it: its extraction is unchecked"
             bad=1
         elif diff -u "$twin" "$gen"; then
@@ -1242,7 +1242,7 @@ step_swift() {
         echo "skip swift (\$SWIFT not found; nix develop .#swift provides it)"
         return 0
     fi
-    require_dir swift || return 1
+    require_dir tabular-center-swift || return 1
     # Report the version. nixpkgs pins an older Swift than swift.org ships, and
     # a tools-version above the toolchain is a hard refusal -- worth seeing in
     # the log before reading a wall of compiler errors.
@@ -1333,7 +1333,7 @@ step_swift() {
     # which is why the /var/empty warnings survived being "fixed".
     #
     # shellcheck disable=SC2046  # word splitting is what swift_paths is for
-    out="$( (cd swift && "$SWIFT" run -c release $(swift_paths "$scratch") tabula-check) 2>&1 )"
+    out="$( (cd tabular-center-swift && "$SWIFT" run -c release $(swift_paths "$scratch") tabula-check) 2>&1 )"
     rc=$?
     printf '%s\n' "$out"
     rm -rf "$scratch"
@@ -1366,7 +1366,7 @@ step_swift() {
 #
 # It exists as a step so its absence is *reported* rather than discovered. The
 # alternative is what happened before this: someone runs `swift build` in
-# swift/macros and gets a screenful of swiftc invocation ending in `no such
+# tabular-center-swift/macros and gets a screenful of swiftc invocation ending in `no such
 # module 'CompilerPluginSupport'`, which is accurate and explains nothing.
 #
 # Three outcomes, and telling them apart is the whole value:
@@ -1382,7 +1382,7 @@ step_swift_macros() {
         echo "skip swift-macros (\$SWIFT not found)"
         return 0
     fi
-    require_dir swift/macros || return 1
+    require_dir tabular-center-swift/macros || return 1
 
     # The offline checkout set, when nix has built one from nix/swift-lock.json.
     #
@@ -1395,16 +1395,16 @@ step_swift_macros() {
     local args=(build)
     if [ -n "${TABULA_SWIFT_DEPS:-}" ]; then
         echo "note: resolving offline from $TABULA_SWIFT_DEPS"
-        rm -rf swift/macros/.build/checkouts swift/macros/.build/workspace-state.json
-        mkdir -p swift/macros/.build
-        cp -r "$TABULA_SWIFT_DEPS/checkouts" swift/macros/.build/checkouts
-        cp "$TABULA_SWIFT_DEPS/workspace-state.json" swift/macros/.build/
-        chmod -R u+w swift/macros/.build
+        rm -rf tabular-center-swift/macros/.build/checkouts tabular-center-swift/macros/.build/workspace-state.json
+        mkdir -p tabular-center-swift/macros/.build
+        cp -r "$TABULA_SWIFT_DEPS/checkouts" tabular-center-swift/macros/.build/checkouts
+        cp "$TABULA_SWIFT_DEPS/workspace-state.json" tabular-center-swift/macros/.build/
+        chmod -R u+w tabular-center-swift/macros/.build
         args+=(--disable-automatic-resolution)
     fi
 
     local out
-    out="$( (cd swift/macros && "$SWIFT" "${args[@]}" 2>&1) )"
+    out="$( (cd tabular-center-swift/macros && "$SWIFT" "${args[@]}" 2>&1) )"
     if [ $? -eq 0 ]; then
         # SwiftPM probes its shared repository cache before using the
         # checkouts, and in a sandbox that probe cannot resolve a certificate:
@@ -1428,9 +1428,9 @@ step_swift_macros() {
         # traversal gets held to SURFACE.md -- so a build that succeeds and a
         # check that never runs would be the same silence this repository has
         # now removed three times.
-        # From swift/macros, because the checks read SURFACE.md by relative
+        # From tabular-center-swift/macros, because the checks read SURFACE.md by relative
         # path -- the surface is documented in one place and executed from it.
-        (cd swift/macros && "$SWIFT" run "${args[@]:1}" TabulaMacroSyntaxCheck) || return 1
+        (cd tabular-center-swift/macros && "$SWIFT" run "${args[@]:1}" TabulaMacroSyntaxCheck) || return 1
         return 0
     fi
 
@@ -1533,7 +1533,7 @@ step_swift_codegen() {
         echo "skip swift-codegen (\$SWIFT not found)"
         return 0
     fi
-    require_dir swift || return 1
+    require_dir tabular-center-swift || return 1
 
     local scratch out rc gen
     scratch="$(mktemp -d)"
@@ -1547,7 +1547,7 @@ step_swift_codegen() {
     #    emitted source to scratch for the stages below. Generated code is
     #    not committed, so there is no golden; stages 2 and 3 prove the output.
     # shellcheck disable=SC2046
-    out="$( (cd swift && "$SWIFT" run -c release $(swift_paths "$scratch") \
+    out="$( (cd tabular-center-swift && "$SWIFT" run -c release $(swift_paths "$scratch") \
         tabula-codegen-check "--emit=$gen") 2>&1 )"
     rc=$?
     printf '%s\n' "$out"
@@ -1557,14 +1557,14 @@ step_swift_codegen() {
     # does not build. Same module lookup as swift-compile-fail.
     local build bin modules
     # shellcheck disable=SC2046
-    build="$( (cd swift && "$SWIFT" build -c release $(swift_paths "$scratch")) 2>&1 )" || {
+    build="$( (cd tabular-center-swift && "$SWIFT" build -c release $(swift_paths "$scratch")) 2>&1 )" || {
         echo "the package failed to build:"
         printf '%s\n' "$build" | tail -20
         rm -rf "$scratch"
         return 1
     }
     # shellcheck disable=SC2046
-    bin="$( (cd swift && "$SWIFT" build -c release $(swift_paths "$scratch") \
+    bin="$( (cd tabular-center-swift && "$SWIFT" build -c release $(swift_paths "$scratch") \
         --show-bin-path) 2>/dev/null )"
     modules="$bin/Modules"
     [ -d "$modules" ] || modules="$bin"
@@ -1576,7 +1576,7 @@ step_swift_codegen() {
     #    module would be a generator bug that separate compiles would hide.
     #    Emitted files are `<m>.emitted.swift` because swiftc rejects two
     #    inputs with one base name -- `complete/<m>.swift` is the other.
-    local sup=swift/codegen-support m f exp err bad=0
+    local sup=tabular-center-swift/codegen-support m f exp err bad=0
     local emitted=( "$gen"/*.emitted.swift )
     if [ ! -e "${emitted[0]}" ]; then
         echo "FAIL the check emitted nothing to $gen"
@@ -1637,7 +1637,7 @@ step_swift_conformance() {
     local out rc
     # shellcheck disable=SC2046
     # Flags before the executable name; arguments after it. See step_swift.
-    out="$( (cd swift && "$SWIFT" run -c release $(swift_paths "$scratch") \
+    out="$( (cd tabular-center-swift && "$SWIFT" run -c release $(swift_paths "$scratch") \
         tabula-conformance ../spec/conformance) 2>&1 )"
     rc=$?
     printf '%s\n' "$out"
@@ -1660,7 +1660,7 @@ step_swift_compile_fail() {
     # steps later.
     local build
     # shellcheck disable=SC2046
-    build="$( (cd swift && "$SWIFT" build -c release $(swift_paths "$scratch")) 2>&1 )" || {
+    build="$( (cd tabular-center-swift && "$SWIFT" build -c release $(swift_paths "$scratch")) 2>&1 )" || {
         echo "the package failed to build:"
         printf '%s\n' "$build" | tail -20
         rm -rf "$scratch"
@@ -1672,7 +1672,7 @@ step_swift_compile_fail() {
     # between versions.
     local bin modules
     # shellcheck disable=SC2046
-    bin="$( (cd swift && "$SWIFT" build -c release $(swift_paths "$scratch") \
+    bin="$( (cd tabular-center-swift && "$SWIFT" build -c release $(swift_paths "$scratch") \
         --show-bin-path) 2>/dev/null )"
     modules="$bin/Modules"
     [ -d "$modules" ] || modules="$bin"
@@ -1683,7 +1683,7 @@ step_swift_compile_fail() {
     fi
 
     local bad=0 f exp err rc
-    for f in swift/compile_fail/*.swift; do
+    for f in tabular-center-swift/compile_fail/*.swift; do
         exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
         # No `|| true`: it discarded the one status that decides this. See the
         # note above step_compile_fail.
@@ -1774,9 +1774,9 @@ step_no_bless() {
 # A code emitted by nobody (`-`) is exempt, and required to stay that way: if
 # a fixture ever expects it, the `-` is a lie and this says so.
 step_diagnostics_tested() {
-    local dirs="rust/tabula/tests/compile_fail kotlin/ksp/compile-fail/fixtures"
-    dirs="$dirs kotlin/codegen/compile_fail kotlin/compile_fail swift/macros/fixtures"
-    dirs="$dirs swift/compile_fail swift/codegen-support/compile_fail"
+    local dirs="tabular-center-rust/tabula/tests/compile_fail tabular-center-kotlin/ksp/compile-fail/fixtures"
+    dirs="$dirs tabular-center-kotlin/codegen/compile_fail tabular-center-kotlin/compile_fail tabular-center-swift/macros/fixtures"
+    dirs="$dirs tabular-center-swift/compile_fail tabular-center-swift/codegen-support/compile_fail"
     local doc=spec/diagnostics-coverage.md
     local code langs lint hits missing bad=0 n=0
 
@@ -1912,9 +1912,9 @@ step_diagnostics_coverage() {
     emitted() { grep -rhoE "\"tabula::[a-z-]+" "$1/" 2>/dev/null | tr -d '"' | sort -u; }
 
     local rust_codes kotlin_codes swift_codes
-    rust_codes="$(emitted rust)"
-    kotlin_codes="$(emitted kotlin)"
-    swift_codes="$(emitted swift)"
+    rust_codes="$(emitted tabular-center-rust)"
+    kotlin_codes="$(emitted tabular-center-kotlin)"
+    swift_codes="$(emitted tabular-center-swift)"
 
     while read -r code langs; do
         [ -n "$code" ] || continue
@@ -2118,7 +2118,7 @@ step_swift_format_config() {
 # they name, so a matrix in a directory neither names is outside both -- and
 # silently so, because each scan finds what it finds and reports on that.
 #
-# That is not hypothetical. `kotlin-matrix-stable` scanned `kotlin/` alone for
+# That is not hypothetical. `kotlin-matrix-stable` scanned `tabular-center-kotlin/` alone for
 # as long as it existed, and
 # examples/kotlin/06-generated/src/Machine.tb.kt sat outside it the whole time
 # while both checks were green.
@@ -2133,12 +2133,12 @@ step_matrix_covered() {
         total=$((total + 1))
         case "$f" in
             # Roots that `kotlin-matrix-stable` copies and ktlints.
-            ./kotlin/*.tb.kt|./examples/kotlin/*.tb.kt)
+            ./tabular-center-kotlin/*.tb.kt|./examples/kotlin/*.tb.kt)
                 covered=$((covered + 1))
                 echo "ok   $f (kotlin-matrix-stable)"
                 ;;
             # Roots that `rust-matrix-stable` copies and cargo-fmts.
-            ./rust/*.tb.rs|./examples/rust/*.tb.rs)
+            ./tabular-center-rust/*.tb.rs|./examples/rust/*.tb.rs)
                 covered=$((covered + 1))
                 echo "ok   $f (rust-matrix-stable)"
                 ;;
@@ -2201,9 +2201,9 @@ step_rust_matrix_stable() {
         echo "skip rust-matrix-stable (\$cargo not found)"
         return 0
     fi
-    require_dir rust || return 1
+    require_dir tabular-center-rust || return 1
 
-    local roots=(rust)
+    local roots=(tabular-center-rust)
     [ -d examples/rust ] && roots+=(examples/rust)
 
     local scratch bad=0 found=0 f root
@@ -2259,17 +2259,17 @@ step_kotlin_matrix_stable() {
         echo "skip kotlin-matrix-stable (\$KTLINT not found; nixpkgs provides it)"
         return 0
     fi
-    require_dir kotlin || return 1
+    require_dir tabular-center-kotlin || return 1
 
     # BOTH trees, not just the library's.
     #
-    # This scanned `kotlin/` alone, which reached exactly one file --
-    # kotlin/test/TimerSpec.tb.kt -- and missed
+    # This scanned `tabular-center-kotlin/` alone, which reached exactly one file --
+    # tabular-center-kotlin/test/TimerSpec.tb.kt -- and missed
     # examples/kotlin/06-generated/src/Machine.tb.kt entirely. The example is
     # the matrix a user copies, so it was the more important of the two and the
     # one nothing checked. `.editorconfig`'s `[*.tb.kt]` already covered it;
     # only the scan did not.
-    local roots=(kotlin)
+    local roots=(tabular-center-kotlin)
     [ -d examples/kotlin ] && roots+=(examples/kotlin)
 
     local scratch bad=0 found=0 f root
@@ -2355,8 +2355,8 @@ step_kotlin_codegen() {
     kotlin_version_note
 
     (
-        require_dir kotlin || exit 1
-        cd kotlin || exit 1
+        require_dir tabular-center-kotlin || exit 1
+        cd tabular-center-kotlin || exit 1
         kotlin_artifacts "$out" || exit 1
         KCP="$(kotlin_cp "$out")"
         "$KOTLINC" -cp "$KCP" codegen/*.kt -include-runtime -d "$out/cg.jar" 2>&1 \
@@ -2437,15 +2437,15 @@ step_kotlin_compile_fail() {
     bad=0
     kotlin_version_note
 
-    (cd kotlin && kotlin_artifacts "$out") || return 1
+    (cd tabular-center-kotlin && kotlin_artifacts "$out") || return 1
     KCP="$(kotlin_cp "$out")"
     # TimerSpec.tb.kt carries the matrix; see spec/matrix-files.md. Listed
     # explicitly rather than globbed so this step keeps compiling exactly the
     # two machines the fixtures need and not the harness around them.
-    (cd kotlin && "$KOTLINC" -cp "$KCP" test/ReferenceTimer.kt test/TimerSpec.tb.kt \
+    (cd tabular-center-kotlin && "$KOTLINC" -cp "$KCP" test/ReferenceTimer.kt test/TimerSpec.tb.kt \
         test/Composition.kt -d "$out/ref" 2>&1 | grep -v "^info:") || true
 
-    for f in kotlin/compile_fail/*.kt; do
+    for f in tabular-center-kotlin/compile_fail/*.kt; do
         exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
         # See the note above step_compile_fail: kotlinc's status, not the
         # filtering grep's.

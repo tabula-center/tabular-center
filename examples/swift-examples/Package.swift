@@ -8,13 +8,16 @@ import PackageDescription
 // ## Why this directory is not called `swift`
 //
 // SwiftPM derives a path dependency's *identity* from its directory basename.
-// With the library at `swift/` and these examples at `examples/swift/`, both
-// resolve to the identity `swift`, and SwiftPM reports
+// With the library at `swift/` (as it was before the tabular-center rename)
+// and these examples at `examples/swift/`, both resolved to the identity
+// `swift`, and SwiftPM reported
 //
 //     cyclic dependency declaration found: TabulaExamples -> TabulaExamples
 //
 // — the package appearing to depend on itself. The directory is
-// `examples/swift-examples` so the two identities differ. It breaks the
+// `examples/swift-examples` so the two identities differ. The library is
+// `tabular-center-swift/` now, so the clash is gone, but the name stays: it
+// costs nothing and the next rename should not have to rediscover this. It breaks the
 // symmetry with `examples/rust` and `examples/kotlin`, which is a smaller cost
 // than a package that cannot resolve.
 let package = Package(
@@ -28,7 +31,7 @@ let package = Package(
         .executable(name: "spec-check", targets: ["SpecCheck"]),
     ],
     dependencies: [
-        .package(path: "../../swift")
+        .package(path: "../../tabular-center-swift")
     ],
     targets: [
         // The assertion harness, as its own target, so every example depends
@@ -40,8 +43,8 @@ let package = Package(
         // nothing else, and would stop building the day an example started
         // needing more than the runtime.
         //
-        // `package: "swift"` is the DIRECTORY name of the path dependency, not
-        // the `name` in its manifest -- SwiftPM identifies path dependencies
+        // `package: "tabular-center-swift"` is the DIRECTORY name of the path
+        // dependency, not the `name` in its manifest -- SwiftPM identifies path dependencies
         // by directory, and said so itself:
         //
         //   unknown package 'Tabula' ... valid packages are: 'swift'
@@ -51,26 +54,26 @@ let package = Package(
         // package.
         .executableTarget(
             name: "TrafficLight",
-            dependencies: [.product(name: "Tabula", package: "swift"), "ExampleCheck"]
+            dependencies: [.product(name: "Tabula", package: "tabular-center-swift"), "ExampleCheck"]
         ),
         .executableTarget(
             name: "Timer",
-            dependencies: [.product(name: "Tabula", package: "swift"), "ExampleCheck"]
+            dependencies: [.product(name: "Tabula", package: "tabular-center-swift"), "ExampleCheck"]
         ),
         .executableTarget(
             name: "Retry",
-            dependencies: [.product(name: "Tabula", package: "swift"), "ExampleCheck"]
+            dependencies: [.product(name: "Tabula", package: "tabular-center-swift"), "ExampleCheck"]
         ),
         .executableTarget(
             name: "Login",
-            dependencies: [.product(name: "Tabula", package: "swift"), "ExampleCheck"]
+            dependencies: [.product(name: "Tabula", package: "tabular-center-swift"), "ExampleCheck"]
         ),
         // The only target whose checks can report `skip`. ObservableStore is
         // Darwin only, so off Darwin this builds, runs, checks the machine,
         // and says so rather than passing silently or failing loudly.
         .executableTarget(
             name: "ObservableCounter",
-            dependencies: [.product(name: "Tabula", package: "swift"), "ExampleCheck"]
+            dependencies: [.product(name: "Tabula", package: "tabular-center-swift"), "ExampleCheck"]
         ),
         // The only target that names TabulaTesting. That product ships in the
         // library's manifest and, until this example, nothing outside the
@@ -78,8 +81,8 @@ let package = Package(
         .executableTarget(
             name: "SpecCheck",
             dependencies: [
-                .product(name: "Tabula", package: "swift"),
-                .product(name: "TabulaTesting", package: "swift"),
+                .product(name: "Tabula", package: "tabular-center-swift"),
+                .product(name: "TabulaTesting", package: "tabular-center-swift"),
                 "ExampleCheck",
             ]
         ),

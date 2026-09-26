@@ -65,7 +65,7 @@ jobs:
   # that now always holds.
   check-darwin:
     runs-on: macos-14
-    if: hashFiles('swift/Package.swift') != ''
+    if: hashFiles('tabular-center-swift/Package.swift') != ''
     steps:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
@@ -106,14 +106,14 @@ jobs:
 
       # Kotlin is driven by kotlinc directly -- there is no Gradle build for the
       # library, deliberately, so the zero-runtime-dependency rule is enforced
-      # by there being no classpath but the stdlib. See kotlin/README.md.
+      # by there being no classpath but the stdlib. See tabular-center-kotlin/README.md.
       #
       # Fetched from the release rather than through a marketplace action. This
       # job exists to prove the project builds with ordinary toolchains, and an
       # action is a third party deciding what "ordinary" means -- it would also
       # be the only unpinned dependency in a repository whose entire argument
       # is that it has none. Six lines of curl, and the version is the one in
-      # kotlin/README.md.
+      # tabular-center-kotlin/README.md.
       - name: Install kotlinc
         run: |
           curl -fsSL -o kotlin.zip \

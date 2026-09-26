@@ -28,8 +28,8 @@ copy that drifts, which is the same reason generated dispatchers stay out of
 the examples.
 
 Every code below has a fixture under the implementation's compile-fail suite:
-`rust/tabula/tests/compile_fail/`, `kotlin/compile_fail/`,
-`kotlin/codegen/compile_fail/`, and `swift/compile_fail/`. A diagnostic without
+`tabular-center-rust/tabula/tests/compile_fail/`, `tabular-center-kotlin/compile_fail/`,
+`tabular-center-kotlin/codegen/compile_fail/`, and `tabular-center-swift/compile_fail/`. A diagnostic without
 a fixture is not shipped.
 
 All three suites are driven by `tools/verify`, reading a `//~ EXPECT:` line
@@ -340,9 +340,9 @@ call the language itself will not accept:
 
 | | what refuses it | fixture |
 |---|---|---|
-| Rust | an async child's `step` is a future where a `Step` is required | `rust/tabula/tests/compile_fail/async_child_in_plain_parent.rs` |
-| Kotlin | a `suspend` call from a plain function | `kotlin/codegen/compile_fail/jobmixed_colored_child_in_uncolored_parent.kt` |
-| Swift | an `async` call in a function that does not support concurrency | `swift/codegen-support/compile_fail/job-mixed_colored_child_in_uncolored_parent.swift` |
+| Rust | an async child's `step` is a future where a `Step` is required | `tabular-center-rust/tabula/tests/compile_fail/async_child_in_plain_parent.rs` |
+| Kotlin | a `suspend` call from a plain function | `tabular-center-kotlin/codegen/compile_fail/jobmixed_colored_child_in_uncolored_parent.kt` |
+| Swift | an `async` call in a function that does not support concurrency | `tabular-center-swift/codegen-support/compile_fail/job-mixed_colored_child_in_uncolored_parent.swift` |
 
 Treated like a missing implementation, which this file also leaves to the
 compiler: a check that fired first would replace a message about the

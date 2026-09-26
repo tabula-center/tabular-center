@@ -2,7 +2,7 @@
 //
 // `suspend fun main()` rather than any test helper: Kotlin wires it to the
 // stdlib's coroutine intrinsics itself, so a suspending entry point costs no
-// dependency. That is the same constraint `kotlin/test/RunSuspend.kt` was
+// dependency. That is the same constraint `tabular-center-kotlin/test/RunSuspend.kt` was
 // written for, and the language already solves it -- an example has no
 // business importing the library's test harness.
 //

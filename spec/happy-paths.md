@@ -337,8 +337,8 @@ The four `path-*` codes join the nine existing compile-time diagnostics
 lints, because a broken spine is rejected by `buildDesc` before a table exists.
 
 That is a much smaller surface than the first revision assumed: compile-fail
-fixtures in `rust/tabula/tests/compile_fail/`,
-`kotlin/ksp/compile-fail/fixtures/` and `swift/macros/fixtures/`, following the
+fixtures in `tabular-center-rust/tabula/tests/compile_fail/`,
+`tabular-center-kotlin/ksp/compile-fail/fixtures/` and `tabular-center-swift/macros/fixtures/`, following the
 `//~ EXPECT:` convention all three already share. No conformance fixture, no
 adapters, no goldens.
 
@@ -360,13 +360,13 @@ after three implementations is the expensive version.
       in both generators; the fixtures and `Spine.tb.kt` use the alternating
       form.
 - [x] Derived defaults: a `HANDLE` named by a hop becomes a `GO` to that hop's
-      next state (`derive` in `kotlin/codegen/Raw.kt` and
-      `swift/Sources/TabulaCodegen/Raw.swift`).
+      next state (`derive` in `tabular-center-kotlin/codegen/Raw.kt` and
+      `tabular-center-swift/Sources/TabulaCodegen/Raw.swift`).
 - [x] The additive test for the above: a spine-derived machine and the
       longhand one produce equal descriptions and byte-identical emitted
       source, `TABLE` included -- and so identical `.grid`, `.lint`, `.cov`
       and `.mmd`, which are functions of it. `runAdditiveTest` in
-      `kotlin/codegen/Tests.kt` and its twin in `TabulaCodegenCheck`, each
+      `tabular-center-kotlin/codegen/Tests.kt` and its twin in `TabulaCodegenCheck`, each
       with a control showing the path is what makes the difference.
 - [x] The four `path-*` diagnostics above, with four compile-fail fixtures each
       in Kotlin and Swift. Compile-time rejections rather than lints — see

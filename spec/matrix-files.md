@@ -11,7 +11,7 @@ convention for humans and for formatters.
 
 A matrix is column-aligned on purpose. The alignment is not decoration: it is
 the thing a reader scans, and it is why a forty-cell machine can be reviewed at
-all. `spec/cells.md` and `swift/macros/SURFACE.md` both make it normative that
+all. `spec/cells.md` and `tabular-center-swift/macros/SURFACE.md` both make it normative that
 rows line up.
 
 General-purpose formatters do not know that. Their job is to normalise
@@ -148,7 +148,7 @@ Two examples carry it, one per language that can:
   re-exported by `pub mod auth` and `pub mod session` -- a `#[path]` inside
   an inline module resolves against a directory named after that module,
   and one rule for every example is simpler than a directory per matrix.
-- `kotlin/test/TimerSpec.tb.kt` — the reference machine's declaration, and the
+- `tabular-center-kotlin/test/TimerSpec.tb.kt` — the reference machine's declaration, and the
   one piece of *library* code carrying the convention. Split out of
   `ReferenceTimer.kt` when `kotlin-matrix-stable` was first switched on.
 
@@ -161,10 +161,10 @@ the handler bodies from formatting too — the same over-broad exemption the
 `[*.kt]` block had before it was narrowed. A `.tb.` file earns its exemption by
 containing nothing that wants formatting.
 
-Kotlin's has now moved: `kotlin/test/TimerSpec.tb.kt` holds the `@Machine` and
+Kotlin's has now moved: `tabular-center-kotlin/test/TimerSpec.tb.kt` holds the `@Machine` and
 `@Row` declarations that used to sit in `ReferenceTimer.kt`. It moved because
 it had to — `kotlin-matrix-stable` runs ktlint's formatter over a copy of
-`kotlin/` and compares the matrix rows, and with the declaration in an
+`tabular-center-kotlin/` and compares the matrix rows, and with the declaration in an
 ordinary `.kt` file the `[*.tb.kt]` exemption did not reach it. The check had
 never executed (see `PLAN.md`), so nothing said so.
 

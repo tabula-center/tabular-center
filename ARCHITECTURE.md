@@ -856,7 +856,7 @@ tabula/
 │                                 #   implementation renders its own at check
 │                                 #   time and `renderings-agree` diffs them
 │
-├── rust/
+├── tabular-center-rust/
 │   ├── Cargo.toml               # workspace
 │   ├── tabula/                  # core + macro_rules! (single crate, no deps)
 │   │   ├── src/{lib,step,cell,table,matrix,machine,delegate,driver}.rs
@@ -870,7 +870,7 @@ tabula/
 │                                 #   (whose renderer is in the lib, so it is
 │                                 #   testable)
 │
-├── kotlin/                      # built by kotlinc directly — no Gradle, no Maven
+├── tabular-center-kotlin/       # built by kotlinc directly — no Gradle, no Maven
 │   ├── core/dev/tabula/         # Step, Cell, Table, Export, Lint, Driver
 │   ├── annotations/dev/tabula/  # @Machine, @Row, @Path, cell markers
 │   ├── testing/dev/tabula/testing/
@@ -880,7 +880,7 @@ tabula/
 │   ├── conformance/
 │   └── compile_fail/
 │
-├── swift/
+├── tabular-center-swift/
 │   ├── Package.swift
 │   ├── Sources/Tabula/          # core: Step, Cell, Table, Export, Lint,
 │   │                             #   Driver, AsyncDriver, Store, AsyncStore
@@ -919,10 +919,10 @@ commands. A new check goes in `tools/verify`, never directly into the workflow.
 that is not a workaround to be tidied up later: compiling each artifact against
 only its declared classpath is what enforces the zero-runtime-dependency rule
 by construction rather than by a dependency report. Gradle exists only where
-KSP needs it — `kotlin/ksp` and `examples/kotlin/06-generated` — and resolves
-offline from `nix/gradle-lock.json`. The flake pins `kotlinc` to the same
-2.1.20 those builds name, so a nixpkgs bump cannot move the compiler whose
-messages the compile-fail fixtures match.
+KSP needs it — `tabular-center-kotlin/ksp` and `examples/kotlin/06-generated` —
+and resolves offline from `nix/gradle-lock.json`. The flake pins `kotlinc` to
+the same 2.1.20 those builds name, so a nixpkgs bump cannot move the compiler
+whose messages the compile-fail fixtures match.
 
 **Examples sit outside every workspace.** They depend on the library by path,
 the way a user would. That is the only place the public API is exercised from
@@ -977,7 +977,7 @@ for it.
 
 **One thing still does not run here, and it is not a choice.**
 
-`swift/macros` cannot declare a `.macro` target with nixpkgs' SwiftPM, which
+`tabular-center-swift/macros` cannot declare a `.macro` target with nixpkgs' SwiftPM, which
 ships no `CompilerPluginSupport`; `nix/swiftpm-plugin-support.nix` and the
 `swift-macro-support` probe track how far that has been pushed. It reports
 `skip` with its reason rather than passing quietly.
@@ -1003,7 +1003,7 @@ Stated up front so they are not discovered as surprises.
 kinds keep most of them one word long, but the count is real. This is the
 reason builder DSLs won the market, and it is the cost of the guarantee.
 
-*Measured, on a genuine 8×12 order-lifecycle machine (`rust/tabula/tests/scale.rs`):*
+*Measured, on a genuine 8×12 order-lifecycle machine (`tabular-center-rust/tabula/tests/scale.rs`):*
 
 | | |
 |---|---|

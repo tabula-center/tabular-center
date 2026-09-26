@@ -31,8 +31,8 @@ repositories {
 // example that demonstrated nothing.
 sourceSets["main"].kotlin.srcDir("src")
 
-sourceSets["main"].kotlin.srcDir("../../../kotlin/core")
-sourceSets["main"].kotlin.srcDir("../../../kotlin/annotations")
+sourceSets["main"].kotlin.srcDir("../../../tabular-center-kotlin/core")
+sourceSets["main"].kotlin.srcDir("../../../tabular-center-kotlin/annotations")
 
 // Same for the checks, which are in `test/`. They are a separate compilation
 // unit compiled against the generated dispatcher, which is the property the
@@ -64,7 +64,7 @@ kotlin { jvmToolchain(21) }
 // function harness every other Kotlin example uses -- so it scanned the test
 // classes, found no test methods, and passed. `GeneratedTest` and `GateTest`
 // were compiled on every `nix flake check` and run by nothing, while
-// kotlin/ksp/README.md reported "the behavioural checks passing against it".
+// tabular-center-kotlin/ksp/README.md reported "the behavioural checks passing against it".
 // A compiled check is not a passing one; tools/verify runs `java -cp ... MainKt`
 // for examples 01-05 and this build had no equivalent.
 //

@@ -13,9 +13,9 @@
     #
     # It existed because nixos-25.05 shipped Swift 5.8, below the 5.9 macros
     # require. nixos-26.05 is newer, so the main input should now carry a Swift
-    # that can build swift/macros -- specifically, a SwiftPM that ships
+    # that can build tabular-center-swift/macros -- specifically, a SwiftPM that ships
     # `CompilerPluginSupport`, which is what actually blocks that package. See
-    # swift/macros/README.md.
+    # tabular-center-swift/macros/README.md.
     #
     # Kept pointing at unstable for one release rather than deleted in the same
     # commit as the bump. If 26.05's Swift turns out to lag again, the fallback

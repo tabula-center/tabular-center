@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Compile-fail harness. Every diagnostic in spec/diagnostics.md gets a fixture
-# under rust/tabula/tests/compile_fail/, and each fixture must fail to compile
+# under tabular-center-rust/tabula/tests/compile_fail/, and each fixture must fail to compile
 # with the message named in its `//~ EXPECT:` line.
 #
 # Deliberately not `trybuild`: it would be the crate's only dev-dependency, and
 # the zero-dependency rule is worth more than the convenience.
 set -uo pipefail
 
-cd "$(dirname "$0")/../rust" || exit 1
+cd "$(dirname "$0")/../tabular-center-rust" || exit 1
 FIXTURES="tabula/tests/compile_fail"
 OUT="$(mktemp -d)"
 trap 'rm -rf "$OUT"' EXIT

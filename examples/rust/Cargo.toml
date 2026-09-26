@@ -32,4 +32,4 @@ members = [
 # have made the promise quieter rather than truer.
 #
 # So the GUI example is its own package, with its own lock and its own check on
-# a current toolchain. The rule it keeps: nothing in `rust/` moved.
+# a current toolchain. The rule it keeps: nothing in `tabular-center-rust/` moved.
