@@ -6,16 +6,32 @@ let
   pkgs = import nixpkgs { inherit system; };
   inherit (pkgs) lib;
 
-  # The whole repository, not just this directory: the checks run
-  # `tabular-center-kotlin/tools/verify` from the root, and read spec/ -- the
-  # one thing outside this directory they need; the examples live here. See
-  # the same binding in
-  # ../../tabular-center-rust/nix/context.nix for why `self.sourceInfo` and
-  # why it is checked.
-  root =
-    let r = self.sourceInfo.outPath; in
-    if builtins.pathExists (r + "/spec/conformance")
-    then r
+  # What a check is given, each part its own store path.
+  #
+  # The checks run `tabular-center-kotlin/tools/verify` from a copy of the
+  # repository's layout holding three things: this directory, spec/ (the
+  # conformance contract, the one input all three languages share by design)
+  # and .editorconfig. Each is copied into the store separately with
+  # `builtins.path`, so each is hashed by its own contents -- and a check's
+  # inputs are exactly those three and its toolchain. Editing Kotlin does not
+  # rebuild a Rust check; editing spec/ rebuilds all three, as it should.
+  #
+  # It used to copy `self.sourceInfo` -- the whole checkout, one store path --
+  # so every commit anywhere rebuilt every check, even after each check had
+  # been trimmed to read only its own subtree. Reading less is what makes a
+  # check independent; depending on less is what makes it cheap.
+  #
+  # `../../spec` reaches above this flake's directory. That works exactly when
+  # the flake's source is the whole checkout: checked from git
+  # (`nix flake check ./tabular-center-kotlin`, which nix treats as `?dir=`) or
+  # composed by the root flake as a relative `path:` input (Nix 2.26 or later).
+  # Asked first, through `self.sourceInfo`, so any other way in gets this
+  # message rather than an "access to absolute path is forbidden" from
+  # whichever file happened to be read first.
+  wholeCheckout = builtins.pathExists (self.sourceInfo.outPath + "/spec/conformance");
+  fromCheckout = path:
+    if wholeCheckout
+    then path
     else
       throw ''
         tabular-center-kotlin: this flake's source is not the whole repository,
@@ -23,6 +39,10 @@ let
         (`nix flake check ./tabular-center-kotlin`), or through the root flake,
         with Nix 2.26 or later.
       '';
+
+  specSrc = builtins.path { path = fromCheckout ../../spec; name = "tabular-center-spec"; };
+  editorconfig = builtins.path { path = fromCheckout ../../.editorconfig; name = "tabular-center-editorconfig"; };
+  langSrc = builtins.path { path = ./..; name = "tabular-center-kotlin-src"; };
 
   has = {
     # The KSP example can build offline exactly when the lock exists. Gating
@@ -122,9 +142,9 @@ let
         # claim. spec/ is the one thing all three share by design: it is the
         # cross-language contract.
         mkdir src
-        cp -r ${root}/spec src/spec
-        cp -r ${root}/tabular-center-kotlin src/tabular-center-kotlin
-        cp ${root}/.editorconfig src/.editorconfig
+        cp -r ${specSrc} src/spec
+        cp -r ${langSrc} src/tabular-center-kotlin
+        cp ${editorconfig} src/.editorconfig
         chmod -R u+w src && cd src
         ${script}
         touch $out
@@ -147,7 +167,7 @@ let
 
 in
 {
-  inherit self system pkgs lib has root jdk kotlinc kotlinVersion kotlinInputs
+  inherit self system pkgs lib has specSrc langSrc editorconfig jdk kotlinc kotlinVersion kotlinInputs
     commonInputs gradleRepo mkCheck mkShell;
 
   # For the root flake. See `legacyPackages` in ../flake.nix.

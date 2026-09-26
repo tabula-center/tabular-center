@@ -468,12 +468,20 @@ deprecation period, and `VERSION` stays where it is.
 - [x] `GRADLE_USER_HOME` is `tabular-center-kotlin/.gradle-home` in both dev
       shells, found from the git root. It was `./.gradle-home`, relative to
       wherever `nix develop` was typed
-- [ ] Not decoupled yet: every check still depends on the whole checkout's
-      store path, so a change anywhere rebuilds every check, even though each
-      now reads only its own subtree. Content-addressing each subtree
-      (`builtins.path` on it) would fix that, and depends on how Nix treats a
-      path below `self.sourceInfo` from a subdirectory flake -- worth a
-      deliberate experiment, not a guess folded into this patch
+- [x] **Decoupled.** Each language check depended on the whole checkout's
+      store path, so a change anywhere rebuilt every check even after each had
+      been trimmed to read only its own subtree. Now its three inputs are
+      separate store paths -- `builtins.path` on `./..`, `../../spec` and
+      `../../.editorconfig`, each hashed by its own contents -- and a check's
+      derivation depends on those and its toolchain alone. Path literals rather
+      than `self.sourceInfo.outPath + "/spec"`: a string carries the whole
+      checkout as its context, which is the dependency being removed.
+      `self.sourceInfo` survives only as an evaluation-time guard -- a boolean,
+      which carries no store path -- so a flake that cannot see spec/ still
+      says why
+- [ ] Confirmed on a real run: a Rust check's `drvPath` is unchanged by an
+      edit under `tabular-center-kotlin/`, and changed by one under `spec/`.
+      Written, not yet observed; the commands are in the patch's message
 
 ### Found by the first composed run
 

@@ -9,24 +9,32 @@ let
   };
   inherit (pkgs) lib;
 
-  # The whole repository, not just this directory.
+  # What a check is given, each part its own store path.
   #
-  # The checks need spec/, the conformance contract all three languages
-  # share, which is the one thing outside this directory they read (the
-  # examples live in ./examples). `self.outPath` is this directory;
-  # `self.sourceInfo` is
-  # the source tree it was found in, which is the whole checkout both when
-  # this flake is checked on its own from git (`?dir=`) and when the root
-  # flake composes it through a relative `path:` input (Nix 2.26 or later).
+  # The checks run `tabular-center-rust/tools/verify` from a copy of the
+  # repository's layout holding three things: this directory, spec/ (the
+  # conformance contract, the one input all three languages share by design)
+  # and .editorconfig. Each is copied into the store separately with
+  # `builtins.path`, so each is hashed by its own contents -- and a check's
+  # inputs are exactly those three and its toolchain. Editing Kotlin does not
+  # rebuild a Rust check; editing spec/ rebuilds all three, as it should.
   #
-  # Checked rather than assumed. Pointed at with `path:./tabular-center-rust`
-  # on the command line, or composed by a Nix older than 2.26, the source is
-  # this directory alone, and every check would die later on a missing
-  # spec/conformance with nothing to say about why.
-  root =
-    let r = self.sourceInfo.outPath; in
-    if builtins.pathExists (r + "/spec/conformance")
-    then r
+  # It used to copy `self.sourceInfo` -- the whole checkout, one store path --
+  # so every commit anywhere rebuilt every check, even after each check had
+  # been trimmed to read only its own subtree. Reading less is what makes a
+  # check independent; depending on less is what makes it cheap.
+  #
+  # `../../spec` reaches above this flake's directory. That works exactly when
+  # the flake's source is the whole checkout: checked from git
+  # (`nix flake check ./tabular-center-rust`, which nix treats as `?dir=`) or
+  # composed by the root flake as a relative `path:` input (Nix 2.26 or later).
+  # Asked first, through `self.sourceInfo`, so any other way in gets this
+  # message rather than an "access to absolute path is forbidden" from
+  # whichever file happened to be read first.
+  wholeCheckout = builtins.pathExists (self.sourceInfo.outPath + "/spec/conformance");
+  fromCheckout = path:
+    if wholeCheckout
+    then path
     else
       throw ''
         tabular-center-rust: this flake's source is not the whole repository,
@@ -34,6 +42,10 @@ let
         (`nix flake check ./tabular-center-rust`), or through the root flake,
         with Nix 2.26 or later.
       '';
+
+  specSrc = builtins.path { path = fromCheckout ../../spec; name = "tabular-center-spec"; };
+  editorconfig = builtins.path { path = fromCheckout ../../.editorconfig; name = "tabular-center-editorconfig"; };
+  langSrc = builtins.path { path = ./..; name = "tabular-center-rust-src"; };
 
   has = {
     conformance = builtins.pathExists ../tabula-conformance/Cargo.toml;
@@ -148,9 +160,9 @@ let
         # claim. spec/ is the one thing all three share by design: it is the
         # cross-language contract.
         mkdir src
-        cp -r ${root}/spec src/spec
-        cp -r ${root}/tabular-center-rust src/tabular-center-rust
-        cp ${root}/.editorconfig src/.editorconfig
+        cp -r ${specSrc} src/spec
+        cp -r ${langSrc} src/tabular-center-rust
+        cp ${editorconfig} src/.editorconfig
         chmod -R u+w src && cd src
         ${script}
         touch $out
@@ -166,7 +178,7 @@ let
 
 in
 {
-  inherit self system pkgs lib has root rustToolchain rustInputs guiInputs
+  inherit self system pkgs lib has specSrc langSrc editorconfig rustToolchain rustInputs guiInputs
     commonInputs icedVendor rustStable mkCheck mkShell;
 
   # For the root flake. See `legacyPackages` in ../flake.nix.
