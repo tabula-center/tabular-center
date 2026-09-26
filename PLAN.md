@@ -558,6 +558,19 @@ rename, a development section, and one Rust sample.
       `desktop-jvm-macos-arm64`. `07-compose` takes `-PdesktopTarget` and has
       a `resolveForLock` task; `tools/gradle-lock` runs it for linux-x64,
       linux-arm64, macos-x64 and macos-arm64 into one cache
+- [x] **The apps were not pinned.** 0011 pinned the JVM inside the checks;
+      the JDK-17 error came back from `nix run .#gradle-lock -- --check`, an
+      app, which runs on the host and inherited the Ubuntu runner's
+      `JAVA_HOME` (Temurin 17). The `gradle-lock`, Kotlin `verify` and root
+      `verify` apps now export `JAVA_HOME` and `TABULAR_CENTER_JDK_HOME`, and
+      every Gradle run in `tools/gradle-lock` and the Kotlin `tools/verify`
+      passes the same three pins when it is set. Tell-tale for next time: a
+      nix check's log lines carry the derivation's name; an app's do not
+- [x] **`nm -D` is ELF-only.** `swiftpm-plugin-support`'s symbol check stopped
+      the Darwin build ("no dynamic symbol table") after the build itself had
+      succeeded: Mach-O has no ELF dynamic table, whatever nixpkgs names the
+      file. `nm -gU` on Darwin; Linux's command is unchanged, so the Linux
+      derivation does not rebuild
 - [ ] **Regenerate the lock** (`nix run .#gradle-lock`, needs network) and
       commit it. Until then `kotlin-compose` fails on macOS and CI's
       "gradle lock is current" step is red -- correctly: the committed lock

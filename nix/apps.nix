@@ -10,7 +10,7 @@
 ctx:
 
 let
-  inherit (ctx) pkgs allInputs allSetup commonInputs;
+  inherit (ctx) pkgs toolchains allInputs allSetup commonInputs;
 
   # Every app operates on the working tree -- regenerating doc/, running
   # cargo, reading spec/ -- so every one of them assumed it was launched from
@@ -109,6 +109,10 @@ let
     text = ''
       ${cdRoot}
       ${allSetup}
+      # The pinned JDK for Gradle, not the host's JAVA_HOME; see gradle_run in
+      # tabular-center-kotlin/tools/verify.
+      export JAVA_HOME="${toolchains.kotlin.env.JAVA_HOME}"
+      export TABULAR_CENTER_JDK_HOME="${toolchains.kotlin.env.JAVA_HOME}"
       ./tools/verify "$@"
     '';
   };

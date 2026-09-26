@@ -3,7 +3,7 @@
 ctx:
 
 let
-  inherit (ctx) pkgs commonInputs kotlinInputs;
+  inherit (ctx) pkgs commonInputs kotlinInputs jdkHome;
 
   cdRoot = ''
     if root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
@@ -25,6 +25,9 @@ let
     runtimeInputs = commonInputs ++ [ pkgs.git ] ++ kotlinInputs;
     text = ''
       ${cdRoot}
+      # The pinned JDK for Gradle; see gradle_run in tools/verify.
+      export JAVA_HOME="${jdkHome}"
+      export TABULAR_CENTER_JDK_HOME="${jdkHome}"
       ./tabular-center-kotlin/tools/verify "$@"
     '';
   };
@@ -54,6 +57,16 @@ let
     ];
     text = ''
       ${cdRoot}
+      # The pinned JDK, and nothing else, for Gradle and its toolchains.
+      #
+      # An app runs on the host, not in the sandbox, so it inherits the host's
+      # JAVA_HOME -- and GitHub's Ubuntu image sets that to its own Temurin 17.
+      # Gradle ran on the 17 while `jvmToolchain(21)` compiled the KSP
+      # processor with a 21, and loading it failed ("class file version
+      # 65.0"). The checks were already pinned; this app was not, so it went
+      # red on CI and green on a machine whose JAVA_HOME was unset.
+      export JAVA_HOME="${jdkHome}"
+      export TABULAR_CENTER_JDK_HOME="${jdkHome}"
       ./tabular-center-kotlin/tools/gradle-lock "$@"
     '';
   };

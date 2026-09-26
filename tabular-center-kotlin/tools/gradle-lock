@@ -126,12 +126,26 @@ echo "gradle $gradle_version"
 # `desktopTargets` in 07-compose/build.gradle.kts.
 DESKTOP_TARGETS=(linux-x64 linux-arm64 macos-x64 macos-arm64)
 
+# Which JVM Gradle may use. `nix run .#gradle-lock` sets
+# TABULAR_CENTER_JDK_HOME to the flake's JDK, and then that JDK is the only
+# one Gradle sees -- for its own daemon and for `jvmToolchain(21)` -- exactly
+# as in the checks, which write the same three settings into their
+# GRADLE_USER_HOME. Run bare, without it, Gradle chooses as it always did.
+jvm_flags=(-Dorg.gradle.java.installations.auto-download=false)
+if [ -n "${TABULAR_CENTER_JDK_HOME:-}" ]; then
+    jvm_flags+=(
+        -Dorg.gradle.java.home="$TABULAR_CENTER_JDK_HOME"
+        -Dorg.gradle.java.installations.paths="$TABULAR_CENTER_JDK_HOME"
+        -Dorg.gradle.java.installations.auto-detect=false
+    )
+    echo "jdk    $TABULAR_CENTER_JDK_HOME (pinned)"
+fi
+
 for example in "${EXAMPLES[@]}"; do
     echo "== resolving $example (this reaches the network) =="
     if ! GRADLE_USER_HOME="$guh" TABULAR_CENTER_MAVEN_REPO="" \
         gradle --no-daemon --console=plain -p "$example" \
-        -Dorg.gradle.java.installations.auto-download=false \
-        build; then
+        "${jvm_flags[@]}" build; then
         echo
         echo "gradle-lock: the online build of $example failed, so there is"
         echo "  nothing to lock. This command needs Maven access. If you are"
@@ -152,8 +166,7 @@ for example in "${EXAMPLES[@]}"; do
             echo "== resolving $example for $target (this reaches the network) =="
             if ! GRADLE_USER_HOME="$guh" TABULAR_CENTER_MAVEN_REPO="" \
                 gradle --no-daemon --console=plain -p "$example" \
-                -Dorg.gradle.java.installations.auto-download=false \
-                -PdesktopTarget="$target" resolveForLock; then
+                "${jvm_flags[@]}" -PdesktopTarget="$target" resolveForLock; then
                 echo "gradle-lock: resolving $example for $target failed"
                 exit 1
             fi

@@ -365,7 +365,7 @@ step_kotlin_ksp_incremental() {
     # shows up only here. Reporting "the first build failed" with no log left
     # this check unable to explain its own failure.
     local first
-    first="$( (cd "$ex" && gradle --no-daemon --console=plain build 2>&1) )"
+    first="$( (cd "$ex" && gradle_run --no-daemon --console=plain build 2>&1) )"
     if [ $? -ne 0 ]; then
         echo "FAIL the first build failed, before any edit was made."
         echo "     If kotlin-ksp passed, this is about the scratch copy's"
@@ -397,7 +397,7 @@ step_kotlin_ksp_incremental() {
         "$ex/src/Types.kt"
 
     local second
-    second="$( (cd "$ex" && gradle --no-daemon --console=plain build 2>&1) )"
+    second="$( (cd "$ex" && gradle_run --no-daemon --console=plain build 2>&1) )"
     rc=$?
 
     gen="$(find "$ex/build/generated" -name 'TurnstileGenerated.kt' | head -1)"
@@ -521,7 +521,7 @@ step_kotlin_ksp_compile_fail() {
         fi
         expect="$expects"
 
-        out="$( (cd tabular-center-kotlin/ksp/compile-fail && gradle --no-daemon --console=plain \
+        out="$( (cd tabular-center-kotlin/ksp/compile-fail && gradle_run --no-daemon --console=plain \
             -PtabulaFixture="$name" build 2>&1) )"
         local rc=$?
 
@@ -625,7 +625,7 @@ step_kotlin_compose() {
     # `check` compiles the UI and RUNS the headless machine checks: see the
     # runChecks task in build.gradle.kts. `build` alone would compile them and
     # run nothing, which this repository has been caught by once already.
-    (cd tabular-center-kotlin/examples/07-compose && gradle "${args[@]}" check) || return 1
+    (cd tabular-center-kotlin/examples/07-compose && gradle_run "${args[@]}" check) || return 1
     echo "ok   compose (bitkey-shaped, machine checked headlessly; UI compiled only)"
 }
 
@@ -648,7 +648,7 @@ step_kotlin_ksp() {
         if [ -f tabular-center-kotlin/nix/gradle-lock.json ] && command -v jq >/dev/null 2>&1; then
             local locked_with here
             locked_with="$(jq -r '.gradle // "unknown"' tabular-center-kotlin/nix/gradle-lock.json)"
-            here="$(gradle --version 2>/dev/null | awk '/^Gradle /{print $2; exit}')"
+            here="$(gradle_run --version 2>/dev/null | awk '/^Gradle /{print $2; exit}')"
             if [ -n "$here" ] && [ "$locked_with" != "unknown" ] && \
                [ "$locked_with" != "$here" ]; then
                 echo "note: lock was produced by gradle $locked_with, running $here"
@@ -680,7 +680,7 @@ step_kotlin_ksp() {
         echo "note: resolving from the network"
     fi
 
-    (cd tabular-center-kotlin/examples/06-generated && gradle "${args[@]}" build) || return 1
+    (cd tabular-center-kotlin/examples/06-generated && gradle_run "${args[@]}" build) || return 1
     echo "ok   generated (ksp)"
 
     # Extraction, checked against hand-stated twins rather than committed
@@ -768,6 +768,25 @@ step_kotlin_ksp() {
 }
 
 KTLINT="${KTLINT:-ktlint}"
+
+# Every Gradle run in this script goes through here.
+#
+# With TABULAR_CENTER_JDK_HOME set -- the flake's apps set it -- that JDK is the
+# only JVM Gradle may use, for its daemon and for `jvmToolchain(21)`: the same
+# three settings the checks write into their GRADLE_USER_HOME. An app runs on
+# the host and inherits the host's JAVA_HOME, and a JDK 17 there once ran a KSP
+# processor a 21 had compiled. Without the variable, Gradle chooses as it always
+# did. Not a function called `gradle`: `command -v gradle` decides whether the
+# Gradle steps skip, and a function of that name would always answer yes.
+gradle_run() {
+    if [ -n "${TABULAR_CENTER_JDK_HOME:-}" ]; then
+        gradle -Dorg.gradle.java.home="$TABULAR_CENTER_JDK_HOME" \
+            -Dorg.gradle.java.installations.paths="$TABULAR_CENTER_JDK_HOME" \
+            -Dorg.gradle.java.installations.auto-detect=false "$@"
+    else
+        gradle "$@"
+    fi
+}
 
 # Does the language formatter destroy the matrix alignment?
 #

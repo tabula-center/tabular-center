@@ -35,6 +35,26 @@
 # one beside it is what `CompilerPluginSupport` reads.
 { pkgs, lib, swiftPkgsSet }:
 
+let
+  # "Exported, defined symbols of this library", per object format.
+  #
+  # `nm -D` reads an ELF dynamic symbol table. Darwin libraries are Mach-O --
+  # whatever the file is called; nixpkgs keeps the `.so` name -- and have no
+  # such table, so on macOS `nm -D` stopped the build with "File format has no
+  # dynamic symbol table" after a twelve-minute compile that had SUCCEEDED.
+  # `-gU` (external, defined) is the Mach-O spelling, and both cctools' and
+  # LLVM's nm accept it. Swift's Mach-O symbols carry a leading underscore
+  # (`_$s21CompilerPluginSupport...`), which the substring match below does
+  # not care about.
+  nmExported =
+    if pkgs.stdenv.hostPlatform.isDarwin
+    then "nm -gU"
+    else "nm -D --defined-only";
+  nmDefined =
+    if pkgs.stdenv.hostPlatform.isDarwin
+    then "nm -U"
+    else "nm --defined-only";
+in
 swiftPkgsSet.swiftpm.overrideAttrs (old: {
   pname = "${old.pname or "swiftpm"}-plugin-support";
 
@@ -155,12 +175,12 @@ swiftPkgsSet.swiftpm.overrideAttrs (old: {
     # an assertion lying in the opposite direction from the five rounds above,
     # and just as hard to see, because whether it lies depends on where in
     # nm's output the first match falls.
-    nm -D --defined-only "$api/libPackageDescription.so" > "$TMPDIR/lib.syms"
+    ${nmExported} "$api/libPackageDescription.so" > "$TMPDIR/lib.syms"
     if ! grep -q CompilerPluginSupport "$TMPDIR/lib.syms"; then
       echo "tabular-center: libPackageDescription.so defines no CompilerPluginSupport"
       echo "  symbols; the module is findable and will not link."
       # Which half lost them: the object (compile) or the library (link).
-      nm --defined-only "$TMPDIR/CompilerPluginSupport.o" > "$TMPDIR/obj.syms" || true
+      ${nmDefined} "$TMPDIR/CompilerPluginSupport.o" > "$TMPDIR/obj.syms" || true
       echo "  CompilerPluginSupport.o: $(grep -c CompilerPluginSupport "$TMPDIR/obj.syms" || true) matching symbol(s)"
       echo "  libPackageDescription.so: $(wc -l < "$TMPDIR/lib.syms") exported symbol(s) in all"
       exit 1
