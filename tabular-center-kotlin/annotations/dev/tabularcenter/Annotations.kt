@@ -1,4 +1,4 @@
-package dev.tabula
+package dev.tabularcenter
 
 import kotlin.reflect.KClass
 

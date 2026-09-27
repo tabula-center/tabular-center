@@ -51,14 +51,14 @@ let package = Package(
         // manifest compiled far enough to resolve anything. Two blockers
         // stacked behind one that hid both.
         //
-        // Exported for the same reason `tabula-codegen` is a separate Kotlin
+        // Exported for the same reason `tabular-center-codegen` is a separate Kotlin
         // artifact (RELEASING.md): the generator's logic is consumed by a
         // build-time plugin, and it carries no runtime weight for anyone who
         // does not use one.
         .library(name: "TabulaCodegen", targets: ["TabulaCodegen"]),
         .executable(name: "tabula-check", targets: ["TabulaCheck"]),
         .executable(name: "tabula-conformance", targets: ["TabulaConformance"]),
-        .executable(name: "tabula-codegen-check", targets: ["TabulaCodegenCheck"]),
+        .executable(name: "tabular-center-codegen-check", targets: ["TabulaCodegenCheck"]),
     ],
     targets: [
         .target(name: "Tabula"),

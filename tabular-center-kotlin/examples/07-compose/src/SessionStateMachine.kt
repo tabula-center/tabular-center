@@ -16,14 +16,14 @@
 package example.compose
 
 import androidx.compose.runtime.Composable
-import dev.tabula.Step
+import dev.tabularcenter.Step
 import example.compose.connection.Cells as ConnectionCellsSurface
 import example.compose.session.A
 import example.compose.session.Cells
 import example.compose.session.Ctx
 import example.compose.session.F
 import example.compose.session.S
-import dev.tabula.Export
+import dev.tabularcenter.Export
 import example.compose.session.TABLE
 import example.compose.session.perform
 import example.compose.session.step

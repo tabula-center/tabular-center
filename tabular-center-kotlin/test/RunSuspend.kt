@@ -8,7 +8,7 @@ import kotlin.coroutines.startCoroutine
  * Runs a suspending block to completion on the calling thread.
  *
  * `kotlinx.coroutines` would give this for free, but it is a Maven dependency
- * and `tabula-core` must not acquire one. `kotlin.coroutines` — the intrinsics
+ * and `tabular-center-core` must not acquire one. `kotlin.coroutines` — the intrinsics
  * in the stdlib — is enough, which is also the proof that the suspending driver
  * needs nothing beyond the `suspend` keyword.
  */

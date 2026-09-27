@@ -9,7 +9,7 @@
  */
 package examples.trafficlight
 
-import dev.tabula.Step
+import dev.tabularcenter.Step
 
 sealed interface S {
     data object Red : S

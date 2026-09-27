@@ -12,7 +12,7 @@ title: Kotlin
 The matrix is declared in annotations and KSP generates the dispatcher, the
 `Cells` interface with one member per `HANDLE` cell and effect, and the
 effect-handler surface. The generated code is never committed; the runtime,
-`tabula-core`, compiles against an empty classpath -- no dependencies, not
+`tabular-center-core`, compiles against an empty classpath -- no dependencies, not
 even coroutines.
 
 ## The matrix
@@ -169,7 +169,7 @@ interface JobSpec {
 
 Make the prototype `suspend fun handle(...)` and `step`, `perform` and every
 member suspend; `SuspendDriver` runs it with no coroutine library, from
-`tabula-core` alone. A suspending child under a plain parent does not compile.
+`tabular-center-core` alone. A suspending child under a plain parent does not compile.
 
 ## Setting it up
 
@@ -199,7 +199,7 @@ sourceSets["main"].kotlin.srcDir("../../annotations")
 ```kotlin
 dependencies {
     // Named, and substituted to the included build in settings.gradle.kts.
-    ksp("dev.tabula:tabula-ksp:0.1.0")
+    ksp("dev.tabularcenter:tabular-center-ksp:0.1.0")
 }
 ```
 
@@ -208,7 +208,7 @@ dependencies {
 ```kotlin
 includeBuild("../../ksp") {
     dependencySubstitution {
-        substitute(module("dev.tabula:tabula-ksp"))
+        substitute(module("dev.tabularcenter:tabular-center-ksp"))
             .using(project(":"))
             .because("the example builds the processor from source, not from a repository")
     }
@@ -217,8 +217,8 @@ includeBuild("../../ksp") {
 
 <sub>From [`tabular-center-kotlin/examples/06-generated/settings.gradle.kts`](https://github.com/tabula-center/tabular-center/blob/main/tabular-center-kotlin/examples/06-generated/settings.gradle.kts).</sub>
 
-The planned artifacts are `tabula-core` (runtime), `tabula-annotations`
-(compile-only), `tabula-ksp` (the processor) and `tabula-testing` (a `.tbl`
+The planned artifacts are `tabular-center-core` (runtime), `tabular-center-annotations`
+(compile-only), `tabular-center-ksp` (the processor) and `tabular-center-testing` (a `.tbl`
 fixture harness), so a production build carries the runtime and nothing else.
 
 ## Examples

@@ -7,7 +7,7 @@
  */
 package examples.timer
 
-import dev.tabula.Step
+import dev.tabularcenter.Step
 
 sealed interface S {
     data object Idle : S

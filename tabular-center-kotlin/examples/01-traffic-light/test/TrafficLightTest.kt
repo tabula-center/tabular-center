@@ -3,7 +3,7 @@
 // `tests/` directory. A test in the same unit can reach anything, so it
 // never shows that the example's own surface is usable.
 
-import dev.tabula.Step
+import dev.tabularcenter.Step
 import examples.trafficlight.*
 
 fun main() {

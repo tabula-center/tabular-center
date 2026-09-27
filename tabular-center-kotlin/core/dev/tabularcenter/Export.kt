@@ -1,4 +1,4 @@
-package dev.tabula
+package dev.tabularcenter
 
 /**
  * Diagram and grid rendering.

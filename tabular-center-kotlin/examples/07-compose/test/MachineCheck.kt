@@ -10,7 +10,7 @@
 // from the root package into a named one. Every other example's checks sit
 // here for the same reason.
 
-import dev.tabula.Step
+import dev.tabularcenter.Step
 import example.compose.ConnectionCells
 import example.compose.connection.A
 import example.compose.connection.Ctx

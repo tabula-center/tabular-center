@@ -1,16 +1,16 @@
-package dev.tabula.testing
+package dev.tabularcenter.testing
 
-import dev.tabula.*
+import dev.tabularcenter.*
 
 /**
  * Parses `spec/conformance` — the same `.tbl` and `.trace` files the Rust
  * harness reads.
  *
- * Published as **tabula-testing**, separately from the runtime: a machine in
+ * Published as **tabular-center-testing**, separately from the runtime: a machine in
  * production has no use for a fixture parser, and a test dependency that ships
  * to users is a test dependency nobody removes later.
  *
- * Depends on `tabula-core` and nothing else — enforced by `tools/verify`,
+ * Depends on `tabular-center-core` and nothing else — enforced by `tools/verify`,
  * which compiles each artifact against only its declared dependencies.
  *
  * A port, deliberately: the format was chosen to parse in about sixty lines

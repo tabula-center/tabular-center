@@ -13,7 +13,7 @@
  */
 package examples.login
 
-import dev.tabula.Step
+import dev.tabularcenter.Step
 
 /** The child: authentication, written knowing nothing about sessions. */
 object auth {

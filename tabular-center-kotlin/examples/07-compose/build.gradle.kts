@@ -60,7 +60,7 @@ val resolveForLock by tasks.registering {
     doLast { classpath.get().resolve() }
 }
 
-// tabula from source, as every other example does.
+// tabular-center from source, as every other example does.
 sourceSets["main"].kotlin.srcDir("src")
 sourceSets["main"].kotlin.srcDir("../../core")
 sourceSets["main"].kotlin.srcDir("../../annotations")
@@ -68,7 +68,7 @@ sourceSets["test"].kotlin.srcDir("test")
 sourceSets["test"].kotlin.srcDir("../harness")
 
 dependencies {
-    ksp("dev.tabula:tabula-ksp:0.1.0")
+    ksp("dev.tabularcenter:tabular-center-ksp:0.1.0")
 
     // The state machine layer needs the Compose RUNTIME only -- `remember`,
     // `mutableStateOf`, recomposition. That is the point of the architecture:

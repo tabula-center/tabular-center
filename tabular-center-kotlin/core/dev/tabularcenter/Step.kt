@@ -1,4 +1,4 @@
-package dev.tabula
+package dev.tabularcenter
 
 /**
  * The outcome of one matrix cell.

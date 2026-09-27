@@ -160,11 +160,11 @@ kotlin_version_note() {
 
 # Compile each published artifact against ONLY its declared dependencies.
 #
-# This is the boundary check, not just a build. `tabula-core` compiled with an
+# This is the boundary check, not just a build. `tabular-center-core` compiled with an
 # empty classpath proves it needs nothing -- no annotations, no codegen, no
 # coroutines -- which is the zero-runtime-dependency rule enforced by
-# construction rather than by a dependency report. `tabula-annotations` is
-# compile-time only and must not reach for the runtime. `tabula-testing` may
+# construction rather than by a dependency report. `tabular-center-annotations` is
+# compile-time only and must not reach for the runtime. `tabular-center-testing` may
 # use core and nothing else.
 #
 # Run from the `tabular-center-kotlin/` directory.
@@ -175,15 +175,15 @@ kotlin_cp() { echo "$1/core:$1/annotations:$1/testing"; }
 
 kotlin_artifacts() {
     local out="$1"
-    "$KOTLINC" core/dev/tabula/*.kt -d "$out/core" 2>&1 | grep -v "^info:" || true
-    [ -d "$out/core" ] || { echo "tabula-core failed to compile"; return 1; }
+    "$KOTLINC" core/dev/tabularcenter/*.kt -d "$out/core" 2>&1 | grep -v "^info:" || true
+    [ -d "$out/core" ] || { echo "tabular-center-core failed to compile"; return 1; }
 
-    "$KOTLINC" annotations/dev/tabula/*.kt -d "$out/annotations" 2>&1 | grep -v "^info:" || true
-    [ -d "$out/annotations" ] || { echo "tabula-annotations failed to compile"; return 1; }
+    "$KOTLINC" annotations/dev/tabularcenter/*.kt -d "$out/annotations" 2>&1 | grep -v "^info:" || true
+    [ -d "$out/annotations" ] || { echo "tabular-center-annotations failed to compile"; return 1; }
 
-    "$KOTLINC" -cp "$out/core" testing/dev/tabula/testing/*.kt -d "$out/testing" 2>&1 \
+    "$KOTLINC" -cp "$out/core" testing/dev/tabularcenter/testing/*.kt -d "$out/testing" 2>&1 \
         | grep -v "^info:" || true
-    [ -d "$out/testing" ] || { echo "tabula-testing failed to compile"; return 1; }
+    [ -d "$out/testing" ] || { echo "tabular-center-testing failed to compile"; return 1; }
 
     # A classpath, not a merged directory. Each module writes its own
     # META-INF/main.kotlin_module, so copying them into one place silently
@@ -311,7 +311,7 @@ step_kotlin_examples() {
 #
 # PLAN's last open KSP item, and the one that cannot be checked by building
 # once. KSP caches per-round and tracks which sources a processor read; if
-# `TabulaProcessor` does not declare the sealed hierarchy as a dependency of
+# `TabularCenterProcessor` does not declare the sealed hierarchy as a dependency of
 # what it writes, a second build after editing `Types.kt` reuses the first
 # build's output. The dispatcher then describes a machine that no longer
 # exists, and nothing says so -- the build is green and the generated file is
@@ -427,7 +427,7 @@ step_kotlin_ksp_incremental() {
 #
 # `codegen/Tests.kt` already drives `buildDesc` directly and asserts on every
 # code. What nothing exercised is the step after: the processor catching a
-# `TabulaError` and turning it into a `KSPLogger.error` that fails a real
+# `TabularCenterError` and turning it into a `KSPLogger.error` that fails a real
 # compilation. Those are different pieces of code and only one had a test.
 #
 # The Rust half of this has existed since the beginning -- `tools/compile-fail`
@@ -703,8 +703,8 @@ step_kotlin_ksp() {
     # example stopped declaring. Either is a failure, never a skip.
     local twins gen name twin bad=0 n=0
     twins="$(mktemp -d)"
-    # Built exactly as kotlin-codegen builds it: against tabula-core. The
-    # codegen check's tests reach `dev.tabula` by qualified name with no
+    # Built exactly as kotlin-codegen builds it: against tabular-center-core. The
+    # codegen check's tests reach `dev.tabularcenter` by qualified name with no
     # import, so a build without the classpath fails there -- which is how
     # this step first failed. From `tabular-center-kotlin/`, because the helpers are.
     local built

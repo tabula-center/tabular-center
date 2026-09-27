@@ -1,5 +1,5 @@
 /**
- * The architecture this example is written in, which is not tabula's.
+ * The architecture this example is written in, which is not tabular-center's.
  *
  * Bitkey's (`proto-at-block/bitkey`, `app/libs/state-machine`): a state
  * machine is a `@Composable fun model(props): Model`, using the Compose
@@ -8,7 +8,7 @@
  * its own.
  *
  * It is reproduced here, in eight lines, because the interesting question is
- * whether tabula fits an architecture someone already has. tabula does not
+ * whether tabular-center fits an architecture someone already has. tabular-center does not
  * ship this interface and does not want to: it decides what a machine does,
  * and this decides where the machine lives.
  */

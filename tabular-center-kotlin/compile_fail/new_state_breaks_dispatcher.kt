@@ -9,7 +9,7 @@
 // is regenerated from the annotations and would simply grow the branch.
 package cf2
 
-import dev.tabula.*
+import dev.tabularcenter.*
 
 sealed interface S {
     data object Idle : S

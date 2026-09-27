@@ -8,7 +8,7 @@
  */
 package generated.turnstile
 
-import dev.tabula.Step
+import dev.tabularcenter.Step
 
 class Impl : Cells {
     /** The only cell with a decision in it: a static cell cannot touch `ctx`. */

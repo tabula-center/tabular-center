@@ -16,7 +16,7 @@ It names the cell *and* shows its narrowed argument types. Three properties
 were verified against kotlinc 2.1.20, each with a fixture in `compile_fail/`:
 
 1. **Omitting a cell fails to compile** — a plain unimplemented-member error
-   from kotlinc, not from tabula. It survives even if the generator is
+   from kotlinc, not from tabular-center. It survives even if the generator is
    bypassed.
 2. **Adding a state breaks the generated dispatcher** — `'when' expression must
    be exhaustive`. The same free second guarantee rustc gives the Rust macro.
@@ -108,11 +108,11 @@ against that output, proves the emitted code **still enforces the guarantee**.
 ## Layout
 
 ```
-core/               tabula-core        runtime; compiles against nothing
-annotations/        tabula-annotations compile-time only
-testing/            tabula-testing     fixture parser; needs only core
-codegen/            tabula-codegen     validation and the emitter
-ksp/                tabula-ksp         the processor (Gradle; artifacts from tabular-center-kotlin/nix/gradle-lock.json)
+core/               tabular-center-core        runtime; compiles against nothing
+annotations/        tabular-center-annotations compile-time only
+testing/            tabular-center-testing     fixture parser; needs only core
+codegen/            tabular-center-codegen     validation and the emitter
+ksp/                tabular-center-ksp         the processor (Gradle; artifacts from tabular-center-kotlin/nix/gradle-lock.json)
 test/               the reference machine (KSP's specification) and its tests
 conformance/        the shared spec/conformance fixtures, run against Kotlin
 compile_fail/       one fixture per guarantee
@@ -120,7 +120,7 @@ compile_fail/       one fixture per guarantee
 
 The directory split is the artifact split — see `RELEASING.md`. `tools/verify
 kotlin` compiles each against **only** its declared dependencies, so
-`tabula-core` building with an empty classpath is the zero-runtime-dependency
+`tabular-center-core` building with an empty classpath is the zero-runtime-dependency
 rule enforced by construction rather than asserted.
 
 `test/Composition.kt` holds a parent machine delegating to a child. Its shape

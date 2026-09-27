@@ -10,7 +10,7 @@
 // keyword", and a machine whose prototype is `suspend` is exactly what it is
 // for: `step` and `perform` are both suspending here, which is why the plain
 // `Driver` could not run this machine at all.
-import dev.tabula.SuspendDriver
+import dev.tabularcenter.SuspendDriver
 import generated.gate.A
 import generated.gate.Ctx
 import generated.gate.GateImpl

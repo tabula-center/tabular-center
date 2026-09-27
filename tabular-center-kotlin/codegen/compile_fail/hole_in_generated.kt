@@ -9,7 +9,7 @@
 // `runningTick` is a HANDLE cell in the emitted surface, and omitting it fails.
 package generated.timer
 
-import dev.tabula.Step
+import dev.tabularcenter.Step
 
 class Hole : Cells {
     override suspend fun idleStart(ctx: Ctx, state: S.Idle, action: A.Start) =

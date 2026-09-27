@@ -17,7 +17,7 @@
  */
 package reference
 
-import dev.tabula.*
+import dev.tabularcenter.*
 
 // ---------------------------------------------------------------------------
 // What the developer declares

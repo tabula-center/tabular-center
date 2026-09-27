@@ -1,4 +1,4 @@
-package dev.tabula.ksp
+package dev.tabularcenter.ksp
 
 import codegen.ChildDesc
 import codegen.RawCell
@@ -6,7 +6,7 @@ import codegen.RawMachine
 import codegen.RawPath
 import codegen.RawRow
 import codegen.RawVariant
-import codegen.TabulaError
+import codegen.TabularCenterError
 import codegen.buildDesc
 import codegen.emit
 import com.google.devtools.ksp.getDeclaredFunctions
@@ -50,7 +50,7 @@ import java.io.OutputStreamWriter
  * check), not a logic bug, and it surfaces as an obviously wrong `RawMachine`
  * rather than as subtly wrong generated code.
  */
-class TabulaProcessor(
+class TabularCenterProcessor(
     private val codeGenerator: CodeGenerator,
     private val logger: KSPLogger,
 ) : SymbolProcessor {
@@ -66,7 +66,7 @@ class TabulaProcessor(
                 val raw = readMachine(decl)
                 val desc = buildDesc(raw)
                 write(decl, desc.packageName, raw.machine, emit(desc))
-            } catch (e: TabulaError) {
+            } catch (e: TabularCenterError) {
                 // Diagnostics are authored in `codegen`, not here, so their
                 // text stays identical whether they are triggered through KSP
                 // or through the tests. Only the source position is added --
@@ -241,7 +241,7 @@ class TabulaProcessor(
         .mapNotNull { it.childDecl() }
         .distinctBy { it.qualifiedName?.asString() ?: it.simpleName.asString() }
         .map { child ->
-            val ann = child.annotation(MACHINE_SIMPLE) ?: throw TabulaError(
+            val ann = child.annotation(MACHINE_SIMPLE) ?: throw TabularCenterError(
                 "tabular-center::unknown-child",
                 "tabular-center::unknown-child: `${child.simpleName.asString()}` is named by a DELEGATE " +
                     "cell but is not a machine. A child must carry @Machine, and must be compiled " +
@@ -278,7 +278,7 @@ class TabulaProcessor(
     /**
      * The prototype's extension receiver, fully qualified, or empty.
      *
-     * Qualified because the generated file imports nothing but `dev.tabula`,
+     * Qualified because the generated file imports nothing but `dev.tabularcenter`,
      * and the receiver -- unlike `S`, `A` and `Ctx` -- is usually a type from
      * somewhere else: a clock, a scope, a logger.
      *
@@ -385,9 +385,9 @@ class TabulaProcessor(
         is KSClassDeclaration -> this
         else -> null
     } ?: error(
-        // Not a TabulaError: diagnostics are authored in `codegen` and this is
+        // Not a TabularCenterError: diagnostics are authored in `codegen` and this is
         // an extraction failure in the adapter, not a claim about the user's
-        // machine. `process` catches it and prefixes `tabula:` like any other.
+        // machine. `process` catches it and prefixes `tabular-center:` like any other.
         "argument `$name` came back as ${this?.let { it::class.simpleName } ?: "null"}, " +
             "which this processor does not know how to read as a class. " +
             "See the argument-shape note in tabular-center-kotlin/ksp/README.md.",
@@ -419,7 +419,7 @@ class TabulaProcessor(
         ann.classes(name).firstOrNull()?.parentDeclaration?.simpleName?.asString() ?: "Unit"
 
     private companion object {
-        const val MACHINE_ANNOTATION = "dev.tabula.Machine"
+        const val MACHINE_ANNOTATION = "dev.tabularcenter.Machine"
         const val MACHINE_SIMPLE = "Machine"
         const val ROW_SIMPLE = "Row"
         const val PATH_SIMPLE = "Path"
@@ -427,7 +427,7 @@ class TabulaProcessor(
 }
 
 /** Registered via `META-INF/services`. */
-class TabulaProcessorProvider : SymbolProcessorProvider {
+class TabularCenterProcessorProvider : SymbolProcessorProvider {
     override fun create(environment: SymbolProcessorEnvironment): SymbolProcessor =
-        TabulaProcessor(environment.codeGenerator, environment.logger)
+        TabularCenterProcessor(environment.codeGenerator, environment.logger)
 }

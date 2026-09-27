@@ -20,7 +20,7 @@
  */
 package composition
 
-import dev.tabula.*
+import dev.tabularcenter.*
 
 // ---------------------------------------------------------------------------
 // Child: a retry machine, written without knowing anything about its parent.

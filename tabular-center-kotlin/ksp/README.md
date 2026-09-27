@@ -1,7 +1,7 @@
-# tabula-ksp
+# tabular-center-ksp
 
 KSP is a Maven artifact. The environment this was first written in could not
-reach Maven, so `TabulaProcessor.kt` was written unverified while **everything
+reach Maven, so `TabularCenterProcessor.kt` was written unverified while **everything
 it feeds into was already covered**. It now runs under `nix flake check` against
 the artifact set pinned in `tabular-center-kotlin/nix/gradle-lock.json` (see below).
 
@@ -71,7 +71,7 @@ near-certain bug.
 It used to depend on the generator with `implementation(files("../codegen"))`.
 `files()` puts a path on the compile classpath as a directory of **class**
 files, and `../codegen` holds `.kt` sources, so every `import codegen.*` in
-`TabulaProcessor.kt` would have failed to resolve. Those sources are compiled
+`TabularCenterProcessor.kt` would have failed to resolve. Those sources are compiled
 into this module instead.
 
 Filtered with exclude patterns rather than by listing files, because `srcDir`

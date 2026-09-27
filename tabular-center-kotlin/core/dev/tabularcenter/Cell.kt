@@ -1,4 +1,4 @@
-package dev.tabula
+package dev.tabularcenter
 
 /**
  * One entry in the transition matrix, as inert data.

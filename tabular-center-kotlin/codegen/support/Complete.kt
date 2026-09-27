@@ -6,7 +6,7 @@
  */
 package generated.timer
 
-import dev.tabula.Step
+import dev.tabularcenter.Step
 
 class Complete : Cells {
     override suspend fun idleStart(ctx: Ctx, state: S.Idle, action: A.Start) =

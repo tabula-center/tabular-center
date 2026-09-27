@@ -6,7 +6,7 @@
    are fine; anything that links into a user's binary is not. For Kotlin this
    is enforced *by construction* rather than by a dependency report: there is
    no build system, so there is no classpath but the stdlib, and the `kotlin`
-   step compiles `tabula-core` against an empty one.
+   step compiles `tabular-center-core` against an empty one.
 2. **Behaviour changes land in `spec/conformance` first.** The three
    implementations will drift unless something forces them not to.
 3. **Every diagnostic gets a compile-fail fixture**, under

@@ -3,8 +3,8 @@
 // rest of this example is ordinary Kotlin, formatted normally.
 package examples.timer
 
-import dev.tabula.Cell
-import dev.tabula.Table
+import dev.tabularcenter.Cell
+import dev.tabularcenter.Table
 
 val TABLE = Table(
     machine = "Timer",

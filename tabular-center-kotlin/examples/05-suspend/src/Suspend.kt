@@ -19,8 +19,8 @@
  */
 package examples.suspending
 
-import dev.tabula.Step
-import dev.tabula.SuspendDriver
+import dev.tabularcenter.Step
+import dev.tabularcenter.SuspendDriver
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.startCoroutine

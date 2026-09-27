@@ -5,7 +5,7 @@
 // it happened: walking Next four times reaches Placed with no cell member
 // for any of those steps.
 
-import dev.tabula.Step
+import dev.tabularcenter.Step
 import example.compose.CheckoutCells
 import example.compose.checkout.A
 import example.compose.checkout.Ctx

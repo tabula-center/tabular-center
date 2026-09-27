@@ -10,7 +10,7 @@ fun main() = application {
     // `ConnectionStateMachine`, which the checks drive directly.
     val machine = SessionStateMachine(log = ::println)
     var tick = 0
-    Window(onCloseRequest = ::exitApplication, title = "tabula :: session") {
+    Window(onCloseRequest = ::exitApplication, title = "tabular-center :: session") {
         SessionUi(machine.model(SessionProps(now = { ++tick })))
     }
 }

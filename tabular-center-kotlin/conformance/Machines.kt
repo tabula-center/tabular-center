@@ -1,7 +1,7 @@
 package conformance
 
-import dev.tabula.*
-import dev.tabula.testing.*
+import dev.tabularcenter.*
+import dev.tabularcenter.testing.*
 
 /**
  * The fixture machines, written in the shape KSP will generate.

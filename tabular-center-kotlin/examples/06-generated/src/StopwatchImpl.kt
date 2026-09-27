@@ -2,7 +2,7 @@
 // extension on `Clock`, so `now()` is simply in scope.
 package generated.stopwatch
 
-import dev.tabula.Step
+import dev.tabularcenter.Step
 
 internal class StopwatchImpl : Cells {
     override fun Clock.idleStart(ctx: Ctx, state: S.Idle, action: A.Start): Step<S, F> =

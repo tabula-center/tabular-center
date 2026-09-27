@@ -5,7 +5,7 @@
 // `generated.jobmixed` is plain and delegates to `retrysuspend`, whose `step`
 // is `suspend`. The generated `delegateToRetrysuspend` carries the PARENT's
 // color, so it is a plain function calling a suspend one -- and kotlinc
-// refuses it. By construction: tabula emits no diagnostic of its own, and
+// refuses it. By construction: tabular-center emits no diagnostic of its own, and
 // there is nothing to circumvent. The reverse direction is
 // support/CompleteJobSuspend.kt, which must compile.
 //

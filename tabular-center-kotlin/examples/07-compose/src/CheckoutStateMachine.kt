@@ -8,8 +8,8 @@
 package example.compose
 
 import androidx.compose.runtime.Composable
-import dev.tabula.Export
-import dev.tabula.Step
+import dev.tabularcenter.Export
+import dev.tabularcenter.Step
 import example.compose.checkout.A
 import example.compose.checkout.Cells
 import example.compose.checkout.Ctx

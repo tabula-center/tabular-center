@@ -115,7 +115,7 @@ data class RawCell(
  * node: the KSP processor maps the state to its `@Row` annotation, so the
  * error lands on the row rather than on the annotated interface.
  */
-class TabulaError(
+class TabularCenterError(
     val code: String,
     override val message: String,
     val state: String? = null,
@@ -131,11 +131,11 @@ class TabulaError(
 private inline fun <T> inRow(state: String, body: () -> T): T =
     try {
         body()
-    } catch (e: TabulaError) {
-        if (e.state == null) throw TabulaError(e.code, e.message, state) else throw e
+    } catch (e: TabularCenterError) {
+        if (e.state == null) throw TabularCenterError(e.code, e.message, state) else throw e
     }
 
-private fun fail(code: String, message: String): Nothing = throw TabulaError(code, "$code: $message")
+private fun fail(code: String, message: String): Nothing = throw TabularCenterError(code, "$code: $message")
 
 /**
  * Validate a [RawMachine] and turn it into a [MachineDesc].

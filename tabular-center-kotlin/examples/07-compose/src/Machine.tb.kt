@@ -12,13 +12,13 @@
  */
 package example.compose.connection
 
-import dev.tabula.CellSpec as C
-import dev.tabula.Kind.GO
-import dev.tabula.Kind.HANDLE
-import dev.tabula.Kind.IGNORE
-import dev.tabula.Machine
-import dev.tabula.Row
-import dev.tabula.Step
+import dev.tabularcenter.CellSpec as C
+import dev.tabularcenter.Kind.GO
+import dev.tabularcenter.Kind.HANDLE
+import dev.tabularcenter.Kind.IGNORE
+import dev.tabularcenter.Machine
+import dev.tabularcenter.Row
+import dev.tabularcenter.Step
 import example.compose.connection.A.Ready
 import example.compose.connection.A.Retry
 import example.compose.connection.A.Start

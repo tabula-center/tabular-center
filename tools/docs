@@ -380,7 +380,7 @@ prose <<'MD'
 The matrix is declared in annotations and KSP generates the dispatcher, the
 `Cells` interface with one member per `HANDLE` cell and effect, and the
 effect-handler surface. The generated code is never committed; the runtime,
-`tabula-core`, compiles against an empty classpath -- no dependencies, not
+`tabular-center-core`, compiles against an empty classpath -- no dependencies, not
 even coroutines.
 
 ## The matrix
@@ -447,7 +447,7 @@ code $K/examples/06-generated/src/Job.tb.kt kotlin '^@Machine\(' '^\}'
 prose <<'MD'
 Make the prototype `suspend fun handle(...)` and `step`, `perform` and every
 member suspend; `SuspendDriver` runs it with no coroutine library, from
-`tabula-core` alone. A suspending child under a plain parent does not compile.
+`tabular-center-core` alone. A suspending child under a plain parent does not compile.
 
 ## Setting it up
 
@@ -460,8 +460,8 @@ code $K/examples/06-generated/build.gradle.kts kotlin '^sourceSets\["main"\]\.ko
 code $K/examples/06-generated/build.gradle.kts kotlin '^dependencies \{' '^\}'
 code $K/examples/06-generated/settings.gradle.kts kotlin '^includeBuild\(' '^\}'
 prose <<'MD'
-The planned artifacts are `tabula-core` (runtime), `tabula-annotations`
-(compile-only), `tabula-ksp` (the processor) and `tabula-testing` (a `.tbl`
+The planned artifacts are `tabular-center-core` (runtime), `tabular-center-annotations`
+(compile-only), `tabular-center-ksp` (the processor) and `tabular-center-testing` (a `.tbl`
 fixture harness), so a production build carries the runtime and nothing else.
 
 ## Examples

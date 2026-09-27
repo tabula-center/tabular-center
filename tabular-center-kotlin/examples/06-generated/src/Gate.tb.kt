@@ -2,12 +2,12 @@
 // `spec/matrix-files.md`, and `kotlin-matrix-stable` proves it.
 package generated.gate
 
-import dev.tabula.CellSpec
-import dev.tabula.Emit
-import dev.tabula.Kind
-import dev.tabula.Machine
-import dev.tabula.Row
-import dev.tabula.Step
+import dev.tabularcenter.CellSpec
+import dev.tabularcenter.Emit
+import dev.tabularcenter.Kind
+import dev.tabularcenter.Machine
+import dev.tabularcenter.Row
+import dev.tabularcenter.Step
 
 @Machine(
     states = [S.Closed::class, S.Opening::class, S.Open::class],

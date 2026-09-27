@@ -603,7 +603,7 @@ step_swift_codegen() {
     #    not committed, so there is no golden; stages 2 and 3 prove the output.
     # shellcheck disable=SC2046
     out="$( (cd tabular-center-swift && "$SWIFT" run -c release $(swift_paths "$scratch") \
-        tabula-codegen-check "--emit=$gen") 2>&1 )"
+        tabular-center-codegen-check "--emit=$gen") 2>&1 )"
     rc=$?
     printf '%s\n' "$out"
     if [ "$rc" -ne 0 ]; then rm -rf "$scratch"; return "$rc"; fi

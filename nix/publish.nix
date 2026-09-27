@@ -113,7 +113,7 @@ in
         # `implementation`, annotations `compileOnly`, ksp `ksp`, testing
         # `testImplementation`. Publishing one fat jar would force every
         # consumer to take a processor and a fixture parser into production.
-        for m in tabula-core tabula-annotations tabula-codegen tabula-ksp tabula-testing; do
+        for m in tabular-center-core tabular-center-annotations tabular-center-codegen tabular-center-ksp tabular-center-testing; do
           echo "  -> $m"
           if [ "$execute" -eq 1 ]; then
             (cd tabular-center-kotlin && gradle --no-daemon ":$m:publish")
@@ -125,7 +125,7 @@ in
       ${lib.optionalString (!has.kotlinGradle) ''
         echo "== kotlin: skipped =="
         echo "  no Gradle build yet; the artifacts compile with kotlinc alone."
-        echo "  planned: tabula-core, -annotations, -codegen, -ksp, -testing"
+        echo "  planned: tabular-center-core, -annotations, -codegen, -ksp, -testing"
         echo "  see RELEASING.md"
       ''}
 

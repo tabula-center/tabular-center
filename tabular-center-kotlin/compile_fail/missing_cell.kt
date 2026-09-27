@@ -9,7 +9,7 @@
 // why the dispatcher lives only in generated code.
 package cf
 
-import dev.tabula.*
+import dev.tabularcenter.*
 import reference.*
 
 class Hole : TimerMachine() {

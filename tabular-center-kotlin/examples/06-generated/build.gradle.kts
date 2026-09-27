@@ -20,7 +20,7 @@ repositories {
     if (tabulaRepo != null) maven { url = uri(tabulaRepo) } else mavenCentral()
 }
 
-// tabula is not published to any repository yet, so the runtime and the
+// tabular-center is not published to any repository yet, so the runtime and the
 // annotations are compiled from source. `srcDir` and not `files()`: those
 // directories hold .kt sources, and `files()` would put them on the classpath
 // as directories of class files and resolve nothing.
@@ -52,7 +52,7 @@ sourceSets["test"].kotlin.srcDir("../harness")
 
 dependencies {
     // Named, and substituted to the included build in settings.gradle.kts.
-    ksp("dev.tabula:tabula-ksp:0.1.0")
+    ksp("dev.tabularcenter:tabular-center-ksp:0.1.0")
 }
 
 kotlin { jvmToolchain(21) }

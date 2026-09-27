@@ -2,7 +2,7 @@
  * The machine, in bitkey's shape: props in, model out, state held by the
  * Compose runtime.
  *
- * What tabula contributes is the `Cells` implementation below. Every cell of
+ * What tabular-center contributes is the `Cells` implementation below. Every cell of
  * the matrix that needs code is a member of it, so a state or an action added
  * to `Machine.tb.kt` stops this file compiling until it is decided -- which is
  * the whole claim, landing on an architecture that was not designed for it.
@@ -10,13 +10,13 @@
 package example.compose
 
 import androidx.compose.runtime.Composable
-import dev.tabula.Step
+import dev.tabularcenter.Step
 import example.compose.connection.A
 import example.compose.connection.Cells
 import example.compose.connection.Ctx
 import example.compose.connection.F
 import example.compose.connection.S
-import dev.tabula.Export
+import dev.tabularcenter.Export
 import example.compose.connection.TABLE
 import example.compose.connection.perform
 import example.compose.connection.step

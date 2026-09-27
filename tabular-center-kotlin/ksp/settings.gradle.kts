@@ -15,7 +15,7 @@
 // Naming the project also fixes the publication half, which is the smaller
 // reason to have written this file and the one that would have gone on being
 // deferred.
-rootProject.name = "tabula-ksp"
+rootProject.name = "tabular-center-ksp"
 
 pluginManagement {
     val tabulaRepo: String? = System.getenv("TABULAR_CENTER_MAVEN_REPO")?.takeIf { it.isNotBlank() }

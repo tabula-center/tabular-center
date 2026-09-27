@@ -21,11 +21,11 @@ pluginManagement {
     }
 }
 
-rootProject.name = "tabula-ksp-compile-fail"
+rootProject.name = "tabular-center-ksp-compile-fail"
 
 includeBuild("..") {
     dependencySubstitution {
-        substitute(module("dev.tabula:tabula-ksp"))
+        substitute(module("dev.tabularcenter:tabular-center-ksp"))
             .using(project(":"))
             .because("the harness builds the processor from source, not from a repository")
     }

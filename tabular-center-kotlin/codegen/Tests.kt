@@ -26,7 +26,7 @@ private fun expectError(what: String, code: String, body: () -> Unit) {
         body()
         failures++
         println("FAIL $what: expected $code, got no error")
-    } catch (e: TabulaError) {
+    } catch (e: TabularCenterError) {
         if (e.code != code) {
             failures++
             println("FAIL $what: expected $code, got ${e.code}")
@@ -155,7 +155,7 @@ fun runValidationTests(): Int {
     // payload-hoist: rule R4, asked as a question.
     check(
         "a field in three states is flagged",
-        dev.tabula.payloadHoist(
+        dev.tabularcenter.payloadHoist(
             listOf(
                 Triple("Connecting", "retryCount", "Int"),
                 Triple("Backoff", "retryCount", "Int"),
@@ -163,17 +163,17 @@ fun runValidationTests(): Int {
                 Triple("Reconnecting", "retryCount", "Int"),
             )
         ).singleOrNull().let {
-            it is dev.tabula.Finding.PayloadHoist &&
+            it is dev.tabularcenter.Finding.PayloadHoist &&
                 it.states == listOf("Connecting", "Backoff", "Reconnecting")
         }
     )
     check(
         "two states is a coincidence, not a pattern",
-        dev.tabula.payloadHoist(listOf(Triple("A", "n", "Int"), Triple("B", "n", "Int"))).isEmpty()
+        dev.tabularcenter.payloadHoist(listOf(Triple("A", "n", "Int"), Triple("B", "n", "Int"))).isEmpty()
     )
     check(
         "the same name at different types is not the same field",
-        dev.tabula.payloadHoist(
+        dev.tabularcenter.payloadHoist(
             listOf(
                 Triple("A", "count", "Int"),
                 Triple("B", "count", "String"),

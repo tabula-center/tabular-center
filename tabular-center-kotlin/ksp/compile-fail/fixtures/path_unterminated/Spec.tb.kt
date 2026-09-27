@@ -6,12 +6,12 @@
 // not finished. A path that never ends is a loop with a name.
 package fixtures.pathunterminated
 
-import dev.tabula.CellSpec
-import dev.tabula.Kind
-import dev.tabula.Machine
-import dev.tabula.Path
-import dev.tabula.Row
-import dev.tabula.Step
+import dev.tabularcenter.CellSpec
+import dev.tabularcenter.Kind
+import dev.tabularcenter.Machine
+import dev.tabularcenter.Path
+import dev.tabularcenter.Row
+import dev.tabularcenter.Step
 
 @Machine(
     states = [S.Idle::class, S.Busy::class, S.Done::class],

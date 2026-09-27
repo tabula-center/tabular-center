@@ -11,7 +11,7 @@ cannot remove.** So the runtime is published alone, with nothing else in it,
 and everything that exists only at build time or test time is a separate
 artifact they can scope accordingly.
 
-That is why `tabula-core` compiles against an *empty* classpath in
+That is why `tabular-center-core` compiles against an *empty* classpath in
 `tools/verify` — the zero-runtime-dependency rule enforced by construction
 rather than asserted in a README.
 
@@ -21,12 +21,12 @@ rather than asserted in a README.
 |---|---|---|---|
 | Rust | `tabular-center` | runtime | `Step`, `Cell`, `Table`, `Driver`, lints, export, **and `transition_matrix!`** |
 | | `tabular-center-conformance` | not published | the fixture harness; internal |
-| | `tabula-examples` | not published | worked examples; internal |
-| Kotlin | `tabula-core` | `implementation` | `Step`, `Cell`, `Table`, `Driver`, `Export`, `Lint` |
-| | `tabula-annotations` | `compileOnly` | `@Machine`, `@Row`, `CellSpec` |
-| | `tabula-codegen` | transitive of `ksp` | `MachineDesc`, validation, the emitter |
-| | `tabula-ksp` | `ksp` | the processor |
-| | `tabula-testing` | `testImplementation` | `.tbl`/`.trace` parser, `checkTable` |
+| | `tabular-center-examples` | not published | worked examples; internal |
+| Kotlin | `tabular-center-core` | `implementation` | `Step`, `Cell`, `Table`, `Driver`, `Export`, `Lint` |
+| | `tabular-center-annotations` | `compileOnly` | `@Machine`, `@Row`, `CellSpec` |
+| | `tabular-center-codegen` | transitive of `ksp` | `MachineDesc`, validation, the emitter |
+| | `tabular-center-ksp` | `ksp` | the processor |
+| | `tabular-center-testing` | `testImplementation` | `.tbl`/`.trace` parser, `checkTable` |
 | Swift | `Tabula` | runtime | the core |
 | | `TabulaCodegen` | transitive of the plugin | `MachineDesc`, validation, the emitter |
 | | `TabulaMacros` | build-time plugin | the macro implementation |
@@ -50,7 +50,7 @@ This asymmetry is not a wart. It is the same shape as ARCHITECTURE §11.0:
 where the languages differ, follow the language rather than forcing a uniform
 answer nobody reads side by side.
 
-### Why `tabula-testing` is separate
+### Why `tabular-center-testing` is separate
 
 A machine in production has no use for a fixture parser. A test dependency
 that ships to users is a test dependency nobody removes later.

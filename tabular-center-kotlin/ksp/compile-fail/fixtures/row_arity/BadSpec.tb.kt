@@ -7,18 +7,18 @@
 // already unit-tested in `codegen/Tests.kt`, which drives `buildDesc`
 // directly -- what was missing is the diagnostic as a user meets it: emitted
 // by the processor, through a real compilation, failing the build. `buildDesc`
-// throwing a `TabulaError` and the processor turning that into a
+// throwing a `TabularCenterError` and the processor turning that into a
 // `KSPLogger.error` are different steps, and nothing exercised the second.
 //
 // `.tb.kt` because the rows below are column-aligned and a formatter's job is
 // to normalise exactly that. See `spec/matrix-files.md`.
 package fixtures.rowarity
 
-import dev.tabula.CellSpec
-import dev.tabula.Kind
-import dev.tabula.Machine
-import dev.tabula.Row
-import dev.tabula.Step
+import dev.tabularcenter.CellSpec
+import dev.tabularcenter.Kind
+import dev.tabularcenter.Machine
+import dev.tabularcenter.Row
+import dev.tabularcenter.Step
 
 @Machine(
     states = [S.Idle::class, S.Busy::class],

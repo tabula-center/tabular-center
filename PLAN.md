@@ -690,11 +690,22 @@ proposals are only proposals.
       all three implementations print it, so it changes in one commit across
       the spec and the three -- after the Kotlin and Swift renames, not
       inside the Rust one
-- [ ] Kotlin: a package cannot contain `-`, so `dev.tabula` becomes one of
-      `dev.tabularcenter` or `dev.tabular.center`. Proposed: the first -- one
-      segment, as now, so no import gains a level. Artifacts `tabula-core` ...
-      `tabula-testing` -> `tabular-center-core` ... `tabular-center-testing`.
-      The KSP processor's option keys and generated-file names follow
+- [x] Kotlin: package `dev.tabula` -> `dev.tabularcenter` (one segment, as
+      proposed), group `dev.tabula` -> `dev.tabularcenter`, artifacts
+      `tabula-core` ... `tabula-testing` -> `tabular-center-core` ...
+      `tabular-center-testing`. Source directories follow the package
+      (`core/dev/tabularcenter/`, ...); `TabulaProcessor`,
+      `TabulaProcessorProvider` and `TabulaError` become `TabularCenter...`,
+      and the KSP service file names the new provider -- the one place a
+      class name is data, where a stale entry is a processor that silently
+      never runs. The three Gradle builds substitute
+      `dev.tabularcenter:tabular-center-ksp` for the included processor,
+      whose `group` and `rootProject.name` say the same. No option keys or
+      generated-file names carried the brand. The Gradle lock is untouched:
+      the processor comes from the included build, never from Maven. KSP
+      compile-fail positions are matched by line content, and no line was
+      added, so they cannot shift. Swift's own `TabulaError` is the Swift
+      patch's
 - [ ] Swift: products and modules `Tabula`, `TabulaTesting`, `TabulaCodegen`,
       `TabulaMacros` -> `TabularCenter`, `TabularCenterTesting`, ... The
       package name follows; the directory already did in R1

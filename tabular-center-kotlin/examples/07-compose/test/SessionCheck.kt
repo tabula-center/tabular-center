@@ -4,7 +4,7 @@
 // Nothing here mentions Compose. The transition layer is testable without a
 // toolkit, which is the reason a matrix is worth having at all.
 
-import dev.tabula.Step
+import dev.tabularcenter.Step
 import example.compose.ConnectionCells
 import example.compose.SessionCells
 import example.compose.connection.F as ChildF

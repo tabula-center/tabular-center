@@ -7,7 +7,7 @@
 // Compiled in the test source set, which Gradle associates with `main`, so
 // the `internal` generated surface is visible here as it would be to any code
 // in the same module.
-import dev.tabula.Step
+import dev.tabularcenter.Step
 import generated.stopwatch.A
 import generated.stopwatch.Clock
 import generated.stopwatch.Ctx

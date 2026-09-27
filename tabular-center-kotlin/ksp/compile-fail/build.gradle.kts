@@ -36,7 +36,7 @@ sourceSets["main"].kotlin.setSrcDirs(
 )
 
 dependencies {
-    ksp("dev.tabula:tabula-ksp:0.1.0")
+    ksp("dev.tabularcenter:tabular-center-ksp:0.1.0")
 }
 
 kotlin { jvmToolchain(21) }

@@ -11,7 +11,7 @@ plugins {
 // A coordinate, so a consuming build can substitute this project for it.
 // Nothing publishes to it; it exists to be named. See
 // tabular-center-kotlin/examples/06-generated/settings.gradle.kts.
-group = "dev.tabula"
+group = "dev.tabularcenter"
 version = "0.1.0"
 
 // Same TABULAR_CENTER_MAVEN_REPO switch as the example. This is an included build, so
@@ -33,7 +33,7 @@ dependencies {
 // This used to read `implementation(files("../codegen"))`, which would not have
 // worked: `files()` puts a path on the compile classpath as a directory of
 // *class* files, and ../codegen holds .kt sources. Every `import codegen.*` in
-// TabulaProcessor.kt would have failed to resolve.
+// TabularCenterProcessor.kt would have failed to resolve.
 //
 // Compiled as sources instead, with the rest of that directory excluded.
 // `srcDir` takes a directory, not a file list, so the filtering is done with

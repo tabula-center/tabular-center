@@ -760,12 +760,12 @@ guarantee is as strong as Rust's, because both now rest on required-member
 implementation rather than on matcher exhaustiveness.
 
 Costs, honestly: KSP is a build dependency (not a runtime one; the generated
-code and `tabula-core` have zero runtime deps). Incremental builds slow.
+code and `tabular-center-core` have zero runtime deps). Incremental builds slow.
 IDE resolution of generated symbols is flaky until first build. Nested
 annotation matrices are wordy, and ktlint will fight the column alignment —
 ship an `.editorconfig` disabling the relevant rules for annotated declarations.
 
-Multiplatform: `tabula-core` is a KMP module (`commonMain` only). The KSP
+Multiplatform: `tabular-center-core` is a KMP module (`commonMain` only). The KSP
 processor is JVM.
 
 ### 11.3 Swift — macro
@@ -883,9 +883,9 @@ tabular-center/
 │   │                             #   KSP: gradle-lock.json + gradle-repo.nix
 │   ├── tools/verify             # the Kotlin steps
 │   ├── tools/gradle-lock        # writes nix/gradle-lock.json (network)
-│   ├── core/dev/tabula/         # Step, Cell, Table, Export, Lint, Driver
-│   ├── annotations/dev/tabula/  # @Machine, @Row, @Path, cell markers
-│   ├── testing/dev/tabula/testing/
+│   ├── core/dev/tabularcenter/         # Step, Cell, Table, Export, Lint, Driver
+│   ├── annotations/dev/tabularcenter/  # @Machine, @Row, @Path, cell markers
+│   ├── testing/dev/tabularcenter/testing/
 │   ├── codegen/                 # MachineDesc -> String, + support/ and compile_fail/
 │   ├── ksp/                     # JVM processor — Gradle, offline via nix/gradle-lock.json
 │   ├── test/                    # reference machine + harness
