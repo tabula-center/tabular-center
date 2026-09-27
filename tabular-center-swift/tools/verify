@@ -550,7 +550,7 @@ step_swift_examples() {
     # One executable per example now, each its own target with its own
     # dependency line. Run separately so a failure names the example rather
     # than the package.
-    local out rc=0 one ex failed=()
+    local out rc=0 one ex failed=() replay=""
     for ex in traffic-light timer retry login observable-counter spec-check; do
         # shellcheck disable=SC2046
         out="$( (cd tabular-center-swift/examples && "$SWIFT" run -c release \
@@ -561,6 +561,9 @@ step_swift_examples() {
             rc=1
             failed+=("$ex (exit $one)")
             echo "FAIL swift example $ex exited $one"
+            # Its own last lines, kept for the end: see below.
+            replay+="--- $ex, last lines ---"$'\n'"$(printf '%s\n' "$out" | tail -n 12)"$'\n'
+
         fi
     done
     rm -rf "$scratch"
@@ -569,9 +572,13 @@ step_swift_examples() {
     # line saying which one failed ends up far above the end -- and nix shows
     # only the last 25 lines of a failed check. A macOS run once reported
     # "FAILED: swift-examples" under a passing spec-check and nothing else.
+    #
+    # And the failing examples' own last lines with it. The name alone was
+    # the next round's problem: it said observable-counter failed and still
+    # not which assertion, because that was above the window too.
     if [ "$rc" -ne 0 ]; then
+        printf '%s' "$replay"
         echo "swift-examples: ${#failed[@]} failed: ${failed[*]}"
-        echo "  (the example's own output is above its FAIL line)"
     fi
     return "$rc"
 }

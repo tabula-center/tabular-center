@@ -49,12 +49,26 @@ PKG="tabular-center-swift/macros"
 check=0
 [ "${1:-}" = "--check" ] && check=1
 
-for tool in swift curl sha256sum jq; do
+for tool in swift swiftc curl sha256sum jq; do
     command -v "$tool" >/dev/null 2>&1 || {
         echo "swift-lock: $tool is required and not on PATH"
         exit 2
     }
 done
+
+# Name the compiler for SwiftPM rather than letting it search.
+#
+# SwiftPM finds `swiftc` by its own toolchain discovery, not simply the first
+# one on PATH, and `nix develop` ADDS to the host's PATH rather than replacing
+# it. GitHub's Ubuntu image ships a Swift of its own. On CI, SwiftPM got an
+# empty answer from `swiftc -print-target-info` while ours, asked directly,
+# answered correctly -- and the same shell passed on a machine with no second
+# Swift. A foreign swiftc running under this shell's LD_LIBRARY_PATH (nix's
+# Swift 5.10 runtime) is the likeliest way to print nothing. SWIFT_EXEC is
+# SwiftPM's own override for exactly this choice.
+SWIFT_EXEC="$(command -v swiftc)"
+export SWIFT_EXEC
+echo "swiftc $SWIFT_EXEC"
 
 echo "== resolving (this reaches the network) =="
 if ! (cd "$PKG" && swift package resolve); then
@@ -62,6 +76,8 @@ if ! (cd "$PKG" && swift package resolve); then
     # SwiftPM swallows the compiler's stderr when target-info comes back empty
     # and reports "malformed json" instead. Ask directly, so a broken
     # toolchain environment shows its own error rather than SwiftPM's.
+    echo "every swiftc on PATH (SwiftPM was told $SWIFT_EXEC):"
+    type -a swiftc 2>/dev/null | sed 's/^/  /'
     echo "swiftc -print-target-info, asked directly:"
     swiftc -print-target-info 2>&1 | sed 's/^/  /' | head -20
     echo

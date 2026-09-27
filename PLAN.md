@@ -615,10 +615,20 @@ rename, a development section, and one Rust sample.
       on a nix build's PATH. `swift-macros` is the one debug build (every
       other Swift step is `-c release`, which applies no entitlement) and now
       passes `--disable-get-task-allow-entitlement` on Darwin
-- [ ] Which Swift example fails on macOS. Suspect: `observable-counter`, the
-      only one whose code path differs by platform -- it skips off Darwin, so
-      until this macOS run, `ObservableStore`'s real path had never executed
-      anywhere. If so, it is likely a genuine bug, not a CI one
+- [ ] **`observable-counter` fails on macOS** (exit 1: a failed `Check` or a
+      throw, not a crash) -- confirmed by the named summary, as suspected: the
+      one example whose path differs by platform, and whose Darwin path had
+      never run before this job. `ObservableStore` reads correctly and the
+      machine's `Ctx` is a class, so no fix on a guess; `swift-examples` now
+      replays each failing example's own last lines at the end of the log,
+      and the next run says which assertion
+- [x] **`swift-lock`: same dev shell, passes locally, fails on CI** -- so the
+      host. `nix develop` adds to the host's PATH, the Ubuntu image ships its
+      own Swift, and SwiftPM finds its compiler by discovery, not simply first
+      on PATH; a foreign swiftc under nix's LD_LIBRARY_PATH printing nothing
+      fits every observation. `tools/swift-lock` now sets SWIFT_EXEC, SwiftPM's
+      override, to the swiftc it resolved, and on failure lists every swiftc on
+      PATH. Likeliest cause, not yet proven: the next run confirms or refutes
 - [ ] **Regenerate the lock** (`nix run .#gradle-lock`, needs network) and
       commit it. Until then `kotlin-compose` fails on macOS and CI's
       "gradle lock is current" step is red -- correctly: the committed lock
