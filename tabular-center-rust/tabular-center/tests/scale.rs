@@ -220,5 +220,8 @@ fn the_machine_actually_runs() {
         State::PaymentFailed(PaymentFailed { code: 51 }),
         Action::Retry(Retry),
     );
-    assert_eq!(s.outcome, tabular_center::Outcome::Go(State::Cancelled(Cancelled)));
+    assert_eq!(
+        s.outcome,
+        tabular_center::Outcome::Go(State::Cancelled(Cancelled))
+    );
 }
