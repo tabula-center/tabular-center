@@ -615,20 +615,23 @@ rename, a development section, and one Rust sample.
       on a nix build's PATH. `swift-macros` is the one debug build (every
       other Swift step is `-c release`, which applies no entitlement) and now
       passes `--disable-get-task-allow-entitlement` on Darwin
-- [ ] **`observable-counter` fails on macOS** (exit 1: a failed `Check` or a
-      throw, not a crash) -- confirmed by the named summary, as suspected: the
-      one example whose path differs by platform, and whose Darwin path had
-      never run before this job. `ObservableStore` reads correctly and the
-      machine's `Ctx` is a class, so no fix on a guess; `swift-examples` now
-      replays each failing example's own last lines at the end of the log,
-      and the next run says which assertion
+- [x] **`observable-counter` did not compile on macOS.** Not a runtime
+      failure and not an `ObservableStore` bug: the store is `@MainActor`,
+      and the example used it from top-level code, which Swift 5.10 does not
+      isolate to the main actor. The block is `#if os(macOS) || ...`, so no
+      Linux run had ever compiled it; the first Darwin job was the first
+      compiler to read it. Wrapped in `MainActor.assumeIsolated` (macOS 14,
+      inside the existing `#available`) -- true, since top-level code runs on
+      the main thread, and synchronous, so the checks still run before exit.
+      `TabulaCheck` already did this properly; the example had not followed.
+      The replayed output from the last patch is what showed it
 - [x] **`swift-lock`: same dev shell, passes locally, fails on CI** -- so the
       host. `nix develop` adds to the host's PATH, the Ubuntu image ships its
       own Swift, and SwiftPM finds its compiler by discovery, not simply first
       on PATH; a foreign swiftc under nix's LD_LIBRARY_PATH printing nothing
       fits every observation. `tools/swift-lock` now sets SWIFT_EXEC, SwiftPM's
       override, to the swiftc it resolved, and on failure lists every swiftc on
-      PATH. Likeliest cause, not yet proven: the next run confirms or refutes
+      PATH. Confirmed: the next Linux run went green, lock check included
 - [ ] **Regenerate the lock** (`nix run .#gradle-lock`, needs network) and
       commit it. Until then `kotlin-compose` fails on macOS and CI's
       "gradle lock is current" step is red -- correctly: the committed lock
