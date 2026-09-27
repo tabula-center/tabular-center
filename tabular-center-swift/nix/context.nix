@@ -197,7 +197,18 @@ let
 
   # Exported before any step that runs Swift. The same line was repeated in
   # every Swift check in the root checks.nix.
-  swiftSetup = ''export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"'';
+  #
+  # NIX_CC too, for the apps. The checks set it on the derivation (see the note
+  # above swiftCorelibs); an app runs on the host and had neither, so
+  # `swiftc -print-target-info` died on `NIX_CC: unbound variable` before
+  # printing a byte, and SwiftPM reported the empty output as malformed JSON --
+  # the first time `swift-lock --check` ever ran in CI. Here, it reaches every
+  # Swift entry point: the checks, both Swift apps, and the root's through
+  # `allSetup`. Same value as mkCheck's, so the checks see no change.
+  swiftSetup = ''
+    export NIX_CC="${pkgs.stdenv.cc}"
+    export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  '';
 
   commonInputs = [ pkgs.git pkgs.jq pkgs.just pkgs.graphviz pkgs.nixpkgs-fmt ];
 

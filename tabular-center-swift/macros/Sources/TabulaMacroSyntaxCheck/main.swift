@@ -29,6 +29,25 @@ import SwiftSyntax
 import TabulaCodegen
 import TabulaMacroSyntax
 
+/// `haystack` contains `needle`, as text.
+///
+/// Not `String.contains(_: some StringProtocol)`. That overload comes from
+/// Swift's string-processing library and is `@available(macOS 13)`; Linux has
+/// no availability gates, so it crept in unnoticed, and the first macOS run --
+/// which builds for the package's default 10.13 target -- refused to compile.
+/// This is `starts(with:)` and `dropFirst()`, which exist everywhere. Internal
+/// on purpose, one copy per module that needs it: a public extension on String
+/// would be API nobody asked for.
+func containsText(_ haystack: some StringProtocol, _ needle: some StringProtocol) -> Bool {
+    if needle.isEmpty { return true }
+    var rest = Substring(haystack)
+    while !rest.isEmpty {
+        if rest.starts(with: needle) { return true }
+        rest = rest.dropFirst()
+    }
+    return false
+}
+
 var failed = 0
 
 func check(_ ok: Bool, _ what: String) {
@@ -158,7 +177,7 @@ do {
             check(false, "a tuple where a row was expected is an error")
         } catch let e as SyntaxError {
             check(
-                e.message.contains("array literal") && e.message.contains(".a"),
+                containsText(e.message, "array literal") && containsText(e.message, ".a"),
                 "the error names what was found and where: \(e.message)")
         }
     }
@@ -223,7 +242,7 @@ do {
     let tree = Parser.parse(source: text)
     check(!tree.hasError, "\(path) is still valid Swift")
     check(
-        text.contains(#"#externalMacro(module: "TabulaMacros""#),
+        containsText(text, #"#externalMacro(module: "TabulaMacros""#),
         "\(path) still names the module Package.swift will declare")
 }
 
@@ -327,11 +346,11 @@ do {
             let desc = try buildDesc(MachineSyntax.read(decl))
             let out = emit(desc)
             // On the spine: written HANDLE, generated GO, so no member.
-            check(!out.contains("idleStart"), "a hop's HANDLE stops being a cell member")
-            check(!out.contains("connectingReady"), "and so does the second hop's")
+            check(!containsText(out, "idleStart"), "a hop's HANDLE stops being a cell member")
+            check(!containsText(out, "connectingReady"), "and so does the second hop's")
             // Off the spine: no hop names it, so it stays a member. Without
             // this the check would pass if `derive` rewrote everything.
-            check(out.contains("failedStart"), "a HANDLE no hop names stays a member")
+            check(containsText(out, "failedStart"), "a HANDLE no hop names stays a member")
         } catch {
             check(false, "the spine machine is accepted: \(error)")
         }
@@ -382,7 +401,7 @@ do {
                 "a state payload's nested type is qualified too")
             let out = emit(try buildDesc(raw))
             check(
-                out.contains("_ effect: Timer.Reason)"),
+                containsText(out, "_ effect: Timer.Reason)"),
                 "the file-scope protocol names the qualified type")
         } catch {
             check(false, "the nested-type machine is accepted: \(error)")
@@ -431,10 +450,10 @@ do {
                 "an EMIT keeps its effect arguments: got \(emitCell.effects)")
             let out = emit(try buildDesc(raw))
             check(
-                out.contains(".log(line: \"x\")"),
+                containsText(out, ".log(line: \"x\")"),
                 "the dispatcher emits the call verbatim")
             check(
-                out.contains("effects: [\"chime\", \"log\"]"),
+                containsText(out, "effects: [\"chime\", \"log\"]"),
                 "TABLE records the effect name without its arguments")
         } catch {
             check(false, "the machine with effect arguments is accepted: \(error)")
@@ -477,10 +496,10 @@ do {
 
             let out = emit(try buildDesc(raw))
             // Both directions derived, so neither is a cell member.
-            check(!out.contains("addrBack"), "a hop's far side stops being a cell member")
-            check(!out.contains("cartNext"), "and the forward direction still does")
+            check(!containsText(out, "addrBack"), "a hop's far side stops being a cell member")
+            check(!containsText(out, "cartNext"), "and the forward direction still does")
             // And the path's end may be left by its own back action.
-            check(!out.contains("doneBack"), "the end's back cell derives rather than demanding code")
+            check(!containsText(out, "doneBack"), "the end's back cell derives rather than demanding code")
         } catch {
             check(false, "the machine with a back action is accepted: \(error)")
         }

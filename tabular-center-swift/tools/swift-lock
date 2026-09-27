@@ -59,6 +59,12 @@ done
 echo "== resolving (this reaches the network) =="
 if ! (cd "$PKG" && swift package resolve); then
     echo
+    # SwiftPM swallows the compiler's stderr when target-info comes back empty
+    # and reports "malformed json" instead. Ask directly, so a broken
+    # toolchain environment shows its own error rather than SwiftPM's.
+    echo "swiftc -print-target-info, asked directly:"
+    swiftc -print-target-info 2>&1 | sed 's/^/  /' | head -20
+    echo
     echo "swift-lock: resolution failed, so there is nothing to lock."
     echo "  This command needs network. Inside a nix build you do not have it;"
     echo "  run it on a machine that does and commit the result."

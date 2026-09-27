@@ -581,6 +581,27 @@ rename, a development section, and one Rust sample.
 - [x] `swift-examples` named its failures only inline, far above the 25 lines
       nix shows of a failed check, so a macOS failure read "FAILED" under a
       passing spec-check. It now ends with the failing examples by name
+- [x] **`NIX_CC` in the apps.** `swift-lock --check` ran in CI for the first
+      time (the job used to stop at the gradle-lock check just before it) and
+      SwiftPM reported malformed target-info JSON: `swiftc` had died on
+      `NIX_CC: unbound variable` before printing anything. The checks set
+      `NIX_CC`; the apps never did. `swiftSetup` exports it now, so every
+      Swift entry point has it, and `swift-lock` prints `swiftc`'s own error
+      when resolution fails instead of SwiftPM's summary of it
+- [x] **macOS 13 APIs on a 10.13 target.** `String.contains(_: some
+      StringProtocol)` is `@available(macOS 13)`; Linux has no availability
+      gates, so 19 calls crept in unnoticed: 7 in `TabulaCheck`, 12 in the
+      macro syntax check -- both internal, neither a library product.
+      Replaced with a stdlib-only `containsText`, one internal copy per
+      module, keeping the promise that the package asks nothing of a
+      deployment target. Next time: a Linux-only green run says nothing about
+      availability
+- [x] **And a wrong fix, caught by the next run.** The first version also
+      rewrote two calls in `TabulaCodegen/Emit.swift` and called them library
+      exposure. They were `[String].contains(_:)` -- an element test, always
+      available -- matched by a regex that saw the shape and not the type, and
+      `swift-codegen` stopped compiling. Reverted, with a comment. Every
+      remaining site's receiver was then checked to be a `String`
 - [ ] Which Swift example fails on macOS. Suspect: `observable-counter`, the
       only one whose code path differs by platform -- it skips off Darwin, so
       until this macOS run, `ObservableStore`'s real path had never executed

@@ -248,6 +248,8 @@ private struct Color {
         let after = mods.filter { specifiers.contains($0) }
         prefix = before.isEmpty ? "" : before.joined(separator: " ") + " "
         suffix = after.isEmpty ? "" : " " + after.joined(separator: " ")
+        // `after` is `[String]`, so this is Array's `contains(_:)` -- an element
+        // test, available everywhere -- not the macOS-13 `String.contains`.
         let throwing = after.contains("throws") || after.contains("rethrows")
         call = (throwing ? "try " : "") + (after.contains("async") ? "await " : "")
     }

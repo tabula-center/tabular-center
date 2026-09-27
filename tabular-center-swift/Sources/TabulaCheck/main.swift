@@ -6,6 +6,25 @@ import Glibc
 import Darwin
 #endif
 
+/// `haystack` contains `needle`, as text.
+///
+/// Not `String.contains(_: some StringProtocol)`. That overload comes from
+/// Swift's string-processing library and is `@available(macOS 13)`; Linux has
+/// no availability gates, so it crept in unnoticed, and the first macOS run --
+/// which builds for the package's default 10.13 target -- refused to compile.
+/// This is `starts(with:)` and `dropFirst()`, which exist everywhere. Internal
+/// on purpose, one copy per module that needs it: a public extension on String
+/// would be API nobody asked for.
+func containsText(_ haystack: some StringProtocol, _ needle: some StringProtocol) -> Bool {
+    if needle.isEmpty { return true }
+    var rest = Substring(haystack)
+    while !rest.isEmpty {
+        if rest.starts(with: needle) { return true }
+        rest = rest.dropFirst()
+    }
+    return false
+}
+
 /// The same assertions as the Rust and Kotlin references.
 ///
 /// Deliberately the same: the three implementations agreeing is what
@@ -87,27 +106,27 @@ func tableAndLints() {
     let untrimmed = grid.split(separator: "\n", omittingEmptySubsequences: false)
         .contains { $0.hasSuffix(" ") }
     Assert.ok(!untrimmed, "grid lines are right-trimmed")
-    Assert.ok(grid.contains("GO(Idle, StopClock)"), "grid renders GO with effects")
-    Assert.ok(grid.contains("HANDLE"), "grid renders HANDLE")
+    Assert.ok(containsText(grid, "GO(Idle, StopClock)"), "grid renders GO with effects")
+    Assert.ok(containsText(grid, "HANDLE"), "grid renders HANDLE")
 
     let mermaid = Export.toMermaid(TIMER_TABLE)
-    Assert.ok(mermaid.contains("[*] --> Idle"), "mermaid marks the initial state")
+    Assert.ok(containsText(mermaid, "[*] --> Idle"), "mermaid marks the initial state")
     Assert.ok(
-        mermaid.contains("Running --> Idle: Cancel / StopClock"),
+        containsText(mermaid, "Running --> Idle: Cancel / StopClock"),
         "mermaid draws static transitions"
     )
     // A HANDLE cell's target is not knowable at build time, so it is a
     // self-loop rather than an invented edge.
-    Assert.ok(mermaid.contains("Idle --> Idle: Start / ?handle"), "HANDLE cells are self-loops")
+    Assert.ok(containsText(mermaid, "Idle --> Idle: Start / ?handle"), "HANDLE cells are self-loops")
 
     let dot = Export.toDot(TIMER_TABLE)
     Assert.ok(dot.hasPrefix("digraph Timer {"), "dot names the machine")
     Assert.ok(
-        dot.contains(#"Idle -> Idle [label="Start / ?handle", style=dashed];"#),
+        containsText(dot, #"Idle -> Idle [label="Start / ?handle", style=dashed];"#),
         "dot dashes dynamic edges"
     )
     Assert.ok(
-        dot.contains(#"Running -> Idle [label="Cancel / StopClock"];"#),
+        containsText(dot, #"Running -> Idle [label="Cancel / StopClock"];"#),
         "dot leaves static edges solid"
     )
 
