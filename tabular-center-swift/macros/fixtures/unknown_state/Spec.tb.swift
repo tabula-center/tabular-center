@@ -5,7 +5,7 @@
 // rather than in a config nobody reads. `swift-format-config` requires it on
 // every `.tb.swift`; `swift-matrix-stable` runs the formatter over this file
 // and compares the rows.
-//~ EXPECT: tabula::unknown-state
+//~ EXPECT: tabular-center::unknown-state
 //
 // `.go(.parked)` names a case the machine never declares as a state.
 //

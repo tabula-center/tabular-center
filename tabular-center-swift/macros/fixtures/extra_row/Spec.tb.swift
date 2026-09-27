@@ -5,7 +5,7 @@
 // rather than in a config nobody reads. `swift-format-config` requires it on
 // every `.tb.swift`; `swift-matrix-stable` runs the formatter over this file
 // and compares the rows.
-//~ EXPECT: tabula::extra-row
+//~ EXPECT: tabular-center::extra-row
 //
 // A row for a state `S` never declares.
 //

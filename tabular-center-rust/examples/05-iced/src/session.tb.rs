@@ -4,7 +4,7 @@
 //! state carries the child's, and the parent's `Cells` bound includes the
 //! child's, so a hole anywhere in the child is a build error here.
 
-use tabula::transition_matrix;
+use tabular_center::transition_matrix;
 
 use crate::connection;
 use crate::session::Ctx;

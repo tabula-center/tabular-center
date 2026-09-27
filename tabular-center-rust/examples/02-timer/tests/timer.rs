@@ -1,4 +1,4 @@
-use tabula::Outcome;
+use tabular_center::Outcome;
 use timer::*;
 
 fn ctx(limit: u64) -> Ctx {

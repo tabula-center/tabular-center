@@ -1,4 +1,4 @@
-# The `tabula::no-static-exit` fixture: a row that cannot be left statically.
+# The `tabular-center::no-static-exit` fixture: a row that cannot be left statically.
 #
 # `Fault` is [IGNORE, EMIT(Alarm), IGNORE]. An EMIT cell stays in the state it
 # is in -- it names an effect, not a destination -- so no cell in that row has

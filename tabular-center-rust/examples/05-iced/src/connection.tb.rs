@@ -4,7 +4,7 @@
 //! examples can be read side by side: the machine is the same, the host
 //! architectures are not.
 
-use tabula::transition_matrix;
+use tabular_center::transition_matrix;
 
 use crate::connection::Ctx;
 

@@ -11,7 +11,7 @@
 //! *here* and re-exported there. Splitting a matrix out of Rust moves types,
 //! not just text — which is why this was left until last.
 
-use tabula::transition_matrix;
+use tabular_center::transition_matrix;
 
 use crate::Ctx;
 

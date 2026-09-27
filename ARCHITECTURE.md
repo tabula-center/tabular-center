@@ -38,7 +38,7 @@ entirely.
 
 | Layer | Produced by | Catches |
 |---|---|---|
-| 1. Matrix well-formedness | tabula generator | missing cell, duplicate cell, bad row arity, unknown state/action, unconstructible `GO` target, illegal delegation |
+| 1. Matrix well-formedness | tabular-center generator | missing cell, duplicate cell, bad row arity, unknown state/action, unconstructible `GO` target, illegal delegation |
 | 2. Member implementation | language compiler | a declared `HANDLE` cell with no body |
 
 Layer 1 gives good diagnostics. Layer 2 gives the actual guarantee.
@@ -131,7 +131,7 @@ A row with the wrong number of cells is a generator error, reported with the
 expected header:
 
 ```
-error[tabula::row-arity]: row `Running` has 2 cells, expected 3
+error[tabular-center::row-arity]: row `Running` has 2 cells, expected 3
   expected columns: Start, Tick, Cancel
   --> Timer.kt:14
 ```
@@ -218,7 +218,7 @@ maintained. The prototype is the extension point.
 > so an async machine requires `AsyncHandle` / `AsyncPerform` instead. That
 > enumerates colors, which this section rejects in general; in Rust the list is
 > the language's, since `async` is the only color a trait method can carry on
-> stable. Any other prototype is `tabula::unsupported-color`. An async parent
+> stable. Any other prototype is `tabular-center::unsupported-color`. An async parent
 > delegates to a child of either color by awaiting it -- `Step` is
 > `IntoFuture` -- and a plain parent over an async child is refused by rustc.
 
@@ -299,7 +299,7 @@ it. Rust's generated dispatcher binds its parameters under `__tabula_`-prefixed
 names, so `ctx`, `state`, `action`, and `cells` are simply not in scope inside a
 `GO!` expression; a target reaching for runtime data fails to resolve. This
 cannot be circumvented and costs no implementation. Emit the explicit
-`tabula::go-target` diagnostic only where construction cannot do the job.
+`tabular-center::go-target` diagnostic only where construction cannot do the job.
 
 ```
 GO(Idle)                          // ok — payload-free
@@ -308,7 +308,7 @@ GO(Running)                       // error — `since: Long` cannot be derived
 ```
 
 ```
-error[tabula::go-target]: cell (Done, Start) uses GO to `Running`,
+error[tabular-center::go-target]: cell (Done, Start) uses GO to `Running`,
   which requires `since: Long` that cannot be derived from a literal.
   Use HANDLE.
   --> Timer.kt:16
@@ -329,7 +329,7 @@ The generator emits a **hoist warning** when the same name-and-type pair appears
 in three or more payloads:
 
 ```
-warning[tabula::payload-hoist]: `retryCount: Int` appears in payloads of
+warning[tabular-center::payload-hoist]: `retryCount: Int` appears in payloads of
   `Connecting`, `Backoff`, `Reconnecting`. Consider hoisting to Context.
 ```
 
@@ -432,14 +432,14 @@ say "everything else goes to the child."
 
 **Color flows one way.** A colorless child composes into a colored parent. A
 colored child into a colorless parent is a build error — from the language, not
-from tabula. Every generator puts the parent's color on the call into the
+from tabular-center. Every generator puts the parent's color on the call into the
 child, so rustc, kotlinc and swiftc each refuse it by construction, and
-`tabula::color-mismatch` is reserved and emitted by nobody (decided September
+`tabular-center::color-mismatch` is reserved and emitted by nobody (decided September
 2026; `spec/diagnostics.md` lists the three fixtures). The message a generator
 would otherwise print:
 
 ```
-error[tabula::color-mismatch]: machine `Timer` (prototype: `fun handle`)
+error[tabular-center::color-mismatch]: machine `Timer` (prototype: `fun handle`)
   delegates to `Retry` (prototype: `suspend fun handle`).
   A suspending child cannot be driven from a non-suspending parent.
 ```
@@ -861,7 +861,7 @@ tabular-center/
 │   ├── tools/verify             # the Rust steps
 │   ├── tools/compile-fail       # diagnostic fixtures; bash, not trybuild
 │   ├── Cargo.toml               # workspace
-│   ├── tabula/                  # core + macro_rules! (single crate, no deps)
+│   ├── tabular-center/          # core + macro_rules! (single crate, no deps)
 │   │   ├── src/{lib,step,cell,table,matrix,machine,delegate,driver}.rs
 │   │   ├── src/{export,lint}.rs     # alloc-gated
 │   │   └── tests/
@@ -869,7 +869,7 @@ tabular-center/
 │   │       ├── timer_matrix.rs      # same machine via the macro; parity tests
 │   │       ├── scale.rs             # the measured 8×12 machine
 │   │       └── compile_fail/        # one fixture per diagnostic
-│   ├── tabula-conformance/      # runs spec/conformance; hosts bin/table-diff
+│   ├── tabular-center-conformance/  # runs spec/conformance; hosts bin/table-diff
 │   │                             #   (whose renderer is in the lib, so it is
 │   │                             #   testable)
 │   └── examples/                # its own cargo workspace, outside the one above:
@@ -976,7 +976,7 @@ generates a machine from it and replays the trace files. A semantic difference
 between Rust and Kotlin becomes a red CI check rather than a bug report two
 years later.
 
-The diagnostics spec is normative for the same reason: `tabula::row-arity`
+The diagnostics spec is normative for the same reason: `tabular-center::row-arity`
 should produce recognizably the same message in all three.
 
 ---
@@ -1051,7 +1051,7 @@ Stated up front so they are not discovered as surprises.
 kinds keep most of them one word long, but the count is real. This is the
 reason builder DSLs won the market, and it is the cost of the guarantee.
 
-*Measured, on a genuine 8×12 order-lifecycle machine (`tabular-center-rust/tabula/tests/scale.rs`):*
+*Measured, on a genuine 8×12 order-lifecycle machine (`tabular-center-rust/tabular-center/tests/scale.rs`):*
 
 | | |
 |---|---|
@@ -1072,7 +1072,7 @@ Two costs surfaced by the measurement, both recorded rather than smoothed over:
   ~192 to ~160, and the rest is irreducible without abandoning the muncher.
   rustc's own error names the fix, which is why this is documented instead of
   engineered around.
-- **A realistic machine trips `tabula::ignore-heavy`.** At 78% it crosses the
+- **A realistic machine trips `tabular-center::ignore-heavy`.** At 78% it crosses the
   70% threshold, and the lint is arguably right: the shipping half shares
   almost no alphabet with the checkout half and would be a cleaner pair of
   composed machines. The threshold was left alone — moving it to silence a

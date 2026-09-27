@@ -115,7 +115,7 @@ struct ToggleImpl: ToggleCells {
 /// A caseless enum is Swift's `effects F { }`: nothing can ever construct a
 /// `GateF`. What makes it worth a fixture is what it removes -- with no effect
 /// to name, `EMIT` cannot be written at all, because an empty one is
-/// `tabula::empty-emit`.
+/// `tabular-center::empty-emit`.
 ///
 /// `Step` puts no constraint on its effect type, so no conformance is needed
 /// here and none is declared. An `Equatable` conformance would have to be
@@ -163,13 +163,13 @@ struct GateImpl: GateCells {
     func onPush(_ ctx: GateCtx) -> Step<GateS, GateF> { .stay(effects: []) }
 }
 
-// MARK: - payload-hoist.tbl — the only coverage for `tabula::payload-hoist`
+// MARK: - payload-hoist.tbl — the only coverage for `tabular-center::payload-hoist`
 
 /// `attempt` in three states, which is what the lint is looking for.
 ///
 /// The machine is deliberately a little wrong: a retry counter that outlives
 /// every transition belongs in Context, and three states carrying their own
-/// copy is the smell `tabula::payload-hoist` names. A fixture for a lint has
+/// copy is the smell `tabular-center::payload-hoist` names. A fixture for a lint has
 /// to trip it, so this models the smell rather than the fix.
 ///
 /// Three is `payloadHoistStates` exactly. An implementation firing on `>`
@@ -248,7 +248,7 @@ struct ConnImpl: ConnCells {
     }
 }
 
-// MARK: - dead-column.tbl — the only coverage for `tabula::dead-column`
+// MARK: - dead-column.tbl — the only coverage for `tabular-center::dead-column`
 
 /// A vending machine whose refund button was never wired up.
 ///
@@ -321,7 +321,7 @@ struct VendImpl: VendCells {
     }
 }
 
-// MARK: - ignore-heavy.tbl — the only coverage for `tabula::ignore-heavy`
+// MARK: - ignore-heavy.tbl — the only coverage for `tabular-center::ignore-heavy`
 
 /// Four states, each answering one action and ignoring the other four.
 ///
@@ -397,7 +397,7 @@ struct PollImpl: PollCells {
     func firingFire(_ ctx: PollCtx) -> Step<PollS, PollF> { .go(.spent, effects: []) }
 }
 
-// MARK: - no-static-exit.tbl — the only coverage for `tabula::no-static-exit`
+// MARK: - no-static-exit.tbl — the only coverage for `tabular-center::no-static-exit`
 
 /// `Fault` can be entered and, as far as the matrix can prove, never left.
 ///
@@ -455,7 +455,7 @@ struct BeaconImpl: BeaconCells {
     }
 }
 
-// MARK: - no-static-entry.tbl — the only coverage for `tabula::no-static-entry`
+// MARK: - no-static-entry.tbl — the only coverage for `tabular-center::no-static-entry`
 
 /// `Jammed` has a row and a way out, and nothing in the matrix leads in.
 ///
@@ -506,7 +506,7 @@ let DOOR_TABLE = Table(
 
 struct DoorImpl: DoorCells {}
 
-// MARK: - unreachable-heavy.tbl — the only coverage for `tabula::unreachable-heavy`
+// MARK: - unreachable-heavy.tbl — the only coverage for `tabular-center::unreachable-heavy`
 
 /// Three `unreachable` cells of twelve, which is `unreachableHeavyPercent`
 /// exactly — on the boundary, so `>` in place of `>=` fails it.

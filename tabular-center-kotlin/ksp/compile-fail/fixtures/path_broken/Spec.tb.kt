@@ -1,4 +1,4 @@
-//~ EXPECT: tabula::path-broken
+//~ EXPECT: tabular-center::path-broken
 //
 // A hop naming a cell that cannot reach where the hop says.
 //

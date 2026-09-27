@@ -60,7 +60,7 @@ padding it to some remembered width is how a formatter starts having opinions.
 - **Touch anything outside a run** — imports, attributes, comments, the
   `machine`/`states`/`actions` header lines.
 - **Reorder cells.** Position is meaning. A cell's column *is* its action.
-- **Parse or validate.** Arity is `tabula::row-arity`'s job, at compile time,
+- **Parse or validate.** Arity is `tabular-center::row-arity`'s job, at compile time,
   with a better message than a formatter could give.
 - **Rewrite a file it cannot confidently read.** See below.
 

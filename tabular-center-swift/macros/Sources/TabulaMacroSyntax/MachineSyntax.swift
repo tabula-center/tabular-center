@@ -214,7 +214,7 @@ public enum MachineSyntax {
     /// Cases in **declaration order**, with their associated values.
     ///
     /// Order is meaning: a row's cells line up with these by position, which is
-    /// what makes a matrix reviewable and what `tabula::row-arity` checks. A
+    /// what makes a matrix reviewable and what `tabular-center::row-arity` checks. A
     /// traversal that sorted, or that used a dictionary anywhere on this path,
     /// would lose the property the library exists for.
     ///

@@ -136,7 +136,7 @@ run() {
 #   error: the lock file ... needs to be updated but --locked was passed
 #
 # which names the lockfile and says nothing about the version bump that staled
-# it. Worse, `tabular-center-rust/examples/Cargo.lock` records tabula's version too, so a bump
+# it. Worse, `tabular-center-rust/examples/Cargo.lock` records tabular-center's version too, so a bump
 # that refreshes only the main workspace leaves exactly one step failing --
 # which reads like a problem with the examples rather than with the release.
 # doc/ is generated from spec/ and the code, committed, and served by GitHub
@@ -155,13 +155,13 @@ step_version() {
         bad=1
     fi
 
-    # Both lockfiles record tabula's version: the workspace's own, and the
+    # Both lockfiles record tabular-center's version: the workspace's own, and the
     # examples' because they depend on it by path.
     local lock
     for lock in tabular-center-rust/Cargo.lock tabular-center-rust/examples/Cargo.lock; do
         [ -f "$lock" ] || continue
-        if ! grep -A1 '^name = "tabula"$' "$lock" | grep -q "^version = \"$want\"$"; then
-            echo "$lock does not record tabula $want"
+        if ! grep -A1 '^name = "tabular-center"$' "$lock" | grep -q "^version = \"$want\"$"; then
+            echo "$lock does not record tabular-center $want"
             bad=1
         fi
     done
@@ -318,7 +318,7 @@ step_no_bless() {
 # A code emitted by nobody (`-`) is exempt, and required to stay that way: if
 # a fixture ever expects it, the `-` is a lie and this says so.
 step_diagnostics_tested() {
-    local dirs="tabular-center-rust/tabula/tests/compile_fail tabular-center-kotlin/ksp/compile-fail/fixtures"
+    local dirs="tabular-center-rust/tabular-center/tests/compile_fail tabular-center-kotlin/ksp/compile-fail/fixtures"
     dirs="$dirs tabular-center-kotlin/codegen/compile_fail tabular-center-kotlin/compile_fail tabular-center-swift/macros/fixtures"
     dirs="$dirs tabular-center-swift/compile_fail tabular-center-swift/codegen-support/compile_fail"
     local doc=spec/diagnostics-coverage.md
@@ -456,10 +456,10 @@ step_diagnostics_coverage() {
 
     local bad=0 code langs lang actual expected n=0
 
-    # Quoted matches only. An unquoted `tabula::lint::report` is a module path,
+    # Quoted matches only. An unquoted `tabular_center::lint::report` is a module path,
     # not a diagnostic, and counting it would report three codes Rust does not
     # have.
-    emitted() { grep -rhoE "\"tabula::[a-z-]+" "$1/" 2>/dev/null | tr -d '"' | sort -u; }
+    emitted() { grep -rhoE "\"tabular-center::[a-z-]+" "$1/" 2>/dev/null | tr -d '"' | sort -u; }
 
     local rust_codes kotlin_codes swift_codes
     rust_codes="$(emitted tabular-center-rust)"
@@ -503,7 +503,7 @@ step_diagnostics_coverage() {
     # for readers but absent from the table would slip past the loop above,
     # since the loop only walks rows that exist.
     local documented
-    documented="$(grep -oE 'tabula::[a-z-]+' spec/diagnostics.md | sort -u)"
+    documented="$(grep -oE 'tabular-center::[a-z-]+' spec/diagnostics.md | sort -u)"
     for code in $documented; do
         if ! sed -n '/^```coverage$/,/^```$/p' "$doc" | grep -q "^$code "; then
             echo "FAIL spec/diagnostics.md documents $code; $doc has no row for it"

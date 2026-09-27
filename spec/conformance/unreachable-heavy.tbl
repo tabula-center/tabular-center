@@ -1,4 +1,4 @@
-# The `tabula::unreachable-heavy` fixture: a matrix a quarter made of claims
+# The `tabular-center::unreachable-heavy` fixture: a matrix a quarter made of claims
 # that something cannot happen.
 #
 # Three UNREACHABLE cells of twelve is 25%, which is `unreachableHeavyPercent`

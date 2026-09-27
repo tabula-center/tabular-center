@@ -1,4 +1,4 @@
-//~ EXPECT: tabula::unknown-child
+//~ EXPECT: tabular-center::unknown-child
 //
 // A DELEGATE cell naming something that is not a machine.
 //

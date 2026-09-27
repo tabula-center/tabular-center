@@ -34,7 +34,7 @@ identifiers; Kotlin and Swift name them by identifier (`idleStart`). Both give
 the same guarantee. Comparing source would encode that accident as a
 requirement — see ARCHITECTURE.md section 11.0.
 
-**Not compared:** diagnostic text, except for the codes tabula itself authors.
+**Not compared:** diagnostic text, except for the codes tabular-center itself authors.
 The missing-implementation error comes from each language's own compiler and
 reads differently in each. See `spec/diagnostics.md`.
 
@@ -136,7 +136,7 @@ off one walk, pinning one pins the order for all of them.
 below rather than by finding a bug first. It was the last output that was
 rendered in only one language and compared by nothing — and it had drifted from
 the lint on two rules: it warned on a *single* deliberate `UNREACHABLE`, which
-`spec/cells.md` and `tabula::unreachable-heavy` both say must stay silent, and
+`spec/cells.md` and `tabular-center::unreachable-heavy` both say must stay silent, and
 it reported statically-unreachable states without the fully-static gate, so a
 state reached only from a `HANDLE` cell was announced as unreachable. Both
 copies of those rules now come from the lint's constants.
@@ -148,7 +148,7 @@ transition when a `HANDLE` cell leads there.
 
 The general lesson is worth stating, because it has now found three defects.
 This suite compares behaviour and committed output, and it is good at both.
-None of the three lived in either place: `tabula::empty-emit` was behaviour no
+None of the three lived in either place: `tabular-center::empty-emit` was behaviour no
 fixture exercises, the mermaid ordering was output no golden compares, and the
 coverage report was output only one language produced. When looking for the
 next one, ask what is *uncompared* rather than what is unchecked.

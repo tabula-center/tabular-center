@@ -6,7 +6,7 @@
 //! and one rule for every example is worth more than a `src/auth/` directory
 //! holding one file.
 
-use tabula::transition_matrix;
+use tabular_center::transition_matrix;
 
 use crate::auth::Ctx;
 

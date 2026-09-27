@@ -1,6 +1,6 @@
 # Its own package, outside `tabular-center-rust/examples`'s workspace, and its own lock.
 #
-# iced needs a current toolchain; tabula needs 1.75. Both are true, and keeping
+# iced needs a current toolchain; tabular-center needs 1.75. Both are true, and keeping
 # them in one workspace would have meant giving one of them up. `rust-version`
 # below is this application's, not the library's.
 [workspace]
@@ -18,5 +18,5 @@ publish = false
 # `tabular-center-rust/nix/context.nix` vendors this package's own `Cargo.lock` -- the offline
 # check cannot fetch iced's several hundred transitive crates.
 [dependencies]
-tabula = { path = "../../tabula" }
+tabular-center = { path = "../../tabular-center" }
 iced = "0.13"

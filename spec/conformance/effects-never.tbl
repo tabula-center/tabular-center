@@ -2,7 +2,7 @@
 #
 # `effects F { }` is an uninhabited enum. The interesting consequence is what
 # it removes: with no effect to name, `EMIT` cannot be written here at all,
-# because `EMIT()` is `tabula::empty-emit`. The whole vocabulary of this
+# because `EMIT()` is `tabular-center::empty-emit`. The whole vocabulary of this
 # machine is IGNORE, GO, HANDLE and UNREACHABLE.
 #
 # `Open` has no static incoming transition -- the only route there is the

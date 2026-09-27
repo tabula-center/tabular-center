@@ -1,4 +1,4 @@
-//~ EXPECT: tabula::unknown-state
+//~ EXPECT: tabular-center::unknown-state
 //
 // GO to a state the machine never declared.
 //

@@ -10,7 +10,7 @@
 //! `super::auth::State` in the states still resolves: from a module at the
 //! crate root, `super` is the crate root.
 
-use tabula::transition_matrix;
+use tabular_center::transition_matrix;
 
 use crate::auth;
 use crate::session::Ctx;

@@ -5,7 +5,7 @@
 // rather than in a config nobody reads. `swift-format-config` requires it on
 // every `.tb.swift`; `swift-matrix-stable` runs the formatter over this file
 // and compares the rows.
-//~ EXPECT: tabula::go-target
+//~ EXPECT: tabular-center::go-target
 //
 // GO to a state that carries a payload, with no arguments given.
 //

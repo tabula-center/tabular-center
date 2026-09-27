@@ -34,7 +34,7 @@ fun checkoutChecks() {
     )
 
     // The path ends where the machine is done: nothing leaves Placed, which
-    // is what `tabula::path-unterminated` would say if one of them did.
+    // is what `tabular-center::path-unterminated` would say if one of them did.
     Check.eq(step(cells, ctx, S.Placed, A.Next), Step.Ignored, "nothing leaves Placed")
     Check.eq(step(cells, ctx, S.Placed, A.Abandon), Step.Ignored, "not even abandoning")
 

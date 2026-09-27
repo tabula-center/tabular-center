@@ -24,7 +24,7 @@ sealed interface Finding {
 
     /** Nothing can transition into this state, in a fully static matrix. */
     data class NoStaticEntry(val state: String) : Finding {
-        override val code = "tabula::no-static-entry"
+        override val code = "tabular-center::no-static-entry"
         override val message =
             "nothing can transition into `$state`; " +
                 "every cell in this matrix is static, so it is genuinely unreachable"
@@ -32,7 +32,7 @@ sealed interface Finding {
 
     /** No cell in this row can statically leave it. */
     data class NoStaticExit(val state: String) : Finding {
-        override val code = "tabula::no-static-exit"
+        override val code = "tabular-center::no-static-exit"
         override val message =
             "no cell in row `$state` can leave it statically; " +
                 "confirm this state is meant to be terminal"
@@ -40,21 +40,21 @@ sealed interface Finding {
 
     /** Every cell in this row ignores. */
     data class DeadRow(val state: String) : Finding {
-        override val code = "tabula::dead-row"
+        override val code = "tabular-center::dead-row"
         override val message =
             "every cell in row `$state` ignores; confirm this state is meant to be terminal"
     }
 
     /** No state responds to this action. */
     data class DeadColumn(val action: String) : Finding {
-        override val code = "tabula::dead-column"
+        override val code = "tabular-center::dead-column"
         override val message =
             "no state responds to `$action`; the action is dead or a row was missed"
     }
 
     /** The matrix is overwhelmingly `IGNORE`. */
     data class IgnoreHeavy(val percent: Int) : Finding {
-        override val code = "tabula::ignore-heavy"
+        override val code = "tabular-center::ignore-heavy"
         override val message =
             "$percent% of cells are IGNORE; consider splitting this machine"
     }
@@ -71,7 +71,7 @@ sealed interface Finding {
         val type: String,
         val states: List<String>,
     ) : Finding {
-        override val code = "tabula::payload-hoist"
+        override val code = "tabular-center::payload-hoist"
         override val message =
             "`$field: $type` appears in the payloads of ${states.joinToString(", ")}; " +
                 "consider hoisting it to Context"
@@ -79,7 +79,7 @@ sealed interface Finding {
 
     /** `UNREACHABLE` occupies a large share of the matrix. */
     data class UnreachableHeavy(val count: Int, val percent: Int) : Finding {
-        override val code = "tabula::unreachable-heavy"
+        override val code = "tabular-center::unreachable-heavy"
         override val message =
             "$count UNREACHABLE cells ($percent% of the matrix); " +
                 "a concentration this high usually means the alphabet is wrong"

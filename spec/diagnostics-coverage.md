@@ -9,34 +9,34 @@ It exists because nothing compared the three. The divergence below was found by
 looking, not by a check, after this file's absence had let it sit: of the
 twenty-two codes, Rust emits thirteen, and Kotlin and Swift emit twenty each.
 Two are emitted by nobody, each for a stated reason:
-`tabula::color-mismatch` by decision (see the last section), and
-`tabula::unsupported-color` because only Rust can have it, and does. The gaps
+`tabular-center::color-mismatch` by decision (see the last section), and
+`tabular-center::unsupported-color` because only Rust can have it, and does. The gaps
 are defensible — see the notes — but "defensible" and "nobody noticed" are
 different states, and only one of them survives a refactor.
 
 ```coverage
-tabula::color-mismatch     -
-tabula::dead-column        rust kotlin swift
-tabula::dead-row           rust kotlin swift
-tabula::empty-emit         rust kotlin swift
-tabula::extra-row          rust kotlin swift
-tabula::go-target          kotlin swift
-tabula::ignore-heavy       rust kotlin swift
-tabula::missing-row        rust kotlin swift
-tabula::no-static-entry    rust kotlin swift
-tabula::no-static-exit     rust kotlin swift
-tabula::path-broken        rust kotlin swift
-tabula::path-duplicate     kotlin swift
-tabula::path-unknown-state rust kotlin swift
-tabula::path-unterminated  rust kotlin swift
-tabula::payload-hoist      rust kotlin swift
-tabula::row-arity          rust kotlin swift
-tabula::unknown-cell       rust kotlin swift
-tabula::unknown-child      kotlin swift
-tabula::unknown-effect     kotlin swift
-tabula::unknown-state      kotlin swift
-tabula::unreachable-heavy  rust kotlin swift
-tabula::unsupported-color  rust
+tabular-center::color-mismatch     -
+tabular-center::dead-column        rust kotlin swift
+tabular-center::dead-row           rust kotlin swift
+tabular-center::empty-emit         rust kotlin swift
+tabular-center::extra-row          rust kotlin swift
+tabular-center::go-target          kotlin swift
+tabular-center::ignore-heavy       rust kotlin swift
+tabular-center::missing-row        rust kotlin swift
+tabular-center::no-static-entry    rust kotlin swift
+tabular-center::no-static-exit     rust kotlin swift
+tabular-center::path-broken        rust kotlin swift
+tabular-center::path-duplicate     kotlin swift
+tabular-center::path-unknown-state rust kotlin swift
+tabular-center::path-unterminated  rust kotlin swift
+tabular-center::payload-hoist      rust kotlin swift
+tabular-center::row-arity          rust kotlin swift
+tabular-center::unknown-cell       rust kotlin swift
+tabular-center::unknown-child      kotlin swift
+tabular-center::unknown-effect     kotlin swift
+tabular-center::unknown-state      kotlin swift
+tabular-center::unreachable-heavy  rust kotlin swift
+tabular-center::unsupported-color  rust
 ```
 
 `unsupported-color` is Rust's alone, and cannot be otherwise: Kotlin and Swift
@@ -59,13 +59,13 @@ written, two codes appeared across all six fixtures; across today's eleven, all
 seven runtime lints do.
 
 ```fixtures
-tabula::dead-column        dead-column
-tabula::dead-row           nested-delegate retry
-tabula::ignore-heavy       ignore-heavy
-tabula::no-static-entry    no-static-entry
-tabula::no-static-exit     no-static-exit
-tabula::payload-hoist      payload-hoist
-tabula::unreachable-heavy  unreachable-heavy
+tabular-center::dead-column        dead-column
+tabular-center::dead-row           nested-delegate retry
+tabular-center::ignore-heavy       ignore-heavy
+tabular-center::no-static-entry    no-static-entry
+tabular-center::no-static-exit     no-static-exit
+tabular-center::payload-hoist      payload-hoist
+tabular-center::unreachable-heavy  unreachable-heavy
 ```
 
 No runtime lint is now implemented three times and compared never. Five were
@@ -94,8 +94,8 @@ below.
 
 ## Why Rust emits four fewer, and why that is not a bug
 
-`tabula::go-target`, `tabula::unknown-state`, `tabula::unknown-effect` and
-`tabula::unknown-child` all say the same kind of thing: a cell names something
+`tabular-center::go-target`, `tabular-center::unknown-state`, `tabular-center::unknown-effect` and
+`tabular-center::unknown-child` all say the same kind of thing: a cell names something
 the machine does not declare.
 
 In Kotlin and Swift the matrix is read by a processor — KSP, or
@@ -113,7 +113,7 @@ So the absence is the language doing the work, which is the same argument
 `RELEASING.md` makes for Rust being one crate where Kotlin is five. What it is
 not is an accident, and the table is what keeps it from becoming one.
 
-## `tabula::color-mismatch` is emitted by nobody, by decision
+## `tabular-center::color-mismatch` is emitted by nobody, by decision
 
 It has a section in `spec/diagnostics.md` and no implementation. That was an
 open question here until September 2026: either unimplementable by design, or

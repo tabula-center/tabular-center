@@ -68,7 +68,7 @@ page() {
         printf -- '---\nlayout: default\ntitle: %s\n---\n\n' "$title"
         printf -- '<!-- Generated from %s by tools/docs. Do not edit. -->\n\n' "$src"
         nav
-        sed -E 's|^(#{2,3}) `tabula::([a-z-]+)`|<a id="tabula-\2"></a>\n\n\1 `tabula::\2`|' "$src"
+        sed -E 's|^(#{2,3}) `tabular-center::([a-z-]+)`|<a id="tabular-center-\2"></a>\n\n\1 `tabular-center::\2`|' "$src"
     } > "$out/$dest"
 }
 
@@ -149,8 +149,8 @@ page spec/diagnostics.md diagnostics.md "Diagnostics"
 {
     printf -- '\n---\n\n## All codes\n\n'
     printf -- 'Every code, including the ones described as a group above.\n\n'
-    for code in $(grep -oE 'tabula::[a-z-]+' spec/diagnostics.md | sort -u); do
-        anchor="tabula-${code#tabula::}"
+    for code in $(grep -oE 'tabular-center::[a-z-]+' spec/diagnostics.md | sort -u); do
+        anchor="tabular-center-${code#tabular-center::}"
         if grep -q "id=\"$anchor\"" "$out/diagnostics.md"; then
             printf -- '- [`%s`](#%s)\n' "$code" "$anchor"
         else
@@ -208,7 +208,7 @@ The Timer is small on purpose. Here is a real order lifecycle, 8 states by 12
 actions:
 
 MD
-code $R/tabula/tests/scale.rs rust 'transition_matrix! \{' '^\}'
+code $R/tabular-center/tests/scale.rs rust 'transition_matrix! \{' '^\}'
 prose <<'MD'
 | | |
 |---|---|
@@ -280,7 +280,7 @@ Not on crates.io yet. Until then, depend on the repository:
 
 ```toml
 [dependencies]
-tabula = { git = "https://github.com/tabula-center/tabular-center" }
+tabular-center = { git = "https://github.com/tabula-center/tabular-center" }
 ```
 
 ## The matrix
@@ -324,7 +324,7 @@ a follow-up action queues it instead of re-entering `step`.
 Delete the `Handle<Timer, Running, Tick>` impl and the build stops:
 
 MD
-expect_of $R/tabula/tests/compile_fail/missing_handle_impl.rs
+expect_of $R/tabular-center/tests/compile_fail/missing_handle_impl.rs
 prose <<'MD'
 That is rustc's own message -- the `step` it generated carries one trait bound
 per `HANDLE` cell -- so it names the exact hole and survives even if the
@@ -434,7 +434,7 @@ expect_of $K/compile_fail/missing_cell.kt
 prose <<'MD'
 kotlinc's own message, required by a fixture on every run. Declaration
 mistakes -- an unknown state in a `@Row`, a row with the wrong number of cells
--- are refused by the processor with a `tabula::` code and a pointer at the
+-- are refused by the processor with a `tabular-center::` code and a pointer at the
 annotation ([Diagnostics](diagnostics)).
 
 ## Composition and suspend
@@ -588,9 +588,9 @@ if [ "$check" -eq 1 ]; then
     # lands at the top of the page -- from an error the reader is already stuck
     # on, which is where a bad link costs most.
     rc=0
-    codes="$(grep -oE 'tabula::[a-z-]+' spec/diagnostics.md | sort -u)"
+    codes="$(grep -oE 'tabular-center::[a-z-]+' spec/diagnostics.md | sort -u)"
     for code in $codes; do
-        anchor="tabula-${code#tabula::}"
+        anchor="tabular-center-${code#tabular-center::}"
         if ! grep -q "id=\"$anchor\"" "$out/diagnostics.md"; then
             echo "no anchor for $code (expected id=\"$anchor\")"
             rc=1

@@ -63,25 +63,25 @@ fun runValidationTests(): Int {
         },
     )
 
-    expectError("row with too few cells", "tabula::row-arity") {
+    expectError("row with too few cells", "tabular-center::row-arity") {
         buildDesc(raw(rows = listOf(
             RawRow("Idle", listOf(RawCell("HANDLE"))),
             RawRow("Running", listOf(RawCell("IGNORE"), RawCell("HANDLE"))),
         )))
     }
 
-    expectError("a state with no row", "tabula::missing-row") {
+    expectError("a state with no row", "tabular-center::missing-row") {
         buildDesc(raw(rows = listOf(RawRow("Idle", listOf(RawCell("HANDLE"), RawCell("IGNORE"))))))
     }
 
-    expectError("rows out of declaration order", "tabula::missing-row") {
+    expectError("rows out of declaration order", "tabular-center::missing-row") {
         buildDesc(raw(rows = listOf(
             RawRow("Running", listOf(RawCell("IGNORE"), RawCell("HANDLE"))),
             RawRow("Idle", listOf(RawCell("HANDLE"), RawCell("IGNORE"))),
         )))
     }
 
-    expectError("a row for an undeclared state", "tabula::extra-row") {
+    expectError("a row for an undeclared state", "tabular-center::extra-row") {
         buildDesc(raw(rows = listOf(
             RawRow("Idle", listOf(RawCell("HANDLE"), RawCell("IGNORE"))),
             RawRow("Running", listOf(RawCell("IGNORE"), RawCell("HANDLE"))),
@@ -89,7 +89,7 @@ fun runValidationTests(): Int {
         )))
     }
 
-    expectError("GO to an undeclared state", "tabula::unknown-state") {
+    expectError("GO to an undeclared state", "tabular-center::unknown-state") {
         buildDesc(raw(rows = listOf(
             RawRow("Idle", listOf(RawCell("GO", target = "Nope"), RawCell("IGNORE"))),
             RawRow("Running", listOf(RawCell("IGNORE"), RawCell("HANDLE"))),
@@ -98,7 +98,7 @@ fun runValidationTests(): Int {
 
     // Rule R3: a GO cell is resolved entirely by the generator, so its target
     // must be constructible without developer code.
-    expectError("GO to a payload state with no literal args", "tabula::go-target") {
+    expectError("GO to a payload state with no literal args", "tabular-center::go-target") {
         buildDesc(raw(rows = listOf(
             RawRow("Idle", listOf(RawCell("GO", target = "Running"), RawCell("IGNORE"))),
             RawRow("Running", listOf(RawCell("IGNORE"), RawCell("HANDLE"))),
@@ -113,35 +113,35 @@ fun runValidationTests(): Int {
         ))).rows[0][0] is CellDesc.Go
     )
 
-    expectError("emitting an undeclared effect", "tabula::unknown-effect") {
+    expectError("emitting an undeclared effect", "tabular-center::unknown-effect") {
         buildDesc(raw(rows = listOf(
             RawRow("Idle", listOf(RawCell("GO", target = "Idle", effects = listOf("Nope")), RawCell("IGNORE"))),
             RawRow("Running", listOf(RawCell("IGNORE"), RawCell("HANDLE"))),
         )))
     }
 
-    expectError("EMIT with no effects", "tabula::empty-emit") {
+    expectError("EMIT with no effects", "tabular-center::empty-emit") {
         buildDesc(raw(rows = listOf(
             RawRow("Idle", listOf(RawCell("EMIT"), RawCell("IGNORE"))),
             RawRow("Running", listOf(RawCell("IGNORE"), RawCell("HANDLE"))),
         )))
     }
 
-    expectError("DELEGATE to an undeclared child", "tabula::unknown-child") {
+    expectError("DELEGATE to an undeclared child", "tabular-center::unknown-child") {
         buildDesc(raw(rows = listOf(
             RawRow("Idle", listOf(RawCell("DELEGATE", child = "retry"), RawCell("IGNORE"))),
             RawRow("Running", listOf(RawCell("IGNORE"), RawCell("HANDLE"))),
         )))
     }
 
-    expectError("an unrecognised cell kind", "tabula::unknown-cell") {
+    expectError("an unrecognised cell kind", "tabular-center::unknown-cell") {
         buildDesc(raw(rows = listOf(
             RawRow("Idle", listOf(RawCell("MAYBE"), RawCell("IGNORE"))),
             RawRow("Running", listOf(RawCell("IGNORE"), RawCell("HANDLE"))),
         )))
     }
 
-    expectError("an undeclared initial state", "tabula::unknown-state") {
+    expectError("an undeclared initial state", "tabular-center::unknown-state") {
         buildDesc(raw(initial = "Nope"))
     }
 
@@ -299,11 +299,11 @@ private fun runPathBackTest() {
     check("no back action, no reverse derivation", plain.rows[1][1] == CellDesc.Handle)
 
     // And without it, a HANDLE at the path's end really is a way out.
-    expectError("a path that can still be left", "tabula::path-unterminated") {
+    expectError("a path that can still be left", "tabular-center::path-unterminated") {
         buildDesc(machine("", RawCell("HANDLE"), doneBack = RawCell("HANDLE")))
     }
 
-    expectError("a back action the machine does not declare", "tabula::path-unknown-state") {
+    expectError("a back action the machine does not declare", "tabular-center::path-unknown-state") {
         buildDesc(machine("Backwards", RawCell("HANDLE")))
     }
 }
@@ -319,7 +319,7 @@ private fun runPathBackTest() {
  */
 private fun runEffectArgumentTest() {
     // Payload-free states: a GO naming a payload state needs `args`, which is
-    // `tabula::go-target`'s business and not this test's.
+    // `tabular-center::go-target`'s business and not this test's.
     val plain = listOf(RawVariant("Idle"), RawVariant("Running"))
     val out = emit(buildDesc(raw(
         states = plain,
@@ -332,7 +332,7 @@ private fun runEffectArgumentTest() {
     check("the dispatcher constructs the effect", out.contains("""F.Halt(reason = "x")"""))
     check("TABLE records the name without arguments", out.contains("""Cell.Go("Running", listOf("Halt"))"""))
 
-    expectError("an effect reference naming no declared effect", "tabula::unknown-effect") {
+    expectError("an effect reference naming no declared effect", "tabular-center::unknown-effect") {
         buildDesc(raw(
             states = plain,
             rows = listOf(

@@ -48,7 +48,7 @@ let
   langSrc = builtins.path { path = ./..; name = "tabular-center-rust-src"; };
 
   has = {
-    conformance = builtins.pathExists ../tabula-conformance/Cargo.toml;
+    conformance = builtins.pathExists ../tabular-center-conformance/Cargo.toml;
     examples = builtins.pathExists ../examples/Cargo.toml;
   };
 

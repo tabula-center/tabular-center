@@ -8,7 +8,7 @@
  *
  * A child must be compiled with its parent: `@Machine` is `SOURCE`-retention,
  * so a child from a prebuilt module has no annotation left to read, and is
- * refused as `tabula::unknown-child`.
+ * refused as `tabular-center::unknown-child`.
  *
  * Named `Job.tb.kt` per `spec/matrix-files.md`.
  */

@@ -155,7 +155,7 @@ fun jobDesc(
     // How the child's state type is spelled in the parent's payload. KSP reads
     // a field's type as its SIMPLE name, so the twin says `S` where the
     // hand-built description says `generated.retry.S`. It feeds
-    // `tabula::payload-hoist` and nothing else.
+    // `tabular-center::payload-hoist` and nothing else.
     childField: String = "generated.$child.S",
 ) = MachineDesc(
     packageName = pkg,

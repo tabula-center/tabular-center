@@ -1,4 +1,4 @@
-# The `tabula::dead-column` fixture: an action no state responds to.
+# The `tabular-center::dead-column` fixture: an action no state responds to.
 #
 # `Refund` is IGNORE in every row, which is the lint. Everything else is shaped
 # to stay quiet so this fixture says one thing:

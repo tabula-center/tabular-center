@@ -12,7 +12,7 @@
 // struct construction, and `Step` is a fixed-capacity value rather than a Vec.
 #![no_std]
 
-use tabula::{Handle, Step};
+use tabular_center::{Handle, Step};
 
 /// Cross-state data. A machine with nothing to remember still needs a type
 /// here; a unit struct is the honest answer.

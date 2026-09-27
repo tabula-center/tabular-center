@@ -1383,7 +1383,7 @@ name = "iced-connection"
 version = "0.0.1"
 dependencies = [
  "iced",
- "tabula",
+ "tabular-center",
 ]
 
 [[package]]
@@ -3103,7 +3103,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tabula"
+name = "tabular-center"
 version = "0.1.0"
 
 [[package]]

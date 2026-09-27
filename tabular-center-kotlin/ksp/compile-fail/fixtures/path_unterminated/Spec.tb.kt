@@ -1,4 +1,4 @@
-//~ EXPECT: tabula::path-unterminated
+//~ EXPECT: tabular-center::path-unterminated
 //
 // A route that stops somewhere the machine can still leave.
 //

@@ -1,4 +1,4 @@
-//~ EXPECT: tabula::extra-row
+//~ EXPECT: tabular-center::extra-row
 //
 // A `@Row` for a state the machine never declared.
 //

@@ -3,7 +3,7 @@
 //! `#[path]` and re-exports it: `transition_matrix!` generates the state and
 //! action types, so splitting a matrix out of Rust moves types, not just text.
 
-use tabula::transition_matrix;
+use tabular_center::transition_matrix;
 
 use crate::Ctx;
 

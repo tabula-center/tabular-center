@@ -1,4 +1,4 @@
-//~ EXPECT: tabula::path-unknown-state
+//~ EXPECT: tabular-center::path-unknown-state
 //
 // A route naming a state the machine never declared.
 //

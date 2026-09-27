@@ -114,7 +114,7 @@ annotation class Machine(
  * types unchanged.
  *
  * Elements are `KClass` rather than strings so a rename in the IDE moves the path
- * with it. `tabula::path-unknown-state` catches what a rename cannot -- a state
+ * with it. `tabular-center::path-unknown-state` catches what a rename cannot -- a state
  * that never existed -- and the other three `path-*` codes catch a route that
  * does not match the rows it describes.
  */

@@ -1,4 +1,4 @@
-# The `tabula::ignore-heavy` fixture: a matrix that is mostly nothing.
+# The `tabular-center::ignore-heavy` fixture: a matrix that is mostly nothing.
 #
 # 15 of 20 cells IGNORE, which is 75% against `ignoreHeavyPercent` (70). The
 # lint's point is that such a machine is usually several machines wearing one

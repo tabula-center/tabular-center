@@ -17,7 +17,7 @@ Not on crates.io yet. Until then, depend on the repository:
 
 ```toml
 [dependencies]
-tabula = { git = "https://github.com/tabula-center/tabular-center" }
+tabular-center = { git = "https://github.com/tabula-center/tabular-center" }
 ```
 
 ## The matrix
@@ -118,7 +118,7 @@ a follow-up action queues it instead of re-entering `step`.
 Delete the `Handle<Timer, Running, Tick>` impl and the build stops:
 
 ```text
-error: the trait bound `T: tabula::Handle<Timer, Running, Tick>` is not satisfied
+error: the trait bound `T: tabular_center::Handle<Timer, Running, Tick>` is not satisfied
 ```
 
 That is rustc's own message -- the `step` it generated carries one trait bound

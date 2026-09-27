@@ -544,7 +544,7 @@ step_kotlin_ksp_compile_fail() {
             # positions", and the message alone cannot tell the two apart:
             # `logger.error(msg, decl)` and `logger.error(msg)` print the same
             # text, and only the first prefixes the file and line. A user
-            # reading `tabula::row-arity` with no location has to find the
+            # reading `tabular-center::row-arity` with no location has to find the
             # matrix themselves, which for a generated dispatcher means
             # guessing which of several machines it came from.
             #

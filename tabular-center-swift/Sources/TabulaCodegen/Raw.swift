@@ -186,7 +186,7 @@ public func buildDesc(_ raw: RawMachine) throws -> MachineDesc {
 
     if !stateNames.contains(raw.initial) {
         try fail(
-            "tabula::unknown-state",
+            "tabular-center::unknown-state",
             "initial state `\(raw.initial)` is not declared. "
                 + "States: \(stateNames.joined(separator: " "))")
     }
@@ -199,13 +199,13 @@ public func buildDesc(_ raw: RawMachine) throws -> MachineDesc {
     for (i, row) in raw.rows.enumerated() {
         guard i < stateNames.count else {
             try fail(
-                "tabula::extra-row",
+                "tabular-center::extra-row",
                 "row `\(row.state)` does not correspond to a declared state. "
                     + "States: \(stateNames.joined(separator: " "))")
         }
         if row.state != stateNames[i] {
             try fail(
-                "tabula::missing-row",
+                "tabular-center::missing-row",
                 "row \(i) is `\(row.state)` but `states` says `\(stateNames[i])`. "
                     + "Every state needs exactly one row, in declaration order. "
                     + "States: \(stateNames.joined(separator: " "))")
@@ -213,7 +213,7 @@ public func buildDesc(_ raw: RawMachine) throws -> MachineDesc {
     }
     if raw.rows.count < stateNames.count {
         try fail(
-            "tabula::missing-row",
+            "tabular-center::missing-row",
             "state `\(stateNames[raw.rows.count])` has no row. "
                 + "Every state needs exactly one row, in declaration order. "
                 + "States: \(stateNames.joined(separator: " "))")
@@ -223,7 +223,7 @@ public func buildDesc(_ raw: RawMachine) throws -> MachineDesc {
     for row in raw.rows {
         guard row.cells.count == actionNames.count else {
             try fail(
-                "tabula::row-arity",
+                "tabular-center::row-arity",
                 "row `\(row.state)` has \(row.cells.count) cells, expected "
                     + "\(actionNames.count). Expected columns: "
                     + actionNames.joined(separator: " "))
@@ -262,7 +262,7 @@ private func cell(
     func checkEffects() throws {
         for e in c.effects where !effectNames.contains(effectName(e)) {
             try fail(
-                "tabula::unknown-effect",
+                "tabular-center::unknown-effect",
                 "cell (\(state), \(action)) emits `\(effectName(e))`, which is not a declared "
                     + "effect. Effects: \(effectNames.joined(separator: " "))")
         }
@@ -276,7 +276,7 @@ private func cell(
     case "GO":
         guard stateNames.contains(c.target) else {
             try fail(
-                "tabula::unknown-state",
+                "tabular-center::unknown-state",
                 "cell (\(state), \(action)) transitions to `\(c.target)`, which is not "
                     + "a declared state. States: \(stateNames.joined(separator: " "))")
         }
@@ -286,7 +286,7 @@ private func cell(
         // values chosen to avoid writing a cell.
         if payloadStates.contains(c.target) && c.args.isEmpty {
             try fail(
-                "tabula::go-target",
+                "tabular-center::go-target",
                 "cell (\(state), \(action)) uses GO to `\(c.target)`, which carries a "
                     + "payload that cannot be derived from a literal. Use HANDLE, or "
                     + "supply literal arguments.")
@@ -297,7 +297,7 @@ private func cell(
     case "EMIT":
         guard !c.effects.isEmpty else {
             try fail(
-                "tabula::empty-emit",
+                "tabular-center::empty-emit",
                 "cell (\(state), \(action)) uses EMIT with no effects; use IGNORE or HANDLE")
         }
         try checkEffects()
@@ -306,7 +306,7 @@ private func cell(
     case "DELEGATE":
         guard raw.children.contains(where: { $0.alias == c.child }) else {
             try fail(
-                "tabula::unknown-child",
+                "tabular-center::unknown-child",
                 "cell (\(state), \(action)) delegates to `\(c.child)`, which is not a "
                     + "declared child. Children: "
                     + raw.children.map(\.alias).joined(separator: " "))
@@ -315,7 +315,7 @@ private func cell(
 
     default:
         try fail(
-            "tabula::unknown-cell",
+            "tabular-center::unknown-cell",
             "`\(c.kind)` in row `\(state)`, column `\(action)`. Expected one of: "
                 + "IGNORE, HANDLE, UNREACHABLE, GO, EMIT, DELEGATE.")
     }
@@ -338,14 +338,14 @@ private func validatePaths(
     for path in raw.paths {
         if !seen.insert(path.name).inserted {
             try fail(
-                "tabula::path-duplicate",
+                "tabular-center::path-duplicate",
                 "two paths are named `\(path.name)`; a narrowed call site names "
                     + "the path it narrows to, so names must be unique")
         }
 
         for state in path.states where !stateNames.contains(state) {
             try fail(
-                "tabula::path-unknown-state",
+                "tabular-center::path-unknown-state",
                 "path `\(path.name)` names state `\(state)`, which is not declared. "
                     + "States: \(stateNames.joined(separator: " "))")
         }
@@ -355,7 +355,7 @@ private func validatePaths(
         // count is odd and at least three.
         if path.elements.count < 3 || path.elements.count % 2 == 0 {
             try fail(
-                "tabula::path-broken",
+                "tabular-center::path-broken",
                 "path `\(path.name)` has \(path.elements.count) element(s); a path "
                     + "alternates state and action, starting and ending with a state, "
                     + "so the count is odd and at least three")
@@ -367,7 +367,7 @@ private func validatePaths(
         for hop in path.hops {
             guard let col = actionNames.firstIndex(of: hop.action) else {
                 try fail(
-                    "tabula::path-unknown-state",
+                    "tabular-center::path-unknown-state",
                     "path `\(path.name)` names action `\(hop.action)`, which is not "
                         + "declared. Actions: \(actionNames.joined(separator: " "))")
                 continue
@@ -383,7 +383,7 @@ private func validatePaths(
             } ?? false
             if !ok {
                 try fail(
-                    "tabula::path-broken",
+                    "tabular-center::path-broken",
                     "path `\(path.name)` goes `\(hop.from)` -`\(hop.action)`-> "
                         + "`\(hop.to)`, and cell (\(hop.from), \(hop.action)) cannot "
                         + "reach `\(hop.to)`")
@@ -393,7 +393,7 @@ private func validatePaths(
         // The back action, if there is one, is an action like any other.
         if !path.back.isEmpty, !actionNames.contains(path.back) {
             try fail(
-                "tabula::path-unknown-state",
+                "tabular-center::path-unknown-state",
                 "path `\(path.name)` walks back by `\(path.back)`, which is not a "
                     + "declared action. Actions: \(actionNames.joined(separator: " "))")
         }
@@ -416,7 +416,7 @@ private func validatePaths(
             } ?? false
             if leaves {
                 try fail(
-                    "tabula::path-unterminated",
+                    "tabular-center::path-unterminated",
                     "path `\(path.name)` ends at `\(last)`, which can still be left; a "
                         + "path ends where the machine is done")
             }
@@ -432,7 +432,7 @@ private func validatePaths(
 ///
 /// Only `HANDLE`. A `GO` already says where it goes, and rewriting it would let
 /// a path silently contradict a cell -- the developer would have written two
-/// answers and been told neither. `tabula::path-broken` rejects a hop whose
+/// answers and been told neither. `tabular-center::path-broken` rejects a hop whose
 /// `GO` disagrees, so by the time this runs the two agree or the build stopped.
 ///
 /// The result is indistinguishable from the longhand machine, which is the

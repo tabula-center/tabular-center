@@ -19,8 +19,8 @@ rather than asserted in a README.
 
 | Language | Artifact | Scope | Contents |
 |---|---|---|---|
-| Rust | `tabula` | runtime | `Step`, `Cell`, `Table`, `Driver`, lints, export, **and `transition_matrix!`** |
-| | `tabula-conformance` | not published | the fixture harness; internal |
+| Rust | `tabular-center` | runtime | `Step`, `Cell`, `Table`, `Driver`, lints, export, **and `transition_matrix!`** |
+| | `tabular-center-conformance` | not published | the fixture harness; internal |
 | | `tabula-examples` | not published | worked examples; internal |
 | Kotlin | `tabula-core` | `implementation` | `Step`, `Cell`, `Table`, `Driver`, `Export`, `Lint` |
 | | `tabula-annotations` | `compileOnly` | `@Machine`, `@Row`, `CellSpec` |

@@ -6,7 +6,7 @@ import dev.tabula.testing.*
 /**
  * The fixture machines, written in the shape KSP will generate.
  *
- * Each is the Kotlin counterpart of a Rust adapter in `tabula-conformance`.
+ * Each is the Kotlin counterpart of a Rust adapter in `tabular-center-conformance`.
  * The two implementations agreeing on these fixtures is the only thing keeping
  * them from drifting.
  */
@@ -23,7 +23,7 @@ interface Adapter {
      * Payload fields, as `(state, field, type)`.
      *
      * Separate from [table] because only the lints need it, and only
-     * `tabula::payload-hoist` among those. Rust has passed its `PAYLOADS` to
+     * `tabular-center::payload-hoist` among those. Rust has passed its `PAYLOADS` to
      * the lint since the lint existed; this side was calling `report(table)`
      * and taking the empty default, so the two agreed only because no fixture
      * had a field repeated often enough to fire.
@@ -217,7 +217,7 @@ object toggle {
  *
  * `sealed interface F` with no implementors is Kotlin's `effects F { }`. What
  * makes it worth a fixture is what it removes: with no effect to name, `EMIT`
- * cannot be written at all, because an empty one is `tabula::empty-emit`.
+ * cannot be written at all, because an empty one is `tabular-center::empty-emit`.
  *
  * `Open` is reached only from the `HANDLE` cell at `(Locked, Unlock)`, which
  * is why the coverage report must stay silent about its lack of a static
@@ -352,7 +352,7 @@ object ToggleAdapter : Adapter {
 }
 
 // ---------------------------------------------------------------------------
-// payload-hoist.tbl -- the only coverage for `tabula::payload-hoist`
+// payload-hoist.tbl -- the only coverage for `tabular-center::payload-hoist`
 // ---------------------------------------------------------------------------
 
 /**
@@ -360,7 +360,7 @@ object ToggleAdapter : Adapter {
  *
  * The machine is deliberately a little wrong: a retry counter that outlives
  * every transition belongs in Context, and three states carrying their own
- * copy is the smell `tabula::payload-hoist` names. The fixture models the
+ * copy is the smell `tabular-center::payload-hoist` names. The fixture models the
  * smell rather than the fix, because a fixture for a lint has to trip it.
  *
  * `F` has no variants. A machine with no effects is legal and this is the only
@@ -512,7 +512,7 @@ object PayloadHoistAdapter : Adapter {
 }
 
 // ---------------------------------------------------------------------------
-// dead-column.tbl -- the only coverage for `tabula::dead-column`
+// dead-column.tbl -- the only coverage for `tabular-center::dead-column`
 // ---------------------------------------------------------------------------
 
 /**
@@ -650,7 +650,7 @@ object DeadColumnAdapter : Adapter {
 // ---------------------------------------------------------------------------
 
 /**
- * The `tabula::ignore-heavy` fixture: 15 of 20 cells `IGNORE` (75%).
+ * The `tabular-center::ignore-heavy` fixture: 15 of 20 cells `IGNORE` (75%).
  *
  * Four states each answering one action. Written the way KSP generates it --
  * one abstract member per `HANDLE` cell, a `when` with no `else` -- so the
@@ -806,7 +806,7 @@ object IgnoreHeavyAdapter : Adapter {
 // ---------------------------------------------------------------------------
 
 /**
- * The `tabula::no-static-exit` fixture: `Fault` can be entered and, as far as
+ * The `tabular-center::no-static-exit` fixture: `Fault` can be entered and, as far as
  * the matrix can prove, never left.
  *
  * Its row is `[IGNORE, EMIT(Alarm), IGNORE]`. `EMIT` is `stay` plus an effect,
@@ -930,7 +930,7 @@ object NoStaticExitAdapter : Adapter {
 // ---------------------------------------------------------------------------
 
 /**
- * The `tabula::no-static-entry` fixture: `Jammed` has a row and a way out, and
+ * The `tabular-center::no-static-entry` fixture: `Jammed` has a row and a way out, and
  * nothing in the matrix leads in.
  *
  * The matrix is **fully static** -- no `HANDLE`, `DELEGATE` or `UNREACHABLE`
@@ -1046,7 +1046,7 @@ object NoStaticEntryAdapter : Adapter {
 // ---------------------------------------------------------------------------
 
 /**
- * The `tabula::unreachable-heavy` fixture: three `UNREACHABLE` cells of twelve,
+ * The `tabular-center::unreachable-heavy` fixture: three `UNREACHABLE` cells of twelve,
  * which is `UNREACHABLE_HEAVY_PERCENT` exactly -- on the boundary, so `>` in
  * place of `>=` fails it.
  *

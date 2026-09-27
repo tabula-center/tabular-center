@@ -1,4 +1,4 @@
-//~ EXPECT: tabula::missing-row
+//~ EXPECT: tabular-center::missing-row
 //
 // Three declared states, two rows.
 //

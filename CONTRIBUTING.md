@@ -10,7 +10,7 @@
 2. **Behaviour changes land in `spec/conformance` first.** The three
    implementations will drift unless something forces them not to.
 3. **Every diagnostic gets a compile-fail fixture**, under
-   `tabular-center-rust/tabula/tests/compile_fail/`, `tabular-center-kotlin/compile_fail/`,
+   `tabular-center-rust/tabular-center/tests/compile_fail/`, `tabular-center-kotlin/compile_fail/`,
    `tabular-center-kotlin/codegen/compile_fail/` or `tabular-center-swift/compile_fail/`. Driven by
    `tools/verify` reading a `//~ EXPECT:` line — **not** by `trybuild`, KSP
    compile-testing, or swift-macro-testing. Each of those would have been the
@@ -62,7 +62,7 @@ this way. If you are working without clippy, `nix flake check` is the
 authority.
 
 **There are two cargo workspaces.** `tabular-center-rust/` and `tabular-center-rust/examples/`, the second
-deliberately outside the first so the examples depend on tabula the way a user
+deliberately outside the first so the examples depend on tabular-center the way a user
 would. Every Rust step must run in both. It has now cost us three times —
 clippy missed five warnings, `cargo fmt --check` passed a file with trailing
 whitespace, and a version bump staled a lockfile nothing refreshed. A step that
@@ -139,7 +139,7 @@ avoids it entirely.
 
 `VERSION` is the single source of truth; `tabular-center-rust/Cargo.toml` and **both**
 `Cargo.lock` files are derived from it. `tabular-center-rust/examples/Cargo.lock` records
-tabula's version too, because the examples depend on it by path — which is easy
+tabular-center's version too, because the examples depend on it by path — which is easy
 to forget, and produces a failure that looks like a problem with the examples:
 
 ```

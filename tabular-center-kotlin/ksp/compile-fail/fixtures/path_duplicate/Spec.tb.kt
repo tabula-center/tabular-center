@@ -1,4 +1,4 @@
-//~ EXPECT: tabula::path-duplicate
+//~ EXPECT: tabular-center::path-duplicate
 //
 // Two routes, one name.
 //

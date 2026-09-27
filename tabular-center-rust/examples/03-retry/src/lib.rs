@@ -9,7 +9,7 @@
 //! rather than merely discouraged, which is the distinction the design cares
 //! about everywhere else too.
 
-use tabula::{Driver, Handle, Perform, Step};
+use tabular_center::{Driver, Handle, Perform, Step};
 
 #[derive(Debug, Default)]
 pub struct Ctx {

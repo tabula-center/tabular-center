@@ -671,10 +671,25 @@ rename, a development section, and one Rust sample.
 Every name below is API. Each needs a decision before it needs work, and the
 proposals are only proposals.
 
-- [ ] Rust: crate `tabula` -> `tabular-center` (imported as
-      `tabular_center`), `tabula-conformance` -> `tabular-center-conformance`.
-      Check crates.io availability first. `transition_matrix!` keeps its name:
-      it names what it does, not whose it is
+- [x] Rust: crate `tabula` -> `tabular-center` (imported as
+      `tabular_center`), `tabula-conformance` -> `tabular-center-conformance`,
+      directories renamed to match. `transition_matrix!` keeps its name: it
+      names what it does, not whose it is. Things a find-and-replace would
+      have missed: the harness imports its own library as
+      `tabula_conformance` (underscore, so no `tabula::` to match); the
+      compile-fail tool links `libtabula.rlib` with `--extern tabula=`;
+      `default-run` names the binary, which takes the package's name; and
+      `rust-conformance` was gated on `../tabula-conformance/Cargo.toml`
+      existing, so after the move it would have vanished from
+      `nix flake check` without failing. All three `Cargo.lock`s are the
+      rename and nothing else, re-sorted as Cargo sorts them. Kept: the
+      hidden macro helpers (`__tabula_arms!` and kin), which no user sees.
+      crates.io availability still to check before Phase 10 publishes
+- [ ] The runtime message prefix `tabula: ` (the UNREACHABLE trap, the
+      effect-capacity panic). Its format is normative in `spec/cells.md` and
+      all three implementations print it, so it changes in one commit across
+      the spec and the three -- after the Kotlin and Swift renames, not
+      inside the Rust one
 - [ ] Kotlin: a package cannot contain `-`, so `dev.tabula` becomes one of
       `dev.tabularcenter` or `dev.tabular.center`. Proposed: the first -- one
       segment, as now, so no import gains a level. Artifacts `tabula-core` ...
@@ -683,11 +698,16 @@ proposals are only proposals.
 - [ ] Swift: products and modules `Tabula`, `TabulaTesting`, `TabulaCodegen`,
       `TabulaMacros` -> `TabularCenter`, `TabularCenterTesting`, ... The
       package name follows; the directory already did in R1
-- [ ] Diagnostic codes: `tabula::row-arity` -> `tabular-center::row-arity`.
-      `spec/diagnostics.md` is normative and every compile-fail fixture's
-      `//~ EXPECT:` names a code, so this is one commit across all three
-      implementations and the spec, or `diagnostics-tested` and
-      `diagnostics-coverage` go red in between -- which is the point of them
+- [x] Diagnostic codes: `tabula::row-arity` -> `tabular-center::row-arity`,
+      all 22, in one commit across `spec/`, the three implementations, every
+      fixture's `//~ EXPECT:`, the tools that build or parse codes
+      (`diagnostics-coverage`, `diagnostics-tested`, `tools/docs`' anchors,
+      now `#tabular-center-row-arity`) and the generated `doc/`. Rewritten by
+      the spec's own list of codes, not by the prefix: in Rust `tabula::` is
+      also the crate path (`tabula::lint`, `tabula::Handle`), which is the next
+      box's. Eight more characters per code pushed one `assert!` past
+      rustfmt's 60-column call-argument heuristic, so it is written the way
+      `cargo fmt` will write it
 - [ ] `tabula-fmt` (backlog, unwritten) -> `tabular-center-fmt`, and
       `spec/tabula-fmt.md` with it. The `*.tb.*` matrix-file suffix is kept:
       it is short, unclaimed, and `spec/matrix-files.md` explains it without

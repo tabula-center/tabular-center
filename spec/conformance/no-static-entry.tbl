@@ -1,4 +1,4 @@
-# The `tabula::no-static-entry` fixture: a state no run can reach.
+# The `tabular-center::no-static-entry` fixture: a state no run can reach.
 #
 # `Jammed` is declared, has a row, and can even be left -- but no cell in the
 # matrix transitions into it, and `Closed` is the initial state. In a matrix

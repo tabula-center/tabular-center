@@ -88,7 +88,7 @@ data class RawMachine(
 data class RawVariant(
     val name: String,
     val hasPayload: Boolean = false,
-    /** `name to type`, for `tabula::payload-hoist`. Optional. */
+    /** `name to type`, for `tabular-center::payload-hoist`. Optional. */
     val fields: List<Pair<String, String>> = emptyList(),
 )
 
@@ -152,7 +152,7 @@ fun buildDesc(raw: RawMachine): MachineDesc {
 
     if (raw.initial !in stateNames) {
         fail(
-            "tabula::unknown-state",
+            "tabular-center::unknown-state",
             "initial state `${raw.initial}` is not declared. States: ${stateNames.joinToString(" ")}"
         )
     }
@@ -165,13 +165,13 @@ fun buildDesc(raw: RawMachine): MachineDesc {
     raw.rows.forEachIndexed { i, row ->
         val expected = stateNames.getOrNull(i)
             ?: fail(
-                "tabula::extra-row",
+                "tabular-center::extra-row",
                 "row `${row.state}` does not correspond to a declared state. " +
                     "States: ${stateNames.joinToString(" ")}"
             )
         if (row.state != expected) {
             fail(
-                "tabula::missing-row",
+                "tabular-center::missing-row",
                 "row $i is `${row.state}` but `states` says `$expected`. " +
                     "Every state needs exactly one row, in declaration order. " +
                     "States: ${stateNames.joinToString(" ")}"
@@ -180,7 +180,7 @@ fun buildDesc(raw: RawMachine): MachineDesc {
     }
     if (raw.rows.size < stateNames.size) {
         fail(
-            "tabula::missing-row",
+            "tabular-center::missing-row",
             "state `${stateNames[raw.rows.size]}` has no row. " +
                 "Every state needs exactly one row, in declaration order. " +
                 "States: ${stateNames.joinToString(" ")}"
@@ -191,7 +191,7 @@ fun buildDesc(raw: RawMachine): MachineDesc {
         inRow(row.state) {
             if (row.cells.size != actionNames.size) {
                 fail(
-                    "tabula::row-arity",
+                    "tabular-center::row-arity",
                     "row `${row.state}` has ${row.cells.size} cells, expected ${actionNames.size}. " +
                         "Expected columns: ${actionNames.joinToString(" ")}"
                 )
@@ -233,7 +233,7 @@ private fun cell(
     fun checkEffects() = c.effects.map { effectName(it) }.forEach {
         if (it !in effectNames) {
             fail(
-                "tabula::unknown-effect",
+                "tabular-center::unknown-effect",
                 "cell ($state, $action) emits `$it`, which is not a declared effect. " +
                     "Effects: ${effectNames.joinToString(" ")}"
             )
@@ -248,7 +248,7 @@ private fun cell(
         "GO" -> {
             if (c.target !in stateNames) {
                 fail(
-                    "tabula::unknown-state",
+                    "tabular-center::unknown-state",
                     "cell ($state, $action) transitions to `${c.target}`, which is not a " +
                         "declared state. States: ${stateNames.joinToString(" ")}"
                 )
@@ -259,7 +259,7 @@ private fun cell(
             // with zero values chosen to avoid writing a cell.
             if (c.target in payloadStates && c.targetArgs.isBlank()) {
                 fail(
-                    "tabula::go-target",
+                    "tabular-center::go-target",
                     "cell ($state, $action) uses GO to `${c.target}`, which carries a payload " +
                         "that cannot be derived from a literal. Use HANDLE, or supply literal " +
                         "arguments."
@@ -271,7 +271,7 @@ private fun cell(
 
         "EMIT" -> {
             if (c.effects.isEmpty()) {
-                fail("tabula::empty-emit", "cell ($state, $action) uses EMIT with no effects; use IGNORE or HANDLE")
+                fail("tabular-center::empty-emit", "cell ($state, $action) uses EMIT with no effects; use IGNORE or HANDLE")
             }
             checkEffects()
             CellDesc.Emit(c.effects)
@@ -280,7 +280,7 @@ private fun cell(
         "DELEGATE" -> {
             if (raw.children.none { it.alias == c.child }) {
                 fail(
-                    "tabula::unknown-child",
+                    "tabular-center::unknown-child",
                     "cell ($state, $action) delegates to `${c.child}`, which is not a declared " +
                         "child. Children: ${raw.children.joinToString(" ") { it.alias }}"
                 )
@@ -289,7 +289,7 @@ private fun cell(
         }
 
         else -> fail(
-            "tabula::unknown-cell",
+            "tabular-center::unknown-cell",
             "`${c.kind}` in row `$state`, column `$action`. Expected one of: " +
                 "IGNORE, HANDLE, UNREACHABLE, GO, EMIT, DELEGATE."
         )
@@ -320,7 +320,7 @@ private fun validatePaths(
     for (path in raw.paths) {
         if (!seen.add(path.name)) {
             fail(
-                "tabula::path-duplicate",
+                "tabular-center::path-duplicate",
                 "two paths are named `${path.name}`; a narrowed call site names " +
                     "the path it narrows to, so names must be unique"
             )
@@ -329,7 +329,7 @@ private fun validatePaths(
         for (state in path.states) {
             if (state !in stateNames) {
                 fail(
-                    "tabula::path-unknown-state",
+                    "tabular-center::path-unknown-state",
                     "path `${path.name}` names state `$state`, which is not declared. " +
                         "States: ${stateNames.joinToString(" ")}"
                 )
@@ -341,7 +341,7 @@ private fun validatePaths(
         // does not declare is the same mistake whichever column it is in.
         if (path.back.isNotBlank() && path.back !in actionNames) {
             fail(
-                "tabula::path-unknown-state",
+                "tabular-center::path-unknown-state",
                 "path `${path.name}` walks back by `${path.back}`, which is not a " +
                     "declared action. Actions: ${actionNames.joinToString(" ")}"
             )
@@ -353,7 +353,7 @@ private fun validatePaths(
         // walk below can index without guarding.
         if (path.elements.size < 3 || path.elements.size % 2 == 0) {
             fail(
-                "tabula::path-broken",
+                "tabular-center::path-broken",
                 "path `${path.name}` has ${path.elements.size} element(s); a path " +
                     "alternates state and action, starting and ending with a state, " +
                     "so the count is odd and at least three"
@@ -371,7 +371,7 @@ private fun validatePaths(
             val col = actionNames.indexOf(action)
             if (col < 0) {
                 fail(
-                    "tabula::path-unknown-state",
+                    "tabular-center::path-unknown-state",
                     "path `${path.name}` names action `$action`, which is not " +
                         "declared. Actions: ${actionNames.joinToString(" ")}"
                 )
@@ -388,7 +388,7 @@ private fun validatePaths(
                 )
             if (!ok) {
                 fail(
-                    "tabula::path-broken",
+                    "tabular-center::path-broken",
                     "path `${path.name}` goes `$from` -`$action`-> `$to`, and cell " +
                         "($from, $action) cannot reach `$to`"
                 )
@@ -415,7 +415,7 @@ private fun validatePaths(
         } ?: false
         if (leaves) {
             fail(
-                "tabula::path-unterminated",
+                "tabular-center::path-unterminated",
                 "path `${path.name}` ends at `$last`, which can still be left; a " +
                     "path ends where the machine is done"
             )
@@ -432,7 +432,7 @@ private fun validatePaths(
  *
  * Only `HANDLE`. A `GO` already says where it goes, and rewriting it would let
  * a path silently contradict a cell -- the developer would have written two
- * answers and been told neither. `tabula::path-broken` already rejects a hop
+ * answers and been told neither. `tabular-center::path-broken` already rejects a hop
  * whose `GO` disagrees, so by the time this runs the two agree or the build
  * stopped.
  *

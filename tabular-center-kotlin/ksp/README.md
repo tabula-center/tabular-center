@@ -53,7 +53,7 @@ score, because the scoring is the useful part:
    parent declares nothing else about its child. `Retry.tb.kt` and `Job.tb.kt`
    in the example are the pair, and `kspTwins` diffs both.
 
-   One limit, named by `tabula::unknown-child`: a child must be compiled with
+   One limit, named by `tabular-center::unknown-child`: a child must be compiled with
    its parent, because `@Machine` is `SOURCE`-retention and a child from a
    prebuilt module has no annotation left to read.
 

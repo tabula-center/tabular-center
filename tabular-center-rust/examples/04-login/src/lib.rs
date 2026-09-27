@@ -15,7 +15,7 @@
 //! cell of the child unimplemented breaks the *parent's* build. A hand-written
 //! `HANDLE` could not give that: it is free to ignore the child entirely.
 
-use tabula::{Delegate, Handle, Lens, Step};
+use tabular_center::{Delegate, Handle, Lens, Step};
 
 // Each matrix lives in its own `.tb.rs`, per `spec/matrix-files.md`, as a
 // private module re-exported by the public one named for its machine.

@@ -7,7 +7,7 @@
 //!
 //! The effect carries a payload too, so the handler is narrowed the same way.
 
-use tabula::{Handle, Perform, Step};
+use tabular_center::{Handle, Perform, Step};
 
 #[derive(Debug, Default)]
 pub struct Ctx {

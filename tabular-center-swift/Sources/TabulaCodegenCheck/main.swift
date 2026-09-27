@@ -57,25 +57,25 @@ func raw(
 
 check("a well-formed machine builds", (try? buildDesc(raw()))?.rows.count == 2)
 
-expectError("row with too few cells", "tabula::row-arity") {
+expectError("row with too few cells", "tabular-center::row-arity") {
     _ = try buildDesc(raw(rows: [
         RawRow("Idle", [RawCell("HANDLE")]),
         RawRow("Running", [RawCell("IGNORE"), RawCell("HANDLE")]),
     ]))
 }
 
-expectError("a state with no row", "tabula::missing-row") {
+expectError("a state with no row", "tabular-center::missing-row") {
     _ = try buildDesc(raw(rows: [RawRow("Idle", [RawCell("HANDLE"), RawCell("IGNORE")])]))
 }
 
-expectError("rows out of declaration order", "tabula::missing-row") {
+expectError("rows out of declaration order", "tabular-center::missing-row") {
     _ = try buildDesc(raw(rows: [
         RawRow("Running", [RawCell("IGNORE"), RawCell("HANDLE")]),
         RawRow("Idle", [RawCell("HANDLE"), RawCell("IGNORE")]),
     ]))
 }
 
-expectError("a row for an undeclared state", "tabula::extra-row") {
+expectError("a row for an undeclared state", "tabular-center::extra-row") {
     _ = try buildDesc(raw(rows: [
         RawRow("Idle", [RawCell("HANDLE"), RawCell("IGNORE")]),
         RawRow("Running", [RawCell("IGNORE"), RawCell("HANDLE")]),
@@ -83,7 +83,7 @@ expectError("a row for an undeclared state", "tabula::extra-row") {
     ]))
 }
 
-expectError("GO to an undeclared state", "tabula::unknown-state") {
+expectError("GO to an undeclared state", "tabular-center::unknown-state") {
     _ = try buildDesc(raw(rows: [
         RawRow("Idle", [RawCell("GO", target: "Nope"), RawCell("IGNORE")]),
         RawRow("Running", [RawCell("IGNORE"), RawCell("HANDLE")]),
@@ -92,7 +92,7 @@ expectError("GO to an undeclared state", "tabula::unknown-state") {
 
 // Rule R3: a GO cell is resolved entirely by the generator, so its target must
 // be constructible without developer code.
-expectError("GO to a payload state with no literal args", "tabula::go-target") {
+expectError("GO to a payload state with no literal args", "tabular-center::go-target") {
     _ = try buildDesc(raw(rows: [
         RawRow("Idle", [RawCell("GO", target: "Running"), RawCell("IGNORE")]),
         RawRow("Running", [RawCell("IGNORE"), RawCell("HANDLE")]),
@@ -106,35 +106,35 @@ check(
         RawRow("Running", [RawCell("IGNORE"), RawCell("HANDLE")]),
     ]))) != nil)
 
-expectError("emitting an undeclared effect", "tabula::unknown-effect") {
+expectError("emitting an undeclared effect", "tabular-center::unknown-effect") {
     _ = try buildDesc(raw(rows: [
         RawRow("Idle", [RawCell("GO", target: "Idle", effects: ["Nope"]), RawCell("IGNORE")]),
         RawRow("Running", [RawCell("IGNORE"), RawCell("HANDLE")]),
     ]))
 }
 
-expectError("EMIT with no effects", "tabula::empty-emit") {
+expectError("EMIT with no effects", "tabular-center::empty-emit") {
     _ = try buildDesc(raw(rows: [
         RawRow("Idle", [RawCell("EMIT"), RawCell("IGNORE")]),
         RawRow("Running", [RawCell("IGNORE"), RawCell("HANDLE")]),
     ]))
 }
 
-expectError("DELEGATE to an undeclared child", "tabula::unknown-child") {
+expectError("DELEGATE to an undeclared child", "tabular-center::unknown-child") {
     _ = try buildDesc(raw(rows: [
         RawRow("Idle", [RawCell("DELEGATE", child: "retry"), RawCell("IGNORE")]),
         RawRow("Running", [RawCell("IGNORE"), RawCell("HANDLE")]),
     ]))
 }
 
-expectError("an unrecognised cell kind", "tabula::unknown-cell") {
+expectError("an unrecognised cell kind", "tabular-center::unknown-cell") {
     _ = try buildDesc(raw(rows: [
         RawRow("Idle", [RawCell("MAYBE"), RawCell("IGNORE")]),
         RawRow("Running", [RawCell("IGNORE"), RawCell("HANDLE")]),
     ]))
 }
 
-expectError("an undeclared initial state", "tabula::unknown-state") {
+expectError("an undeclared initial state", "tabular-center::unknown-state") {
     _ = try buildDesc(raw(initial: "Nope"))
 }
 
@@ -240,12 +240,12 @@ do {
     check("the back-deriving machines are accepted: \(error)", false)
 }
 
-expectError("a path that can still be left", "tabula::path-unterminated") {
+expectError("a path that can still be left", "tabular-center::path-unterminated") {
     _ = try buildDesc(
         backMachine(back: "", payBack: RawCell("HANDLE"), doneBack: RawCell("HANDLE")))
 }
 
-expectError("a back action the machine does not declare", "tabula::path-unknown-state") {
+expectError("a back action the machine does not declare", "tabular-center::path-unknown-state") {
     _ = try buildDesc(backMachine(back: "Backwards", payBack: RawCell("HANDLE")))
 }
 

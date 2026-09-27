@@ -91,7 +91,7 @@ transition_matrix! {
 }
 ```
 
-<sub>From [`tabular-center-rust/tabula/tests/scale.rs`](https://github.com/tabula-center/tabular-center/blob/main/tabular-center-rust/tabula/tests/scale.rs).</sub>
+<sub>From [`tabular-center-rust/tabular-center/tests/scale.rs`](https://github.com/tabula-center/tabular-center/blob/main/tabular-center-rust/tabular-center/tests/scale.rs).</sub>
 
 | | |
 |---|---|

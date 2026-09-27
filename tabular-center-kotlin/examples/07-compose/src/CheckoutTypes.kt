@@ -4,7 +4,7 @@ package example.compose.checkout
 sealed interface S {
     // The five states of the happy path. All payload-free, and that is not an
     // accident: a spine's derived `GO` carries no constructor arguments, so a
-    // state on the path cannot need any. `tabula::go-target` says so if one
+    // state on the path cannot need any. `tabular-center::go-target` says so if one
     // does -- which is the rule arriving before the mistake, not after it.
     data object Cart : S
 

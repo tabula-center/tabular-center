@@ -40,7 +40,7 @@ gitignore. `cargo build` is the whole story.
 ## Each one is a project, not a module
 
 They were four modules in a single crate per language. They are now four
-**projects**: own manifest, own dependency line on tabula, own `tests/`
+**projects**: own manifest, own dependency line on tabular-center, own `tests/`
 directory. An example is read as a template for a real project, and a real
 project does not keep its tests in a `mod tests` at the bottom of `lib.rs`.
 
@@ -50,7 +50,7 @@ for everybody:
 
 | | crate | configuration it covers |
 |---|---|---|
-| 1 | `traffic-light` | `#![no_std]`, tabula with `default-features = false` |
+| 1 | `traffic-light` | `#![no_std]`, tabular-center with `default-features = false` |
 | 2 | `timer` | default features: `TABLE`, export, lint |
 | 3 | `retry` | a **binary** as well as a library, so the driver is watched and not only asserted on |
 | 4 | `login` | two machines in one crate, parent and child |
@@ -84,7 +84,7 @@ They are chosen to cover the edges rather than to look impressive:
 - **`login`** is a parent and a child, so it exercises `DELEGATE`, the lens,
   and the property that a hole in the child breaks the parent's build.
 
-For the N×M cost at realistic scale, see `tabula/tests/scale.rs` in tabular-center-rust — a
+For the N×M cost at realistic scale, see `tabular-center/tests/scale.rs` in tabular-center-rust — a
 genuine 8×12 machine, measured rather than described.
 
 ## Running them

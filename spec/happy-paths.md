@@ -74,7 +74,7 @@ the action is the only one where nothing is refused and nothing is silent.
 
 It buys more than it costs:
 
-- **`tabula::path-broken` becomes precise.** It checks *that* cell rather than
+- **`tabular-center::path-broken` becomes precise.** It checks *that* cell rather than
   *some* cell in the row, which closes the weakness a states-only spine had --
   a `HANDLE` anywhere made a row connect to anything.
 - **The declaration reads as the run it describes.** `Idle -Start-> Connecting
@@ -86,7 +86,7 @@ It buys more than it costs:
   through. A states-only spine can generate none of those, because it does not
   know which action it meant.
 
-An even number of elements, or two states adjacent, is `tabula::path-broken`:
+An even number of elements, or two states adjacent, is `tabular-center::path-broken`:
 a route is a sequence of hops, and a hop is a state, an action, and a state.
 
 `Kind.HAPPY` reads wrong: happiness is orthogonal to what a cell *does*, and a
@@ -126,10 +126,10 @@ per PLAN's cross-cutting rule that every diagnostic gets one.
 
 | code | when |
 | --- | --- |
-| `tabula::path-broken` | a hop names a cell the matrix does not have, or the elements do not alternate state-action-state |
-| `tabula::path-unterminated` | a path does not reach a state with no outgoing transition |
-| `tabula::path-unknown-state` | a `@Path` names a state the machine does not declare |
-| `tabula::path-duplicate` | two paths share a name |
+| `tabular-center::path-broken` | a hop names a cell the matrix does not have, or the elements do not alternate state-action-state |
+| `tabular-center::path-unterminated` | a path does not reach a state with no outgoing transition |
+| `tabular-center::path-unknown-state` | a `@Path` names a state the machine does not declare |
+| `tabular-center::path-duplicate` | two paths share a name |
 
 ## Additive, and that is the whole constraint
 
@@ -287,7 +287,7 @@ and a fallback. Every cell the row muncher visits is passed through it:
 - **Derivation.** A `HANDLE` at a hop comes back as `GO!(next)`, so its
   `Handle` bound is never generated and the dispatcher arm is static -- the
   same as Kotlin and Swift, and the additive test holds as stated.
-- **All four codes as `compile_error!`**, with tabula's own text:
+- **All four codes as `compile_error!`**, with tabular-center's own text:
   `path-unknown-state` by a second generated macro whose rules are the
   declared states; `path-broken` by the fallback seeing a hop's cell that is
   neither `HANDLE` nor `GO` to the next state; `path-duplicate` and
@@ -307,7 +307,7 @@ names, and a `const _: () = { .. }` block walks both with byte comparison,
 which stable `const fn` allows, and `panic!`s with the code:
 
 - **All four codes, detected at compile time**, as "evaluation of constant
-  value failed" carrying `tabula::path-broken: ...`. The machine and path
+  value failed" carrying `tabular-center::path-broken: ...`. The machine and path
   names can be in the message (`concat!` of `stringify!`); *which* hop broke
   cannot, since stable `const` panics take no formatted arguments.
 - **No derivation.** The bound is syntactic and the check is a value, so a
@@ -337,7 +337,7 @@ The four `path-*` codes join the nine existing compile-time diagnostics
 lints, because a broken spine is rejected by `buildDesc` before a table exists.
 
 That is a much smaller surface than the first revision assumed: compile-fail
-fixtures in `tabular-center-rust/tabula/tests/compile_fail/`,
+fixtures in `tabular-center-rust/tabular-center/tests/compile_fail/`,
 `tabular-center-kotlin/ksp/compile-fail/fixtures/` and `tabular-center-swift/macros/fixtures/`, following the
 `//~ EXPECT:` convention all three already share. No conformance fixture, no
 adapters, no goldens.
@@ -375,7 +375,7 @@ after three implementations is the expensive version.
       approach A below. `tests/spine.rs` shows a hop needs no `Handle` impl,
       that the spine-derived `TABLE` equals the longhand one, and that without
       the path the same rows differ.
-- [x] Rust: the four `path-*` codes. Three are tabula's own text, from
+- [x] Rust: the four `path-*` codes. Three are tabular-center's own text, from
       lookups generated out of the declared names -- the same technique as
       derivation. `path-duplicate` is rustc's "defined multiple times": it
       compares two names the machine chose, so there is no declared list to

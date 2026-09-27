@@ -65,7 +65,7 @@ public struct MachineDesc {
 
 /// One variant of a sum type.
 ///
-/// `fields` exists only to feed `tabula::payload-hoist`, so it may be empty
+/// `fields` exists only to feed `tabular-center::payload-hoist`, so it may be empty
 /// even when `hasPayload` is true — a generator that cannot resolve a type
 /// still produces a usable machine, just without that one lint.
 public struct Variant {

@@ -6,7 +6,7 @@
 // names it.
 //
 // The route ends at `Live`, which nothing can leave. A path that ends
-// somewhere with a way out is `tabula::path-unterminated`.
+// somewhere with a way out is `tabular-center::path-unterminated`.
 package generated.spine
 
 import dev.tabula.CellSpec

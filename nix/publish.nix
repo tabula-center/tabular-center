@@ -61,7 +61,7 @@ in
       fi
 
       # Bumping a version stales every Cargo.lock that records it -- including
-      # the examples', which pin tabula by path. Without this, `--locked` fails
+      # the examples', which pin tabular-center by path. Without this, `--locked` fails
       # everywhere and the error names the lockfile rather than the bump.
       echo "== refreshing lockfiles =="
       (cd tabular-center-rust && cargo update --workspace --offline)
@@ -102,9 +102,9 @@ in
       # library it is declared in, so there is nothing to separate. The
       # conformance harness and the examples are publish = false.
       if [ "$execute" -eq 1 ]; then
-        (cd tabular-center-rust && cargo publish -p tabula)   # needs CARGO_REGISTRY_TOKEN
+        (cd tabular-center-rust && cargo publish -p tabular-center)   # needs CARGO_REGISTRY_TOKEN
       else
-        (cd tabular-center-rust && cargo publish -p tabula --dry-run)
+        (cd tabular-center-rust && cargo publish -p tabular-center --dry-run)
       fi
 
       ${lib.optionalString has.kotlinGradle ''

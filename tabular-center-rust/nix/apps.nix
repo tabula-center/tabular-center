@@ -36,7 +36,7 @@ let
     text = ''
       ${cdRoot}
       cd tabular-center-rust
-      cargo run -q -p tabula-conformance --bin table-diff --offline --locked -- "$@"
+      cargo run -q -p tabular-center-conformance --bin table-diff --offline --locked -- "$@"
     '';
   };
 in

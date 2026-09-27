@@ -157,7 +157,7 @@ fun emit(d: MachineDesc): String = buildString {
     appendLine(")")
 
     // Payload metadata, kept separate from TABLE: the table is the matrix, and
-    // this is metadata about the states. Feeds tabula::payload-hoist.
+    // this is metadata about the states. Feeds tabular-center::payload-hoist.
     appendLine()
     appendLine("/** State payload fields, as `(state, field, type)`. */")
     val payloadStates = d.states.filter { it.hasPayload }
@@ -180,7 +180,7 @@ private inline fun forEachCell(d: MachineDesc, body: (Int, Int, CellDesc) -> Uni
 
 private fun child(d: MachineDesc, alias: String): ChildDesc =
     d.children.firstOrNull { it.alias == alias }
-        ?: error("tabula::unknown-child: `$alias` is not a declared child")
+        ?: error("tabular-center::unknown-child: `$alias` is not a declared child")
 
 /**
  * Cell member name: `Idle` x `Start` becomes `idleStart`.

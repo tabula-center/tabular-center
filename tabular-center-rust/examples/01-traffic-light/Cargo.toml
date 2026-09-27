@@ -9,10 +9,10 @@ publish = false
 
 # The configuration corner this example covers: `default-features = false`.
 #
-# tabula's `export` and `lint` modules are gated on `alloc`; everything a
+# tabular-center's `export` and `lint` modules are gated on `alloc`; everything a
 # machine needs to run is not. A machine with no payloads and no effects is the
-# honest place to prove that, so this crate is `#![no_std]` and takes tabula
+# honest place to prove that, so this crate is `#![no_std]` and takes tabular-center
 # with no features at all. If the macro ever grows an allocation, this fails
 # here rather than on someone's firmware.
 [dependencies]
-tabula = { path = "../../tabula", default-features = false }
+tabular-center = { path = "../../tabular-center", default-features = false }

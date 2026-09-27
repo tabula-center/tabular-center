@@ -1,4 +1,4 @@
-//~ EXPECT: tabula::unknown-effect
+//~ EXPECT: tabular-center::unknown-effect
 //~ AT: @Row(S.Idle::class
 //
 // A cell emitting an effect the machine never declared.

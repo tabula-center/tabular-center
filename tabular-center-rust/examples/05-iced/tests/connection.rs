@@ -5,7 +5,7 @@
 //! no window, and `rust-gui` says so when it passes.
 
 use iced_connection::{connection, session, App, Cells};
-use tabula::{Outcome, Step};
+use tabular_center::{Outcome, Step};
 
 #[test]
 fn the_child_dials_and_answers_itself() {

@@ -87,7 +87,7 @@ The tests catch exactly that.
 
 ## What drives it
 
-`tabula::Driver`, which is the whole host: an action goes in, the effects of
+`tabular_center::Driver`, which is the whole host: an action goes in, the effects of
 the resulting step are performed in order, and a follow-up action an effect
 returns is **enqueued** rather than applied by reentering `step`. One press of
 Start therefore takes Idle to Live — GO emits `Dial`, `Dial` answers `Ready`,

@@ -141,7 +141,7 @@ error: class 'Hole' is not abstract and does not implement abstract member
 
 kotlinc's own message, required by a fixture on every run. Declaration
 mistakes -- an unknown state in a `@Row`, a row with the wrong number of cells
--- are refused by the processor with a `tabula::` code and a pointer at the
+-- are refused by the processor with a `tabular-center::` code and a pointer at the
 annotation ([Diagnostics](diagnostics)).
 
 ## Composition and suspend

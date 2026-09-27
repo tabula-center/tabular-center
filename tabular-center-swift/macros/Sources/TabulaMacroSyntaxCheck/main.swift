@@ -209,7 +209,7 @@ do {
                 _ = try buildDesc(raw)
                 check(false, "a short row is rejected by buildDesc")
             } catch let e as TabulaError {
-                check(e.code == "tabula::row-arity", "and with the normative code: \(e.code)")
+                check(e.code == "tabular-center::row-arity", "and with the normative code: \(e.code)")
             } catch {
                 check(false, "a short row is rejected by buildDesc: \(error)")
             }

@@ -1,4 +1,4 @@
-//~ EXPECT: tabula::go-target
+//~ EXPECT: tabular-center::go-target
 //
 // GO to a state that carries a payload, with no literal arguments.
 //

@@ -10,4 +10,4 @@ publish = false
 # Default features: this one reads `TABLE`, renders it, and lints it, all of
 # which live behind `alloc`.
 [dependencies]
-tabula = { path = "../../tabula" }
+tabular-center = { path = "../../tabular-center" }

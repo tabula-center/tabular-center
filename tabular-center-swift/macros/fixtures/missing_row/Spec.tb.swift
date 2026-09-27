@@ -5,7 +5,7 @@
 // rather than in a config nobody reads. `swift-format-config` requires it on
 // every `.tb.swift`; `swift-matrix-stable` runs the formatter over this file
 // and compares the rows.
-//~ EXPECT: tabula::missing-row
+//~ EXPECT: tabular-center::missing-row
 //
 // Three declared states, two rows. The row left out is the LAST one, so a walk
 // that stops when rows run out reports it, while one indexing rows by state

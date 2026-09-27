@@ -1,4 +1,4 @@
-use tabula::Outcome;
+use tabular_center::Outcome;
 use traffic_light::*;
 
 #[test]

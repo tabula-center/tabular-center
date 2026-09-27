@@ -12,9 +12,9 @@ line, after the remedy, for the reader who wants the reasoning rather than the
 fix.
 
 ```
-tabula::row-arity: row `Running` has 2 cells; `actions` declares 3.
+tabular-center::row-arity: row `Running` has 2 cells; `actions` declares 3.
   The first missing column is `Cancel`.
-  https://tabula-center.github.io/tabular-center/doc/diagnostics#tabula-row-arity
+  https://tabula-center.github.io/tabular-center/doc/diagnostics#tabular-center-row-arity
 ```
 
 The anchor is injected by `tools/docs`, not derived from the heading text.
@@ -28,7 +28,7 @@ GitHub Pages serves it from the branch. It is never edited by hand, and
 a second copy of normative text is only safe if something checks it.
 
 Every code below has a fixture under the implementation's compile-fail suite:
-`tabular-center-rust/tabula/tests/compile_fail/`, `tabular-center-kotlin/compile_fail/`,
+`tabular-center-rust/tabular-center/tests/compile_fail/`, `tabular-center-kotlin/compile_fail/`,
 `tabular-center-kotlin/codegen/compile_fail/`, and `tabular-center-swift/compile_fail/`. A diagnostic without
 a fixture is not shipped.
 
@@ -50,26 +50,26 @@ Cell semantics are specified separately, in `cells.md`.
 ## Format
 
 ```
-tabula::<code>: <what is wrong>. <what to do about it>. <context>
+tabular-center::<code>: <what is wrong>. <what to do about it>. <context>
 ```
 
 The remedy is part of the message, not something to look up. A developer who
-hits `tabula::go-target` should not have to open this file to learn that the
+hits `tabular-center::go-target` should not have to open this file to learn that the
 fix is `HANDLE`.
 
 ---
 
-## `tabula::row-arity`
+## `tabular-center::row-arity`
 
 A row has a different number of cells than the machine has actions.
 
 ```
-tabula::row-arity: row `Running` has too few cells; missing a cell for
+tabular-center::row-arity: row `Running` has too few cells; missing a cell for
 action `Cancel`. Expected columns: Start Tick Cancel
 ```
 
 ```
-tabula::row-arity: row `Idle` has too many cells; unexpected `IGNORE`.
+tabular-center::row-arity: row `Idle` has too many cells; unexpected `IGNORE`.
 Expected columns: Start Tick Cancel
 ```
 
@@ -81,13 +81,13 @@ Swift `TabulaCodegen/Raw.swift`).
 
 ---
 
-## `tabula::missing-row` / `tabula::extra-row`
+## `tabular-center::missing-row` / `tabular-center::extra-row`
 
 A declared state has no row, or a row names something that is not a declared
 state.
 
 ```
-tabula::missing-row: state `Done` has no row. Every state needs exactly one
+tabular-center::missing-row: state `Done` has no row. Every state needs exactly one
 row, in declaration order. States: Idle Running Done
 ```
 
@@ -101,12 +101,12 @@ against the incidental one.
 
 ---
 
-## `tabula::unknown-cell`
+## `tabular-center::unknown-cell`
 
 A cell is not one of the six kinds.
 
 ```
-tabula::unknown-cell: `MAYBE` in row `Idle`, column `Start`. Expected one of:
+tabular-center::unknown-cell: `MAYBE` in row `Idle`, column `Start`. Expected one of:
 IGNORE, HANDLE, UNREACHABLE, GO!(..), EMIT!(..).
 ```
 
@@ -119,7 +119,7 @@ Phase 6, so the Rust message now reads
 
 ---
 
-## `tabula::go-target`
+## `tabular-center::go-target`
 
 A `GO` cell names a target that cannot be constructed without runtime data.
 
@@ -139,7 +139,7 @@ circumvented and it costs no implementation. Where a language cannot do it,
 emit the explicit form:
 
 ```
-tabula::go-target: cell (Done, Start) uses GO to `Running`, which requires
+tabular-center::go-target: cell (Done, Start) uses GO to `Running`, which requires
 `since: u32` that cannot be derived from a literal. Use HANDLE.
 ```
 
@@ -157,7 +157,7 @@ somewhere the runtime bindings are out of scope.
 The library's central guarantee produces a message we do not author:
 
 ```
-error[E0277]: the trait bound `T: tabula::Handle<Timer, Running, Tick>`
+error[E0277]: the trait bound `T: tabular_center::Handle<Timer, Running, Tick>`
               is not satisfied
 ```
 
@@ -168,7 +168,7 @@ exact `(state, action)` pair. Implementations must not intercept or reword it.
 Kotlin and Swift produce their own equivalents ("abstract member not
 implemented"), which read differently and must not be normalized. Behaviour is
 what `spec/conformance` compares; message text is normative only for
-diagnostics tabula itself authors.
+diagnostics tabular-center itself authors.
 
 ---
 
@@ -181,16 +181,16 @@ test rather than living in code that needs Maven to run.
 
 | Code | Fires when |
 |---|---|
-| `tabula::row-arity` | a row has the wrong number of cells |
-| `tabula::missing-row` | a state has no row, or rows are out of declaration order |
-| `tabula::extra-row` | a row names something that is not a declared state |
-| `tabula::unknown-cell` | a cell is not one of the six kinds |
-| `tabula::unknown-state` | `GO` targets, or `initial` names, an undeclared state |
-| `tabula::unknown-effect` | a cell emits an undeclared effect |
-| `tabula::unknown-child` | `DELEGATE` names an undeclared child, or (KSP) one that is not a machine |
-| `tabula::go-target` | `GO` targets a payload state with no literal arguments |
-| `tabula::empty-emit` | `EMIT` lists no effects; use `IGNORE` or `HANDLE` |
-| `tabula::unsupported-color` | a Rust prototype other than `fn handle` or `async fn handle` |
+| `tabular-center::row-arity` | a row has the wrong number of cells |
+| `tabular-center::missing-row` | a state has no row, or rows are out of declaration order |
+| `tabular-center::extra-row` | a row names something that is not a declared state |
+| `tabular-center::unknown-cell` | a cell is not one of the six kinds |
+| `tabular-center::unknown-state` | `GO` targets, or `initial` names, an undeclared state |
+| `tabular-center::unknown-effect` | a cell emits an undeclared effect |
+| `tabular-center::unknown-child` | `DELEGATE` names an undeclared child, or (KSP) one that is not a machine |
+| `tabular-center::go-target` | `GO` targets a payload state with no literal arguments |
+| `tabular-center::empty-emit` | `EMIT` lists no effects; use `IGNORE` or `HANDLE` |
+| `tabular-center::unsupported-color` | a Rust prototype other than `fn handle` or `async fn handle` |
 
 Rows are identified by **position**, so an out-of-order row is reported as
 `missing-row` rather than accepted as a reordering: it is a row for the wrong
@@ -225,10 +225,10 @@ that: it compares behaviour, and no fixture writes a forbidden cell.
 | `path-unterminated` | yes | yes | yes |
 | `path-duplicate` | by rustc | yes | yes |
 
-### `tabula::unsupported-color`
+### `tabular-center::unsupported-color`
 
 ```
-tabula::unsupported-color: machine `Timer` has a prototype Rust cannot color.
+tabular-center::unsupported-color: machine `Timer` has a prototype Rust cannot color.
 Write `prototype fn handle;` or `prototype async fn handle;` -- `async` is the
 only color a Rust trait method can carry on stable.
 ```
@@ -240,10 +240,10 @@ it, and `async` is the only one a trait method can carry on stable. Named,
 rather than left to `no rules expected the token`, because the right fix is a
 different prototype, and the generic error would not say which.
 
-### `tabula::empty-emit`
+### `tabular-center::empty-emit`
 
 ```
-tabula::empty-emit: cell (Off, Poke) uses EMIT with no effects. Use IGNORE if
+tabular-center::empty-emit: cell (Off, Poke) uses EMIT with no effects. Use IGNORE if
 the action is not applicable in this state, or HANDLE if it is handled
 deliberately.
 ```
@@ -268,10 +268,10 @@ Kotlin and Swift emit them. Rust does not, and that is not a gap — Rust has no
 rejections are `compile_error!`, exactly as `extra-row` already is.
 `spec/diagnostics-coverage.md` records it.
 
-### `tabula::path-broken`
+### `tabular-center::path-broken`
 
 ```
-tabula::path-broken: path `connect` goes `Connecting` -`Ready`-> `Live`, and
+tabular-center::path-broken: path `connect` goes `Connecting` -`Ready`-> `Live`, and
 cell (Connecting, Ready) cannot reach `Live`
 ```
 
@@ -289,32 +289,32 @@ A one-state path reports here too. A route that goes nowhere is broken in the
 same sense, and inventing a fifth code for it would split one idea across two
 pages a reader has to find separately.
 
-### `tabula::path-unterminated`
+### `tabular-center::path-unterminated`
 
 ```
-tabula::path-unterminated: path `connect` ends at `Live`, which can still be
+tabular-center::path-unterminated: path `connect` ends at `Live`, which can still be
 left; a path ends where the machine is done.
 ```
 
 A path that never ends is a loop with a name. The test is the same one
-`tabula::no-static-exit` uses — a `GO` elsewhere, a `HANDLE`, or a `DELEGATE` —
+`tabular-center::no-static-exit` uses — a `GO` elsewhere, a `HANDLE`, or a `DELEGATE` —
 so the two agree about what "can be left" means rather than each deciding.
 
-### `tabula::path-unknown-state`
+### `tabular-center::path-unknown-state`
 
 ```
-tabula::path-unknown-state: path `connect` names state `Livee`, which is not
+tabular-center::path-unknown-state: path `connect` names state `Livee`, which is not
 declared. States: Idle Connecting Live Failed
 ```
 
 Lists the declared states, so a typo is fixed from the message. Separate from
-`tabula::unknown-state`, which is about a cell's target: the two have different
+`tabular-center::unknown-state`, which is about a cell's target: the two have different
 remedies, and a shared code would mean a shared doc page explaining both.
 
-### `tabula::path-duplicate`
+### `tabular-center::path-duplicate`
 
 ```
-tabula::path-duplicate: two paths are named `connect`; a narrowed call site
+tabular-center::path-duplicate: two paths are named `connect`; a narrowed call site
 names the path it narrows to, so names must be unique.
 ```
 
@@ -322,13 +322,13 @@ The message says why rather than just what. A developer reading it has probably
 copied a `@Path` and edited the states without the name, and the reason names
 must be unique is the thing that makes the fix obvious.
 
-## `tabula::color-mismatch` — reserved, emitted by nobody
+## `tabular-center::color-mismatch` — reserved, emitted by nobody
 
 **Decided (September 2026): no implementation emits this, and none should.**
 The message a generator would print is the one above the decision:
 
 ```
-tabula::color-mismatch: machine `Timer` (prototype: `fun handle`) delegates to
+tabular-center::color-mismatch: machine `Timer` (prototype: `fun handle`) delegates to
 `Retry` (prototype: `suspend fun handle`). A suspending child cannot be driven
 from a non-suspending parent.
 ```
@@ -340,7 +340,7 @@ call the language itself will not accept:
 
 | | what refuses it | fixture |
 |---|---|---|
-| Rust | an async child's `step` is a future where a `Step` is required | `tabular-center-rust/tabula/tests/compile_fail/async_child_in_plain_parent.rs` |
+| Rust | an async child's `step` is a future where a `Step` is required | `tabular-center-rust/tabular-center/tests/compile_fail/async_child_in_plain_parent.rs` |
 | Kotlin | a `suspend` call from a plain function | `tabular-center-kotlin/codegen/compile_fail/jobmixed_colored_child_in_uncolored_parent.kt` |
 | Swift | an `async` call in a function that does not support concurrency | `tabular-center-swift/codegen-support/compile_fail/job-mixed_colored_child_in_uncolored_parent.swift` |
 
@@ -376,12 +376,12 @@ Two rules govern the set, learned by writing it:
 
 | Code | Fires when |
 |---|---|
-| `tabula::no-static-entry` | nothing can transition into a state, in a fully static matrix |
-| `tabula::no-static-exit` | no cell in a row can statically leave it |
-| `tabula::dead-row` | every cell in a row is `IGNORE` |
-| `tabula::dead-column` | no state responds to an action |
-| `tabula::ignore-heavy` | `IGNORE` is at least 70% of the matrix |
-| `tabula::unreachable-heavy` | `UNREACHABLE` is at least 25% of the matrix |
+| `tabular-center::no-static-entry` | nothing can transition into a state, in a fully static matrix |
+| `tabular-center::no-static-exit` | no cell in a row can statically leave it |
+| `tabular-center::dead-row` | every cell in a row is `IGNORE` |
+| `tabular-center::dead-column` | no state responds to an action |
+| `tabular-center::ignore-heavy` | `IGNORE` is at least 70% of the matrix |
+| `tabular-center::unreachable-heavy` | `UNREACHABLE` is at least 25% of the matrix |
 
 `dead-row` fires on genuinely terminal states, intentionally: an intended
 terminal state and a forgotten row are indistinguishable from the matrix, and
@@ -396,10 +396,10 @@ the `dead-row` subsumption, the fully-static gate on reachability.
 
 ---
 
-## `tabula::payload-hoist`
+## `tabular-center::payload-hoist`
 
 ```
-warning[tabula::payload-hoist]: Conn: `retry_count: u32` appears in the
+warning[tabular-center::payload-hoist]: Conn: `retry_count: u32` appears in the
 payloads of Connecting, Backoff, Reconnecting; consider hoisting it to Context
 ```
 

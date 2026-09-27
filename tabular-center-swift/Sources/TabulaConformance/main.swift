@@ -32,7 +32,7 @@ protocol Adapter {
 
     /// Payload fields, as `(state, field, type)`.
     ///
-    /// Separate from `table` because only `tabula::payload-hoist` needs it.
+    /// Separate from `table` because only `tabular-center::payload-hoist` needs it.
     /// Rust has passed its `PAYLOADS` to the lint since the lint existed; this
     /// side took the empty default, so the two agreed only because no fixture
     /// had a field repeated often enough to fire.

@@ -1,4 +1,4 @@
-//~ EXPECT: tabula::empty-emit
+//~ EXPECT: tabular-center::empty-emit
 //
 // An EMIT cell that names no effect.
 //

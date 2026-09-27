@@ -1,4 +1,4 @@
-# The `tabula::payload-hoist` fixture: one field in three states.
+# The `tabular-center::payload-hoist` fixture: one field in three states.
 #
 # Sized so the lint under test is the ONLY finding. No dead row or column,
 # 4 of 12 cells IGNORE (33%, well under IGNORE_HEAVY_PERCENT), no UNREACHABLE,

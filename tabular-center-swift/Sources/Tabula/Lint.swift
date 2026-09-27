@@ -32,13 +32,13 @@ extension Finding {
     /// Stable diagnostic code, matching `spec/diagnostics.md`.
     public var code: String {
         switch self {
-        case .noStaticEntry: return "tabula::no-static-entry"
-        case .noStaticExit: return "tabula::no-static-exit"
-        case .deadRow: return "tabula::dead-row"
-        case .deadColumn: return "tabula::dead-column"
-        case .ignoreHeavy: return "tabula::ignore-heavy"
-        case .unreachableHeavy: return "tabula::unreachable-heavy"
-        case .payloadHoist: return "tabula::payload-hoist"
+        case .noStaticEntry: return "tabular-center::no-static-entry"
+        case .noStaticExit: return "tabular-center::no-static-exit"
+        case .deadRow: return "tabular-center::dead-row"
+        case .deadColumn: return "tabular-center::dead-column"
+        case .ignoreHeavy: return "tabular-center::ignore-heavy"
+        case .unreachableHeavy: return "tabular-center::unreachable-heavy"
+        case .payloadHoist: return "tabular-center::payload-hoist"
         }
     }
 

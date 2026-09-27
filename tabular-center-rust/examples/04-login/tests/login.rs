@@ -1,5 +1,5 @@
 use login::*;
-use tabula::Outcome;
+use tabular_center::Outcome;
 
 // `SessionCtx` is a private alias inside the crate -- `use session::Ctx as
 // SessionCtx`, written there so the lens impls read well. A `mod tests` at the
@@ -84,7 +84,7 @@ fn exhausting_the_child_bans_the_session() {
 
 #[test]
 fn coverage_is_not_inherited_silently() {
-    use tabula::Cell;
+    use tabular_center::Cell;
     // The LoggedOut row still lists all three columns. Two delegate, one
     // does not, and the table says which.
     assert_eq!(session::TABLE.cell(0, 0), Cell::Delegate { child: "auth" });

@@ -3,12 +3,12 @@
 version = 3
 
 [[package]]
-name = "tabula"
+name = "tabular-center"
 version = "0.1.0"
 
 [[package]]
-name = "tabula-conformance"
+name = "tabular-center-conformance"
 version = "0.1.0"
 dependencies = [
- "tabula",
+ "tabular-center",
 ]

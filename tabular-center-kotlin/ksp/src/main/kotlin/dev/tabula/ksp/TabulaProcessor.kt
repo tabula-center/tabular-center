@@ -233,7 +233,7 @@ class TabulaProcessor(
      *
      * The child must be in this compilation: `@Machine` is `SOURCE`-retention,
      * so a child from a prebuilt module has no annotation left to read. That
-     * is the case `tabula::unknown-child` names here.
+     * is the case `tabular-center::unknown-child` names here.
      */
     private fun childrenOf(decl: KSClassDeclaration): List<ChildDesc> = decl.annotations
         .filter { it.shortName.asString() == ROW_SIMPLE }
@@ -242,8 +242,8 @@ class TabulaProcessor(
         .distinctBy { it.qualifiedName?.asString() ?: it.simpleName.asString() }
         .map { child ->
             val ann = child.annotation(MACHINE_SIMPLE) ?: throw TabulaError(
-                "tabula::unknown-child",
-                "tabula::unknown-child: `${child.simpleName.asString()}` is named by a DELEGATE " +
+                "tabular-center::unknown-child",
+                "tabular-center::unknown-child: `${child.simpleName.asString()}` is named by a DELEGATE " +
                     "cell but is not a machine. A child must carry @Machine, and must be compiled " +
                     "together with its parent: @Machine is SOURCE-retention, so a child from " +
                     "another module has no annotation left to read.",
@@ -401,7 +401,7 @@ class TabulaProcessor(
      * `S.Running` carries a payload iff it is a data class rather than an
      * object.
      *
-     * The field list feeds `tabula::payload-hoist` only, so an unresolvable
+     * The field list feeds `tabular-center::payload-hoist` only, so an unresolvable
      * type degrades that one lint rather than the machine.
      */
     private fun KSClassDeclaration.variant(): RawVariant {

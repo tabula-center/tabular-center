@@ -60,7 +60,7 @@ Four of those are worth stating as rules rather than rows in a table.
 
 **Order is meaning.** A row's cells are positional — they line up with the
 action enum's cases — which is what makes a matrix reviewable and what
-`tabula::row-arity` checks. So the macro must read enum cases and array
+`tabular-center::row-arity` checks. So the macro must read enum cases and array
 elements in *source order*, and any traversal that sorts or uses a dictionary
 loses the property the library exists for.
 
@@ -126,7 +126,7 @@ also why `tabular-center-kotlin/test/TimerSpec.tb.kt` had to be split out of
 
 The pairing a reviewer needs comes from the header comment and from the
 alignment, not from repeating the action name on every cell. What labels would
-have caught — a cell in the wrong column — `tabula::row-arity` catches anyway
+have caught — a cell in the wrong column — `tabular-center::row-arity` catches anyway
 when the count is wrong, and a reviewer catches by eye when it is not, which is
 precisely the capability alignment exists to give them.
 

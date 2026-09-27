@@ -183,14 +183,14 @@ step_no_std() {
     # stale-lockfile error as "target unavailable" and sent a real bug looking
     # in the wrong place for an afternoon.
     local out rc
-    out="$( (cd tabular-center-rust && cargo build -p tabula --no-default-features $CARGO_FLAGS \
+    out="$( (cd tabular-center-rust && cargo build -p tabular-center --no-default-features $CARGO_FLAGS \
         --target thumbv7em-none-eabihf) 2>&1 )"
     rc=$?
     [ "$rc" -eq 0 ] && return 0
 
     if grep -qE "may not be installed|not find specification for target" <<<"$out"; then
         echo "note: thumbv7em-none-eabihf unavailable; checking --no-default-features on host"
-        (cd tabular-center-rust && cargo build -p tabula --no-default-features $CARGO_FLAGS)
+        (cd tabular-center-rust && cargo build -p tabular-center --no-default-features $CARGO_FLAGS)
         return $?
     fi
 
@@ -212,15 +212,15 @@ step_compile_fail() { ./tabular-center-rust/tools/compile-fail; }
 
 step_conformance() {
     require_fixtures || return 1
-    (cd tabular-center-rust && cargo run -q -p tabula-conformance $CARGO_FLAGS) || return 1
+    (cd tabular-center-rust && cargo run -q -p tabular-center-conformance $CARGO_FLAGS) || return 1
     # Smoke-run table-diff. It is a documented tool with a `just` recipe and a
     # `nix run` app, and until now nothing ever executed it -- `cargo clippy
     # --all-targets` compiled it and stopped there. Its rendering is unit
     # tested; this covers the argument handling and the exit codes, which are
     # the rest of it.
-    (cd tabular-center-rust && cargo run -q -p tabula-conformance --bin table-diff $CARGO_FLAGS -- timer) \
+    (cd tabular-center-rust && cargo run -q -p tabular-center-conformance --bin table-diff $CARGO_FLAGS -- timer) \
         >/dev/null || { echo "table-diff failed on a fixture that exists"; return 1; }
-    if (cd tabular-center-rust && cargo run -q -p tabula-conformance --bin table-diff $CARGO_FLAGS \
+    if (cd tabular-center-rust && cargo run -q -p tabular-center-conformance --bin table-diff $CARGO_FLAGS \
         -- no-such-fixture) >/dev/null 2>&1; then
         echo "table-diff exited 0 for a fixture that does not exist"
         return 1
@@ -229,7 +229,7 @@ step_conformance() {
 
 # The GUI example, which is its own package on its own toolchain.
 #
-# Not part of tabular-center-rust/examples's workspace: iced needs edition 2024 and tabula's
+# Not part of tabular-center-rust/examples's workspace: iced needs edition 2024 and tabular-center's
 # MSRV is 1.75, so the four examples that hold the library's promise stay
 # there and this one stands apart. `--locked` still: its lock is committed and
 # vendored like any other.
@@ -249,7 +249,7 @@ step_rust_gui() {
     echo "ok   iced example (machine checked; the window is compiled, not opened)"
 }
 
-# The examples depend on tabula the way a user would -- by path, from outside
+# The examples depend on tabular-center the way a user would -- by path, from outside
 # the workspace -- so they are a separate cargo invocation, not another
 # workspace member. That separation is the point: it is the only place the
 # public API is exercised from outside.
@@ -259,7 +259,7 @@ step_examples() {
     # `cargo test` covers every member, including the tests/ directories the
     # split moved them into.
     (cd tabular-center-rust/examples && cargo test $CARGO_FLAGS) || return 1
-    # 01-traffic-light takes tabula with no features at all. Building it under
+    # 01-traffic-light takes tabular-center with no features at all. Building it under
     # the workspace does not prove that: cargo unifies features across members,
     # so 02's `alloc` would be enabled for everyone. Built alone, it is the
     # only place `--no-default-features` is checked through the macro rather
@@ -372,7 +372,7 @@ step_rust_render() {
         return 0
     fi
     # shellcheck disable=SC2086
-    (cd tabular-center-rust && cargo run -q -p tabula-conformance $CARGO_FLAGS -- \
+    (cd tabular-center-rust && cargo run -q -p tabular-center-conformance $CARGO_FLAGS -- \
         "--emit=$TABULAR_CENTER_RENDER_DIR" ../spec/conformance) >/dev/null
 }
 

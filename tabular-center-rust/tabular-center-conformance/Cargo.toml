@@ -1,0 +1,17 @@
+[package]
+name = "tabular-center-conformance"
+description = "Runs the shared spec/conformance fixtures against the Rust implementation"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+# The binary from src/main.rs, which takes the package's name.
+default-run = "tabular-center-conformance"
+
+# `tabular-center` itself has no dependencies. This harness has none either, not
+# because it must, but because a JSON crate here would be the first dependency
+# in the repository and the .tbl parser is sixty lines.
+[dependencies]
+tabular-center = { path = "../tabular-center" }

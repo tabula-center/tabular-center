@@ -115,7 +115,7 @@ It is **not** mainly a saving of characters: four cells change from `HANDLE`
 to `GO, to = ...`, and the grid is exactly as wide either way. What changes is
 where the route lives. Without the path it exists in four cells, in an order
 only the row order implies, and moving a step means editing two of them and
-hoping. With it, the route is one line, and `tabula::path-broken` holds that
+hoping. With it, the route is one line, and `tabular-center::path-broken` holds that
 line to the table: change a row without changing the path and the build says
 so by name.
 

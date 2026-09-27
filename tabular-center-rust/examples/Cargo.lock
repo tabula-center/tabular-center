@@ -6,30 +6,30 @@ version = 3
 name = "login"
 version = "0.0.1"
 dependencies = [
- "tabula",
+ "tabular-center",
 ]
 
 [[package]]
 name = "retry"
 version = "0.0.1"
 dependencies = [
- "tabula",
+ "tabular-center",
 ]
 
 [[package]]
-name = "tabula"
+name = "tabular-center"
 version = "0.1.0"
 
 [[package]]
 name = "timer"
 version = "0.0.1"
 dependencies = [
- "tabula",
+ "tabular-center",
 ]
 
 [[package]]
 name = "traffic-light"
 version = "0.0.1"
 dependencies = [
- "tabula",
+ "tabular-center",
 ]

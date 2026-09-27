@@ -21,11 +21,11 @@ fmt:
 
 # Replay spec/conformance against every implementation that has landed.
 conformance:
-    cd tabular-center-rust && cargo run -q -p tabula-conformance
+    cd tabular-center-rust && cargo run -q -p tabular-center-conformance
 
 # Render a machine's matrix as a diffable grid.
 table-diff FIXTURE="":
-    cd tabular-center-rust && cargo run -q -p tabula-conformance --bin table-diff -- {{FIXTURE}}
+    cd tabular-center-rust && cargo run -q -p tabular-center-conformance --bin table-diff -- {{FIXTURE}}
 
 # Read what the macro actually generates. Reviewing this is a real exit criterion.
 expand TEST="timer_matrix":

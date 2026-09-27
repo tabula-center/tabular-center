@@ -10,7 +10,7 @@
 //! resolves against a directory named after that module -- and each machine's
 //! module re-exports what its matrix generated.
 
-use tabula::{Driver, Handle, Lens, Perform, Step};
+use tabular_center::{Driver, Handle, Lens, Perform, Step};
 
 #[path = "connection.tb.rs"]
 mod connection_matrix;
@@ -140,7 +140,7 @@ impl Lens<session::Session, session::Running, connection::Marker> for Cells {
 /// answering `None`, and then the parent ignores; here every child state has
 /// something sensible to send, so "a button that does nothing right now" is
 /// shown a level up instead: `Tap` in `Booting` is IGNORE in the table.
-impl tabula::Delegate<session::Session, session::Running, session::Tap, connection::Marker>
+impl tabular_center::Delegate<session::Session, session::Running, session::Tap, connection::Marker>
     for Cells
 {
     fn to_child(
@@ -214,8 +214,8 @@ impl App {
     /// two machines it is running rather than a picture of them.
     pub fn grids(&self) -> (String, String) {
         (
-            tabula::export::to_grid(&session::TABLE),
-            tabula::export::to_grid(&connection::TABLE),
+            tabular_center::export::to_grid(&session::TABLE),
+            tabular_center::export::to_grid(&connection::TABLE),
         )
     }
 

@@ -59,7 +59,7 @@ data class MachineDesc(
 ) {
     init {
         require(rows.size == states.size) {
-            "tabula::missing-row: ${rows.size} rows for ${states.size} states"
+            "tabular-center::missing-row: ${rows.size} rows for ${states.size} states"
         }
         require(prototypeReceiver.isEmpty() || children.isEmpty()) {
             "tabula: a prototype extension receiver on a machine with DELEGATE " +
@@ -68,7 +68,7 @@ data class MachineDesc(
         }
         rows.forEachIndexed { i, row ->
             require(row.size == actions.size) {
-                "tabula::row-arity: row `${states[i].name}` has ${row.size} cells, " +
+                "tabular-center::row-arity: row `${states[i].name}` has ${row.size} cells, " +
                     "expected ${actions.size} (${actions.joinToString(" ") { it.name }})"
             }
         }
@@ -79,7 +79,7 @@ data class MachineDesc(
  * One variant of a sealed hierarchy.
  *
  * [fields] is `name to type` for a payload-carrying variant. It exists only to
- * feed `tabula::payload-hoist`, so it may be empty even when [hasPayload] is
+ * feed `tabular-center::payload-hoist`, so it may be empty even when [hasPayload] is
  * true — a processor that cannot resolve a type still produces a usable
  * machine, just without that one lint.
  */

@@ -30,7 +30,7 @@ bounded collection of effects.
 `Stay` and `Ignored` are **behaviourally identical and must remain distinct
 values**. Collapsing them is a conformance failure, not an optimisation: the
 trace format asserts on them separately, the coverage report counts them
-separately, and `tabula::dead-row` is computed from `IGNORE` cells alone.
+separately, and `tabular-center::dead-row` is computed from `IGNORE` cells alone.
 
 Effects are ordered. A cell emitting `[A, B]` and one emitting `[B, A]` are
 different cells, and the conformance harness compares emission order.
@@ -75,7 +75,7 @@ state.* This is a claim about the alphabet, not about the handler.
 unchanged and emit nothing, and they are still not interchangeable:
 
 - `IGNORE` says the pair is meaningless. It costs one word, generates no
-  member, and counts toward `tabula::ignore-heavy` and `tabula::dead-row`.
+  member, and counts toward `tabular-center::ignore-heavy` and `tabular-center::dead-row`.
 - `stay()` says the developer received the action, did something about it, and
   chose not to move. It comes from a `HANDLE` cell, which the developer wrote.
 
@@ -105,7 +105,7 @@ Enforcement is by construction wherever the language allows it. Rust binds the
 dispatcher's parameters under `__tabula_`-prefixed names, so `ctx`, `state`,
 `action`, and `cells` are simply not in scope inside a `GO!` expression and a
 target reaching for runtime data fails to resolve. Where construction cannot do
-the job, emit `tabula::go-target` (see `diagnostics.md`). Both are conformant;
+the job, emit `tabular-center::go-target` (see `diagnostics.md`). Both are conformant;
 the by-construction form is preferred because it cannot be circumvented.
 
 **Effects.** Named by variant. Qualification is spelling: a table holding
@@ -125,7 +125,7 @@ effect names are compared by their last path segment.
 
 **Runtime.** `Step { outcome: Stay, effects: [...] }`.
 
-**An empty effect list is an error**, `tabula::empty-emit`. `EMIT()` means
+**An empty effect list is an error**, `tabular-center::empty-emit`. `EMIT()` means
 "handled, no transition, no effects", which is `stay()` — and a cell that wants
 that is either `IGNORE` (not applicable) or `HANDLE` (handled deliberately).
 Silently accepting `EMIT()` would make the two indistinguishable in the table.
@@ -218,7 +218,7 @@ reverse is an error. Where the generated delegate arm carries the parent's
 color and calls the child's colored `step`, the language compiler rejects it by
 construction — Kotlin's and Swift's generators both do exactly this, and so
 does Rust's, where an async parent awaits its child and a plain one cannot.
-Each language has a compile-fail fixture proving it, so `tabula::color-mismatch`
+Each language has a compile-fail fixture proving it, so `tabular-center::color-mismatch`
 is reserved and emitted by nobody — it is the answer for a generator that
 cannot put the parent's color on the call, and none of the three is that.
 
@@ -250,7 +250,7 @@ tabula: <State> x <Action> was declared UNREACHABLE but occurred
 
 **Counting.** `UNREACHABLE` cells are neither static nor member-generating.
 They always appear in the coverage report, and a *concentration* of them fires
-`tabula::unreachable-heavy` — one or two deliberate assertions are exactly what
+`tabular-center::unreachable-heavy` — one or two deliberate assertions are exactly what
 the kind is for and must stay silent.
 
 ---
@@ -300,7 +300,7 @@ The kind names used in diagnostics and coverage output are lowercase:
 ## 5. What this file does not specify
 
 - **Member names and shapes.** See §2.4. Behaviour is compared; source is not.
-- **Diagnostic message text**, except for the codes tabula itself authors. The
+- **Diagnostic message text**, except for the codes tabular-center itself authors. The
   missing-implementation error belongs to each language's own compiler, reads
   differently in each, and must not be intercepted or normalised. See
   `diagnostics.md`.
