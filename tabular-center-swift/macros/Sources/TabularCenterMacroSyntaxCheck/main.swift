@@ -26,8 +26,8 @@
 import Foundation
 import SwiftParser
 import SwiftSyntax
-import TabulaCodegen
-import TabulaMacroSyntax
+import TabularCenterCodegen
+import TabularCenterMacroSyntax
 
 /// `haystack` contains `needle`, as text.
 ///
@@ -71,7 +71,7 @@ func check(_ ok: Bool, _ what: String) {
 /// this runs against the edit; edit it into something the traversal cannot
 /// read and this goes red, which is the only way a specification stays true.
 ///
-/// Foundation is fine here, unlike in `TabulaCheck`: this target already links
+/// Foundation is fine here, unlike in `TabularCenterCheck`: this target already links
 /// swift-syntax, so the argument for a dependency-free check does not apply.
 func surfaceDeclaration() -> String {
     let path = "SURFACE.md"
@@ -208,7 +208,7 @@ do {
             do {
                 _ = try buildDesc(raw)
                 check(false, "a short row is rejected by buildDesc")
-            } catch let e as TabulaError {
+            } catch let e as TabularCenterError {
                 check(e.code == "tabular-center::row-arity", "and with the normative code: \(e.code)")
             } catch {
                 check(false, "a short row is rejected by buildDesc: \(error)")
@@ -242,7 +242,7 @@ do {
     let tree = Parser.parse(source: text)
     check(!tree.hasError, "\(path) is still valid Swift")
     check(
-        containsText(text, #"#externalMacro(module: "TabulaMacros""#),
+        containsText(text, #"#externalMacro(module: "TabularCenterMacros""#),
         "\(path) still names the module Package.swift will declare")
 }
 
@@ -296,7 +296,7 @@ do {
             let raw = try MachineSyntax.read(decl)
             _ = try buildDesc(raw)
             check(false, "\(name): expected \(expect), but the machine was accepted")
-        } catch let e as TabulaError {
+        } catch let e as TabularCenterError {
             check(e.code == expect, "\(name): \(e.code)")
         } catch {
             // A SyntaxError here means the fixture cannot be READ, which is a
@@ -439,7 +439,7 @@ do {
         do {
             let raw = try MachineSyntax.read(decl)
             let goCell = raw.rows[0].cells[0]
-            // Not `emit`: that is TabulaCodegen's function, and a local of
+            // Not `emit`: that is TabularCenterCodegen's function, and a local of
             // that name shadows it three lines down.
             let emitCell = raw.rows[1].cells[0]
             check(
@@ -508,7 +508,7 @@ do {
     }
 }
 
-check(TabulaMacroSyntax.surface == "see SURFACE.md", "the module links")
+check(TabularCenterMacroSyntax.surface == "see SURFACE.md", "the module links")
 
 print("")
 print("macro syntax checks: \(failed) failed")

@@ -1,6 +1,6 @@
 import Foundation
-import Tabula
-import TabulaTesting
+import TabularCenter
+import TabularCenterTesting
 
 /// Runs the shared `spec/conformance` fixtures against the Swift
 /// implementation.
@@ -15,7 +15,7 @@ import TabulaTesting
 ///    implementations' by `tools/verify renderings-agree`, rather than each
 ///    being compared against a committed copy of one implementation's output.
 ///
-/// Foundation is imported here and nowhere in `TabulaTesting`: the runner needs
+/// Foundation is imported here and nowhere in `TabularCenterTesting`: the runner needs
 /// file IO, and a published library should not put Foundation on every
 /// consumer's link line to trim a string.
 

@@ -9,7 +9,7 @@
 /// Deliberately importing nothing. The first build of this package should fail
 /// or succeed on dependency *resolution*, not on an API guess about a version
 /// of swift-syntax nobody here has seen.
-public enum TabulaMacroSyntax {
+public enum TabularCenterMacroSyntax {
     /// Present so the module is not empty. Replaced by the traversal.
     public static let surface = "see SURFACE.md"
 }

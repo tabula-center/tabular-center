@@ -1,8 +1,8 @@
-import Tabula
+import TabularCenter
 
 // One type satisfying BOTH machines' surfaces: `JobCells: RetryCells`, so
 // implementing the parent requires implementing the child. The emitted twin
-// of `Sources/TabulaConformance/Compose.swift`'s `ComposedImpl`.
+// of `Sources/TabularCenterConformance/Compose.swift`'s `ComposedImpl`.
 final class CompleteJob: JobCells {
     // The child's cells and effect handlers, required through `RetryCells`.
     func readyAttempt(_ ctx: Retry.Ctx) -> Step<Retry.S, Retry.F> {

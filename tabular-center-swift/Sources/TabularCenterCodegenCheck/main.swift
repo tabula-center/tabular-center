@@ -1,5 +1,5 @@
 import Foundation
-import TabulaCodegen
+import TabularCenterCodegen
 
 /// Tests for the validation layer, plus a determinism check of the emitted source.
 ///
@@ -25,7 +25,7 @@ func expectError(_ what: String, _ code: String, _ body: () throws -> Void) {
         try body()
         failures += 1
         print("FAIL \(what): expected \(code), got no error")
-    } catch let e as TabulaError {
+    } catch let e as TabularCenterError {
         if e.code != code {
             failures += 1
             print("FAIL \(what): expected \(code), got \(e.code)")

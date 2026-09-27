@@ -1,5 +1,5 @@
-import Tabula
-import TabulaTesting
+import TabularCenter
+import TabularCenterTesting
 
 /// Adapters for `retry.tbl` and `nested-delegate.tbl`.
 ///

@@ -1,7 +1,7 @@
 /// A four-function assertion harness, shared by every example.
 ///
 /// Its own target, so each example's checks are a separate build product that
-/// depends on it explicitly. Deliberately not `TabulaTesting`: that module is
+/// depends on it explicitly. Deliberately not `TabularCenterTesting`: that module is
 /// part of the library, and an example must not appear to need a test
 /// dependency the library does not ship.
 public enum Check {

@@ -13,8 +13,8 @@ import SwiftCompilerPlugin
 import SwiftParser
 import SwiftSyntax
 import SwiftSyntaxMacros
-import TabulaCodegen
-import TabulaMacroSyntax
+import TabularCenterCodegen
+import TabularCenterMacroSyntax
 
 public struct MachineMacro: MemberMacro {
     public static func expansion(
@@ -49,6 +49,6 @@ public struct MachineMacro: MemberMacro {
 }
 
 @main
-struct TabulaPlugin: CompilerPlugin {
+struct TabularCenterPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [MachineMacro.self]
 }

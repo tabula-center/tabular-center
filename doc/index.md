@@ -128,7 +128,7 @@ into an `async` or `suspend` parent; the reverse does not compile.
 
 | | [Rust](rust) | [Kotlin](kotlin) | [Swift](swift) |
 |---|---|---|---|
-| Generator | `macro_rules!` -- no build step, no dependencies | KSP, from annotations | `TabulaCodegen` today; the `@Machine` macro is designed and pending |
+| Generator | `macro_rules!` -- no build step, no dependencies | KSP, from annotations | `TabularCenterCodegen` today; the `@Machine` macro is designed and pending |
 | Runtime dependencies | none, `no_std` capable | none | none |
 | Colors | `async` | `suspend`, receivers, any modifier | `async`, `throws`, attributes |
 | Driver | blocking, non-reentrant mailbox | blocking and `suspend` | sync and `async`, `ObservableStore` |

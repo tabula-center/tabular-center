@@ -1,4 +1,4 @@
-import Tabula
+import TabularCenter
 
 /// **6. The observable store, and the only example that can be skipped.**
 ///

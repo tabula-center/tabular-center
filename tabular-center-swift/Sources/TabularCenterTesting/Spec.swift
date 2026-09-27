@@ -1,9 +1,9 @@
-import Tabula
+import TabularCenter
 
 /// Parses `spec/conformance` — the same `.tbl` and `.trace` files the Rust and
 /// Kotlin harnesses read.
 ///
-/// Published as **TabulaTesting**, separately from the runtime: a machine in
+/// Published as **TabularCenterTesting**, separately from the runtime: a machine in
 /// production has no use for a fixture parser, and a test dependency that ships
 /// to users is a test dependency nobody removes later.
 ///

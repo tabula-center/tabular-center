@@ -1,4 +1,4 @@
-import Tabula
+import TabularCenter
 
 /// Composition: a parent machine driving a child through a `DELEGATE` cell.
 ///

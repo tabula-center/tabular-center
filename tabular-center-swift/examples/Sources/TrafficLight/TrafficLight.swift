@@ -1,4 +1,4 @@
-import Tabula
+import TabularCenter
 
 /// **1. The minimum.**
 ///

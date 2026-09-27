@@ -1,4 +1,4 @@
-import Tabula
+import TabularCenter
 
 #if canImport(Glibc)
 import Glibc

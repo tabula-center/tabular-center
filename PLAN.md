@@ -706,19 +706,23 @@ proposals are only proposals.
       compile-fail positions are matched by line content, and no line was
       added, so they cannot shift. Swift's own `TabulaError` is the Swift
       patch's
-- [ ] Swift: products and modules `Tabula`, `TabulaTesting`, `TabulaCodegen`,
-      `TabulaMacros` -> `TabularCenter`, `TabularCenterTesting`, ... The
-      package name follows; the directory already did in R1
-- [x] Diagnostic codes: `tabula::row-arity` -> `tabular-center::row-arity`,
-      all 22, in one commit across `spec/`, the three implementations, every
-      fixture's `//~ EXPECT:`, the tools that build or parse codes
-      (`diagnostics-coverage`, `diagnostics-tested`, `tools/docs`' anchors,
-      now `#tabular-center-row-arity`) and the generated `doc/`. Rewritten by
-      the spec's own list of codes, not by the prefix: in Rust `tabula::` is
-      also the crate path (`tabula::lint`, `tabula::Handle`), which is the next
-      box's. Eight more characters per code pushed one `assert!` past
-      rustfmt's 60-column call-argument heuristic, so it is written the way
-      `cargo fmt` will write it
+- [x] Swift: products, targets and modules `Tabula`, `TabulaTesting`,
+      `TabulaCodegen`, `TabulaMacroSyntax` (and the checks, conformance,
+      examples and pending macro targets) -> `TabularCenter...`; the package
+      name follows; executables `tabula-check` / `tabula-conformance` ->
+      `tabular-center-*`; Swift's own `TabulaError` -> `TabularCenterError`.
+      Target directories moved, since SwiftPM finds `Sources/<Target>` by
+      name. What depended on the names as strings: the scripts that
+      `swift run` the executables (including the render step
+      `renderings-agree` uses), `swift-probe`, and the emitter's
+      `import Tabula` -- text inside `Emit.swift` that must match the module
+      the build produces, which it now does. Checked and unaffected: the
+      compile-fail and codegen steps find modules by directory, not name;
+      no type is named like the module (it would shadow it); no matrix row
+      mentions the module, so `swift-matrix-stable` is safe; and
+      `workspace-state.json` records only the remote swift-syntax. With the
+      three languages done, the only bare `tabula` left outside history is
+      `tabula-fmt` and the runtime `tabula: ` prefix -- the next patch
 - [ ] `tabula-fmt` (backlog, unwritten) -> `tabular-center-fmt`, and
       `spec/tabula-fmt.md` with it. The `*.tb.*` matrix-file suffix is kept:
       it is short, unclaimed, and `spec/matrix-files.md` explains it without

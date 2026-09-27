@@ -197,7 +197,7 @@ macro_rules! transition_matrix {
     // named by a hop becomes a GO to the hop's next state, so it needs no
     // `Handle` impl and its dispatcher arm is static -- the derivation
     // `spec/happy-paths.md` specifies, the same one `derive` performs in
-    // `tabular-center-kotlin/codegen/Raw.kt` and `tabular-center-swift/Sources/TabulaCodegen/Raw.swift`.
+    // `tabular-center-kotlin/codegen/Raw.kt` and `tabular-center-swift/Sources/TabularCenterCodegen/Raw.swift`.
     //
     // `macro_rules!` cannot compare two identifiers, and every part of that
     // asks whether one identifier is another. So the path is turned into a

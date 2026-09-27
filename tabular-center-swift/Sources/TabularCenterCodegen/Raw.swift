@@ -163,14 +163,14 @@ public struct RawCell {
 }
 
 /// A diagnostic, carrying the code from `spec/diagnostics.md`.
-public struct TabulaError: Error, CustomStringConvertible {
+public struct TabularCenterError: Error, CustomStringConvertible {
     public let code: String
     public let message: String
     public var description: String { "\(code): \(message)" }
 }
 
 private func fail(_ code: String, _ message: String) throws -> Never {
-    throw TabulaError(code: code, message: message)
+    throw TabularCenterError(code: code, message: message)
 }
 
 /// Validate a `RawMachine` and turn it into a `MachineDesc`.

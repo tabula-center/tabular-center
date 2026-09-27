@@ -5,7 +5,7 @@
 // demonstrates is absent on platforms the rest of the library supports fully.
 
 import ExampleCheck
-import Tabula
+import TabularCenter
 
 #if canImport(Glibc)
     import Glibc

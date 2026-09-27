@@ -4,7 +4,7 @@
 // EMITTED protocol requires it; leaving it out must fail the build. Same claim
 // as tabular-center-swift/compile_fail/missing_cell.swift, which checks the hand-written
 // reference -- this one checks what the generator actually produces.
-import Tabula
+import TabularCenter
 
 final class Incomplete: TimerCells {
     func idleStart(_ ctx: Timer.Ctx) -> Step<Timer.S, Timer.F> { .ignored }

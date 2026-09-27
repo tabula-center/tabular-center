@@ -2,7 +2,7 @@
 //
 // The effect surface, same mechanism. Add an effect variant to a shipped
 // machine and every handler stops compiling.
-import Tabula
+import TabularCenter
 
 enum S { case idle }
 enum A { case start }

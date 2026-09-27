@@ -1,7 +1,7 @@
 # What the emitted source is compiled against
 
-`tools/verify swift-codegen` writes what `TabulaCodegen.emit` produces for each
-machine in `Sources/TabulaCodegenCheck/main.swift` and then **compiles it**,
+`tools/verify swift-codegen` writes what `TabularCenterCodegen.emit` produces for each
+machine in `Sources/TabularCenterCodegenCheck/main.swift` and then **compiles it**,
 the way `kotlin-codegen` compiles Kotlin's. A golden diff alone proves only
 that the emitter is deterministic; this proves the output is Swift and still
 enforces the guarantee.

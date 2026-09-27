@@ -14,7 +14,7 @@
 //
 // A hand-written HANDLE body could never give this: it is free to ignore the
 // child, so no requirement would propagate.
-import Tabula
+import TabularCenter
 
 enum AuthS { case awaiting, authenticated }
 enum AuthA { case submit }

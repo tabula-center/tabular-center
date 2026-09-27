@@ -904,13 +904,13 @@ tabular-center/
 │   ├── tools/swift-lock         # writes nix/swift-lock.json (network)
 │   ├── tools/swift-probe        # toolchain triage for the Linux Swift path
 │   ├── Package.swift
-│   ├── Sources/Tabula/          # core: Step, Cell, Table, Export, Lint,
-│   │                             #   Driver, AsyncDriver, Store, AsyncStore
-│   ├── Sources/TabulaTesting/   # the .tbl fixture harness, a separate product
-│   ├── Sources/TabulaCodegen/   # the emitter; no SwiftSyntax, so it builds offline
-│   ├── Sources/TabulaCodegenCheck/  # emits, then compiles against codegen-support/
-│   ├── Sources/TabulaCheck/     # reference machine + harness (no XCTest available)
-│   ├── Sources/TabulaConformance/
+│   ├── Sources/TabularCenter/              # core: Step, Cell, Table, Export, Lint,
+│   │                                       #   Driver, AsyncDriver, Store, AsyncStore
+│   ├── Sources/TabularCenterTesting/       # the .tbl fixture harness, a separate product
+│   ├── Sources/TabularCenterCodegen/       # the emitter; no SwiftSyntax, so it builds offline
+│   ├── Sources/TabularCenterCodegenCheck/  # emits, then compiles against codegen-support/
+│   ├── Sources/TabularCenterCheck/         # reference machine + harness (no XCTest available)
+│   ├── Sources/TabularCenterConformance/
 │   ├── codegen-support/         # what the emitted source is compiled against:
 │   │                             #   types, complete impls, and refusals
 │   ├── compile_fail/
@@ -1015,7 +1015,7 @@ changes swiftc's default target triple and breaks the stdlib lookup.
 `nixos-unstable`. One input for all three toolchains would have meant dragging
 Rust and Kotlin — which are working and pinned deliberately — onto unstable to
 solve a problem neither of them has. The second input lifts the 5.8 ceiling
-that `TabulaMacros` would have hit anyway.
+that `TabularCenterMacros` would have hit anyway.
 
 `swiftChecked` is now simply `swiftAvailable`: every Swift check runs wherever
 a Swift toolchain exists, Linux included. The Darwin-only gate was correct while

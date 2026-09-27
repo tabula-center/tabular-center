@@ -131,8 +131,8 @@ in
 
       echo "== swift: package index =="
       # No registry: the Package Index resolves from git tags, so publishing is
-      # pushing the tag `release` created. The three products (Tabula,
-      # TabulaMacros, TabulaTesting) ship from one repository by definition.
+      # pushing the tag `release` created. The three products (TabularCenter,
+      # TabularCenterMacros, TabularCenterTesting) ship from one repository by definition.
       if [ "$execute" -eq 1 ]; then
         git push --follow-tags
       else

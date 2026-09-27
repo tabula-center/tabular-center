@@ -1,4 +1,4 @@
-# TabulaMacros
+# TabularCenterMacros
 
 **A separate SwiftPM package, on purpose.** This is the packaging decision the
 backlog was blocked on, taken as option 2.
@@ -14,12 +14,12 @@ anyway.
 
 The subtlety that settles it: a macro's *declaration* has to live wherever
 users import it from, and the declaration's `#externalMacro` names the
-implementation module. Declaring `@Machine` in `Tabula` would therefore make
-`Tabula` itself depend on the macro target, and the whole library would acquire
+implementation module. Declaring `@Machine` in `TabularCenter` would therefore make
+`TabularCenter` itself depend on the macro target, and the whole library would acquire
 swift-syntax. There is no arrangement where the macro lives in the main package
 and the main package stays offline-buildable.
 
-So the declaration lives here too, in `TabulaMacroDecl`, and a user who wants
+So the declaration lives here too, in `TabularCenterMacroDecl`, and a user who wants
 the macro takes a second dependency. A user who does not — one writing their
 dispatcher against `ReferenceTimer.swift`, or generating it another way — pays
 nothing, and the core keeps its "no dependencies" claim without an asterisk.
@@ -66,11 +66,11 @@ can be adopted later without moving any code: only `nix/` changes.
 
 ## What is here, and what is not
 
-- `Sources/TabulaMacroDecl` — the `@Machine` declaration users import.
-- `Sources/TabulaMacros` — the implementation. Its job is exactly one
+- `Sources/TabularCenterMacroDecl` — the `@Machine` declaration users import.
+- `Sources/TabularCenterMacros` — the implementation. Its job is exactly one
   transformation: **SwiftSyntax nodes to a `RawMachine`.**
 
-Everything after that already exists and is tested. `TabulaCodegen` takes a
+Everything after that already exists and is tested. `TabularCenterCodegen` takes a
 `RawMachine`, validates it into a `MachineDesc` with all 13 diagnostics, and
 emits source. That split is why this package is small and why the Kotlin side
 survived KSP being unrunnable — the generator's logic never depended on the
@@ -102,7 +102,7 @@ a network problem, and vendoring swift-syntax would not have touched it.
 Nothing had got far enough to want a dependency.
 
 The manifest now declares a plain `.target` and imports only
-`PackageDescription`. `TabulaMacroDecl` — the `@Machine` declaration — moved to
+`PackageDescription`. `TabularCenterMacroDecl` — the `@Machine` declaration — moved to
 `pending/`, because `#externalMacro` names a module SwiftPM only wires up for a
 `.macro` target and a macro nobody can apply is worse than an absent one.
 

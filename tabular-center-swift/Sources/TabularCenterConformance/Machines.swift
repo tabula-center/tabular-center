@@ -1,8 +1,8 @@
-import Tabula
+import TabularCenter
 
 /// The fixture machines, written in the shape the macro will generate.
 ///
-/// Each is the Swift counterpart of a Rust adapter in `tabula-conformance` and
+/// Each is the Swift counterpart of a Rust adapter in `tabular-center-conformance` and
 /// a Kotlin one in `conformance/`. The three agreeing on these fixtures is the
 /// only thing keeping the implementations from drifting.
 

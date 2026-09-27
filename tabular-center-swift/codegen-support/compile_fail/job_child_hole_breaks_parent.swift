@@ -5,7 +5,7 @@
 // else. The emitted `JobCells` refines the emitted `RetryCells`, so a hole in
 // the CHILD's surface -- `waitingElapsed` below -- breaks any type conforming
 // to the PARENT. The generated twin of tabular-center-swift/compile_fail/child_hole_breaks_parent.swift.
-import Tabula
+import TabularCenter
 
 final class Incomplete: JobCells {
     func readyAttempt(_ ctx: Retry.Ctx) -> Step<Retry.S, Retry.F> { .ignored }

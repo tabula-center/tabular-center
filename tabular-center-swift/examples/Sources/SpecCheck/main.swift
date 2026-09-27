@@ -1,8 +1,8 @@
-// Checks for `Turnstile.swift`, and for `TabulaTesting` around it.
+// Checks for `Turnstile.swift`, and for `TabularCenterTesting` around it.
 
 import ExampleCheck
-import Tabula
-import TabulaTesting
+import TabularCenter
+import TabularCenterTesting
 
 #if canImport(Glibc)
     import Glibc

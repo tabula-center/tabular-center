@@ -5,7 +5,7 @@
 // rather than in a config nobody reads. `swift-format-config` requires it on
 // every `.tb.swift`; `swift-matrix-stable` runs the formatter over this file
 // and compares the rows.
-import Tabula
+import TabularCenter
 
 /// The matrix, in a file of its own.
 ///

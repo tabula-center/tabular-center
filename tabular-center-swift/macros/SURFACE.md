@@ -5,7 +5,7 @@ the macro because the macro is a mapping and this is its input half; getting
 this wrong costs a rewrite of the traversal, and no toolchain available here
 can compile the traversal to tell us.
 
-The output half is already fixed: `RawMachine` in `TabulaCodegen`, which
+The output half is already fixed: `RawMachine` in `TabularCenterCodegen`, which
 validates into a `MachineDesc` with all 13 diagnostics and emits the source.
 **The macro's entire job is syntax to `RawMachine`.** Nothing below describes
 generated code, because none of it is the macro's decision.
@@ -16,7 +16,7 @@ In a file named `Turnstile.tb.swift` — see `spec/matrix-files.md`. The rows
 are column-aligned and general-purpose formatters exist to normalise exactly
 that, so the extension is what lets one be told to keep away.
 
-**The block below is executed.** `TabulaMacroSyntaxCheck` reads this file,
+**The block below is executed.** `TabularCenterMacroSyntaxCheck` reads this file,
 takes the first ```swift fence, and runs the traversal over it. Edit it and
 the checks run against the edit; edit it into something `MachineSyntax` cannot
 read and they go red. A specification that describes a surface nothing parses
@@ -76,7 +76,7 @@ meaningful; that is how a colored machine stays colored end to end, and the
 Rust and Kotlin generators both work this way.
 
 **Diagnostics are not the macro's.** It does not check arity, unknown states,
-or `GO` targets. It builds a `RawMachine` and hands it over; `TabulaCodegen`
+or `GO` targets. It builds a `RawMachine` and hands it over; `TabularCenterCodegen`
 already produces the normative text, and duplicating any of it here would mean
 two messages for one error that drift apart. The macro's own errors are only
 about syntax it cannot read at all — a `@Row` with no state, a tuple where a

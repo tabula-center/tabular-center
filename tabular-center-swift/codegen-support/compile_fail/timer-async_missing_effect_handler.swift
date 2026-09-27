@@ -3,7 +3,7 @@
 // One required member per effect variant, colored like every other. `note`
 // carries a payload and is named by no static cell -- the handler exists only
 // because the effect does, and omitting it must fail the build.
-import Tabula
+import TabularCenter
 
 final class Incomplete: TimerAsyncCells {
     func idleStart(_ ctx: TimerAsync.Ctx) async throws -> Step<TimerAsync.S, TimerAsync.F> { .ignored }

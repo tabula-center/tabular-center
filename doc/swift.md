@@ -9,7 +9,7 @@ title: Swift
 
 # Swift
 
-The runtime (`Tabula`) and the generator's logic (`TabulaCodegen`) are done
+The runtime (`TabularCenter`) and the generator's logic (`TabularCenterCodegen`) are done
 and checked on Linux and macOS. The generator does not yet run inside a
 build: the `@Machine` macro that will call it needs a SwiftPM that can declare
 a macro target, which the pinned toolchain cannot. Until it lands you write
@@ -69,7 +69,7 @@ extension Timer {
 <sub>From [`tabular-center-swift/examples/Sources/Timer/Timer.tb.swift`](https://github.com/tabula-center/tabular-center/blob/main/tabular-center-swift/examples/Sources/Timer/Timer.tb.swift).</sub>
 
 One protocol requirement per `HANDLE` cell and per effect, then the
-dispatcher -- the shape `TabulaCodegen` emits and the macro will generate. The
+dispatcher -- the shape `TabularCenterCodegen` emits and the macro will generate. The
 `switch` has no `default:`, so a new state or action breaks it:
 
 ```swift
@@ -155,7 +155,7 @@ would otherwise creep in.
 - **`ObservableStore`** is a `@MainActor` store SwiftUI can observe (macOS 14,
   iOS 17), written without the `@Observable` macro so the runtime asks nothing
   of macro plugins. `Store` and `AsyncStore` work everywhere.
-- **`TabulaTesting`** parses a `.tbl` fixture and diffs it against a machine's
+- **`TabularCenterTesting`** parses a `.tbl` fixture and diffs it against a machine's
   `TABLE` -- a reviewable, one-line-per-row pin of the matrix:
 
 ```swift
@@ -209,4 +209,4 @@ In [`tabular-center-swift/examples`](https://github.com/tabula-center/tabular-ce
 |---|---|---|
 | 1-4 | `TrafficLight`, `Timer`, `Retry`, `Login` | the four core machines |
 | 6 | `ObservableCounter` | `ObservableStore`; skips, saying so, where Observation is absent |
-| 7 | `SpecCheck` | `TabulaTesting`, matching and then deliberately mismatching |
+| 7 | `SpecCheck` | `TabularCenterTesting`, matching and then deliberately mismatching |

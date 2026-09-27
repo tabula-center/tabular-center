@@ -7,7 +7,7 @@
 // own target with its own dependency line, built and run on its own.
 
 import ExampleCheck
-import Tabula
+import TabularCenter
 
 #if canImport(Glibc)
     import Glibc

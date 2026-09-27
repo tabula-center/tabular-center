@@ -12,7 +12,7 @@
 # Why the macro package needs this at all: `tabular-center-swift/macros` is the only thing
 # here that links swift-syntax, which is a remote SwiftPM package. Every other
 # Swift target builds offline, which is exactly why the macro lives in its own
-# package (PLAN, "TabulaMacros -- decided: a separate package").
+# package (PLAN, "TabularCenterMacros -- decided: a separate package").
 #
 # ## Why not let SwiftPM fetch inside the build
 #

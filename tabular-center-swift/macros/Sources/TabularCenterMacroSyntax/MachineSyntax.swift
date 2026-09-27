@@ -1,6 +1,6 @@
 /// SwiftSyntax nodes to a `RawMachine`, and nothing else.
 ///
-/// That restraint is the design, not modesty. `TabulaCodegen` already turns a
+/// That restraint is the design, not modesty. `TabularCenterCodegen` already turns a
 /// `RawMachine` into a `MachineDesc` with every diagnostic in
 /// `spec/diagnostics.md` and emits the source, and all of it runs without
 /// swift-syntax. So the piece that needs swift-syntax is kept as small and as
@@ -9,13 +9,13 @@
 /// Which means **every rule is checked exactly once, and not here**. Row
 /// arity, unknown states, `GO` targets that name nothing — `buildDesc` owns
 /// all of them, produces the normative text from `spec/diagnostics.md`, and is
-/// covered by `TabulaCodegenCheck`.
+/// covered by `TabularCenterCodegenCheck`.
 ///
 /// One owner per rule is not an unchecked path, and the two read alike from a
 /// distance while behaving nothing alike. A rule checked in two places is a
 /// rule with two messages that drift, and the drift is found by a user hitting
 /// the stale one. So the handover is asserted rather than described:
-/// `TabulaMacroSyntaxCheck` runs `buildDesc` on what this file produces and
+/// `TabularCenterMacroSyntaxCheck` runs `buildDesc` on what this file produces and
 /// requires the diagnostics to still fire, with their normative codes.
 ///
 /// The errors below are the one category `buildDesc` cannot see — syntax that
@@ -24,7 +24,7 @@
 ///
 /// The surface this reads is `SURFACE.md`, which is normative for it.
 import SwiftSyntax
-import TabulaCodegen
+import TabularCenterCodegen
 
 public enum MachineSyntax {
     /// Read an `@Machine`-attached enum into a `RawMachine`.

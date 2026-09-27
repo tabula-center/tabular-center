@@ -5,7 +5,7 @@
 // property ARCHITECTURE 5 states as "one matrix yields one color", and the one
 // the emitter broke before it split effect specifiers from attributes: it
 // wrote `async throws func step`, which is not Swift at all.
-import Tabula
+import TabularCenter
 
 final class Cells: TimerAsyncCells {
     func idleStart(_ ctx: TimerAsync.Ctx) async throws -> Step<TimerAsync.S, TimerAsync.F> { .ignored }

@@ -1,4 +1,4 @@
-import Tabula
+import TabularCenter
 
 // A colorless child inside a colored parent: the allowed direction of color
 // flow. The child's cells stay uncolored -- they are `RetryCells`, exactly as

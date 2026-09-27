@@ -11,7 +11,7 @@ Four machines, the same four in every language, ordered by what they add:
 | 5 | `suspend` | the other color: a machine whose `step` suspends (Kotlin only) |
 | 6 | `generated` | matrix declared in **annotations**; KSP generates the dispatcher (Kotlin only, needs Gradle) |
 | 6 | `observable-counter` | `ObservableStore`, and the only example that can *skip* (Swift only) |
-| 7 | `spec-check` | pinning a matrix to a reviewable `.tbl` fixture with `TabulaTesting` (Swift only) |
+| 7 | `spec-check` | pinning a matrix to a reviewable `.tbl` fixture with `TabularCenterTesting` (Swift only) |
 
 Each is a working machine with tests, and each is written twice — once per
 language — because the second writing is a review of the first. Two findings
@@ -32,8 +32,8 @@ are in genuinely different positions, and only one of them needs a build
 configuration for it.
 
 **Swift: not yet, and not for want of an example.** There is no compile-time
-generator to consume. `TabulaMacros` is still blocked on the swift-syntax
-packaging question, and `TabulaCodegen` is a `MachineDesc -> String` emitter
+generator to consume. `TabularCenterMacros` is still blocked on the swift-syntax
+packaging question, and `TabularCenterCodegen` is a `MachineDesc -> String` emitter
 with no way to invoke it from a build — it takes a Swift value, not a file.
 
 When one lands, the example is a SwiftPM build-tool plugin, and the shape is
@@ -44,7 +44,7 @@ faked where the toolchain cannot run it.
 ## Each one is a project, not a module
 
 They were four modules in a single crate per language. They are now four
-**projects**: own manifest, own dependency line on tabula, own `tests/`
+**projects**: own manifest, own dependency line on tabular-center, own `tests/`
 directory. An example is read as a template for a real project, and a real
 project does not keep its tests in a `mod tests` at the bottom of `lib.rs`.
 
@@ -72,7 +72,7 @@ They are chosen to cover the edges rather than to look impressive:
 - **`login`** is a parent and a child, so it exercises `DELEGATE`, the lens,
   and the property that a hole in the child breaks the parent's build.
 
-For the N×M cost at realistic scale, see `tabula/tests/scale.rs` in tabular-center-rust — a
+For the N×M cost at realistic scale, see `tabular-center/tests/scale.rs` in tabular-center-rust — a
 genuine 8×12 machine, measured rather than described.
 
 ## Running them
@@ -86,7 +86,7 @@ Part of `nix flake check`, at the root and in this language's own flake.
 The examples are their own SwiftPM package, depending on the library by path
 (`.package(path: "..")`), the way a user would. SwiftPM names a path
 dependency by its directory's basename, so the products are
-`.product(name: "Tabula", package: "tabular-center-swift")`.
+`.product(name: "TabularCenter", package: "tabular-center-swift")`.
 
 History worth keeping: this directory was `examples/swift-examples`, not
 `examples/swift`, because with the library at `swift/` both basenames were

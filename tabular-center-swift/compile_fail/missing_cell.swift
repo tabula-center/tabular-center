@@ -4,13 +4,13 @@
 //
 // `runningTick` is a HANDLE cell, so the generator emits a protocol
 // requirement for it. Omitting the implementation is a plain conformance
-// error from swiftc — not from tabula, which is what makes it survive even if
+// error from swiftc — not from tabular-center, which is what makes it survive even if
 // the generator is bypassed.
 //
 // It rests on the oldest mechanism in the language, not on `switch`
 // exhaustiveness, which a developer could defeat with `default:` — and which
 // is why the dispatcher lives only in generated code.
-import Tabula
+import TabularCenter
 
 enum S { case idle, running(since: Int) }
 enum A { case start, tick(now: Int) }

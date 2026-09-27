@@ -20,7 +20,7 @@ reporting a green that means nothing.
 
 ### The library compiles
 
-Round five got there: all six `Sources/Tabula` files build under Swift 5.10.1.
+Round five got there: all six `Sources/TabularCenter` files build under Swift 5.10.1.
 The design survives three languages.
 
 Two things had to change to get the *checks* running alongside it, and both are
@@ -158,9 +158,9 @@ would cap a machine at one child.
 
 | | |
 |---|---|
-| `Sources/Tabula` | `Step`, `Cell`, `Table`, `Export`, `Lint`, `Driver`, `AsyncDriver`, `Store`, `AsyncStore` |
-| `Sources/TabulaCheck/ReferenceTimer.swift` | the macro's specification, hand-written |
-| `Sources/TabulaCheck/main.swift` | 40 checks, the same assertions as the other two languages |
+| `Sources/TabularCenter` | `Step`, `Cell`, `Table`, `Export`, `Lint`, `Driver`, `AsyncDriver`, `Store`, `AsyncStore` |
+| `Sources/TabularCenterCheck/ReferenceTimer.swift` | the macro's specification, hand-written |
+| `Sources/TabularCenterCheck/main.swift` | 40 checks, the same assertions as the other two languages |
 | `compile_fail/` | one fixture per guarantee |
 
 ### What `compile_fail/` proves
@@ -179,14 +179,14 @@ Swift now has the evidence, four fixtures, checked by
 `swiftc -typecheck` against the built module, not `swift build`: the fixtures
 must not be part of a target, or the package itself would stop building.
 
-### `TabulaTesting` and the conformance harness
+### `TabularCenterTesting` and the conformance harness
 
-`Sources/TabulaTesting` parses the shared `.tbl` and `.trace` fixtures — a third
+`Sources/TabularCenterTesting` parses the shared `.tbl` and `.trace` fixtures — a third
 parser, deliberately. The format was chosen to parse in about sixty lines
 precisely so each language could own its parser with no dependency; three small
 parsers that agree are worth more than one that no language can build offline.
 
-It depends on `Tabula` and **nothing else — not even Foundation**. Trimming a
+It depends on `TabularCenter` and **nothing else — not even Foundation**. Trimming a
 string is not worth putting the whole of Foundation on a consumer's link line,
 so `trim` and `splitOnArrow` are written out. The *runner* imports Foundation,
 because it needs file IO, and it is an executable rather than a published
@@ -202,7 +202,7 @@ exists because there are three implementations:
 Rust owns `--bless`; Kotlin and Swift read and never bless, so a renderer that
 drifts by one space fails rather than quietly rewriting the shared snapshot.
 
-Every fixture in `spec/conformance` has a Swift adapter. `Sources/TabulaConformance/Compose.swift`
+Every fixture in `spec/conformance` has a Swift adapter. `Sources/TabularCenterConformance/Compose.swift`
 holds the composition reference — a `job` machine delegating to a `retry` one —
 and its shape is the composition property in one line:
 
@@ -219,7 +219,7 @@ the conformance fixtures prove the behaviour.
 and a protocol rather than a base class for the same reason: a class extends
 one parent, which would cap a machine at one child.
 
-The composition machines live beside the adapters rather than in `TabulaCheck`,
+The composition machines live beside the adapters rather than in `TabularCenterCheck`,
 because Swift executables cannot import one another. Kotlin keeps its reference
 in `test/` and adapts it from `conformance/` because kotlinc compiles loose
 files. A language-shaped difference, like every other one in ARCHITECTURE §11.0.
@@ -235,8 +235,8 @@ Two things the first run taught, both about the harness rather than the design:
 
 - **SwiftPM's flags go before the executable name.** `swift run` passes
   everything *after* it to the program, so
-  `swift run tabula-check --scratch-path X` hands `--scratch-path` to
-  `tabula-check` and leaves swiftpm on its defaults. That is why the
+  `swift run tabular-center-check --scratch-path X` hands `--scratch-path` to
+  `tabular-center-check` and leaves swiftpm on its defaults. That is why the
   `/var/empty` warnings survived being "fixed" twice, and why the conformance
   runner once tried to read `--scratch-path/timer.tbl`. The runner ignores
   flag-shaped arguments now, so the mistake is harmless rather than merely
@@ -249,7 +249,7 @@ Two things the first run taught, both about the harness rather than the design:
 
 ### The generator, split so its logic can be verified
 
-`Sources/TabulaCodegen` turns a `MachineDesc` into Swift source: validation with
+`Sources/TabularCenterCodegen` turns a `MachineDesc` into Swift source: validation with
 every declaration diagnostic, plus the emitter. It has **no swift-syntax
 dependency and no network**.
 
@@ -264,7 +264,7 @@ is the piece that needs Maven.
                                # source compiled against codegen-support/
 ```
 
-**`TabulaMacros` is not written yet**, and swift-syntax has to be solved first:
+**`TabularCenterMacros` is not written yet**, and swift-syntax has to be solved first:
 either vendored for the sandbox, or the macro target excluded from
 `nix flake check`. Worth deciding deliberately rather than discovering when the
 checks go red — see `PLAN.md`.
@@ -276,7 +276,7 @@ checks go red — see `PLAN.md`.
 parameter — the same one-file-per-color shape as Kotlin's `SuspendDriver`.
 
 Written twice and, until Phase 5's store work, run once: `AsyncDriver` had no
-check of any kind. `TabulaCheck` now drives both and asserts they report
+check of any kind. `TabularCenterCheck` now drives both and asserts they report
 identical `Progress` for identical input, which is the property duplication
 actually threatens — not that the async one is broken, but that the two quietly
 stop being the same loop.
@@ -298,20 +298,20 @@ languages differ, follow the language.
 `examples/swift`: SwiftPM derives a path dependency's identity from its
 directory basename, so two directories named `swift` become one identity and
 the package appears to depend on itself —
-`cyclic dependency declaration found: TabulaExamples -> TabulaExamples`. SwiftPM identifies such a
+`cyclic dependency declaration found: TabularCenterExamples -> TabularCenterExamples`. SwiftPM identifies such a
 dependency by its **directory name** — `tabular-center-swift` — not by the `name` in its
-manifest, so `.product(name: "Tabula", package: "Tabula")` is
-`unknown package 'Tabula'`.
+manifest, so `.product(name: "TabularCenter", package: "TabularCenter")` is
+`unknown package 'TabularCenter'`.
 
-So the target uses `.product(name: "Tabula", package: "tabular-center-swift")`,
+So the target uses `.product(name: "TabularCenter", package: "tabular-center-swift")`,
 with `tabular-center-swift` being the directory. (It read `package: "swift"`
 until the directory was renamed; a directory rename is a manifest change in
 every package that depends on this one by path.)
 
-The bare `dependencies: ["Tabula"]` form does not work either: by-name lookup
-matches the *package* name `Tabula`, resolves to the examples package itself,
-and reports `cyclic dependency declaration found: TabulaExamples ->
-TabulaExamples`.
+The bare `dependencies: ["TabularCenter"]` form does not work either: by-name lookup
+matches the *package* name `TabularCenter`, resolves to the examples package itself,
+and reports `cyclic dependency declaration found: TabularCenterExamples ->
+TabularCenterExamples`.
 
 ## Toolchain
 
@@ -323,7 +323,7 @@ pinned deliberately and working.
 
 `Package.swift` declares **tools-version 5.9**, raised from 5.7 once rather
 than twice: `@Observable` and macros both need it, so `ObservableStore` and
-`TabulaMacros` were one decision. The pinned toolchain is 5.10.1, so 5.9 is
+`TabularCenterMacros` were one decision. The pinned toolchain is 5.10.1, so 5.9 is
 below it rather than at it.
 
 There is still **no `platforms:` clause**, which is the part that matters. A

@@ -77,7 +77,7 @@ Names the *first* offending column rather than counting, because "expected 3,
 found 2" makes the developer count columns by hand.
 
 **Status:** implemented in all three (Rust `matrix.rs`, Kotlin `codegen/Raw.kt`,
-Swift `TabulaCodegen/Raw.swift`).
+Swift `TabularCenterCodegen/Raw.swift`).
 
 ---
 

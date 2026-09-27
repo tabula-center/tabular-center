@@ -23,15 +23,15 @@
 // puts its `bin` on PATH; it does not change which ManifestAPI `swift build`
 // reaches for. So the `.macro` target stays out until `tools/verify
 // swift-macro-support` reports the augmented directory in use. The macro is
-// written and waiting in `pending/TabulaMacros/`.
+// written and waiting in `pending/TabularCenterMacros/`.
 
 import PackageDescription
 
 let package = Package(
-    name: "TabulaMacros",
+    name: "TabularCenterMacros",
     platforms: [.macOS(.v13)],
     products: [
-        .library(name: "TabulaMacroSyntax", targets: ["TabulaMacroSyntax"]),
+        .library(name: "TabularCenterMacroSyntax", targets: ["TabularCenterMacroSyntax"]),
     ],
     dependencies: [
         .package(path: ".."),
@@ -41,14 +41,14 @@ let package = Package(
         // The checks. An executable, not a test target: nixpkgs' Swift ships
         // no XCTest, the same constraint the main package records.
         .executableTarget(
-            name: "TabulaMacroSyntaxCheck",
+            name: "TabularCenterMacroSyntaxCheck",
             // `exclude` is not needed for `pending/` -- it is outside
             // Sources/ -- but the checks READ it, along with SURFACE.md, by
             // relative path from the package root. Both are inputs to a test
             // rather than sources, which is why neither is a target.
             dependencies: [
-                "TabulaMacroSyntax",
-                .product(name: "TabulaCodegen", package: "tabular-center-swift"),
+                "TabularCenterMacroSyntax",
+                .product(name: "TabularCenterCodegen", package: "tabular-center-swift"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
             ]
@@ -57,15 +57,15 @@ let package = Package(
         // the whole reason this is a separate package: `nix flake check`
         // builds the rest of Swift with no network at all.
         .target(
-            name: "TabulaMacroSyntax",
+            name: "TabularCenterMacroSyntax",
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
                 // The generator, already written and already tested. This
                 // package's only job is SwiftSyntax -> RawMachine; everything
-                // after that is TabulaCodegen's.
-                .product(name: "TabulaCodegen", package: "tabular-center-swift"),
+                // after that is TabularCenterCodegen's.
+                .product(name: "TabularCenterCodegen", package: "tabular-center-swift"),
             ]
         )
     ]

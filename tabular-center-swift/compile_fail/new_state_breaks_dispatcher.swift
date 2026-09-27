@@ -7,7 +7,7 @@
 // Adding a state breaks the generated dispatcher, so a stale generated file
 // cannot silently ignore a new state. Reproduced inline, because the real
 // dispatcher is regenerated from the declaration and would simply grow a case.
-import Tabula
+import TabularCenter
 
 enum S { case idle, running, paused }  // paused added after generation
 enum A { case go }

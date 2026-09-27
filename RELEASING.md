@@ -27,10 +27,10 @@ rather than asserted in a README.
 | | `tabular-center-codegen` | transitive of `ksp` | `MachineDesc`, validation, the emitter |
 | | `tabular-center-ksp` | `ksp` | the processor |
 | | `tabular-center-testing` | `testImplementation` | `.tbl`/`.trace` parser, `checkTable` |
-| Swift | `Tabula` | runtime | the core |
-| | `TabulaCodegen` | transitive of the plugin | `MachineDesc`, validation, the emitter |
-| | `TabulaMacros` | build-time plugin | the macro implementation |
-| | `TabulaTesting` | test target | the fixture harness |
+| Swift | `TabularCenter` | runtime | the core |
+| | `TabularCenterCodegen` | transitive of the plugin | `MachineDesc`, validation, the emitter |
+| | `TabularCenterMacros` | build-time plugin | the macro implementation |
+| | `TabularCenterTesting` | test target | the fixture harness |
 
 ### Why Rust is one crate and Kotlin is five
 

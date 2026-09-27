@@ -83,7 +83,7 @@ See `ARCHITECTURE.md` for the design, `PLAN.md` for the task breakdown, and
 `tabular-center-<lang>/examples/` for the worked machines — the same four core examples in every
 language, ordered by what each one adds, plus a few that exist in only one
 (a suspend driver, a KSP-generated machine and a Compose Desktop app in Kotlin,
-an iced app in Rust, `ObservableStore` and `TabulaTesting` in Swift).
+an iced app in Rust, `ObservableStore` and `TabularCenterTesting` in Swift).
 
 ## Development
 

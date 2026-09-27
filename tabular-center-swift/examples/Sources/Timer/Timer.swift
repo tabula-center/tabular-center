@@ -1,4 +1,4 @@
-import Tabula
+import TabularCenter
 
 /// **2. Payloads and effects.**
 ///

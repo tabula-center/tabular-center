@@ -11,7 +11,7 @@ Four machines, the same four in every language, ordered by what they add:
 | 5 | `suspend` | the other color: a machine whose `step` suspends (Kotlin only) |
 | 6 | `generated` | matrix declared in **annotations**; KSP generates the dispatcher (Kotlin only, needs Gradle) |
 | 6 | `observable-counter` | `ObservableStore`, and the only example that can *skip* (Swift only) |
-| 7 | `spec-check` | pinning a matrix to a reviewable `.tbl` fixture with `TabulaTesting` (Swift only) |
+| 7 | `spec-check` | pinning a matrix to a reviewable `.tbl` fixture with `TabularCenterTesting` (Swift only) |
 
 Each is a working machine with tests, and each is written twice — once per
 language — because the second writing is a review of the first. Two findings

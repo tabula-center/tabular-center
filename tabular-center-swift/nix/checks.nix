@@ -61,7 +61,7 @@ in
   swift-macro-support = verify "swift-macro-support";
 
   # The macro package. The pinned SwiftPM cannot declare a `.macro` target, so
-  # this builds `TabulaMacroSyntax` against the offline swift-syntax checkout
+  # this builds `TabularCenterMacroSyntax` against the offline swift-syntax checkout
   # set and skips, out loud, whatever still needs the plugin.
   swift-macros = mkCheck "swift-macros" swiftPkgs ''
     ${swiftSetup}

@@ -361,12 +361,12 @@ after three implementations is the expensive version.
       form.
 - [x] Derived defaults: a `HANDLE` named by a hop becomes a `GO` to that hop's
       next state (`derive` in `tabular-center-kotlin/codegen/Raw.kt` and
-      `tabular-center-swift/Sources/TabulaCodegen/Raw.swift`).
+      `tabular-center-swift/Sources/TabularCenterCodegen/Raw.swift`).
 - [x] The additive test for the above: a spine-derived machine and the
       longhand one produce equal descriptions and byte-identical emitted
       source, `TABLE` included -- and so identical `.grid`, `.lint`, `.cov`
       and `.mmd`, which are functions of it. `runAdditiveTest` in
-      `tabular-center-kotlin/codegen/Tests.kt` and its twin in `TabulaCodegenCheck`, each
+      `tabular-center-kotlin/codegen/Tests.kt` and its twin in `TabularCenterCodegenCheck`, each
       with a control showing the path is what makes the difference.
 - [x] The four `path-*` diagnostics above, with four compile-fail fixtures each
       in Kotlin and Swift. Compile-time rejections rather than lints — see

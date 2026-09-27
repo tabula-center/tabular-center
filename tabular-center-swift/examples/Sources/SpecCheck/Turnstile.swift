@@ -1,4 +1,4 @@
-import Tabula
+import TabularCenter
 
 /// **7. Pinning a matrix to a text file.**
 ///
@@ -9,7 +9,7 @@ import Tabula
 /// the thing this design is for and reviewing a `switch` is the thing it
 /// exists to avoid.
 ///
-/// It is also the only example that uses the `TabulaTesting` product. That
+/// It is also the only example that uses the `TabularCenterTesting` product. That
 /// module ships in `Package.swift` and, until this existed, nothing outside
 /// the library had ever imported it — the same shipped-surface-with-no-consumer
 /// condition that left Rust's `PAYLOADS` unbuildable without `alloc` for as

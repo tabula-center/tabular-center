@@ -202,7 +202,7 @@ fun runValidationTests(): Int {
  * that file, and `.grid`, `.lint`, `.cov` and `.mmd` are pure functions of it,
  * so equal source means equal goldens.
  *
- * `Swift`'s twin is in `TabulaCodegenCheck/main.swift`, on the same machine.
+ * `Swift`'s twin is in `TabularCenterCodegenCheck/main.swift`, on the same machine.
  */
 private fun runAdditiveTest() {
     val quiet = listOf(RawCell("IGNORE"), RawCell("IGNORE"), RawCell("IGNORE"))

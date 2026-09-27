@@ -1,4 +1,4 @@
-import Tabula
+import TabularCenter
 
 // Every required member, colored `async throws` as the prototype says.
 final class CompleteTimerAsync: TimerAsyncCells {

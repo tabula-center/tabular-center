@@ -1,4 +1,4 @@
-import Tabula
+import TabularCenter
 
 /// **The Swift macro's specification.**
 ///
