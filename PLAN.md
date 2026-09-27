@@ -602,6 +602,19 @@ rename, a development section, and one Rust sample.
       available -- matched by a regex that saw the shape and not the type, and
       `swift-codegen` stopped compiling. Reverted, with a comment. Every
       remaining site's receiver was then checked to be a `String`
+- [x] **`NIX_CC` was not enough for SwiftPM.** With it, `swiftc
+      -print-target-info` answered correctly when asked directly, and SwiftPM
+      still got an empty answer. An app gets a PATH and no SETUP HOOKS; a nix
+      build and `nix develop` run them, and nixpkgs' Swift depends on what
+      they export. The `swift-lock` app now `exec`s `nix develop
+      ./tabular-center-swift --command tools/swift-lock` -- the environment
+      the checks and the committed lock already came from -- rather than
+      reconstructing it variable by guessed variable
+- [x] **`codesign` in debug builds.** SwiftPM signs macOS debug executables
+      with a get-task-allow entitlement using /usr/bin/codesign, which is not
+      on a nix build's PATH. `swift-macros` is the one debug build (every
+      other Swift step is `-c release`, which applies no entitlement) and now
+      passes `--disable-get-task-allow-entitlement` on Darwin
 - [ ] Which Swift example fails on macOS. Suspect: `observable-counter`, the
       only one whose code path differs by platform -- it skips off Darwin, so
       until this macOS run, `ObservableStore`'s real path had never executed

@@ -419,6 +419,15 @@ step_swift_macros() {
     # reads like the checkouts were ignored rather than like the state file was
     # missing -- worth knowing before debugging it.
     local args=(build)
+    # macOS signs every DEBUG executable with a get-task-allow entitlement, so
+    # a debugger can attach, by running Apple's /usr/bin/codesign -- which is
+    # not on a nix build's PATH, and the link then fails with "unable to spawn
+    # process 'codesign'". This is the one debug build here: every other Swift
+    # step builds `-c release`, where SwiftPM applies no entitlement, which is
+    # why only this step hit it. Nothing here attaches a debugger.
+    if [ "$(uname -s)" = Darwin ]; then
+        args+=(--disable-get-task-allow-entitlement)
+    fi
     if [ -n "${TABULAR_CENTER_SWIFT_DEPS:-}" ]; then
         echo "note: resolving offline from $TABULAR_CENTER_SWIFT_DEPS"
         rm -rf tabular-center-swift/macros/.build/checkouts tabular-center-swift/macros/.build/workspace-state.json

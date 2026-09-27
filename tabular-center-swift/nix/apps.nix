@@ -33,21 +33,23 @@ let
   # The second and last command in the repository that reaches the network.
   # See the header of tools/swift-lock, and the Kotlin flake's gradle-lock for
   # the same shape against Maven.
+  #
+  # A launcher into the Swift dev shell, not an environment of its own. An app
+  # gets a PATH and nothing else; a nix build and `nix develop` also run each
+  # package's SETUP HOOKS, and nixpkgs' Swift toolchain depends on what they
+  # export. Run bare, this app got a `swiftc` that answered
+  # `-print-target-info` correctly when asked directly, and still handed
+  # SwiftPM an empty answer -- "Failed to parse target info". The checks, and
+  # the shell the committed lock was made in, run the hooks. So this runs
+  # there too, rather than rebuilding their environment one guessed variable
+  # at a time.
   swiftLock = pkgs.writeShellApplication {
     name = "tabular-center-swift-lock";
-    runtimeInputs = commonInputs ++ swiftPkgs ++ [
-      pkgs.git
-      pkgs.curl
-      pkgs.coreutils
-      pkgs.findutils
-      pkgs.gnused
-      pkgs.gnugrep
-      pkgs.diffutils
-    ];
+    runtimeInputs = [ pkgs.git ];
     text = ''
       ${cdRoot}
-      ${swiftSetup}
-      ./tabular-center-swift/tools/swift-lock "$@"
+      exec nix develop "$PWD/tabular-center-swift" --command \
+        ./tabular-center-swift/tools/swift-lock "$@"
     '';
   };
 in

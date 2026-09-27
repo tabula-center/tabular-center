@@ -6,5 +6,6 @@
 ctx:
 
 {
-  default = ctx.mkShell "swift" ctx.swiftPkgs;
+  # curl for tools/swift-lock, which the swift-lock app runs in this shell.
+  default = ctx.mkShell "swift" (ctx.swiftPkgs ++ [ ctx.pkgs.curl ]);
 }
