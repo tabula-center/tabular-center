@@ -89,7 +89,7 @@ func toggleStep(
     // UNREACHABLE compiles to a trap. Writing it *is* the implementation, so
     // it generates no member.
     case (.on, .reset):
-        fatalError("tabula: On x Reset was declared UNREACHABLE but occurred")
+        fatalError("tabular-center: On x Reset was declared UNREACHABLE but occurred")
     }
 }
 
@@ -533,16 +533,16 @@ func linkStep(
     switch (s, a) {
     case (.down, .dial): return .go(.dialing, effects: [])
     case (.down, .ack):
-        fatalError("tabula: Down x Ack was declared UNREACHABLE but occurred")
+        fatalError("tabular-center: Down x Ack was declared UNREACHABLE but occurred")
     case (.down, .hangup): return .ignored
     case (.down, .ping): return .ignored
     case (.dialing, .dial):
-        fatalError("tabula: Dialing x Dial was declared UNREACHABLE but occurred")
+        fatalError("tabular-center: Dialing x Dial was declared UNREACHABLE but occurred")
     case (.dialing, .ack): return c.dialingAck(ctx)
     case (.dialing, .hangup): return .go(.down, effects: [])
     case (.dialing, .ping): return .ignored
     case (.up, .dial):
-        fatalError("tabula: Up x Dial was declared UNREACHABLE but occurred")
+        fatalError("tabular-center: Up x Dial was declared UNREACHABLE but occurred")
     case (.up, .ack): return .ignored
     case (.up, .hangup): return .go(.down, effects: [])
     case (.up, .ping): return .stay(effects: [.pong])

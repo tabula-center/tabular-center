@@ -303,7 +303,7 @@ private func refusals(_ d: MachineDesc) -> [String] {
     // `Variant.fields` may be empty with `hasPayload` true: a generator that
     // cannot resolve a type still gets its lints. It cannot get a binding.
     for v in d.states + d.actions + d.effects where v.hasPayload && v.fields.isEmpty {
-        out.append("tabula: the payload fields of `\(v.name)` are unknown, so the generator cannot bind them")
+        out.append("tabular-center: the payload fields of `\(v.name)` are unknown, so the generator cannot bind them")
     }
     return out
 }
@@ -331,7 +331,7 @@ private func arm(_ d: MachineDesc, _ i: Int, _ j: Int) -> String {
     case .ignore, .handle, .delegate:
         return ".ignored"
     case .unreachable:
-        return "fatalError(\(q("tabula: \(d.states[i].name) x \(d.actions[j].name) was declared UNREACHABLE but occurred")))"
+        return "fatalError(\(q("tabular-center: \(d.states[i].name) x \(d.actions[j].name) was declared UNREACHABLE but occurred")))"
     case let .go(target, args, effects):
         // Verbatim, arguments included: `.stopClock(reason: .cancelled)`.
         let e = effects.map { ".\(lower($0))" }.joined(separator: ", ")

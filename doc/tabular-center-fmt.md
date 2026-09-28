@@ -1,4 +1,13 @@
-# `tabula-fmt`
+---
+layout: default
+title: tabular-center-fmt
+---
+
+<!-- Generated from spec/tabular-center-fmt.md by tools/docs. Do not edit. -->
+
+[Home](./) · [Rust](rust) · [Kotlin](kotlin) · [Swift](swift) · [Cells](cells) · [Diagnostics](diagnostics) · [Matrix files](matrix-files) · [Source](https://github.com/tabula-center/tabular-center)
+
+# `tabular-center-fmt`
 
 A formatter for `*.tb.rs`, `*.tb.kt` and `*.tb.swift`. It has exactly one job:
 **pad cells so the columns line up.** Everything else it might plausibly do is
@@ -27,7 +36,7 @@ a bracketed list of comma-separated cells. Alignment needs the structure and
 not the punctuation, so one tool handles all three — and a language-specific
 formatter would be three chances to get the same thing subtly differently.
 
-It follows that `tabula-fmt` is **not a parser**. It does not know what a cell
+It follows that `tabular-center-fmt` is **not a parser**. It does not know what a cell
 means, which is the point: a tool that understood Rust would have to be updated
 for Kotlin, and a tool that understands neither is correct for both.
 
@@ -58,7 +67,7 @@ padding it to some remembered width is how a formatter starts having opinions.
 ## Failure is refusal, not best effort
 
 If a run cannot be split — unbalanced brackets, an unterminated string, a cell
-containing a comma the splitter cannot classify — `tabula-fmt` leaves the file
+containing a comma the splitter cannot classify — `tabular-center-fmt` leaves the file
 **untouched** and reports it.
 
 This is the one rule worth arguing for. A formatter that half-understands a
@@ -79,7 +88,7 @@ every review into a diff of whitespace.
 
 ## Where it lives
 
-At the repository root, as `tabula-fmt/` — not inside `tabular-center-rust/`, `tabular-center-kotlin/` or
+At the repository root, as `tabular-center-fmt/` — not inside `tabular-center-rust/`, `tabular-center-kotlin/` or
 `tabular-center-swift/`.
 
 That placement is the same argument as the tool being one tool. A formatter

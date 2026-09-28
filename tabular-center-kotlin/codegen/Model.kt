@@ -62,7 +62,7 @@ data class MachineDesc(
             "tabular-center::missing-row: ${rows.size} rows for ${states.size} states"
         }
         require(prototypeReceiver.isEmpty() || children.isEmpty()) {
-            "tabula: a prototype extension receiver on a machine with DELEGATE " +
+            "tabular-center: a prototype extension receiver on a machine with DELEGATE " +
                 "cells is not supported yet; the child's step would need the same " +
                 "receiver threaded through the lens"
         }

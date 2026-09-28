@@ -197,7 +197,7 @@ private fun arm(d: MachineDesc, i: Int, j: Int): String {
         is CellDesc.Ignore -> "Step.Ignored"
         is CellDesc.Handle -> onCells(d, "${member(d, i, j)}(ctx, $bind)")
         is CellDesc.Unreachable ->
-            "error(${q("tabula: ${d.states[i].name} x ${d.actions[j].name} was declared UNREACHABLE but occurred")})"
+            "error(${q("tabular-center: ${d.states[i].name} x ${d.actions[j].name} was declared UNREACHABLE but occurred")})"
         is CellDesc.Go -> {
             val target = "${d.stateType}.${c.target}${c.targetArgs}"
             if (c.effects.isEmpty()) "Step.Go($target)"

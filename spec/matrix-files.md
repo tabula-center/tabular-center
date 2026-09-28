@@ -180,7 +180,7 @@ patch rather than inside this one.
 
 ## The formatter this anticipates
 
-`tabula-fmt` is in `PLAN.md`'s backlog: a formatter that pads cells to align
+`tabular-center-fmt` is in `PLAN.md`'s backlog: a formatter that pads cells to align
 columns and does nothing else. The extension is what would let it run
 automatically without fighting the language's own formatter over the same
 files, and it is worth adopting before that tool exists, because the exemption

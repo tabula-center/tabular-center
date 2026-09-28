@@ -74,7 +74,7 @@ impl<F> fmt::Display for CapacityError<F> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "tabula: effect capacity {} exceeded; raise K on Step<S, F, K>",
+            "tabular-center: effect capacity {} exceeded; raise K on Step<S, F, K>",
             self.capacity
         )
     }
@@ -111,7 +111,7 @@ impl<F, const K: usize> Effects<F, K> {
     /// condition; use [`Effects::try_push`] where that is not true.
     pub fn push(&mut self, effect: F) {
         if self.try_push(effect).is_err() {
-            panic!("tabula: effect capacity {K} exceeded; raise K on Step<S, F, K>");
+            panic!("tabular-center: effect capacity {K} exceeded; raise K on Step<S, F, K>");
         }
     }
 

@@ -841,7 +841,7 @@ tabular-center/
 │   ├── diagnostics-coverage.md  # which implementation emits which code; checked
 │   ├── happy-paths.md           # `@Path` spines: design + status
 │   ├── matrix-files.md          # the `*.tb.*` convention
-│   ├── tabula-fmt.md            # the formatter's contract (tool not written)
+│   ├── tabular-center-fmt.md    # the formatter's contract (tool not written)
 │   └── conformance/
 │       ├── README.md            # the .tbl and .trace formats
 │       ├── <name>.tbl           # ── 11 shared fixtures: timer, toggle, retry,

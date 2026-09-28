@@ -75,7 +75,7 @@ class TabularCenterProcessor(
                 // reader has to fix rather than the interface it sits on.
                 logger.error(e.message, e.state?.let { rowNodes(decl)[it] } ?: decl)
             } catch (e: Exception) {
-                logger.error("tabula: ${e.message}", decl)
+                logger.error("tabular-center: ${e.message}", decl)
             }
         }
         // Nothing is deferred: everything needed is resolvable in one round.

@@ -160,7 +160,7 @@ page spec/diagnostics.md diagnostics.md "Diagnostics"
 } >> "$out/diagnostics.md"
 page spec/cells.md       cells.md       "Cells"
 page spec/matrix-files.md matrix-files.md "Matrix files"
-page spec/tabula-fmt.md   tabula-fmt.md   "tabula-fmt"
+page spec/tabular-center-fmt.md   tabular-center-fmt.md   "tabular-center-fmt"
 
 
 # ---------------------------------------------------------------------------

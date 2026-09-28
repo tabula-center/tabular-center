@@ -252,7 +252,7 @@ the language's idiom is — `unreachable!()` in Rust, `error(...)` in Kotlin,
 a developer will ever see from this kind:
 
 ```
-tabula: <State> x <Action> was declared UNREACHABLE but occurred
+tabular-center: <State> x <Action> was declared UNREACHABLE but occurred
 ```
 
 `<State>` and `<Action>` are the declared variant names, spelled as declared.

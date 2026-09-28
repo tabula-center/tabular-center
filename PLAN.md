@@ -682,14 +682,18 @@ proposals are only proposals.
       `rust-conformance` was gated on `../tabula-conformance/Cargo.toml`
       existing, so after the move it would have vanished from
       `nix flake check` without failing. All three `Cargo.lock`s are the
-      rename and nothing else, re-sorted as Cargo sorts them. Kept: the
-      hidden macro helpers (`__tabula_arms!` and kin), which no user sees.
+      rename and nothing else, re-sorted as Cargo sorts them. One call
+      crossed rustfmt's 60-column argument heuristic -- found by `rust-fmt`,
+      because my pre-check matched only one level of parentheses and this one
+      nests two; rescanned with a balanced matcher, arrays and struct literals
+      included, and it was the only one. Kept: the hidden macro helpers (`__tabula_arms!` and kin), which no user sees.
       crates.io availability still to check before Phase 10 publishes
-- [ ] The runtime message prefix `tabula: ` (the UNREACHABLE trap, the
-      effect-capacity panic). Its format is normative in `spec/cells.md` and
-      all three implementations print it, so it changes in one commit across
-      the spec and the three -- after the Kotlin and Swift renames, not
-      inside the Rust one
+- [x] The runtime message prefix `tabula: ` -> `tabular-center: ` (the
+      UNREACHABLE trap, the effect-capacity panic, the processor's and
+      emitter's errors), in one commit across `spec/cells.md`, which defines
+      the trap's format, and all three implementations. Nothing asserted the
+      prefix: compile-fail expectations match the diagnostic code that follows
+      it, and the one `should_panic` expects a substring after it
 - [x] Kotlin: package `dev.tabula` -> `dev.tabularcenter` (one segment, as
       proposed), group `dev.tabula` -> `dev.tabularcenter`, artifacts
       `tabula-core` ... `tabula-testing` -> `tabular-center-core` ...
@@ -723,16 +727,17 @@ proposals are only proposals.
       `workspace-state.json` records only the remote swift-syntax. With the
       three languages done, the only bare `tabula` left outside history is
       `tabula-fmt` and the runtime `tabula: ` prefix -- the next patch
-- [ ] `tabula-fmt` (backlog, unwritten) -> `tabular-center-fmt`, and
-      `spec/tabula-fmt.md` with it. The `*.tb.*` matrix-file suffix is kept:
-      it is short, unclaimed, and `spec/matrix-files.md` explains it without
-      reference to the old name
-- [ ] Order: spec first, then Rust, Kotlin, Swift, each green on its own
-      flake before the next, then the examples
-
----
-
-## Open decisions
+- [x] `tabula-fmt` (backlog, unwritten) -> `tabular-center-fmt`, and
+      `spec/tabula-fmt.md` -> `spec/tabular-center-fmt.md` with it (and its
+      page in `doc/`). The `*.tb.*` matrix-file suffix is kept: it is short,
+      unclaimed, and `spec/matrix-files.md` explains it without reference to
+      the old name
+- [x] Order: diagnostic codes first (the spec and all three at once, as the
+      cross-language checks demand), then Rust, Kotlin, Swift, each green on
+      its own before the next, then the message prefix and `tabula-fmt`.
+      R4 is done: outside this file's history, the old name survives only in
+      the GitHub organisation (`tabula-center`), the hidden Rust macro helpers
+      (`__tabula_*`), and a quoted historical log line
 
 ### 0b. Two runs are needed, both needing network — done
 

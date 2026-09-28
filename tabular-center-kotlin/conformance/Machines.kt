@@ -189,7 +189,7 @@ object toggle {
                 is A.Poke -> onPoke(ctx, s, a)
                 // UNREACHABLE compiles to a trap. Writing it *is* the
                 // implementation, so it generates no member.
-                is A.Reset -> error("tabula: On x Reset was declared UNREACHABLE but occurred")
+                is A.Reset -> error("tabular-center: On x Reset was declared UNREACHABLE but occurred")
             }
         }
 
@@ -1078,18 +1078,18 @@ object unreachableHeavy {
         fun step(ctx: Ctx, s: S, a: A): Step<S, F> = when (s) {
             is S.Down -> when (a) {
                 is A.Dial -> Step.Go(S.Dialing)
-                is A.Ack -> error("tabula: Down x Ack was declared UNREACHABLE but occurred")
+                is A.Ack -> error("tabular-center: Down x Ack was declared UNREACHABLE but occurred")
                 is A.Hangup -> Step.Ignored
                 is A.Ping -> Step.Ignored
             }
             is S.Dialing -> when (a) {
-                is A.Dial -> error("tabula: Dialing x Dial was declared UNREACHABLE but occurred")
+                is A.Dial -> error("tabular-center: Dialing x Dial was declared UNREACHABLE but occurred")
                 is A.Ack -> dialingAck(ctx, s, a)
                 is A.Hangup -> Step.Go(S.Down)
                 is A.Ping -> Step.Ignored
             }
             is S.Up -> when (a) {
-                is A.Dial -> error("tabula: Up x Dial was declared UNREACHABLE but occurred")
+                is A.Dial -> error("tabular-center: Up x Dial was declared UNREACHABLE but occurred")
                 is A.Ack -> Step.Ignored
                 is A.Hangup -> Step.Go(S.Down)
                 is A.Ping -> Step.Stay(listOf(F.Pong))

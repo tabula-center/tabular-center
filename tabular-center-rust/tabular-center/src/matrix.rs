@@ -1340,7 +1340,7 @@ macro_rules! __tabula_row {
             bind=[$bs $ba $bc $bx $bsv]
             actions=[$($carest)*] cells=[$($crest)*]
             arms=[$($arm)* $a::$ca(_) => ::core::unreachable!(::core::concat!(
-                "tabula: ", ::core::stringify!($st), " x ", ::core::stringify!($ca),
+                "tabular-center: ", ::core::stringify!($st), " x ", ::core::stringify!($ca),
                 " was declared UNREACHABLE but occurred"
             )),])
     };

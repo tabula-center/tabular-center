@@ -22,7 +22,7 @@ repositories {
 // would be one build failing for eight reasons.
 val fixture: String = (findProperty("tabulaFixture") as String?)
     ?: error(
-        "tabula: no fixture selected. This build compiles ONE compile-fail " +
+        "tabular-center: no fixture selected. This build compiles ONE compile-fail " +
             "fixture and expects it to fail; run it through " +
             "`tools/verify kotlin-ksp-compile-fail` rather than directly."
     )
