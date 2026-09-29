@@ -1774,10 +1774,20 @@ a warning refuses nothing and every other fixture here proves a refusal.
       `TimerRenderCells` and not match. `TabularCenterCodegenCheck` checks it
       is additive (both render blocks cut, the rest byte-identical) and
       exhaustive, line by line, since `String.contains(String)` is macOS 13+
-- [ ] Swift `@ViewBuilder` renderers. SwiftUI's `some View` cannot be a
-      protocol requirement's return type; it needs an associated type (one per
-      state, or one for all), which changes how `render` is typed. A design
-      step of its own, not an approximation of this one
+- [x] Swift `@ViewBuilder` renderers: a builder mode on `RenderDesc`
+      (`builder`, `conformance`) taking SwiftUI's own shape -- `View` has
+      `associatedtype Body` under `@ViewBuilder var body`. One associated
+      type per state (`IdleBody: View`, so each state may return a different
+      view) with the builder on the requirement; `render` generic over the
+      conformer, `@ViewBuilder`, returning `some View`, arms bare because a
+      `return` in a builder body switches the builder off; `@available`
+      macOS 10.15 / iOS 13, where opaque result types begin. Refused by name:
+      no conformance, or an `async`/`throws` builder renderer. Proven on Linux
+      as well as Darwin with a stand-in builder (`ViewishBuilder`, `buildBlock`
+      and `buildEither`, as `ViewBuilder` has) since SwiftUI is absent there:
+      a `TimerView` twin compiles with `CompleteTimerView`, whose renderers
+      return concrete views and infer the associated types, and
+      `timer-view_missing_renderer.swift` must be refused
 - [x] Second prototype for view derivation (`S -> UI`) -- the emitters and
       KSP above
 - [x] One required member per state, narrowed payloads -- in both emitters,
@@ -1786,7 +1796,9 @@ a warning refuses nothing and every other fixture here proves a refusal.
       checked at string level; the qualified-copy mechanism itself is compiled
       by the warning fixture below. No example renders composably yet (the
       Compose example's renderer is plain, for the reason given above)
-- [ ] Swift: SwiftUI `@ViewBuilder` cells -- the associated-type design above
+- [x] Swift: SwiftUI `@ViewBuilder` cells -- the builder mode above. Proven
+      with a stand-in builder, not SwiftUI itself: no example is a SwiftUI app
+      rendering through it yet
 - [x] Warning when `@Composable` appears on a *transition* prototype (Compose
       runtime may skip / restart / discard — a real correctness hazard, not
       style): `tabular-center::composable-transition`, Kotlin only, positioned

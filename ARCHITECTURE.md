@@ -522,6 +522,25 @@ One required member per state, narrowed payloads, `@Composable` where it
 belongs. This is the supported home for Compose, SwiftUI, and any other
 retained-mode UI, and it keeps `@Composable` out of the transition path.
 
+SwiftUI's views are opaque, and a protocol requirement cannot return
+`some View`, so Swift's renderers take SwiftUI's own shape -- the one `View`
+uses for `body`: an associated type per state under `@ViewBuilder`, and a
+generic `render` that returns `some View`, the builder turning its `switch`
+into one view:
+
+```swift
+protocol TimerRenders {
+    associatedtype IdleBody: View
+    @ViewBuilder func renderIdle() -> IdleBody
+    associatedtype RunningBody: View
+    @ViewBuilder func renderRunning(_ state: Timer.Running) -> RunningBody
+    // ...
+}
+```
+
+The builder and the protocol are names to the generator, so the checks prove
+this shape on Linux with a stand-in builder; SwiftUI is not there to use.
+
 ---
 
 ## 10. Introspection

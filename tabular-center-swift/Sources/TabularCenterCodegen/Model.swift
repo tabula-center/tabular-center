@@ -80,18 +80,43 @@ public struct MachineDesc {
 /// after the parameters, `try await` at the call), and the two are
 /// independent.
 ///
-/// `returnType` is concrete. SwiftUI's `@ViewBuilder` returns `some View`,
-/// which a protocol requirement cannot -- it needs an associated type -- so
-/// that is a separate step (PLAN, Phase 9b), not something to approximate.
+/// Two modes.
+///
+/// - **Concrete** (`builder` nil): every renderer returns `returnType`, and
+///   so does `render`.
+/// - **Builder** (`builder` set): SwiftUI's shape. A view is opaque, and a
+///   protocol requirement cannot return `some View`, so each state gets an
+///   associated type -- `associatedtype IdleBody: View` and
+///   `@ViewBuilder func renderIdle() -> IdleBody` -- exactly as SwiftUI's own
+///   `View` has `associatedtype Body` under `@ViewBuilder var body`. `render`
+///   is generic over the conformer, `@ViewBuilder`, and returns
+///   `some <conformance>`: the builder turns its `switch` into one view.
+///   Opaque result types need macOS 10.15 / iOS 13 at runtime, so `render`
+///   carries that `@available`; SwiftUI needs the same. `returnType` is
+///   unused in this mode.
+///
+/// `builder` and `conformance` are names, not SwiftUI: the checks use a
+/// stand-in builder, because SwiftUI does not exist on Linux.
 public struct RenderDesc: Equatable {
     /// Copied onto every render member and onto `render`.
     public let modifiers: [String]
-    /// What a render member returns.
+    /// What a render member returns, in concrete mode.
     public let returnType: String
+    /// The result builder, without `@`: `ViewBuilder`. Nil for concrete mode.
+    public let builder: String?
+    /// The protocol each state's view conforms to, in builder mode: `View`.
+    public let conformance: String
 
-    public init(modifiers: [String] = [], returnType: String = "Void") {
+    public init(
+        modifiers: [String] = [],
+        returnType: String = "Void",
+        builder: String? = nil,
+        conformance: String = ""
+    ) {
         self.modifiers = modifiers
         self.returnType = returnType
+        self.builder = builder
+        self.conformance = conformance
     }
 }
 

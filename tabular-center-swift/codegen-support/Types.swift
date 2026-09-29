@@ -70,6 +70,45 @@ enum TimerRender {
     typealias Tick = Timer.Tick
 }
 
+// MARK: - A stand-in for SwiftUI, for the builder-mode rendering surface
+//
+// SwiftUI does not exist on Linux, and `@ViewBuilder` renderers are generated
+// from names -- a builder and a protocol -- so this proves the generated shape
+// with the smallest builder that has SwiftUI's: `buildBlock` for one view,
+// `buildEither` for a `switch`, which the builder nests for more than two
+// cases, as `ViewBuilder` does with `_ConditionalContent`.
+
+protocol Viewish {}
+
+struct ViewishLabel: Viewish { let text: String }
+
+enum ViewishEither<First: Viewish, Second: Viewish>: Viewish {
+    case first(First)
+    case second(Second)
+}
+
+@resultBuilder
+enum ViewishBuilder {
+    static func buildBlock<Content: Viewish>(_ content: Content) -> Content { content }
+    static func buildEither<First: Viewish, Second: Viewish>(first content: First) -> ViewishEither<First, Second> {
+        .first(content)
+    }
+    static func buildEither<First: Viewish, Second: Viewish>(second content: Second) -> ViewishEither<First, Second> {
+        .second(content)
+    }
+}
+
+/// The Timer with a builder-mode rendering surface: SwiftUI's shape, with the
+/// stand-in above in SwiftUI's place.
+enum TimerView {
+    typealias S = Timer.S
+    typealias A = Timer.A
+    typealias F = Timer.F
+    typealias Ctx = Timer.Ctx
+    typealias Running = Timer.Running
+    typealias Tick = Timer.Tick
+}
+
 // MARK: - Retry: the child
 
 enum Retry {

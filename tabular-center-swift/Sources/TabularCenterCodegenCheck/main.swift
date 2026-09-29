@@ -411,6 +411,56 @@ do {
     print("FAIL render test: \(error)")
 }
 
+// Builder mode: SwiftUI's shape, with names in place of SwiftUI.
+do {
+    let view = RenderDesc(modifiers: ["@MainActor"], builder: "ViewBuilder", conformance: "View")
+    let out = emit(try buildDesc(timerMachine("ViewProbe", render: view)))
+    let lines = out.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+
+    check("an associated type per state", lines.contains("    associatedtype RunningBody: View"))
+    check(
+        "... and a builder requirement returning it, narrowed",
+        lines.contains("    @MainActor @ViewBuilder func renderRunning(_ state: ViewProbe.Running) -> RunningBody")
+    )
+    check("a payload-free state takes nothing", lines.contains("    @MainActor @ViewBuilder func renderIdle() -> IdleBody"))
+    check(
+        "render is available where opaque types are",
+        lines.contains("    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)")
+    )
+    check(
+        "render is generic and opaque",
+        lines.contains(
+            "    @MainActor @ViewBuilder static func render<R: ViewProbeRenders>(_ renders: R, _ s: ViewProbe.S) -> some View {"
+        )
+    )
+    if let a = lines.firstIndex(of: "    /// Render one state. No `default:` branch."),
+       let b = lines[a...].firstIndex(of: "    }") {
+        let body = lines[a...b]
+        check("no `return` in a builder body, which would switch the builder off", !body.contains { $0.hasPrefix("            return") })
+        check("... and still no default branch", !body.contains { $0.hasSuffix("default:") })
+        check("a bare arm per state", body.contains("            renders.renderRunning(ViewProbe.Running(since: since))"))
+    } else {
+        check("the builder dispatcher was found", false)
+    }
+
+    let colored = RenderDesc(modifiers: ["async"], builder: "ViewBuilder", conformance: "View")
+    check(
+        "a colored builder renderer is refused, by name",
+        emit(try buildDesc(timerMachine("ViewProbe", render: colored)))
+            .split(separator: "\n").contains { $0.hasPrefix("#error(") && $0.hasSuffix("step asynchronously\")") }
+    )
+    let unconstrained = RenderDesc(builder: "ViewBuilder")
+    check(
+        "a builder renderer with no conformance is refused, by name",
+        emit(try buildDesc(timerMachine("ViewProbe", render: unconstrained)))
+            .split(separator: "\n").contains { $0.hasPrefix("#error(") && $0.hasSuffix("such as `View`\")") }
+    )
+} catch {
+    checks += 1
+    failures += 1
+    print("FAIL builder render test: \(error)")
+}
+
 /// Every machine the check emits. `refused` ones must NOT compile, and are
 /// written apart so `tools/verify` compiles them only with the fixture that
 /// names them.
@@ -420,6 +470,9 @@ let emitted: [(name: String, raw: RawMachine, refused: Bool)] = [
     // The rendering surface: async cells, plain renderers. Two prototypes,
     // two colors.
     ("timer-render", timerMachine("TimerRender", modifiers: ["async", "throws"], render: RenderDesc(returnType: "String")), false),
+    // Builder mode, SwiftUI's shape, with the stand-in `ViewishBuilder`: SwiftUI
+    // does not exist on Linux, and the generator only needs the names.
+    ("timer-view", timerMachine("TimerView", render: RenderDesc(builder: "ViewishBuilder", conformance: "Viewish")), false),
     ("retry", retryMachine("Retry"), false),
     ("retry-async", retryMachine("RetryAsync", modifiers: ["async", "throws"]), false),
     ("job", jobMachine("Job", child: "retry"), false),

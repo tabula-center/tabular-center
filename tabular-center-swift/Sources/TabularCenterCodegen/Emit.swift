@@ -113,7 +113,14 @@ public func emit(_ d: MachineDesc) -> String {
         out += "protocol \(d.machine)Renders {\n"
         for st in d.states {
             let arg = st.hasPayload ? "_ state: \(own(st.name))" : ""
-            out += "    \(rc.prefix)func render\(cap(st.name))(\(arg))\(rc.suffix) -> \(r.returnType)\n"
+            if let bld = r.builder {
+                // SwiftUI's shape: an associated type per state, the builder on
+                // the requirement, so a conformer writes `some View`.
+                out += "    associatedtype \(cap(st.name))Body: \(r.conformance)\n"
+                out += "    \(rc.prefix)@\(bld) func render\(cap(st.name))(\(arg))\(rc.suffix) -> \(cap(st.name))Body\n"
+            } else {
+                out += "    \(rc.prefix)func render\(cap(st.name))(\(arg))\(rc.suffix) -> \(r.returnType)\n"
+            }
         }
         out += "}\n\n"
     }
@@ -222,17 +229,30 @@ public func emit(_ d: MachineDesc) -> String {
     if let r = d.render {
         let rc = Color(r.modifiers)
         out += "\n    /// Render one state. No `default:` branch.\n"
-        out += "    \(rc.prefix)static func render(_ renders: \(d.machine)Renders, _ s: \(own(d.stateType)))"
-        out += "\(rc.suffix) -> \(r.returnType) {\n"
+        // Builder mode is generic over the conformer (a protocol with
+        // associated types is not a type), returns one opaque view the builder
+        // assembles from the `switch`, and so writes no `return`: a `return`
+        // inside a result-builder body turns the builder off.
+        let lead: String
+        if let bld = r.builder {
+            out += "    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)\n"
+            out += "    \(rc.prefix)@\(bld) static func render<R: \(d.machine)Renders>(_ renders: R, _ s: \(own(d.stateType)))"
+            out += "\(rc.suffix) -> some \(r.conformance) {\n"
+            lead = ""
+        } else {
+            out += "    \(rc.prefix)static func render(_ renders: \(d.machine)Renders, _ s: \(own(d.stateType)))"
+            out += "\(rc.suffix) -> \(r.returnType) {\n"
+            lead = "return "
+        }
         out += "        switch s {\n"
         for st in d.states {
             let b = bind(st, side: "s", avoid: ["renders", "s"], owner: d.machine)
             if st.hasPayload && !b.names.isEmpty {
                 out += "        case let \(b.pattern):\n"
-                out += "            return \(rc.call)renders.render\(cap(st.name))(\(b.value))\n"
+                out += "            \(lead)\(rc.call)renders.render\(cap(st.name))(\(b.value))\n"
             } else {
                 out += "        case .\(lower(st.name)):\n"
-                out += "            return \(rc.call)renders.render\(cap(st.name))()\n"
+                out += "            \(lead)\(rc.call)renders.render\(cap(st.name))()\n"
             }
         }
         out += "        }\n    }\n"
@@ -345,6 +365,14 @@ private func refusals(_ d: MachineDesc) -> [String] {
     // cannot resolve a type still gets its lints. It cannot get a binding.
     for v in d.states + d.actions + d.effects where v.hasPayload && v.fields.isEmpty {
         out.append("tabular-center: the payload fields of `\(v.name)` are unknown, so the generator cannot bind them")
+    }
+    if let r = d.render, r.builder != nil {
+        if r.conformance.isEmpty {
+            out.append("tabular-center: a result-builder rendering prototype needs the protocol its views conform to, such as `View`")
+        }
+        if !Color(r.modifiers).suffix.isEmpty {
+            out.append("tabular-center: a result-builder rendering prototype cannot be `async` or `throws`; render synchronously and step asynchronously")
+        }
     }
     return out
 }
