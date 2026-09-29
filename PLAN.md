@@ -410,9 +410,9 @@ deprecation period, and `VERSION` stays where it is.
       runtime library path every Swift check exports, so a Swift binary they
       built could not load libdispatch. They take the Swift flake's `setup`
       now, as `renderings-agree` does
-- [ ] Commit the root `flake.lock` that `nix flake lock` writes once the three
+- [x] Commit the root `flake.lock` that `nix flake lock` writes once the three
       relative inputs exist. Written by nix rather than by hand: the format of
-      a relative-path node is nix's to decide
+      a relative-path node is nix's to decide. Done: CI composes the three flakes green on both platforms, which it could not do from an uncommitted lock
 
 ### R3. The name in prose and tooling -- nothing a user compiles against
 
@@ -521,9 +521,9 @@ rename, a development section, and one Rust sample.
       regenerates and diffs against the committed `doc/`, so a stale page
       fails CI and the fix is `./tools/docs` and a commit. The docs base
       diagnostics link under is `.../tabular-center/doc`
-- [ ] The language pages name the libraries by their current identifiers
+- [x] The language pages name the libraries by their current identifiers
       (`tabula`, `dev.tabula`, `Tabula`). R4 changes them; the pages follow in
-      the same patches, since the samples are included from the renamed code
+      the same patches, since the samples are included from the renamed code -- done: R4 renamed them and regenerated `doc/`
 
 ### CI
 
@@ -632,13 +632,13 @@ rename, a development section, and one Rust sample.
       fits every observation. `tools/swift-lock` now sets SWIFT_EXEC, SwiftPM's
       override, to the swiftc it resolved, and on failure lists every swiftc on
       PATH. Confirmed: the next Linux run went green, lock check included
-- [ ] **Regenerate the lock** (`nix run .#gradle-lock`, needs network) and
+- [x] **Regenerate the lock** (`nix run .#gradle-lock`, needs network) and
       commit it. Until then `kotlin-compose` fails on macOS and CI's
       "gradle lock is current" step is red -- correctly: the committed lock
-      does not match what the tool now resolves
-- [ ] `check-darwin` has never passed: the invalid workflow meant it never
+      does not match what the tool now resolves -- done, in byte order after the locale fix; CI's "gradle lock is current" step is green
+- [x] `check-darwin` has never passed: the invalid workflow meant it never
       ran, so this is its first real outing. `rust-gui` building on macOS in
-      the sandbox is expected, not yet observed
+      the sandbox is expected, not yet observed -- it has now: the first fully green macOS run came after the `observable-counter` fix
 - [x] `check-no-nix` removed. CI checks the Nix path only. `tools/verify`
       still runs without Nix -- the scripts are plain bash and nothing in them
       needs Nix -- but that path is supported and no longer exercised, and
@@ -1744,8 +1744,19 @@ type to be generic over an effect system it cannot abstract over.
       A table of cases follows from it, including the two that surprise: a
       new required member is major *because the guarantee works*, and a bug
       fix that removes a wrongly required member is still a signature change
-- [ ] Benchmarks vs. hand-written dispatch (the honest claim is "identical after
-      monomorphization"; verify it)
+- [x] Benchmarks vs. hand-written dispatch (the honest claim is "identical after
+      monomorphization"). Written: `tabular-center/benches/dispatch.rs`, run by
+      `nix run .#bench`. Three versions of the Timer -- the matrix
+      (`tests/timer_matrix.rs`), its hand-written expansion
+      (`tests/reference_timer.rs`), and a plain `match` with no library --
+      the first two included from the test files, so the machines timed are
+      the ones the suite checks. It asserts all three visit the same states
+      and emit the same effects before timing anything. No dependencies
+      (std's `Instant` and `black_box`), no harness, `test = false`: timing is
+      not a check, but `clippy --all-targets` keeps it compiling
+- [ ] Run it on real hardware and record the numbers here. If `matrix` and
+      `reference` differ beyond noise, that is a bug in the macro, not a
+      benchmark result. This also answers Phase 2's index-dispatch question
 
 ---
 

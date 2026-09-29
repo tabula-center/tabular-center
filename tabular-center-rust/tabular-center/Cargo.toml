@@ -16,3 +16,12 @@ alloc = []
 # which is part of the language, so there is no proc-macro crate and no
 # build-graph cost. See ARCHITECTURE.md section 11.1.
 [dependencies]
+
+# Dispatch cost against hand-written code. Its own `main`, so no test harness,
+# and no dev-dependency: it times with std alone. `test = false` keeps it out
+# of `cargo test` -- timing is not a check -- while `cargo clippy
+# --all-targets` still compiles it. Run: `cargo bench --bench dispatch`.
+[[bench]]
+name = "dispatch"
+harness = false
+test = false

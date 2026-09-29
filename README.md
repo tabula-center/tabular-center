@@ -96,6 +96,7 @@ nix develop            # all three toolchains; .#rust, .#kotlin, .#swift for one
 nix flake check        # the same steps, sandboxed, as CI runs them
 nix flake check ./tabular-center-kotlin   # one language on its own
 nix run .#conformance
+nix run .#bench        # matrix dispatch vs hand-written, timed
 nix run .#table-diff
 
 nix run .#release -- 0.1.0   # set the version everywhere, verify, tag

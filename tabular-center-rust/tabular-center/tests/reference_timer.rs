@@ -214,7 +214,9 @@ pub const TIMER_TABLE: Table<3, 3> = Table {
 // ---------------------------------------------------------------------------
 
 #[derive(Default)]
-struct TimerImpl;
+/// `pub` so `benches/dispatch.rs`, which includes this file as a module,
+/// can drive the same machine the tests do.
+pub struct TimerImpl;
 
 impl Handle<Timer, Idle, Start> for TimerImpl {
     fn handle(&mut self, _ctx: &mut Ctx, _state: Idle, _action: Start) -> Step<State, Effect> {

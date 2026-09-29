@@ -39,8 +39,24 @@ let
       cargo run -q -p tabular-center-conformance --bin table-diff --offline --locked -- "$@"
     '';
   };
+  # Dispatch cost: the matrix, its hand-written expansion, and a plain
+  # `match`, timed side by side. An app, not a check -- timing depends on the
+  # machine -- but the benchmark first asserts the three agree on every state,
+  # so a run that prints numbers is also a run that compared the same machine.
+  bench = pkgs.writeShellApplication {
+    name = "tabular-center-bench";
+    runtimeInputs = commonInputs ++ [ pkgs.git ] ++ rustInputs;
+    text = ''
+      ${cdRoot}
+      cd tabular-center-rust
+      cargo bench -q -p tabular-center --bench dispatch --offline --locked
+    '';
+  };
 in
 {
+  bench = app bench "tabular-center-bench"
+    "Time matrix dispatch against hand-written dispatch";
+
   verify = app verify "tabular-center-verify-rust"
     "Run the Rust steps of tools/verify, without the sandbox";
 
