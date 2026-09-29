@@ -56,6 +56,14 @@ data class MachineDesc(
      * parameter type`, a compile error in generated code the user never wrote.
      */
     val visibility: String = "",
+    /**
+     * The rendering prototype, or null for a machine without one. See
+     * [RenderDesc] and ARCHITECTURE §9.
+     *
+     * Null is the default and emits nothing, so every machine declared before
+     * the rendering surface existed generates exactly what it did.
+     */
+    val render: RenderDesc? = null,
 ) {
     init {
         require(rows.size == states.size) {
@@ -74,6 +82,30 @@ data class MachineDesc(
         }
     }
 }
+
+/**
+ * The rendering surface's prototype: `S -> UI`, declared separately from the
+ * transition prototype. ARCHITECTURE §9, PLAN Phase 9b.
+ *
+ * It generates one required member per STATE -- not per cell -- each taking
+ * its state already narrowed, and a `render` dispatcher that is an exhaustive
+ * `when` over the states. Its color is its own: [modifiers] are copied onto
+ * every render member and onto `render`, exactly as the transition
+ * prototype's are onto cells, and the two are independent. That is the point
+ * of a second prototype -- `@Composable` belongs here, where recomposition
+ * may call a member any number of times, and never on a transition, which
+ * would then run whenever Compose chose to recompose.
+ *
+ * No extension receiver yet: the dispatcher would have to thread one through,
+ * as `step` does for the transition prototype. Refused at extraction rather
+ * than generated wrong.
+ */
+data class RenderDesc(
+    /** Copied verbatim onto every render member and onto `render`. */
+    val modifiers: List<String> = emptyList(),
+    /** What a render member returns: `Unit` for a composable, a view type otherwise. */
+    val returnType: String = "Unit",
+)
 
 /**
  * One variant of a sealed hierarchy.

@@ -183,6 +183,7 @@ fun runValidationTests(): Int {
     )
 
     runAdditiveTest()
+    runRenderTests()
     runChildPackageTest()
     runEffectArgumentTest()
     runPathBackTest()
@@ -404,3 +405,36 @@ val timerRaw = RawMachine(
         )),
     ),
 )
+
+/**
+ * The rendering surface (ARCHITECTURE §9) is additive and exhaustive.
+ *
+ * Additive: a machine without a rendering prototype emits exactly what it
+ * did before the surface existed -- the property `paths` was built to, for the
+ * same reason. Exhaustive: one renderer and one dispatcher arm per state, and
+ * no `else` for a new state to fall into.
+ */
+private fun runRenderTests() {
+    val plain = buildDesc(raw())
+    val rendered = buildDesc(raw().copy(render = RenderDesc(listOf("@Composable"))))
+    val out = emit(rendered)
+
+    check("the render prototype survives buildDesc", rendered.render == RenderDesc(listOf("@Composable")))
+    check("without a render prototype nothing rendering-related is emitted", "Renders" !in emit(plain))
+    check(
+        "... and the rest of the output is untouched by one",
+        emit(plain) == out.substringBefore("\n/**\n * The rendering surface") +
+            out.substring(out.indexOf("\n/** The matrix as inert data."))
+    )
+    for (st in plain.states) {
+        check(
+            "a renderer for ${st.name}, narrowed, in the prototype's color",
+            "    @Composable fun render${st.name}(state: S.${st.name}): Unit" in out
+        )
+        check("a dispatcher arm for ${st.name}", "    is S.${st.name} -> renders.render${st.name}(state)" in out)
+    }
+    check("the dispatcher carries the color too", "@Composable fun render(renders: Renders, state: S): Unit" in out)
+    val dispatcher = out.substringAfter("fun render(renders: Renders").substringBefore("\n}")
+    check("the dispatcher has no else branch", "else" !in dispatcher)
+}
+

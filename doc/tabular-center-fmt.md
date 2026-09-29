@@ -5,7 +5,7 @@ title: tabular-center-fmt
 
 <!-- Generated from spec/tabular-center-fmt.md by tools/docs. Do not edit. -->
 
-[Home](./) · [Rust](rust) · [Kotlin](kotlin) · [Swift](swift) · [Cells](cells) · [Diagnostics](diagnostics) · [Matrix files](matrix-files) · [Source](https://github.com/tabula-center/tabular-center)
+[Home](./) · [Rust](rust) · [Kotlin](kotlin) · [Swift](swift) · [Migrating](migrating) · [Cells](cells) · [Diagnostics](diagnostics) · [Matrix files](matrix-files) · [Source](https://github.com/tabula-center/tabular-center)
 
 # `tabular-center-fmt`
 

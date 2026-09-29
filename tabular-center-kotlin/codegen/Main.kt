@@ -195,6 +195,13 @@ private val all = mapOf(
     "job" to jobDesc("generated.job", "retry"),
     // A colorless child in a colored parent: allowed, and compiled.
     "jobsuspend" to jobDesc("generated.jobsuspend", "retry", listOf("suspend")),
+    // The rendering surface (ARCHITECTURE §9): the Timer again, plus a render
+    // prototype. Its transitions stay `suspend` and its renderers are plain,
+    // which is the point of a second prototype -- two surfaces, two colors.
+    "timerrender" to timerDesc.copy(
+        packageName = "generated.timerrender",
+        render = RenderDesc(returnType = "String"),
+    ),
 )
 
 /**

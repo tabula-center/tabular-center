@@ -77,7 +77,7 @@ page() {
 # `rust.md` at `rust`, so these resolve on the site and in a local preview.
 nav() {
     printf -- '[Home](./) · [Rust](rust) · [Kotlin](kotlin) · [Swift](swift) · '
-    printf -- '[Cells](cells) · [Diagnostics](diagnostics) · [Matrix files](matrix-files) · '
+    printf -- '[Migrating](migrating) · [Cells](cells) · [Diagnostics](diagnostics) · [Matrix files](matrix-files) · '
     printf -- '[Source](%s)\n\n' "$REPO_URL"
 }
 
@@ -255,6 +255,9 @@ languages is a red build, not a bug report.
 - **[Rust](rust)**, **[Kotlin](kotlin)**, **[Swift](swift)** -- the same Timer
   in each, the code you write around it, what the compiler says when a cell is
   missing, composition and colors.
+- **[Migrating](migrating)** -- from Tinder StateMachine, KStateMachine,
+  Spring Statemachine and TCA: the concepts mapped, and the same machine
+  before and after.
 - **[Cells](cells)** -- the normative semantics of the six cell kinds.
 - **[Diagnostics](diagnostics)** -- every error code, its message and why it
   exists. Error messages link here.
@@ -563,6 +566,212 @@ prose <<'MD'
 | 7 | `SpecCheck` | `TabularCenterTesting`, matching and then deliberately mismatching |
 MD
 } > "$out/swift.md"
+
+# --- Migrating --------------------------------------------------------------
+#
+# The "after" halves are included from the examples, like every other sample.
+# The "before" halves are other libraries' code, which nothing here compiles,
+# so the page says so where it shows them.
+{
+front "Migrating"
+prose <<'MD'
+# Migrating to tabular-center
+
+Every library below lets you *list* transitions. tabular-center asks for a
+*grid*: one cell for every state and every action, each decided explicitly.
+That is the whole migration, and it is also the whole gain -- the cells a
+listing never mentions are exactly the ones a grid will not let you forget.
+Add a state or an action and the build breaks until every new cell has an
+answer; add an effect and every handler breaks until it performs it.
+
+The "before" sketches are written against each library's documented API to
+show the shape of the code you have now. They are not compiled here; check
+them against the version you use. The "after" code is included from this
+repository's examples, which CI builds and runs.
+
+## The concepts, mapped
+
+| You have | You write |
+|---|---|
+| a state | a row |
+| an event / action | a column |
+| a transition to a fixed state, maybe with a side effect | `GO(Target, Effect...)` -- no code |
+| a transition whose target is computed, or guarded | `HANDLE` -- one method, arguments already narrowed |
+| an event that does nothing in this state (often: silently unlisted) | `IGNORE`, written down |
+| an event that must never arrive in this state | `UNREACHABLE` -- a trap, counted by coverage |
+| a target-less / internal transition with a side effect | `EMIT(Effect...)` |
+| side-effect listeners, `onTransition`, actions | an effects enum, and one `perform` member per effect |
+| a composite / nested state | `DELEGATE(child)` -- a child machine, composed, not nested |
+
+## What has no equivalent
+
+Said up front, because each is a real feature of the libraries below:
+
+- **Hierarchy, parallel regions, history states.** tabular-center composes
+  flat machines with `DELEGATE` rather than nesting states. A statechart with
+  orthogonal regions becomes two machines side by side.
+- **Entry and exit actions.** Put the work in the effects of the transitions
+  that enter or leave the state -- which makes it visible in the grid, at the
+  cost of repeating it on each such transition.
+- **Machines built at runtime.** The matrix is a declaration the compiler
+  checks; there is no builder to call in a loop.
+- **Persistence and undo.** State is a value you own: store it, restore it,
+  keep the previous one if you need to go back.
+
+## From Tinder StateMachine (Kotlin)
+
+A stopwatch -- `Idle` and `Running(since)`, `Start` and `Stop`, a `Beep` on
+stopping -- in Tinder's DSL:
+
+```kotlin
+// Sketch against com.tinder.StateMachine's documented DSL; not compiled here.
+val stopwatch = StateMachine.create<State, Event, SideEffect> {
+    initialState(State.Idle)
+    state<State.Idle> {
+        on<Event.Start> { transitionTo(State.Running(clock.now())) }
+    }
+    state<State.Running> {
+        on<Event.Stop> {
+            lastElapsed = clock.now() - since
+            transitionTo(State.Idle, SideEffect.Beep)
+        }
+    }
+    onTransition {
+        val valid = it as? StateMachine.Transition.Valid ?: return@onTransition
+        if (valid.sideEffect == SideEffect.Beep) beeps++
+    }
+}
+```
+
+`Stop` while `Idle` and `Start` while `Running` appear nowhere: they come back
+as `Transition.Invalid` at runtime, and nothing says whether that was meant.
+The same machine here -- the two unlisted pairs are `IGNORE`, on the page:
+
+MD
+code $K/examples/06-generated/src/Stopwatch.tb.kt kotlin '^@Machine\(' '^\}'
+prose <<'MD'
+KSP turns the two `HANDLE` cells and the one effect into three members, each
+receiving its state and action already narrowed -- `state.since` is a field,
+not a cast:
+
+MD
+code $K/examples/06-generated/src/StopwatchImpl.kt kotlin '^internal class StopwatchImpl'
+prose <<'MD'
+`onTransition`'s `as?` and `if` become `beep`, which the compiler requires.
+
+## From KStateMachine (Kotlin)
+
+```kotlin
+// Sketch against KStateMachine's documented DSL; not compiled here.
+val machine = createStateMachine(scope) {
+    addInitialState(StopwatchState.Idle) {
+        transition<Start> {
+            targetState = StopwatchState.Running
+            onTriggered { since = clock.now() }
+        }
+    }
+    addState(StopwatchState.Running) {
+        transition<Stop> {
+            targetState = StopwatchState.Idle
+            onTriggered {
+                lastElapsed = clock.now() - since
+                beeps++
+            }
+        }
+    }
+}
+machine.processEvent(Start)
+```
+
+The declaration is the same as above: `transition<Start> { targetState = ... }`
+with `onTriggered` work is a `HANDLE` cell; one with no work is `GO`; a
+target-less one is a `HANDLE` that stays -- or `EMIT`, when its only work is
+an effect. KStateMachine's states are instances, so
+`since` lives outside them; here it is the payload of `Running`, and a cell
+cannot see it from any other state. Its coroutine support maps to a `suspend`
+prototype -- `suspend fun handle(...)` -- and `SuspendDriver`, with no
+coroutine library needed by the runtime.
+
+## From Spring Statemachine (Java or Kotlin)
+
+```java
+// Sketch against Spring Statemachine's documented configurer; not compiled here.
+@Override
+public void configure(StateMachineTransitionConfigurer<States, Events> transitions)
+        throws Exception {
+    transitions
+        .withExternal().source(States.IDLE).target(States.RUNNING).event(Events.START)
+            .action(ctx -> since = clock.now())
+        .and()
+        .withExternal().source(States.RUNNING).target(States.IDLE).event(Events.STOP)
+            .action(ctx -> { lastElapsed = clock.now() - since; beeps++; });
+}
+```
+
+Move to the Kotlin surface above: each `withExternal()` is a cell, an
+`.action(...)` makes it `HANDLE`, a `.guard(...)` belongs inside that same
+`HANDLE` as an `if`, and every `source`/`event` pair you did not configure
+becomes a cell you decide. What does not come along is the container: there
+is no bean, no `@EnableStateMachine`, no message channel. A machine is a
+function from a state and an action to a step, and `Driver` or
+`SuspendDriver` runs it.
+
+## From TCA (Swift)
+
+The Composable Architecture is not a state-machine library, but a reducer
+that switches on its state and action is a state machine -- with a
+`default:` that decides every pair nobody wrote down:
+
+```swift
+// Sketch against TCA 1.x's documented reducer; not compiled here.
+@Reducer
+struct Timer {
+    @ObservableState
+    enum State: Equatable { case idle, running(since: Int), done }
+    enum Action { case start, tick(now: Int), cancel }
+
+    var body: some ReducerOf<Self> {
+        Reduce { state, action in
+            switch (state, action) {
+            case (.idle, .start):
+                state = .running(since: 0)
+                return .run { _ in await clock.start() }
+            case let (.running(since), .tick(now)):
+                guard now - since >= limit else { return .none }
+                state = .done
+                return .run { _ in await clock.stop() }
+            case (.running, .cancel):
+                state = .idle
+                return .run { _ in await clock.stop() }
+            case (.done, .start):
+                state = .running(since: 0)
+                return .run { _ in await clock.start() }
+            default:
+                return .none
+            }
+        }
+    }
+}
+```
+
+The same Timer as a matrix. The `default:` is gone; its five cases are `IGNORE`
+cells you can see, and the two static transitions need no code at all:
+
+MD
+code $S/examples/Sources/Timer/Timer.tb.swift swift '^extension Timer' '^\}'
+prose <<'MD'
+The two computed cells, and the effects that replace the `.run` closures:
+
+MD
+code $S/examples/Sources/Timer/Timer.swift swift '^    struct Impl: Cells' '^    \}$'
+prose <<'MD'
+`@ObservableState` maps to `ObservableStore`, a `@MainActor` store SwiftUI can
+observe. `TestStore`'s role is shared: exhaustive behaviour tests stay yours,
+and `TabularCenterTesting`'s `.tbl` fixtures pin the matrix itself, one reviewable
+line per row. See [Swift](swift) for what is available today and what waits
+on the `@Machine` macro.
+MD
+} > "$out/migrating.md"
 
 cat > "$out/_config.yml" <<'EOF'
 # Minimal, and deliberately so. A theme with its own build step would be a

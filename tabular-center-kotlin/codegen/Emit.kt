@@ -141,6 +141,37 @@ fun emit(d: MachineDesc): String = buildString {
         appendLine("}")
     }
 
+    // -- rendering surface (optional) -------------------------------------
+    // Only for a machine that declares a rendering prototype. Without one,
+    // nothing here is emitted and the output is what it always was.
+    d.render?.let { r ->
+        val rmods = if (r.modifiers.isEmpty()) "" else r.modifiers.joinToString(" ") + " "
+        appendLine()
+        appendLine("/**")
+        appendLine(" * The rendering surface: one required member per state, the state narrowed.")
+        appendLine(" *")
+        appendLine(" * Its own prototype and its own color. A `@Composable` belongs here, where a")
+        appendLine(" * recomposition may call a member any number of times, and never reaches a")
+        appendLine(" * transition. Add a state and every renderer stops compiling, as every")
+        appendLine(" * handler does when a cell appears.")
+        appendLine(" */")
+        appendLine("${vis}interface Renders {")
+        for (s in d.states) {
+            appendLine("    ${rmods}fun render${cap(s.name)}(state: ${d.stateType}.${s.name}): ${r.returnType}")
+        }
+        appendLine("}")
+        appendLine()
+        appendLine("/** Render one state. No wildcard branch. */")
+        appendLine(
+            "$vis${rmods}fun render(renders: Renders, state: ${d.stateType}): ${r.returnType} = " +
+                "when (state) {"
+        )
+        for (s in d.states) {
+            appendLine("    is ${d.stateType}.${s.name} -> renders.render${cap(s.name)}(state)")
+        }
+        appendLine("}")
+    }
+
     // -- table ----------------------------------------------------------
     appendLine()
     appendLine("/** The matrix as inert data. Diagrams, lints, and coverage read this. */")

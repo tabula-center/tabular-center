@@ -930,7 +930,7 @@ step_kotlin_codegen() {
         # never compiled until these types existed. `refused/` is not in the
         # glob: those machines must NOT compile, and step 4 proves it.
         "$KOTLINC" -cp "$KCP" codegen/support/TimerTypes.kt codegen/support/ToggleTypes.kt \
-            codegen/support/StopwatchTypes.kt \
+            codegen/support/StopwatchTypes.kt codegen/support/TimerRenderTypes.kt \
             codegen/support/RetryTypes.kt codegen/support/RetrySuspendTypes.kt \
             codegen/support/JobTypes.kt codegen/support/JobSuspendTypes.kt \
             "$gen"/*.kt -d "$out/gen" 2>&1 | grep -v "^info:" || true
@@ -940,9 +940,10 @@ step_kotlin_codegen() {
         # 3. a complete implementation must satisfy it
         "$KOTLINC" -cp "$KCP:$out/gen" codegen/support/Complete.kt \
             codegen/support/CompleteJob.kt codegen/support/CompleteJobSuspend.kt \
+            codegen/support/CompleteRender.kt \
             -d "$out/cmp" 2>&1 | grep -v "^info:" || true
         [ -d "$out/cmp" ] || { echo "a complete implementation does not compile"; exit 1; }
-        echo "ok   complete implementations compile, composition in both parent colors included"
+        echo "ok   complete implementations compile, composition in both parent colors and the rendering surface included"
 
         # 4. an incomplete one must not -- the guarantee, after generation.
         #    A fixture named `<machine>_*.kt` for a machine the check marks

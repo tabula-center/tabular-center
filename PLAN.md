@@ -1719,6 +1719,28 @@ type to be generic over an effect system it cannot abstract over.
 
 ## Phase 9b — Rendering surface (optional, gated)
 
+"Gated" is per machine: nothing is generated unless a machine declares a
+rendering prototype, and a machine that does not emits exactly what it did
+before. Order of work: the Kotlin emitter (proven with plain `kotlinc`, no
+KSP), then the processor and the Compose example, then Swift's emitter, then
+the transition-prototype warning -- which needs harness work of its own, since
+a warning refuses nothing and every other fixture here proves a refusal.
+
+- [x] Kotlin emitter: `RenderDesc` (modifiers, return type) on `MachineDesc`
+      and `RawMachine`, defaulted to null so every existing caller compiles
+      untouched. With one, `emit` adds a `Renders` interface -- one member per
+      state, `render<State>(state: S.<State>)`, narrowed -- and a `render`
+      dispatcher that is an exhaustive `when` with no `else`, both carrying the
+      render prototype's modifiers and neither the transition prototype's.
+      Proven by `kotlin-codegen`: a `timerrender` twin (the Timer's `suspend`
+      transitions, plain renderers) emits and compiles, `CompleteRender`
+      compiles against it, and `timerrender_missing_renderer.kt` must be
+      refused. `Tests.kt` checks the surface is additive -- cut the render
+      block from a rendered machine and the rest is byte-identical to the
+      plain one -- and exhaustive. No extension receiver on the render
+      prototype yet: refused at extraction, not generated wrong
+- [ ] KSP: read a second prototype from the annotated interface, and the
+      Compose example (`07-compose`) rendering through `Renders`
 - [ ] Second prototype for view derivation (`S -> UI`)
 - [ ] One required member per state, narrowed payloads
 - [ ] Kotlin: `@Composable` rendering cells
@@ -1734,8 +1756,16 @@ type to be generic over an effect system it cannot abstract over.
       It led with both already; the composition property was a claim with no
       demonstration, and now shows a DELEGATE row and what the compiler does
       with a hole in the child
-- [ ] Migration guide: from Tinder StateMachine, KStateMachine, Spring
-      Statemachine, TCA
+- [x] Migration guide: from Tinder StateMachine, KStateMachine, Spring
+      Statemachine, TCA -- `doc/migrating.md`, generated like every page. A
+      concept map (states -> rows, guarded transitions -> `HANDLE`, unlisted
+      pairs -> explicit `IGNORE`, listeners -> effects, nesting ->
+      `DELEGATE`), an honest list of what has no equivalent (hierarchy,
+      parallel regions, history, entry/exit, runtime-built machines, undo),
+      and one machine before and after per library: the Kotlin three against
+      the KSP Stopwatch, TCA against the Swift Timer. The "after" code is
+      included from the examples; the "before" code is other libraries', not
+      compiled here, and the page says so where it shows it
 - [ ] Publish: crates.io, Maven Central, Swift Package Index
 - [x] Semantic-versioning policy — specifically, what counts as a breaking
       change to *generated* code. `RELEASING.md`: generated code is API, one

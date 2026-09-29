@@ -82,6 +82,8 @@ data class RawMachine(
     val prototypeReceiver: String = "",
     /** See [MachineDesc.visibility]. */
     val visibility: String = "",
+    /** See [MachineDesc.render]. */
+    val render: RenderDesc? = null,
 )
 
 /** A variant as the processor reads it, before validation. */
@@ -218,6 +220,7 @@ fun buildDesc(raw: RawMachine): MachineDesc {
         children = raw.children,
         prototypeReceiver = raw.prototypeReceiver,
         visibility = raw.visibility,
+        render = raw.render,
     )
 }
 
