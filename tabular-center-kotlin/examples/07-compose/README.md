@@ -27,7 +27,7 @@ decides *where the machine lives*, and the two are separable. Nothing in
 | File | Knows about |
 |---|---|
 | `Machine.tb.kt` | the matrix, and nothing else |
-| `ConnectionStateMachine.kt` | the generated `Cells`, and how to describe a state to a human |
+| `ConnectionStateMachine.kt` | the generated `Cells`, and the generated `Renders` -- one description per state |
 | `TabularCenterMachine.kt` | `step` and `perform` as values — no machine in particular |
 | `Ui.kt` | strings and callbacks |
 

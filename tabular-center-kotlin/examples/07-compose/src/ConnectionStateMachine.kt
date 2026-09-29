@@ -15,7 +15,9 @@ import example.compose.connection.A
 import example.compose.connection.Cells
 import example.compose.connection.Ctx
 import example.compose.connection.F
+import example.compose.connection.Renders
 import example.compose.connection.S
+import example.compose.connection.render
 import dev.tabularcenter.Export
 import example.compose.connection.TABLE
 import example.compose.connection.perform
@@ -86,21 +88,33 @@ class ConnectionStateMachine(
 }
 
 /**
- * How a connection state is described to a human, and nothing else.
+ * How each connection state is described to a human, and nothing else.
+ *
+ * The machine's rendering surface (ARCHITECTURE §9): `Machine.tb.kt` declares
+ * a `render` prototype, and the generator requires one member per state, each
+ * receiving its state narrowed -- `renderLive` reads `state.since` with no
+ * cast. This was a hand-written `when` over `S`. The `when` was exhaustive
+ * too, but it was a convention this file kept; now it is a surface the
+ * generator owns, so a new state fails here the same way a new cell fails in
+ * `ConnectionCells`.
+ */
+object ConnectionDescriptions : Renders {
+    override fun renderIdle(state: S.Idle): Pair<String, String> = "Idle" to "Nothing connected."
+    override fun renderConnecting(state: S.Connecting): Pair<String, String> = "Connecting" to "Dialling..."
+    override fun renderLive(state: S.Live): Pair<String, String> = "Live" to "Connected at ${state.since}."
+    override fun renderFailed(state: S.Failed): Pair<String, String> = "Failed" to "The connection dropped."
+}
+
+/**
+ * A connection state as a screen's model.
  *
  * A pure function, so both screens share it: this one, which owns its state,
  * and the nested one in `SessionStateMachine`, whose state belongs to its
- * parent. The `when` is over the MODEL -- it decides what to show, never what
- * happens next -- and it is exhaustive because `S` is sealed, so a new state
- * stops this compiling too.
+ * parent. It decides what to show, never what happens next; the per-state
+ * wording comes from [ConnectionDescriptions] through the generated `render`.
  */
 fun connectionModel(state: S, send: (A) -> Unit): ConnectionModel {
-    val (status, detail) = when (state) {
-        is S.Idle -> "Idle" to "Nothing connected."
-        is S.Connecting -> "Connecting" to "Dialling..."
-        is S.Live -> "Live" to "Connected at ${state.since}."
-        is S.Failed -> "Failed" to "The connection dropped."
-    }
+    val (status, detail) = render(ConnectionDescriptions, state)
 
     return ConnectionModel(
         status = status,

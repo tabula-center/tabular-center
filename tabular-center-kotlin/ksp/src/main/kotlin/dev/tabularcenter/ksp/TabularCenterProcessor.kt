@@ -6,6 +6,7 @@ import codegen.RawMachine
 import codegen.RawPath
 import codegen.RawRow
 import codegen.RawVariant
+import codegen.RenderDesc
 import codegen.TabularCenterError
 import codegen.buildDesc
 import codegen.emit
@@ -156,6 +157,7 @@ class TabularCenterProcessor(
             paths = paths,
             prototypeReceiver = prototypeReceiver(decl),
             visibility = visibilityOf(decl),
+            render = renderOf(decl),
         )
     }
 
@@ -273,6 +275,50 @@ class TabularCenterProcessor(
             if (Modifier.SUSPEND in proto.modifiers) add("suspend")
             proto.annotations.forEach { add("@" + it.shortName.asString()) }
         }
+    }
+
+    /**
+     * The rendering prototype, or null for a machine without one.
+     *
+     * A second function on the annotated interface, named `render`, taking
+     * the state: `fun render(state: S): R`. ARCHITECTURE §9. Optional -- no
+     * `render`, no rendering surface, and the generated file is what it was.
+     *
+     * Its color is read the way [prototypeModifiers] reads `handle`'s, with
+     * one difference: annotations are copied by QUALIFIED name. The generated
+     * file imports nothing but `dev.tabularcenter`, so `@Composable` copied as
+     * a short name would not resolve there; `@androidx.compose.runtime.Composable`
+     * does, with no import. (`handle`'s annotations are still copied short --
+     * no example has put one there yet. PLAN.md, Phase 9b.)
+     *
+     * Refused rather than generated wrong: an extension receiver, which the
+     * `render` dispatcher would have to thread through, and any shape other
+     * than one parameter.
+     */
+    private fun renderOf(decl: KSClassDeclaration): RenderDesc? {
+        val proto = decl.getDeclaredFunctions().firstOrNull { it.simpleName.asString() == "render" }
+            ?: return null
+        if (proto.extensionReceiver != null) {
+            error(
+                "a rendering prototype with an extension receiver is not supported yet; " +
+                    "declare `fun render(state: S): R` without one"
+            )
+        }
+        if (proto.parameters.size != 1) {
+            error(
+                "the rendering prototype takes exactly one parameter, the state; " +
+                    "`render` here takes ${proto.parameters.size}"
+            )
+        }
+        val modifiers = buildList {
+            if (Modifier.SUSPEND in proto.modifiers) add("suspend")
+            proto.annotations.forEach { a ->
+                val fq = a.annotationType.resolve().declaration.qualifiedName?.asString()
+                add("@" + (fq ?: a.shortName.asString()))
+            }
+        }
+        val returnType = proto.returnType?.resolve()?.render() ?: "Unit"
+        return RenderDesc(modifiers = modifiers, returnType = returnType)
     }
 
     /**

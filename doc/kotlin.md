@@ -171,6 +171,45 @@ Make the prototype `suspend fun handle(...)` and `step`, `perform` and every
 member suspend; `SuspendDriver` runs it with no coroutine library, from
 `tabular-center-core` alone. A suspending child under a plain parent does not compile.
 
+## Rendering
+
+A second prototype, `render`, turns a state into whatever a UI needs, and the
+generator gives it the same guarantee as the cells: one required member per
+state, the state narrowed, and a `render` dispatcher with no `else`. It has
+its own color, so `@Composable` goes here and never on a transition. The
+Compose example describes its connection states through it:
+
+```kotlin
+interface ConnectionSpec {
+    fun handle(ctx: Ctx, state: S, action: A): Step<S, F>
+
+    /**
+     * The rendering prototype (ARCHITECTURE §9): how a state is described to a
+     * human, as a status and a detail. The generator turns it into `Renders`,
+     * one required member per state with the state narrowed, and a `render`
+     * dispatcher with no `else`. Its own prototype, so it has its own color --
+     * none here -- independent of `handle`'s.
+     */
+    fun render(state: S): Pair<String, String>
+}
+```
+
+<sub>From [`tabular-center-kotlin/examples/07-compose/src/Machine.tb.kt`](https://github.com/tabula-center/tabular-center/blob/main/tabular-center-kotlin/examples/07-compose/src/Machine.tb.kt).</sub>
+
+```kotlin
+object ConnectionDescriptions : Renders {
+    override fun renderIdle(state: S.Idle): Pair<String, String> = "Idle" to "Nothing connected."
+    override fun renderConnecting(state: S.Connecting): Pair<String, String> = "Connecting" to "Dialling..."
+    override fun renderLive(state: S.Live): Pair<String, String> = "Live" to "Connected at ${state.since}."
+    override fun renderFailed(state: S.Failed): Pair<String, String> = "Failed" to "The connection dropped."
+}
+```
+
+<sub>From [`tabular-center-kotlin/examples/07-compose/src/ConnectionStateMachine.kt`](https://github.com/tabula-center/tabular-center/blob/main/tabular-center-kotlin/examples/07-compose/src/ConnectionStateMachine.kt).</sub>
+
+`render(ConnectionDescriptions, state)` returns the pair. Add a state and this
+object stops compiling until it says how that state reads.
+
 ## Setting it up
 
 Not on Maven Central yet. The examples consume the repository the way you can

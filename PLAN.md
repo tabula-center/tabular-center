@@ -1739,8 +1739,26 @@ a warning refuses nothing and every other fixture here proves a refusal.
       block from a rendered machine and the rest is byte-identical to the
       plain one -- and exhaustive. No extension receiver on the render
       prototype yet: refused at extraction, not generated wrong
-- [ ] KSP: read a second prototype from the annotated interface, and the
-      Compose example (`07-compose`) rendering through `Renders`
+- [x] KSP: `renderOf` reads a second function, `render`, from the annotated
+      interface -- `suspend` and annotations as its color, its return type
+      fully qualified -- and refuses an extension receiver or any shape but
+      one parameter, as a `tabular-center:` error at the declaration.
+      Annotations are copied by QUALIFIED name: the generated file imports
+      only `dev.tabularcenter`, so a short `@Composable` would not resolve
+      there. The Compose example's connection screen renders through it:
+      `Machine.tb.kt` declares `fun render(state: S): Pair<String, String>`,
+      and `ConnectionDescriptions` replaces a hand-written `when` over `S` --
+      exhaustive before too, but by convention; now by a surface the
+      generator owns. Built by `kotlin-compose` through KSP. The renderer
+      is plain on purpose: `connectionModel` is a pure function both screens
+      share, and making it composable to exercise the annotation path would
+      change the design for a test. So `@Composable` on a renderer is proven
+      at string level (`Tests.kt`), not yet compiled by an example
+- [ ] The transition prototype copies its annotations by SHORT name
+      (`prototypeModifiers`), which cannot resolve in the generated file --
+      no example has put one there, so it has never run. It belongs with the
+      `@Composable`-on-a-transition warning below: the one annotation anyone
+      is likely to put on `handle` is the one that warning exists for
 - [ ] Second prototype for view derivation (`S -> UI`)
 - [ ] One required member per state, narrowed payloads
 - [ ] Kotlin: `@Composable` rendering cells

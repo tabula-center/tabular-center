@@ -452,6 +452,21 @@ Make the prototype `suspend fun handle(...)` and `step`, `perform` and every
 member suspend; `SuspendDriver` runs it with no coroutine library, from
 `tabular-center-core` alone. A suspending child under a plain parent does not compile.
 
+## Rendering
+
+A second prototype, `render`, turns a state into whatever a UI needs, and the
+generator gives it the same guarantee as the cells: one required member per
+state, the state narrowed, and a `render` dispatcher with no `else`. It has
+its own color, so `@Composable` goes here and never on a transition. The
+Compose example describes its connection states through it:
+
+MD
+code $K/examples/07-compose/src/Machine.tb.kt kotlin '^interface ConnectionSpec' '^\}'
+code $K/examples/07-compose/src/ConnectionStateMachine.kt kotlin '^object ConnectionDescriptions' '^\}'
+prose <<'MD'
+`render(ConnectionDescriptions, state)` returns the pair. Add a state and this
+object stops compiling until it says how that state reads.
+
 ## Setting it up
 
 Not on Maven Central yet. The examples consume the repository the way you can
