@@ -100,6 +100,24 @@ public func emit(_ d: MachineDesc) -> String {
     }
     out += "}\n\n"
 
+    // -- rendering surface (optional) ------------------------------------
+    // Only for a machine that declares a rendering prototype (ARCHITECTURE
+    // 9). Without one nothing here is emitted, and the output is what it was.
+    if let r = d.render {
+        let rc = Color(r.modifiers)
+        out += "/// The rendering surface: one required member per state, the state narrowed.\n"
+        out += "///\n"
+        out += "/// Its own prototype and its own color, independent of the cells'. Add a\n"
+        out += "/// state and every renderer stops compiling, as every handler does when a\n"
+        out += "/// cell appears.\n"
+        out += "protocol \(d.machine)Renders {\n"
+        for st in d.states {
+            let arg = st.hasPayload ? "_ state: \(own(st.name))" : ""
+            out += "    \(rc.prefix)func render\(cap(st.name))(\(arg))\(rc.suffix) -> \(r.returnType)\n"
+        }
+        out += "}\n\n"
+    }
+
     // -- generated members, in the machine's namespace -------------------
     out += "extension \(d.machine) {\n"
 
@@ -192,6 +210,29 @@ public func emit(_ d: MachineDesc) -> String {
                     }.joined(separator: ", ") + ")"
                 out += "        case let \(b.pattern):\n"
                 out += "            return \(color.call)cells.\(lower(e.name))(ctx, \(arg))\n"
+            }
+        }
+        out += "        }\n    }\n"
+    }
+
+    // -- render dispatcher (optional) ------------------------------------
+    // Binds a payload state's fields and builds its narrowed struct, the way
+    // `step` does for a HANDLE cell; a payload-free state's renderer takes
+    // nothing.
+    if let r = d.render {
+        let rc = Color(r.modifiers)
+        out += "\n    /// Render one state. No `default:` branch.\n"
+        out += "    \(rc.prefix)static func render(_ renders: \(d.machine)Renders, _ s: \(own(d.stateType)))"
+        out += "\(rc.suffix) -> \(r.returnType) {\n"
+        out += "        switch s {\n"
+        for st in d.states {
+            let b = bind(st, side: "s", avoid: ["renders", "s"], owner: d.machine)
+            if st.hasPayload && !b.names.isEmpty {
+                out += "        case let \(b.pattern):\n"
+                out += "            return \(rc.call)renders.render\(cap(st.name))(\(b.value))\n"
+            } else {
+                out += "        case .\(lower(st.name)):\n"
+                out += "            return \(rc.call)renders.render\(cap(st.name))()\n"
             }
         }
         out += "        }\n    }\n"

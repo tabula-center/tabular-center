@@ -83,6 +83,8 @@ public struct RawMachine {
     /// a machine with a spine and the same machine written longhand produce
     /// byte-identical `TABLE`, `.grid`, `.lint`, `.cov` and `.mmd`.
     public let paths: [RawPath]
+    /// See `MachineDesc.render`.
+    public let render: RenderDesc?
 
     public init(
         machine: String,
@@ -97,7 +99,8 @@ public struct RawMachine {
         rows: [RawRow],
         prototypeModifiers: [String] = [],
         children: [ChildDesc] = [],
-        paths: [RawPath] = []
+        paths: [RawPath] = [],
+        render: RenderDesc? = nil
     ) {
         self.machine = machine
         self.stateType = stateType
@@ -112,6 +115,7 @@ public struct RawMachine {
         self.prototypeModifiers = prototypeModifiers
         self.children = children
         self.paths = paths
+        self.render = render
     }
 }
 
@@ -251,7 +255,8 @@ public func buildDesc(_ raw: RawMachine) throws -> MachineDesc {
         effects: raw.effects.map { Variant($0.name, hasPayload: $0.hasPayload, fields: $0.fields) },
         rows: rows,
         prototypeModifiers: raw.prototypeModifiers,
-        children: raw.children
+        children: raw.children,
+        render: raw.render
     )
 }
 

@@ -33,6 +33,10 @@ public struct MachineDesc {
     public let prototypeModifiers: [String]
     /// Child machines reached by `delegate`, in first-appearance order.
     public let children: [ChildDesc]
+    /// The rendering prototype, or nil for a machine without one. See
+    /// `RenderDesc`. Nil is the default and emits nothing, so every machine
+    /// declared before the rendering surface generates exactly what it did.
+    public let render: RenderDesc?
 
     public init(
         machine: String,
@@ -46,7 +50,8 @@ public struct MachineDesc {
         effects: [Variant],
         rows: [[CellDesc]],
         prototypeModifiers: [String] = [],
-        children: [ChildDesc] = []
+        children: [ChildDesc] = [],
+        render: RenderDesc? = nil
     ) {
         self.machine = machine
         self.stateType = stateType
@@ -60,6 +65,33 @@ public struct MachineDesc {
         self.rows = rows
         self.prototypeModifiers = prototypeModifiers
         self.children = children
+        self.render = render
+    }
+}
+
+/// The rendering surface's prototype: `S -> UI`, declared separately from the
+/// transition prototype. ARCHITECTURE §9, PLAN Phase 9b.
+///
+/// It generates one required member per STATE -- `renderIdle()`,
+/// `renderRunning(_ state: Timer.Running)`, narrowed exactly as cells are --
+/// and a `render` dispatcher that switches over every state with no
+/// `default:`. Its color is its own: `modifiers` are split and placed as the
+/// transition prototype's are (attributes before `func`, `async`/`throws`
+/// after the parameters, `try await` at the call), and the two are
+/// independent.
+///
+/// `returnType` is concrete. SwiftUI's `@ViewBuilder` returns `some View`,
+/// which a protocol requirement cannot -- it needs an associated type -- so
+/// that is a separate step (PLAN, Phase 9b), not something to approximate.
+public struct RenderDesc: Equatable {
+    /// Copied onto every render member and onto `render`.
+    public let modifiers: [String]
+    /// What a render member returns.
+    public let returnType: String
+
+    public init(modifiers: [String] = [], returnType: String = "Void") {
+        self.modifiers = modifiers
+        self.returnType = returnType
     }
 }
 

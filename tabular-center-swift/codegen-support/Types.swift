@@ -57,6 +57,19 @@ enum TimerAsync {
     typealias Tick = Timer.Tick
 }
 
+/// The Timer again, with a rendering surface (ARCHITECTURE 9): its cells
+/// `async throws` like `TimerAsync`'s, its renderers plain -- two prototypes,
+/// two colors. The types are the Timer's; the rendering surface adds members,
+/// not types.
+enum TimerRender {
+    typealias S = Timer.S
+    typealias A = Timer.A
+    typealias F = Timer.F
+    typealias Ctx = Timer.Ctx
+    typealias Running = Timer.Running
+    typealias Tick = Timer.Tick
+}
+
 // MARK: - Retry: the child
 
 enum Retry {

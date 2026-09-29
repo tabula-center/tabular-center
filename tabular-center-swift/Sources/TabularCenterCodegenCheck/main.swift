@@ -254,7 +254,7 @@ expectError("a back action the machine does not declare", "tabular-center::path-
 /// `timer.tbl`, as the macro would build it from syntax -- plus `Note`, an
 /// effect no static cell names, so the payload-carrying handler is emitted and
 /// compiled. `codegen-support/Types.swift` declares the types it names.
-func timerMachine(_ name: String, modifiers: [String] = []) -> RawMachine {
+func timerMachine(_ name: String, modifiers: [String] = [], render: RenderDesc? = nil) -> RawMachine {
     RawMachine(
         machine: name,
         initial: "Idle",
@@ -291,7 +291,8 @@ func timerMachine(_ name: String, modifiers: [String] = []) -> RawMachine {
                 RawCell("IGNORE"), RawCell("IGNORE"),
             ]),
         ],
-        prototypeModifiers: modifiers
+        prototypeModifiers: modifiers,
+        render: render
     )
 }
 
@@ -353,12 +354,72 @@ func jobMachine(_ name: String, child: String, modifiers: [String] = []) -> RawM
     )
 }
 
+// The rendering surface (ARCHITECTURE 9) is additive and exhaustive: the two
+// properties Kotlin's `Tests.kt` checks of its emitter. Line-based on purpose:
+// `String.contains(String)` is macOS 13+, and this runs on 10.13's target.
+do {
+    let plain = try buildDesc(timerMachine("RenderProbe"))
+    let color = RenderDesc(modifiers: ["@MainActor"])
+    let rendered = try buildDesc(timerMachine("RenderProbe", render: color))
+    let out = emit(rendered)
+    let outLines = out.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+    let plainLines = emit(plain).split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+
+    check("the render prototype survives buildDesc", rendered.render == color)
+    check(
+        "without a render prototype nothing rendering-related is emitted",
+        !plainLines.contains { $0.hasSuffix("Renders {") || $0.hasSuffix("Render one state. No `default:` branch.") }
+    )
+
+    // Cut both render blocks out of the rendered output; what is left must be
+    // the plain machine's output, byte for byte.
+    var rest = outLines
+    if let a = rest.firstIndex(of: "/// The rendering surface: one required member per state, the state narrowed."),
+       let b = rest[a...].firstIndex(of: "}") {
+        rest.removeSubrange(a...(b + 1))
+    }
+    if let a = rest.firstIndex(of: "    /// Render one state. No `default:` branch."),
+       let b = rest[a...].firstIndex(of: "    }") {
+        rest.removeSubrange((a - 1)...b)
+    }
+    check("... and the rest of the output is untouched by one", rest == plainLines)
+
+    check("a renderer for Idle, in the prototype's color", outLines.contains("    @MainActor func renderIdle() -> Void"))
+    check(
+        "a renderer for Running, narrowed",
+        outLines.contains("    @MainActor func renderRunning(_ state: RenderProbe.Running) -> Void")
+    )
+    check("a renderer for Done", outLines.contains("    @MainActor func renderDone() -> Void"))
+    check(
+        "the dispatcher carries the color too",
+        outLines.contains("    @MainActor static func render(_ renders: RenderProbeRenders, _ s: RenderProbe.S) -> Void {")
+    )
+    check("a bound arm for Running", outLines.contains("        case let .running(since):"))
+    check(
+        "... building the narrowed struct",
+        outLines.contains("            return renders.renderRunning(RenderProbe.Running(since: since))")
+    )
+    if let a = outLines.firstIndex(of: "    /// Render one state. No `default:` branch."),
+       let b = outLines[a...].firstIndex(of: "    }") {
+        check("the dispatcher has no default branch", !outLines[a...b].contains { $0.hasSuffix("default:") })
+    } else {
+        check("the dispatcher was found", false)
+    }
+} catch {
+    checks += 1
+    failures += 1
+    print("FAIL render test: \(error)")
+}
+
 /// Every machine the check emits. `refused` ones must NOT compile, and are
 /// written apart so `tools/verify` compiles them only with the fixture that
 /// names them.
 let emitted: [(name: String, raw: RawMachine, refused: Bool)] = [
     ("timer", timerRaw, false),
     ("timer-async", timerAsyncRaw, false),
+    // The rendering surface: async cells, plain renderers. Two prototypes,
+    // two colors.
+    ("timer-render", timerMachine("TimerRender", modifiers: ["async", "throws"], render: RenderDesc(returnType: "String")), false),
     ("retry", retryMachine("Retry"), false),
     ("retry-async", retryMachine("RetryAsync", modifiers: ["async", "throws"]), false),
     ("job", jobMachine("Job", child: "retry"), false),

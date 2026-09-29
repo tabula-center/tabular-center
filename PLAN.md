@@ -1759,6 +1759,25 @@ a warning refuses nothing and every other fixture here proves a refusal.
       no example has put one there, so it has never run. It belongs with the
       `@Composable`-on-a-transition warning below: the one annotation anyone
       is likely to put on `handle` is the one that warning exists for
+- [x] Swift emitter: `RenderDesc` (modifiers, a concrete return type) on
+      `MachineDesc` and `RawMachine`, nil by default. With one, `emit` adds a
+      file-scope `<Machine>Renders` protocol -- `renderIdle()`,
+      `renderRunning(_ state: Timer.Running)`, narrowed as cells are -- and
+      `static func render` in the machine's extension: a `switch` with no
+      `default:`, binding payload fields and building the narrowed struct as
+      `step` does. The render prototype's color goes through `Color`, like
+      the cells': attributes before `func`, `async`/`throws` after, `try await`
+      at the call. Proven by `swift-codegen`: a `TimerRender` twin
+      (`async throws` cells, plain renderers) compiles with
+      `CompleteTimerRender`, and `timer-render_missing_renderer.swift` must be
+      refused naming `TimerRenderRenders` -- a hole in the cells would name
+      `TimerRenderCells` and not match. `TabularCenterCodegenCheck` checks it
+      is additive (both render blocks cut, the rest byte-identical) and
+      exhaustive, line by line, since `String.contains(String)` is macOS 13+
+- [ ] Swift `@ViewBuilder` renderers. SwiftUI's `some View` cannot be a
+      protocol requirement's return type; it needs an associated type (one per
+      state, or one for all), which changes how `render` is typed. A design
+      step of its own, not an approximation of this one
 - [ ] Second prototype for view derivation (`S -> UI`)
 - [ ] One required member per state, narrowed payloads
 - [ ] Kotlin: `@Composable` rendering cells
