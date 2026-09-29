@@ -525,6 +525,28 @@ step_kotlin_ksp_compile_fail() {
             -PtabulaFixture="$name" build 2>&1) )"
         local rc=$?
 
+        # `//~ BUILDS` marks a WARNING fixture: the build must succeed, and
+        # print the diagnostic, positioned. Every other fixture proves a
+        # refusal; a warning refuses nothing, so without this mode its code
+        # could only be counted as tested by a fixture that never passed. The
+        # marker is explicit on purpose: the comment below is why a build that
+        # merely warns must never be read as an error fixture passing.
+        if grep -q '^//~ BUILDS' "$dir"/*.kt 2>/dev/null; then
+            if [ "$rc" -ne 0 ]; then
+                echo "FAIL $name -- a warning fixture, but the build failed"
+                printf '%s' "$out" | grep -iE "^e:|error:" | head -3 | sed 's/^/       /'
+                bad=1
+            elif ! grep -qF -- "$expect" <<<"$out"; then
+                echo "FAIL $name -- built, but did not warn \`$expect\`"
+                bad=1
+            elif ! check_position "$dir" "$src" "$expect" "$out"; then
+                bad=1
+            else
+                echo "ok   $name ($expect, a warning, positioned)"
+            fi
+            continue
+        fi
+
         # The exit status first, for the reason tools/compile-fail records: a
         # fixture that COMPILES but warns has non-empty output, and a warning
         # containing the expected text would report a passing build as ok.

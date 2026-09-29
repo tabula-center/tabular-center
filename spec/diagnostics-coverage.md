@@ -7,7 +7,9 @@ fails on any disagreement in either direction.
 
 It exists because nothing compared the three. The divergence below was found by
 looking, not by a check, after this file's absence had let it sit: of the
-twenty-two codes, Rust emits thirteen, and Kotlin and Swift emit twenty each.
+twenty-two codes then, Rust emitted thirteen, and Kotlin and Swift twenty each.
+(A twenty-third, `tabular-center::composable-transition`, came later and is
+Kotlin's alone; see the note under the table.)
 Two are emitted by nobody, each for a stated reason:
 `tabular-center::color-mismatch` by decision (see the last section), and
 `tabular-center::unsupported-color` because only Rust can have it, and does. The gaps
@@ -16,6 +18,7 @@ different states, and only one of them survives a refactor.
 
 ```coverage
 tabular-center::color-mismatch     -
+tabular-center::composable-transition  kotlin
 tabular-center::dead-column        rust kotlin swift
 tabular-center::dead-row           rust kotlin swift
 tabular-center::empty-emit         rust kotlin swift
@@ -38,6 +41,10 @@ tabular-center::unknown-state      kotlin swift
 tabular-center::unreachable-heavy  rust kotlin swift
 tabular-center::unsupported-color  rust
 ```
+
+`composable-transition` is Kotlin's alone: it warns about `@Composable`, which
+only a Kotlin prototype can carry. It is the one warning in the table, tested by
+a KSP fixture that must BUILD (`//~ BUILDS`) and print it.
 
 `unsupported-color` is Rust's alone, and cannot be otherwise: Kotlin and Swift
 copy prototype modifiers verbatim, so every modifier their compiler accepts is

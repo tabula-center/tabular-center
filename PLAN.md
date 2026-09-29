@@ -1754,11 +1754,11 @@ a warning refuses nothing and every other fixture here proves a refusal.
       share, and making it composable to exercise the annotation path would
       change the design for a test. So `@Composable` on a renderer is proven
       at string level (`Tests.kt`), not yet compiled by an example
-- [ ] The transition prototype copies its annotations by SHORT name
-      (`prototypeModifiers`), which cannot resolve in the generated file --
-      no example has put one there, so it has never run. It belongs with the
-      `@Composable`-on-a-transition warning below: the one annotation anyone
-      is likely to put on `handle` is the one that warning exists for
+- [x] The transition prototype copied its annotations by SHORT name, which
+      cannot resolve in the generated file; no machine had put one on
+      `handle`, so it had never run. Qualified now, as `renderOf` copies --
+      and proven by the warning fixture below, whose generated cells carry
+      `@androidx.compose.runtime.Composable` and must compile
 - [x] Swift emitter: `RenderDesc` (modifiers, a concrete return type) on
       `MachineDesc` and `RawMachine`, nil by default. With one, `emit` adds a
       file-scope `<Machine>Renders` protocol -- `renderIdle()`,
@@ -1778,12 +1778,24 @@ a warning refuses nothing and every other fixture here proves a refusal.
       protocol requirement's return type; it needs an associated type (one per
       state, or one for all), which changes how `render` is typed. A design
       step of its own, not an approximation of this one
-- [ ] Second prototype for view derivation (`S -> UI`)
-- [ ] One required member per state, narrowed payloads
-- [ ] Kotlin: `@Composable` rendering cells
-- [ ] Swift: SwiftUI `@ViewBuilder` cells
-- [ ] Warning when `@Composable` appears on a *transition* prototype (Compose
-      runtime may skip / restart / discard — a real correctness hazard, not style)
+- [x] Second prototype for view derivation (`S -> UI`) -- the emitters and
+      KSP above
+- [x] One required member per state, narrowed payloads -- in both emitters,
+      each with a fixture refusing a missing renderer
+- [x] Kotlin: `@Composable` rendering cells -- copied qualified by `renderOf`,
+      checked at string level; the qualified-copy mechanism itself is compiled
+      by the warning fixture below. No example renders composably yet (the
+      Compose example's renderer is plain, for the reason given above)
+- [ ] Swift: SwiftUI `@ViewBuilder` cells -- the associated-type design above
+- [x] Warning when `@Composable` appears on a *transition* prototype (Compose
+      runtime may skip / restart / discard — a real correctness hazard, not
+      style): `tabular-center::composable-transition`, Kotlin only, positioned
+      at `handle`. The first diagnostic that warns instead of refusing, so the
+      KSP harness gained a mode for it: a fixture marked `//~ BUILDS` must
+      build, print the diagnostic, and position it. Its fixture stubs
+      `androidx.compose.runtime.Composable` -- the processor matches by
+      qualified name, and without Compose's compiler plugin it is only an
+      annotation -- so it needs nothing new in the Gradle lock
 
 ---
 

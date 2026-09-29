@@ -64,6 +64,7 @@ class TabularCenterProcessor(
 
         for (decl in machines) {
             try {
+                warnComposableTransition(decl)
                 val raw = readMachine(decl)
                 val desc = buildDesc(raw)
                 write(decl, desc.packageName, raw.machine, emit(desc))
@@ -273,8 +274,43 @@ class TabularCenterProcessor(
             ?: return emptyList()
         return buildList {
             if (Modifier.SUSPEND in proto.modifiers) add("suspend")
-            proto.annotations.forEach { add("@" + it.shortName.asString()) }
+            // Qualified, as `renderOf` copies them: the generated file imports
+            // only `dev.tabularcenter`, so a short name would not resolve there.
+            // Short names were copied until Phase 9b; no machine had put an
+            // annotation on `handle`, so it had never run.
+            proto.annotations.forEach { a ->
+                val fq = a.annotationType.resolve().declaration.qualifiedName?.asString()
+                add("@" + (fq ?: a.shortName.asString()))
+            }
         }
+    }
+
+    /**
+     * `tabular-center::composable-transition`: `@Composable` on the TRANSITION
+     * prototype. ARCHITECTURE §5 and §9.
+     *
+     * A warning, not a refusal. Colors are copied, never judged, so the
+     * machine is generated as declared -- every cell composable. But Compose
+     * may skip, restart, reorder or discard a composition, and a transition
+     * run inside one may therefore run any number of times, or not at all:
+     * a correctness hazard against the runtime's contract, not a style
+     * point. The rendering prototype is where `@Composable` belongs, and the
+     * message says so. Positioned at `handle`, which is what to change.
+     */
+    private fun warnComposableTransition(decl: KSClassDeclaration) {
+        val proto = decl.getDeclaredFunctions().firstOrNull { it.simpleName.asString() == "handle" }
+            ?: return
+        val composable = proto.annotations.any {
+            it.annotationType.resolve().declaration.qualifiedName?.asString() == COMPOSABLE
+        }
+        if (!composable) return
+        logger.warn(
+            "tabular-center::composable-transition: `handle` is @Composable, so every transition " +
+                "runs inside composition, which Compose may skip, restart, reorder or discard. " +
+                "Keep `handle` plain and put UI in a rendering prototype, " +
+                "`@Composable fun render(state: S)`.",
+            proto,
+        )
     }
 
     /**
@@ -477,3 +513,6 @@ class TabularCenterProcessorProvider : SymbolProcessorProvider {
     override fun create(environment: SymbolProcessorEnvironment): SymbolProcessor =
         TabularCenterProcessor(environment.codeGenerator, environment.logger)
 }
+
+/** Compose's annotation, by the name the processor compares against. */
+private const val COMPOSABLE = "androidx.compose.runtime.Composable"

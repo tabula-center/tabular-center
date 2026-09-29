@@ -259,6 +259,30 @@ it, and `async` is the only one a trait method can carry on stable. Named,
 rather than left to `no rules expected the token`, because the right fix is a
 different prototype, and the generic error would not say which.
 
+<a id="tabular-center-composable-transition"></a>
+
+### `tabular-center::composable-transition`
+
+```
+tabular-center::composable-transition: `handle` is @Composable, so every transition
+runs inside composition, which Compose may skip, restart, reorder or discard.
+Keep `handle` plain and put UI in a rendering prototype,
+`@Composable fun render(state: S)`.
+```
+
+A **warning**, the only diagnostic here that does not refuse. Colors are
+copied, never judged (ARCHITECTURE 5), so the machine is generated as declared,
+every cell composable. But a composition may be skipped, restarted, reordered
+or discarded, and a transition run inside one may therefore run any number of
+times or not at all -- a correctness hazard against the runtime's contract,
+not a style point. The rendering prototype (ARCHITECTURE 9) is where
+`@Composable` belongs, and the message names it.
+
+Kotlin only, by construction: `@Composable` is Compose's, and a Rust or Swift
+prototype cannot carry it. Its fixture is the one KSP fixture marked
+`//~ BUILDS` -- the build must succeed, with this warning, positioned at
+`handle`.
+
 <a id="tabular-center-empty-emit"></a>
 
 ### `tabular-center::empty-emit`
@@ -498,6 +522,7 @@ true at every width.
 Every code, including the ones described as a group above.
 
 - [`tabular-center::color-mismatch`](#tabular-center-color-mismatch)
+- [`tabular-center::composable-transition`](#tabular-center-composable-transition)
 - <a id="tabular-center-dead-column"></a>`tabular-center::dead-column`
 - <a id="tabular-center-dead-row"></a>`tabular-center::dead-row`
 - [`tabular-center::empty-emit`](#tabular-center-empty-emit)
