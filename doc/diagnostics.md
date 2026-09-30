@@ -283,6 +283,34 @@ prototype cannot carry it. Its fixture is the one KSP fixture marked
 `//~ BUILDS` -- the build must succeed, with this warning, positioned at
 `handle`.
 
+<a id="tabular-center-member-collision"></a>
+
+### `tabular-center::member-collision`
+
+```
+tabular-center::member-collision: cell (LogIn, Start) and cell (Log, InStart)
+would both generate the member `logInStart`. Rename a state, an action or an
+effect so the two differ.
+```
+
+Generated member names are concatenations -- a HANDLE cell's is
+`lower(state) + Cap(action)`, an effect handler's `lower(effect)`, a child's
+lens members its alias plus a fixed suffix -- and a concatenation with nothing
+between its parts can meet another: `LogIn`+`Start` and `Log`+`InStart` are
+both `logInStart`. `hadilq/happy` names nested cases the same way and does not
+check either (spec/happy-paths.md). Every member of the generated `Cells`
+surface is checked against every other, from the same list the emitter names
+them from.
+
+Kotlin and Swift. In Swift a collision between payload-free cells does not
+compile: both members take only `_ ctx`, and the second is an "invalid
+redeclaration" in generated code, far from the matrix. In Kotlin it would
+compile, as two overloads with different parameter types, and is refused
+anyway: two unrelated `logInStart`s on one interface are a trap for whoever
+implements it, and one rule across both reads better than two. Rust has no
+generated member names -- its cells are trait impls keyed by type -- so there
+is nothing to collide.
+
 <a id="tabular-center-empty-emit"></a>
 
 ### `tabular-center::empty-emit`
@@ -529,6 +557,7 @@ Every code, including the ones described as a group above.
 - <a id="tabular-center-extra-row"></a>`tabular-center::extra-row`
 - [`tabular-center::go-target`](#tabular-center-go-target)
 - <a id="tabular-center-ignore-heavy"></a>`tabular-center::ignore-heavy`
+- [`tabular-center::member-collision`](#tabular-center-member-collision)
 - [`tabular-center::missing-row`](#tabular-center-missing-row)
 - <a id="tabular-center-no-static-entry"></a>`tabular-center::no-static-entry`
 - <a id="tabular-center-no-static-exit"></a>`tabular-center::no-static-exit`

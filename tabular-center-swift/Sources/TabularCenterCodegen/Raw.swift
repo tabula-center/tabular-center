@@ -243,7 +243,7 @@ public func buildDesc(_ raw: RawMachine) throws -> MachineDesc {
         rows.append(out)
     }
 
-    return MachineDesc(
+    let desc = MachineDesc(
         machine: raw.machine,
         stateType: raw.stateType,
         actionType: raw.actionType,
@@ -258,6 +258,26 @@ public func buildDesc(_ raw: RawMachine) throws -> MachineDesc {
         children: raw.children,
         render: raw.render
     )
+    try checkMemberCollisions(desc)
+    return desc
+}
+
+/// `tabular-center::member-collision`: two things the generator would give
+/// the same member name. See Kotlin's `checkMemberCollisions` for why it is
+/// refused in both languages; here it would otherwise surface as an "invalid
+/// redeclaration" in generated code, far from the matrix that caused it.
+private func checkMemberCollisions(_ d: MachineDesc) throws {
+    var seen: [String: GeneratedMember] = [:]
+    for m in cellsMembers(d) {
+        if let first = seen[m.name] {
+            try fail(
+                "tabular-center::member-collision",
+                "\(first.origin) and \(m.origin) would both generate the member `\(m.name)`. "
+                    + "Rename a state, an action or an effect so the two differ."
+            )
+        }
+        seen[m.name] = m
+    }
 }
 
 private func cell(

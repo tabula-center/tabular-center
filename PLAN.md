@@ -1191,9 +1191,12 @@ the hand-written version.
 - [x] `TABLE` const emission
 - [x] `TABLE` as a `const` `[[Cell; M]; N]` -- for every machine, not only
       payload-free ones
-- [ ] Index dispatch for payload-free machines. Never written: dispatch is a
-      `match` for every machine. Whether it would buy anything is the Phase 10
-      benchmark's question, not this one's
+- [x] Index dispatch for payload-free machines -- **decided against**, on the
+      Phase 10 benchmark's numbers. All three versions it timed dispatch
+      through one `match`, and the 2x gap between the library and a plain
+      `match` is in the return value (`Step`'s outcome and inline effects
+      array), not in dispatch. Index dispatch would speed up the part that is
+      already equal. The cost worth attacking is `Step`'s size: see Phase 10
 - [x] Color, as Rust allows it: `async` only, through `AsyncHandle` /
       `AsyncPerform` and `.await` at the HANDLE call and in `perform`. Not
       `unsafe` / `const` / `extern` splatting: the cell surface is a library
@@ -1845,30 +1848,36 @@ a warning refuses nothing and every other fixture here proves a refusal.
       and emit the same effects before timing anything. No dependencies
       (std's `Instant` and `black_box`), no harness, `test = false`: timing is
       not a check, but `clippy --all-targets` keeps it compiling
-- [ ] Run it on real hardware and record the numbers here. If `matrix` and
-      `reference` differ beyond noise, that is a bug in the macro, not a
-      benchmark result. This also answers Phase 2's index-dispatch question
+- [x] Run it on real hardware and record the numbers here. One run, on a
+      working machine with a dirty tree, ns per step, 21 rounds of 200 000
+      cycles:
 
----
+      | | min | median |
+      |---|---|---|
+      | `matrix` | 2.13 | 2.70 |
+      | `reference` | 1.88 | 2.55 |
+      | `plain` | 0.94 | 1.19 |
 
-### Findings from the examples
-
-Writing the four worked examples immediately found an API bug that none of the
-unit tests could:
-
-- **`Driver::run` did not compile for any realistic caller.** Both closures
-  captured the cell object and the context, which is `cannot borrow as mutable
-  more than once`. Every driver test had passed because none of them needed
-  `perform` to touch the same state as `step`. Both closures now take `&mut Env`.
-- **Kotlin has no such problem**, so its driver keeps the simpler capturing
-  form. A difference in the *API* rather than the semantics, and the right call
-  is to let each language have the shape that works there.
-
-That is the argument for examples over more unit tests: a unit test exercises
-the API the way its author already imagined it.
-
-## Cross-cutting, every phase
-
+      Two readings. `matrix` against `reference` is 13% slower at the minimum
+      and 6% at the median, but each version's own min-to-median spread is
+      about 25% -- wider than the gap -- so this run neither confirms nor
+      refutes "identical after monomorphization"; timing is the wrong
+      instrument for "identical". And `plain` is 2x faster than both, which
+      is the real result: the three dispatch alike, so the difference is the
+      value returned -- `Step<S, F, K>` carries an `Outcome` and a fixed-
+      capacity inline `Effects` array where `plain` returns
+      `(State, Option<Effect>)`. About a nanosecond per step, paid by the
+      macro and the hand-written reference alike: "zero-cost" holds against
+      hand-written code of the same shape, not against the smallest `match`
+- [ ] "Identical after monomorphization", settled properly: compare the
+      optimised assembly of `matrix` and `reference` (`cargo asm`, or
+      `--emit asm` on the bench), not their timings. If they differ, the
+      difference is a bug in the macro
+- [ ] `Step`'s cost. A nanosecond a step over a plain `match`, from the
+      outcome-plus-effects-array return value. Worth measuring what the
+      default effect capacity `K` contributes before changing anything --
+      the array is what makes `Step` allocation-free, which is not to be
+      traded casually
 - [x] **One definition of green.** `tools/verify` is it; `nix flake check` runs
       its steps in a sandbox and CI runs the flake. Any new check goes in
       `tools/verify`, never directly in the workflow.
@@ -2577,13 +2586,16 @@ carries its own checklist; the boxes below track it rather than duplicate it.
       member (interface members cannot be `inline`), so the narrowed surface
       needs a generated per-hop outcome type; and flattened names are never
       collision-checked -- neither there nor here
-- [ ] Member-name collisions. Cell members are `lower(state) + Cap(action)`,
-      unchecked: states `LogIn`/`Log` with actions `Start`/`InStart` both
-      give `logInStart`. Harmless in Kotlin (distinct parameter types make
-      overloads) and in Rust (cells are keyed by type), but two payload-free
-      Swift cells take only `_ ctx` and collide as an "invalid redeclaration"
-      inside generated code. A diagnostic at the matrix, before the narrowed
-      surface adds more names on the same scheme
+- [x] Member-name collisions: `tabular-center::member-collision`, Kotlin and
+      Swift, in `buildDesc`. Every member of the generated `Cells` surface --
+      HANDLE cells, DELEGATE prisms, child lens members, effect handlers -- is
+      checked against every other, from the list the emitter names them
+      from (`cellsMembers`), so the check cannot disagree with the emitter.
+      Refused in Kotlin too, where it would compile as overloads: one rule
+      across both. Not Rust, which generates no member names. Fixtures: a KSP
+      one positioned at the second colliding row, and a Swift macro one,
+      `(logIn, start)` against `(log, inStart)`. No existing machine collides
+      (20 Kotlin specs scanned; the scan does flag the fixture)
 - [x] Decide spine-vs-cell and the declaration syntax, in `spec/`, before any
       implementation. A spine, declared by a separate `@Path` whose elements
       alternate state and action.

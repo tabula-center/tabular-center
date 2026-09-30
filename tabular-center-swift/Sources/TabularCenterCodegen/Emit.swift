@@ -381,6 +381,47 @@ private func refusals(_ d: MachineDesc) -> [String] {
 ///
 /// Swift macros can build identifiers, so Swift names cells — the same choice
 /// Kotlin makes, and the opposite of Rust, where `macro_rules!` cannot.
+/// One member of the generated `Cells` protocol, and what it was generated
+/// from -- for `tabular-center::member-collision`.
+struct GeneratedMember {
+    let name: String
+    let origin: String
+}
+
+/// Every member the generated `Cells` protocol declares: one per HANDLE cell,
+/// one per DELEGATE cell's action prism, four lens members per child, one per
+/// effect. The one list both the emitter's naming and `buildDesc`'s collision
+/// check read, so the check cannot disagree with what is emitted.
+///
+/// Swift is where a collision bites: a payload-free cell's member takes only
+/// `_ ctx`, so two payload-free cells named alike declare the same signature
+/// twice -- an "invalid redeclaration" inside generated code.
+func cellsMembers(_ d: MachineDesc) -> [GeneratedMember] {
+    var out: [GeneratedMember] = []
+    for (i, row) in d.rows.enumerated() {
+        for (j, cell) in row.enumerated() {
+            let at = "cell (\(d.states[i].name), \(d.actions[j].name))"
+            switch cell {
+            case .handle:
+                out.append(GeneratedMember(name: member(d, i, j), origin: at))
+            case .delegate:
+                out.append(GeneratedMember(name: member(d, i, j) + "ToChild", origin: at))
+            default:
+                break
+            }
+        }
+    }
+    for ch in d.children {
+        for suffix in ["ChildState", "Embed", "Lift", "ChildCtx"] {
+            out.append(GeneratedMember(name: ch.alias + suffix, origin: "child `\(ch.alias)`"))
+        }
+    }
+    for e in d.effects {
+        out.append(GeneratedMember(name: lower(e.name), origin: "effect \(e.name)"))
+    }
+    return out
+}
+
 private func member(_ d: MachineDesc, _ i: Int, _ j: Int) -> String {
     lower(d.states[i].name) + cap(d.actions[j].name)
 }

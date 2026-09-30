@@ -209,6 +209,41 @@ private inline fun forEachCell(d: MachineDesc, body: (Int, Int, CellDesc) -> Uni
     d.rows.forEachIndexed { i, row -> row.forEachIndexed { j, c -> body(i, j, c) } }
 }
 
+/**
+ * One member of the generated `Cells` interface, and what it was generated
+ * from -- for `tabular-center::member-collision`.
+ */
+internal data class GeneratedMember(val name: String, val origin: String, val state: String?)
+
+/**
+ * Every member the generated `Cells` interface declares: one per HANDLE cell,
+ * one per DELEGATE cell's action prism, four lens members per child, one per
+ * effect.
+ *
+ * The one list both the emitter's naming and `buildDesc`'s collision check
+ * read, so the check cannot disagree with what is emitted. Names are
+ * concatenations -- `lower(state) + cap(action)`, as `hadilq/happy`'s are --
+ * and nothing else stops `LogIn`+`Start` and `Log`+`InStart` meeting at
+ * `logInStart`.
+ */
+internal fun cellsMembers(d: MachineDesc): List<GeneratedMember> = buildList {
+    forEachCell(d) { i, j, cell ->
+        val at = "cell (${d.states[i].name}, ${d.actions[j].name})"
+        when (cell) {
+            is CellDesc.Handle -> add(GeneratedMember(member(d, i, j), at, d.states[i].name))
+            is CellDesc.Delegate ->
+                add(GeneratedMember(member(d, i, j) + "ToChild", at, d.states[i].name))
+            else -> {}
+        }
+    }
+    for (c in d.children) {
+        for (suffix in listOf("ChildState", "Embed", "Lift", "ChildCtx")) {
+            add(GeneratedMember(c.alias + suffix, "child `${c.alias}`", null))
+        }
+    }
+    for (e in d.effects) add(GeneratedMember(lower(e.name), "effect ${e.name}", null))
+}
+
 private fun child(d: MachineDesc, alias: String): ChildDesc =
     d.children.firstOrNull { it.alias == alias }
         ?: error("tabular-center::unknown-child: `$alias` is not a declared child")

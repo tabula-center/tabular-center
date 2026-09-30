@@ -204,7 +204,7 @@ fun buildDesc(raw: RawMachine): MachineDesc {
         }
     }
 
-    return MachineDesc(
+    val desc = MachineDesc(
         packageName = raw.packageName,
         machine = raw.machine,
         stateType = raw.stateType,
@@ -222,6 +222,33 @@ fun buildDesc(raw: RawMachine): MachineDesc {
         visibility = raw.visibility,
         render = raw.render,
     )
+    checkMemberCollisions(desc)
+    return desc
+}
+
+/**
+ * `tabular-center::member-collision`: two things the generator would give the
+ * same member name.
+ *
+ * Refused in Kotlin although the collision would compile -- the two members'
+ * parameter types differ, so they are overloads -- because two unrelated
+ * `logInStart`s on one interface are a trap for whoever implements it, and
+ * because in Swift the same collision between payload-free cells does not
+ * compile at all, and one rule reads better than two. Rust has no generated
+ * member names: its cells are trait impls keyed by type.
+ */
+private fun checkMemberCollisions(d: MachineDesc) {
+    val seen = HashMap<String, GeneratedMember>()
+    for (m in cellsMembers(d)) {
+        val first = seen.putIfAbsent(m.name, m) ?: continue
+        throw TabularCenterError(
+            "tabular-center::member-collision",
+            "tabular-center::member-collision: ${first.origin} and ${m.origin} would both " +
+                "generate the member `${m.name}`. Rename a state, an action or an effect so " +
+                "the two differ.",
+            m.state ?: first.state,
+        )
+    }
 }
 
 private fun cell(
