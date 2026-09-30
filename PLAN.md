@@ -2152,7 +2152,10 @@ extension narrows that to exactly the files that need it.
       the Rust tool, whose `--check` output was not available; `tb-aligned`
       runs the Rust tool, so if the two disagree on any line it fails naming
       it, and `nix run .#tb-fmt` writes the tool's version. No compile-fail
-      fixture changed
+      fixture changed. Confirmed afterwards: `nix run .#tb-fmt` found
+      nothing to change and `tb-aligned` passed, so the Rust tool and the
+      prototype agree on every real matrix in the repository, not only on
+      the test cases
 
 **The problem.** A matrix is only readable while its columns line up, and every
 language formatter wants to destroy that. We already work around it: the
@@ -2560,10 +2563,27 @@ implementations is how the expensive version of this goes.
 **`spec/happy-paths.md` is now the source of truth for this feature** and
 carries its own checklist; the boxes below track it rather than duplicate it.
 
-- [ ] Read `hadilq/happy`'s processor, `happy-processor-common`, for what the
+- [x] Read `hadilq/happy`'s processor, `happy-processor-common`, for what the
       generated DSL actually looks like once nested cases are involved — the
       naming scheme there (`SituationOneOptionTwo`) is the part that got
       thought about, and matrix cells have the same flattening problem.
+      Read from source; findings in `spec/happy-paths.md`, "What
+      `hadilq/happy` does". Leaves flatten by path with no separator; `elvis`
+      is an `inline` extension on the sealed type (which is what lets a handler
+      `return` from the caller) with one UpperCamel parameter per leaf and a
+      `when` with no `else`; `elseIf` loses an omitted case to `result!!` at
+      runtime, which is the documented reason it is forbidden here. Two
+      consequences for this project: a hop's `elvis` cannot be a `Cells`
+      member (interface members cannot be `inline`), so the narrowed surface
+      needs a generated per-hop outcome type; and flattened names are never
+      collision-checked -- neither there nor here
+- [ ] Member-name collisions. Cell members are `lower(state) + Cap(action)`,
+      unchecked: states `LogIn`/`Log` with actions `Start`/`InStart` both
+      give `logInStart`. Harmless in Kotlin (distinct parameter types make
+      overloads) and in Rust (cells are keyed by type), but two payload-free
+      Swift cells take only `_ ctx` and collide as an "invalid redeclaration"
+      inside generated code. A diagnostic at the matrix, before the narrowed
+      surface adds more names on the same scheme
 - [x] Decide spine-vs-cell and the declaration syntax, in `spec/`, before any
       implementation. A spine, declared by a separate `@Path` whose elements
       alternate state and action.
@@ -2577,6 +2597,9 @@ carries its own checklist; the boxes below track it rather than duplicate it.
       exist yet.
 - [ ] The narrowed calling surface, `elvis`-shaped, with the two-outcome
       `elseIf` special case allowed and everything else refused.
+      *Design constraint from the `happy` reading:* Kotlin's `elvis` must be
+      an `inline` extension on a generated per-hop outcome type, not a `Cells`
+      member, for handlers to `return` from the caller
 - [x] Defaults derived from the spine: a `HANDLE` named by a hop becomes a
       `GO` (`derive` in `codegen/Raw.kt` and `TabulaCodegen/Raw.swift`), shown
       by `examples/kotlin/06-generated/src/Spine.tb.kt` and pinned by

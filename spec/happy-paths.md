@@ -223,6 +223,55 @@ second-class in the interface because they are second-class in the intent.
   it inside the generated member would hide an effect execution inside what
   looks like a state transition.
 
+## What `hadilq/happy` does, read from its source
+
+Read in September 2026 from `happy-processor-common` -- `FindCases.kt`,
+`GenerateElvisFunction.kt`, `GenerateBuilderFunction.kt`,
+`GenerateHappyFile.kt` -- and the nested tests in `happy-sample`. What it does,
+and what each part means here.
+
+- **Nested cases flatten to their leaves, named by path.** `findCases` walks
+  the sealed hierarchy; an intermediate sealed level contributes only its name,
+  a leaf becomes a case, and the names are joined with nothing between them:
+  `A.SituationOne.OptionTwo` is `SituationOneOptionTwo`. The happy type is
+  filtered at every level, so it may itself be nested (`A.B.HappyA`, beside
+  `BOptionOne`). *Here:* a hop is `(from, action)`, so a cell never nests
+  beyond those two names -- except through `DELEGATE`, where a hop's non-happy
+  outcomes include the child's. Those should flatten the same way, child
+  then state (`AuthLockedOut`), which is the scheme `happy` settled on.
+- **`elvis` takes one parameter per leaf, named by the flattened path, in
+  UpperCamel** -- `BOptionOne = { ... }` -- matching the variant it stands
+  for, as this spec's `Failed = { ... }` already does. Each handler receives the
+  whole narrowed value and must return the happy type. The body is an
+  exhaustive `when(this)`: happy first, then every leaf, **no `else`**.
+- **`elvis` is an `inline` extension on the sealed type**, and that is what
+  makes the railway style work: a handler may `return` from the enclosing
+  function (`{ return B.failure(it.why) }`). *Here, a constraint on the
+  design:* a Kotlin interface member cannot be `inline`, so a hop's `elvis`
+  cannot be a `Cells` member. The hop member returns a generated per-hop
+  outcome type -- the happy state, or one of the states the hop can otherwise
+  reach -- and `elvis` is an `inline` extension on it, which is `happy`'s own
+  architecture, one sealed type per hop.
+- **`infix` only when there is exactly one non-happy leaf.** With more, Kotlin
+  needs the parentheses of named arguments; `happy`'s README calls it the one
+  disadvantage. The same holds for a hop with one alternative outcome.
+- **`elseIf` loses a forgotten case at runtime, and this is why it is
+  forbidden here.** The generated body starts from `var result: HappyA? = null`,
+  each case function assigns it only if the value matches, and it ends in
+  `return result!!` (the many-case builder uses a `lateinit` the same way). A
+  case the caller omits is a `NullPointerException`, not a compile error --
+  the property "The rule that constrains everything else" exists to rule out,
+  now documented from the source rather than asserted.
+- **Flattened names are never checked for collisions.** `happy` joins names
+  with `""` and trusts the result; so do this project's emitters, whose cell
+  members are `lower(state) + Cap(action)`. States `LogIn`/`Log` and actions
+  `Start`/`InStart` both give `logInStart`. In Kotlin the two stay legal
+  overloads (their parameters differ) and in Rust cells are keyed by type, not
+  name; but a Swift cell whose state and action carry no payload takes only
+  `_ ctx`, so two colliding payload-free cells are an "invalid redeclaration"
+  in generated code instead of a diagnostic at the matrix. The narrowed
+  surface would inherit the same scheme. PLAN.md, happy paths, tracks it.
+
 ## A path may name how it is walked backwards
 
 **All three.** Swift spells it as a labelled third argument,
