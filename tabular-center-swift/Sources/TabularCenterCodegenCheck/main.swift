@@ -179,7 +179,25 @@ do {
     let underived = try buildDesc(spineConn(spineRows, paths: []))
 
     check("a spine-derived machine equals its longhand twin", derived.rows == longhand.rows)
-    check("... and emits byte-identical source, TABLE included", emit(derived) == emit(longhand))
+    // The path now adds one thing on purpose: the narrowed surface, one member
+    // per hop. Everything else is still exactly the longhand machine.
+    check("... and, hops aside, emits byte-identical source, TABLE included",
+          emit(derived.withoutHops) == emit(longhand))
+    check("the path's two hops are recorded",
+          derived.hops == [HopDesc(from: 0, action: 0, to: 1), HopDesc(from: 1, action: 1, to: 2)])
+
+    // The narrowed surface, per spec/happy-paths.md "Settled before implementation".
+    let lines = emit(derived).split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+    check("(Connecting, Ready) can end anywhere: a HANDLE is in its row",
+          hopOutcomes(derived, derived.hops[1]) == [0, 1, 2, 3])
+    check("(Idle, Start) ends in Connecting or stays Idle", hopOutcomes(derived, derived.hops[0]) == [0, 1])
+    check("the member takes the action that arrived",
+          lines.contains("    static func connectingReady(_ cells: ConnCells, _ ctx: Conn.Ctx, _ action: Conn.A) -> ConnectingReady {"))
+    check("every state but Live is a required label, and rethrows",
+          lines.contains("        func elvis(idle: ([Conn.F]) throws -> [Conn.F], connecting: ([Conn.F]) throws -> [Conn.F], failed: ([Conn.F]) throws -> [Conn.F]) rethrows -> [Conn.F] {"))
+    check("a state the row cannot produce is a trap, not a default",
+          lines.contains("        case .live: fatalError(\"tabular-center: the `Idle` row cannot produce `Live`\")")
+            && !lines.contains { $0.hasSuffix("default:") })
     // The control: without it, a `derive` that did nothing would still pass the
     // two checks above whenever the longhand twin was written wrong.
     check("without the path, the same rows are a different machine", underived.rows != longhand.rows)
@@ -473,6 +491,21 @@ let emitted: [(name: String, raw: RawMachine, refused: Bool)] = [
     // Builder mode, SwiftUI's shape, with the stand-in `ViewishBuilder`: SwiftUI
     // does not exist on Linux, and the generator only needs the names.
     ("timer-view", timerMachine("TimerView", render: RenderDesc(builder: "ViewishBuilder", conformance: "Viewish")), false),
+    // The narrowed surface (spec/happy-paths.md): Drop in Connecting is a HANDLE
+    // the path does not name, so `connectingReady` can end in any state.
+    ("connect", RawMachine(
+        machine: "Connect", initial: "Idle",
+        states: [RawVariant("Idle"), RawVariant("Connecting"), RawVariant("Live"), RawVariant("Failed")],
+        actions: [RawVariant("Start"), RawVariant("Ready"), RawVariant("Drop")],
+        effects: [RawVariant("Banner")],
+        rows: [
+            RawRow("Idle", [RawCell("HANDLE"), RawCell("IGNORE"), RawCell("IGNORE")]),
+            RawRow("Connecting", [RawCell("IGNORE"), RawCell("HANDLE"), RawCell("HANDLE")]),
+            RawRow("Live", [RawCell("IGNORE"), RawCell("IGNORE"), RawCell("IGNORE")]),
+            RawRow("Failed", [RawCell("IGNORE"), RawCell("IGNORE"), RawCell("IGNORE")]),
+        ],
+        paths: [RawPath(name: "connect", elements: ["Idle", "Start", "Connecting", "Ready", "Live"])]
+    ), false),
     ("retry", retryMachine("Retry"), false),
     ("retry-async", retryMachine("RetryAsync", modifiers: ["async", "throws"]), false),
     ("job", jobMachine("Job", child: "retry"), false),

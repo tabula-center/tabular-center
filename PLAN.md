@@ -2618,9 +2618,9 @@ carries its own checklist; the boxes below track it rather than duplicate it.
       `elvis` to do); its outcomes are the states the `from` row can produce,
       keyed by state; effects come back with the state, never run inside;
       Kotlin `inline` extension on a per-hop sealed type, Swift labelled
-      `rethrows` closures, Rust `into_happy()` and `?`. Kotlin implemented
-      (emitter, KSP, fixture); Swift and Rust next -- the checklist is in
-      `spec/happy-paths.md`, "Order of work"
+      `rethrows` closures, Rust `into_happy()` and `?`. Kotlin and Swift
+      implemented (emitter, fixture; KSP for Kotlin); Rust next -- the
+      checklist is in `spec/happy-paths.md`, "Order of work"
 - [x] Defaults derived from the spine: a `HANDLE` named by a hop becomes a
       `GO` (`derive` in `codegen/Raw.kt` and `TabulaCodegen/Raw.swift`), shown
       by `examples/kotlin/06-generated/src/Spine.tb.kt` and pinned by

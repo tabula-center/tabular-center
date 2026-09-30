@@ -70,6 +70,34 @@ enum TimerRender {
     typealias Tick = Timer.Tick
 }
 
+// MARK: - Connect: the narrowed surface
+//
+// A path Idle -> Connecting -> Live, where Drop in Connecting is a HANDLE the
+// path does not name -- so `connectingReady` can end in any state -- and emits
+// an effect, which comes back with the outcome rather than being run. The
+// Kotlin twin is `generated.connect`.
+
+enum Connect {
+    enum S: Equatable {
+        case idle
+        case connecting
+        case live
+        case failed
+    }
+
+    enum A: Equatable {
+        case start
+        case ready
+        case drop
+    }
+
+    enum F: Equatable {
+        case banner
+    }
+
+    final class Ctx {}
+}
+
 // MARK: - A stand-in for SwiftUI, for the builder-mode rendering surface
 //
 // SwiftUI does not exist on Linux, and `@ViewBuilder` renderers are generated

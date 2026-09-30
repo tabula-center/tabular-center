@@ -37,6 +37,10 @@ public struct MachineDesc {
     /// `RenderDesc`. Nil is the default and emits nothing, so every machine
     /// declared before the rendering surface generates exactly what it did.
     public let render: RenderDesc?
+    /// The forward hops of every declared path, deduplicated by
+    /// `(from, action)`: two paths through one hop share one narrowed member.
+    /// Empty for a machine without paths. See `HopDesc`.
+    public let hops: [HopDesc]
 
     public init(
         machine: String,
@@ -51,7 +55,8 @@ public struct MachineDesc {
         rows: [[CellDesc]],
         prototypeModifiers: [String] = [],
         children: [ChildDesc] = [],
-        render: RenderDesc? = nil
+        render: RenderDesc? = nil,
+        hops: [HopDesc] = []
     ) {
         self.machine = machine
         self.stateType = stateType
@@ -66,6 +71,39 @@ public struct MachineDesc {
         self.prototypeModifiers = prototypeModifiers
         self.children = children
         self.render = render
+        self.hops = hops
+    }
+}
+
+extension MachineDesc {
+    /// The same machine with its narrowed surface set aside: what a path's
+    /// derivation must equal, cell for cell, in its longhand twin. The Kotlin
+    /// twin is `copy(hops = emptyList())`.
+    public var withoutHops: MachineDesc {
+        MachineDesc(
+            machine: machine, stateType: stateType, actionType: actionType,
+            effectType: effectType, ctxType: ctxType, initial: initial,
+            states: states, actions: actions, effects: effects, rows: rows,
+            prototypeModifiers: prototypeModifiers, children: children, render: render
+        )
+    }
+}
+
+/// One hop of a happy path, `from -action-> to`, as indices into
+/// `MachineDesc.states` and `.actions`. spec/happy-paths.md, "Settled before
+/// implementation": it generates a narrowed member taking the action that
+/// ARRIVED in `from`, and an outcome enum with one case per state the `from`
+/// row can produce -- `to` the happy one. The Kotlin twin is `HopDesc` in
+/// `tabular-center-kotlin/codegen/Model.kt`.
+public struct HopDesc: Equatable {
+    public let from: Int
+    public let action: Int
+    public let to: Int
+
+    public init(from: Int, action: Int, to: Int) {
+        self.from = from
+        self.action = action
+        self.to = to
     }
 }
 

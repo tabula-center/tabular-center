@@ -345,12 +345,17 @@ do {
         do {
             let desc = try buildDesc(MachineSyntax.read(decl))
             let out = emit(desc)
-            // On the spine: written HANDLE, generated GO, so no member.
-            check(!containsText(out, "idleStart"), "a hop's HANDLE stops being a cell member")
-            check(!containsText(out, "connectingReady"), "and so does the second hop's")
+            // On the spine: written HANDLE, generated GO, so no `Cells`
+            // requirement -- `func name(_ ctx: ...`. The name itself does now
+            // appear, as the hop's narrowed member, `static func name(_ cells:
+            // ...` (spec/happy-paths.md); these checks once tested the bare
+            // name, and the narrowed surface is what they then caught.
+            check(!containsText(out, "func idleStart(_ ctx"), "a hop's HANDLE stops being a cell member")
+            check(!containsText(out, "func connectingReady(_ ctx"), "and so does the second hop's")
+            check(containsText(out, "static func idleStart(_ cells"), "the hop gets its narrowed member instead")
             // Off the spine: no hop names it, so it stays a member. Without
             // this the check would pass if `derive` rewrote everything.
-            check(containsText(out, "failedStart"), "a HANDLE no hop names stays a member")
+            check(containsText(out, "func failedStart(_ ctx"), "a HANDLE no hop names stays a member")
         } catch {
             check(false, "the spine machine is accepted: \(error)")
         }
@@ -495,9 +500,12 @@ do {
             check(raw.paths.first?.back == "back", "the back action is read from the attribute")
 
             let out = emit(try buildDesc(raw))
-            // Both directions derived, so neither is a cell member.
-            check(!containsText(out, "addrBack"), "a hop's far side stops being a cell member")
-            check(!containsText(out, "cartNext"), "and the forward direction still does")
+            // Both directions derived, so neither is a `Cells` requirement.
+            // Forward hops get a narrowed member; backward ones none yet.
+            check(!containsText(out, "func addrBack(_ ctx"), "a hop's far side stops being a cell member")
+            check(!containsText(out, "func cartNext(_ ctx"), "and the forward direction still does")
+            check(containsText(out, "static func cartNext(_ cells"), "the forward hop gets its narrowed member")
+            check(!containsText(out, "addrBack(_ cells"), "a backward hop gets none yet")
             // And the path's end may be left by its own back action.
             check(!containsText(out, "doneBack"), "the end's back cell derives rather than demanding code")
         } catch {

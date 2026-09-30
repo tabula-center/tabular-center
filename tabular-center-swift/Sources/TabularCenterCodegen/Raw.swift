@@ -256,10 +256,32 @@ public func buildDesc(_ raw: RawMachine) throws -> MachineDesc {
         rows: rows,
         prototypeModifiers: raw.prototypeModifiers,
         children: raw.children,
-        render: raw.render
+        render: raw.render,
+        hops: hopsOf(raw)
     )
     try checkMemberCollisions(desc)
     return desc
+}
+
+/// Forward hops of every path, in declaration order, deduplicated by
+/// `(from, action)`. Runs after `validatePaths`, so every name resolves.
+/// Backward walks generate no narrowed members yet (PLAN.md, happy paths).
+private func hopsOf(_ raw: RawMachine) -> [HopDesc] {
+    let states = raw.states.map(\.name)
+    let actions = raw.actions.map(\.name)
+    var seen = Set<String>()
+    var out: [HopDesc] = []
+    for path in raw.paths {
+        for hop in path.hops {
+            guard let f = states.firstIndex(of: hop.from),
+                  let a = actions.firstIndex(of: hop.action),
+                  let t = states.firstIndex(of: hop.to),
+                  seen.insert("\(f).\(a)").inserted
+            else { continue }
+            out.append(HopDesc(from: f, action: a, to: t))
+        }
+    }
+    return out
 }
 
 /// `tabular-center::member-collision`: two things the generator would give

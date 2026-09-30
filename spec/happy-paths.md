@@ -509,8 +509,22 @@ after three implementations is the expensive version.
       `Tests.kt` (outcome sets, and the additive property with hops set
       aside), and by `kotlin-ksp`/`kotlin-compose`, which compile the surface
       KSP generates for `Spine.tb.kt` and the Compose checkout
-- [ ] Swift, then Rust, each with a fixture proving a missing outcome does not
-      compile
+- [x] Swift (emitter; the macro follows when it can build): `HopDesc` on
+      `MachineDesc`, and per hop an outcome enum inside the machine's
+      extension -- one case per state the row can produce, a payload state's
+      carrying its narrowed struct, every case its effects -- with an `elvis`
+      method taking one required label per non-happy state, `rethrows` so a
+      handler leaves by throwing (plain when there are no alternatives:
+      `rethrows` alone does not compile), and a static member taking the
+      action that arrived. States the row cannot produce are `fatalError`
+      traps, and no `default:`. Hop members join `member-collision`'s list.
+      Proven by `swift-codegen` (a `Connect` machine, a call site that throws
+      out of both `elvis` forms, `connect_missing_outcome.swift` refused) and
+      `TabularCenterCodegenCheck` (outcome sets, exact signatures, and the
+      additive property via `withoutHops`). The payload branch -- a hop from,
+      or an outcome in, a payload state -- is emitted but not yet compiled by
+      a machine that has one
+- [ ] Rust, with a fixture proving a missing outcome does not compile
 - [ ] Backward walks (`back`) generate no narrowed members yet: a hop walked
       backwards is `(next, back) -> previous`, and whether it earns a member
       of its own is a question the Compose example should answer

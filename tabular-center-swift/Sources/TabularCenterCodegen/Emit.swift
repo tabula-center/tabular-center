@@ -258,6 +258,10 @@ public func emit(_ d: MachineDesc) -> String {
         out += "        }\n    }\n"
     }
 
+    // -- narrowed surface: one member per hop (optional) ----------------
+    // Only for a machine with paths; without one nothing here is emitted.
+    for h in d.hops { out += hop(d, h, color, own) }
+
     // -- table ----------------------------------------------------------
     out += "\n    /// The matrix as inert data. Diagrams, lints, and coverage read this.\n"
     out += "    static let TABLE = Table(\n"
@@ -366,6 +370,14 @@ private func refusals(_ d: MachineDesc) -> [String] {
     for v in d.states + d.actions + d.effects where v.hasPayload && v.fields.isEmpty {
         out.append("tabular-center: the payload fields of `\(v.name)` are unknown, so the generator cannot bind them")
     }
+    // A hop from a payload state rebuilds `S` from the narrowed struct, field
+    // by field, and an unnamed field has no property to read back.
+    for h in d.hops {
+        let v = d.states[h.from]
+        if v.hasPayload && v.fields.contains(where: { $0.name.isEmpty }) {
+            out.append("tabular-center: the hop from `\(v.name)` needs its payload fields named, to rebuild the state from its narrowed struct")
+        }
+    }
     if let r = d.render, r.builder != nil {
         if r.conformance.isEmpty {
             out.append("tabular-center: a result-builder rendering prototype needs the protocol its views conform to, such as `View`")
@@ -381,6 +393,121 @@ private func refusals(_ d: MachineDesc) -> [String] {
 ///
 /// Swift macros can build identifiers, so Swift names cells — the same choice
 /// Kotlin makes, and the opposite of Rust, where `macro_rules!` cannot.
+/// The states `from` can end up in when an action arrives there, per
+/// spec/happy-paths.md: a `go` its target, `emit`/`ignore`/`delegate` `from`
+/// itself, a `handle` any state, `unreachable` none. The hop's own cell is a
+/// `go` to `to` after derivation, so `to` is always in. Declaration order.
+/// The Kotlin twin is `hopOutcomes` in its `Emit.kt`.
+public func hopOutcomes(_ d: MachineDesc, _ h: HopDesc) -> [Int] {
+    var out: Set<Int> = [h.to]
+    for cell in d.rows[h.from] {
+        switch cell {
+        case let .go(target, _, _):
+            if let i = d.states.firstIndex(where: { $0.name == target }) { out.insert(i) }
+        case .emit, .ignore, .delegate:
+            out.insert(h.from)
+        case .handle:
+            out.formUnion(d.states.indices)
+        case .unreachable:
+            break
+        }
+    }
+    return out.sorted()
+}
+
+/// One hop's narrowed surface, inside the machine's extension: an outcome
+/// enum -- one case per state the `from` row can produce, a payload state's
+/// case carrying its narrowed struct -- with an `elvis` method, and the member
+/// that steps `from` with the action that arrived.
+///
+/// Swift's non-local exit is `throw`, so `elvis` is `rethrows` and a handler
+/// leaves by throwing: `try hop.elvis(failed: { _, _ in throw Detour.failed })`.
+/// Every non-happy state is a required label.
+private func hop(
+    _ d: MachineDesc, _ h: HopDesc, _ color: Color, _ own: (String) -> String
+) -> String {
+    let name = member(d, h.from, h.action)
+    let type = cap(name)
+    let from = d.states[h.from]
+    let to = d.states[h.to]
+    let outcomes = hopOutcomes(d, h)
+    let others = outcomes.filter { $0 != h.to }
+    let fx = "[\(own(d.effectType))]"
+    // What a case carries, and so what `elvis` hands back: the narrowed
+    // struct and the effects for a payload state, the effects alone for one
+    // without (a one-element tuple is not a Swift type).
+    func carried(_ v: Variant) -> String { v.hasPayload ? "(\(own(v.name)), \(fx))" : fx }
+
+    var out = "\n    /// Where `\(from.name)` can go when an action arrives, on the path through\n"
+    out += "    /// `\(from.name) -\(d.actions[h.action].name)-> \(to.name)`: `\(to.name)` is the happy outcome, the rest\n"
+    out += "    /// are what else the `\(from.name)` row can produce. Each carries the step's effects.\n"
+    out += "    enum \(type) {\n"
+    for i in outcomes {
+        let v = d.states[i]
+        out += v.hasPayload
+            ? "        case \(lower(v.name))(\(own(v.name)), effects: \(fx))\n"
+            : "        case \(lower(v.name))(effects: \(fx))\n"
+    }
+    out += "\n        /// The happy outcome, or each handler's answer for the others. A handler\n"
+    out += "        /// leaves by throwing, which `rethrows` passes on.\n"
+    let params = others.map { i -> String in
+        let v = d.states[i]
+        let args = v.hasPayload ? "\(own(v.name)), \(fx)" : fx
+        return "\(lower(v.name)): (\(args)) throws -> \(carried(to))"
+    }
+    // `rethrows` needs a throwing parameter to rethrow; with no alternatives
+    // there is none, and `rethrows` alone would not compile.
+    let rethrowsClause = others.isEmpty ? "" : " rethrows"
+    out += "        func elvis(\(params.joined(separator: ", ")))\(rethrowsClause) -> \(carried(to)) {\n"
+    out += "            switch self {\n"
+    for i in outcomes {
+        let v = d.states[i]
+        let c = lower(v.name)
+        let bound = v.hasPayload ? "(state, effects)" : "(effects)"
+        let args = v.hasPayload ? "state, effects" : "effects"
+        if i == h.to {
+            out += "            case let .\(c)\(bound): return \(v.hasPayload ? "(state, effects)" : "effects")\n"
+        } else {
+            out += "            case let .\(c)\(bound): return try \(c)(\(args))\n"
+        }
+    }
+    out += "            }\n        }\n    }\n"
+
+    // The member. A payload `from` takes its narrowed struct and rebuilds the
+    // state from it; a payload-free one takes nothing.
+    let stateParam = from.hasPayload ? "_ state: \(own(from.name)), " : ""
+    let rebuilt = from.hasPayload
+        ? ".\(lower(from.name))(" + from.fields.map { "\($0.name): state.\($0.name)" }.joined(separator: ", ") + ")"
+        : ".\(lower(from.name))"
+    out += "\n    /// `\(from.name)` receives `action`; the matrix decides the outcome. Effects come\n"
+    out += "    /// back, never run.\n"
+    out += "    \(color.prefix)static func \(name)(_ cells: \(d.machine)Cells, _ ctx: \(own(d.ctxType)), "
+    out += "\(stateParam)_ action: \(own(d.actionType)))\(color.suffix) -> \(type) {\n"
+    out += "        let current: \(own(d.stateType)) = \(rebuilt)\n"
+    out += "        let next: \(own(d.stateType))\n"
+    out += "        let effects: \(fx)\n"
+    out += "        switch \(color.call)step(cells, ctx, current, action) {\n"
+    out += "        case let .go(state, stepEffects): next = state; effects = stepEffects\n"
+    out += "        case let .stay(stepEffects): next = current; effects = stepEffects\n"
+    out += "        case .ignored: next = current; effects = []\n"
+    out += "        }\n"
+    out += "        switch next {\n"
+    for (i, v) in d.states.enumerated() {
+        if outcomes.contains(i) {
+            let b = bind(v, side: "s", avoid: ["cells", "ctx", "action", "current", "next", "effects", "state"], owner: d.machine)
+            if v.hasPayload && !b.names.isEmpty {
+                out += "        case let \(b.pattern): return .\(lower(v.name))(\(b.value), effects: effects)\n"
+            } else {
+                out += "        case .\(lower(v.name)): return .\(lower(v.name))(effects: effects)\n"
+            }
+        } else {
+            out += "        case .\(lower(v.name)): fatalError(\"tabular-center: the `\(from.name)` row cannot produce `\(v.name)`\")\n"
+        }
+    }
+    out += "        }\n    }\n"
+    return out
+}
+
 /// One member of the generated `Cells` protocol, and what it was generated
 /// from -- for `tabular-center::member-collision`.
 struct GeneratedMember {
@@ -418,6 +545,11 @@ func cellsMembers(_ d: MachineDesc) -> [GeneratedMember] {
     }
     for e in d.effects {
         out.append(GeneratedMember(name: lower(e.name), origin: "effect \(e.name)"))
+    }
+    // Not protocol members, but named on the same scheme.
+    for h in d.hops {
+        let at = "hop (\(d.states[h.from].name), \(d.actions[h.action].name))"
+        out.append(GeneratedMember(name: member(d, h.from, h.action), origin: at))
     }
     return out
 }
