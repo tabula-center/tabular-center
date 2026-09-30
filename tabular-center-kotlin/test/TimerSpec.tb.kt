@@ -33,10 +33,10 @@ import dev.tabularcenter.Step
     effects = [F.StartClock::class, F.StopClock::class],
     initial = S.Idle::class,
 )
-//                       Start                    Tick                     Cancel
-@Row(S.Idle::class,    [CellSpec(Kind.HANDLE),  CellSpec(Kind.IGNORE),   CellSpec(Kind.IGNORE)])
-@Row(S.Running::class, [CellSpec(Kind.IGNORE),  CellSpec(Kind.HANDLE),   CellSpec(Kind.GO, to = S.Idle::class, emit = [F.StopClock::class])])
-@Row(S.Done::class,    [CellSpec(Kind.GO, to = S.Running::class, emit = [F.StartClock::class]), CellSpec(Kind.IGNORE), CellSpec(Kind.IGNORE)])
+//                       Start                                                                   Tick                     Cancel
+@Row(S.Idle::class,    [CellSpec(Kind.HANDLE),                                                  CellSpec(Kind.IGNORE),   CellSpec(Kind.IGNORE)])
+@Row(S.Running::class, [CellSpec(Kind.IGNORE),                                                  CellSpec(Kind.HANDLE),   CellSpec(Kind.GO, to = S.Idle::class, emit = [F.StopClock::class])])
+@Row(S.Done::class,    [CellSpec(Kind.GO, to = S.Running::class, emit = [F.StartClock::class]), CellSpec(Kind.IGNORE),   CellSpec(Kind.IGNORE)])
 interface TimerSpec {
     /**
      * The prototype. Whatever modifiers appear here are copied onto every

@@ -17,7 +17,7 @@
 # Usage:  tools/verify [step ...]      (default: all, every language)
 #         tools/verify --list          (every step, with its owner)
 # Steps:  version docs matrix-covered diagnostics-coverage fixtures-complete
-#         no-bless no-generated diagnostics-tested renderings-agree
+#         no-bless no-generated diagnostics-tested renderings-agree tb-aligned
 #         + every step listed by tabular-center-*/tools/verify --list
 set -uo pipefail
 
@@ -597,10 +597,27 @@ step_matrix_covered() {
     return "$bad"
 }
 
+# Every `.tb.` matrix is aligned: exactly what `tabular-center-fmt` would leave.
+#
+# A root step, like renderings-agree, because it reads every language's
+# matrices. It compares and never writes (--check), and a file the formatter
+# refuses to read fails it too: a file the tool cannot read is a file nobody
+# is checking (spec/tabular-center-fmt.md). The fix for a failure is
+# `nix run .#tb-fmt`, then commit what it changed.
+step_tb_aligned() {
+    if ! command -v cargo >/dev/null 2>&1; then
+        echo "skip tb-aligned (\$cargo not found)"
+        return 0
+    fi
+    require_dir tabular-center-fmt || return 1
+    cargo run -q --release --offline --locked \
+        --manifest-path tabular-center-fmt/Cargo.toml -- --check .
+}
+
 # The three implementations, and the `.tb.` formatter: every component with a
 # tools/verify of its own, by directory suffix.
 LANGS=(rust kotlin swift fmt)
-ROOT_STEPS=(version docs matrix-covered diagnostics-coverage fixtures-complete no-bless no-generated diagnostics-tested renderings-agree)
+ROOT_STEPS=(version docs matrix-covered diagnostics-coverage fixtures-complete no-bless no-generated diagnostics-tested renderings-agree tb-aligned)
 
 lang_script() { echo "tabular-center-$1/tools/verify"; }
 
@@ -666,6 +683,7 @@ for s in "${steps[@]}"; do
         no-generated)         run no-generated         step_no_generated ;;
         diagnostics-tested)   run diagnostics-tested   step_diagnostics_tested ;;
         renderings-agree)     run renderings-agree     step_renderings_agree ;;
+        tb-aligned)           run tb-aligned           step_tb_aligned ;;
         *)
             if sc="$(owner_of "$s")"; then
                 delegate "$sc" "$s"

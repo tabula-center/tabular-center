@@ -10,7 +10,7 @@
 ctx:
 
 let
-  inherit (ctx) allInputs allSetup mkCheck;
+  inherit (ctx) toolchains allInputs allSetup mkCheck;
   verify = name: mkCheck name [ ] "./tools/verify ${name}";
 in
 {
@@ -58,4 +58,9 @@ in
     ${allSetup}
     ./tools/verify renderings-agree
   '';
+
+  # Every `.tb.` matrix is aligned as tabular-center-fmt would leave it. It
+  # reads all three languages' matrices, so it is a root check; it needs only
+  # the formatter's toolchain, which the formatter's flake exports.
+  tb-aligned = mkCheck "tb-aligned" toolchains.fmt.inputs "./tools/verify tb-aligned";
 }

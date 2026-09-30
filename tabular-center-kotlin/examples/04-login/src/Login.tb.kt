@@ -29,7 +29,7 @@ val SESSION_TABLE = Table(
     initial = "LoggedOut",
     cells = listOf(
         listOf(Cell.Delegate("auth"), Cell.Delegate("auth"), Cell.Ignore),
-        listOf(Cell.Ignore, Cell.Ignore, Cell.Go("Banned", listOf("Audit"))),
-        listOf(Cell.Ignore, Cell.Ignore, Cell.Ignore),
+        listOf(Cell.Ignore,           Cell.Ignore,           Cell.Go("Banned", listOf("Audit"))),
+        listOf(Cell.Ignore,           Cell.Ignore,           Cell.Ignore),
     ),
 )

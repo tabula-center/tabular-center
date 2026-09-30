@@ -12,8 +12,8 @@ val TABLE = Table(
     actions = listOf("Start", "Tick", "Cancel"),
     initial = "Idle",
     cells = listOf(
-        listOf(Cell.Handle, Cell.Ignore, Cell.Ignore),
-        listOf(Cell.Ignore, Cell.Handle, Cell.Go("Idle", listOf("StopClock"))),
+        listOf(Cell.Handle,                              Cell.Ignore, Cell.Ignore),
+        listOf(Cell.Ignore,                              Cell.Handle, Cell.Go("Idle", listOf("StopClock"))),
         listOf(Cell.Go("Running", listOf("StartClock")), Cell.Ignore, Cell.Ignore),
     ),
 )

@@ -180,8 +180,9 @@ patch rather than inside this one.
 
 ## The formatter this anticipates
 
-`tabular-center-fmt` is in `PLAN.md`'s backlog: a formatter that pads cells to align
-columns and does nothing else. The extension is what would let it run
-automatically without fighting the language's own formatter over the same
-files, and it is worth adopting before that tool exists, because the exemption
-is useful on its own.
+`tabular-center-fmt` (`tabular-center-fmt/`, contract in
+`spec/tabular-center-fmt.md`) is the formatter that pads cells to align columns
+and does nothing else. The extension is what lets it run without fighting the
+language's own formatter over the same files: each language formatter skips
+`.tb.` files, and `tabular-center-fmt` touches nothing else. `tools/verify
+tb-aligned` holds every matrix to it; `nix run .#tb-fmt` fixes what that finds.

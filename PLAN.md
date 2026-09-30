@@ -2140,15 +2140,19 @@ extension narrows that to exactly the files that need it.
       header keys and `@Path` never form runs) and the contract now says so.
       The Rust tests are that prototype's outputs, so they also say the two
       implementations agree. Idempotence asserted on every case
-- [ ] Wire `--check` over the repository's matrices into `tools/verify`.
-      The prototype says 9 files would change -- compact Kotlin `listOf` and
-      Swift tables, and rows where one long cell overflows a shared column
-      (`Job.tb.kt`, iced's `session.tb.rs`, `TimerSpec.tb.kt`). Those edits
-      should come from running the tool, not from the prototype: run
-      `nix run .#tb-fmt -- --check`, compare with that list, then
-      `nix run .#tb-fmt` and commit. Mind the compile-fail fixtures: their
-      `//~ AT:` markers match line content, so a realigned fixture row needs
-      its marker checked (the prototype changes none of them)
+- [x] Wire `--check` over the repository's matrices into `tools/verify`:
+      `tb-aligned`, a root step and check (it reads every language's
+      matrices, as `renderings-agree` does), building the formatter with the
+      toolchain its flake exports and running `--check .`. The 9 predicted
+      files are aligned -- 18 lines, whitespace only (`git diff -w` empty) --
+      and the three column-header comments the widened columns left behind
+      (`session.tb.rs`, `Job.tb.kt`, `TimerSpec.tb.kt`) were realigned once by
+      hand, each keeping its own file's label offset; the formatter never
+      touches comments, by contract. Those edits came from the prototype, not
+      the Rust tool, whose `--check` output was not available; `tb-aligned`
+      runs the Rust tool, so if the two disagree on any line it fails naming
+      it, and `nix run .#tb-fmt` writes the tool's version. No compile-fail
+      fixture changed
 
 **The problem.** A matrix is only readable while its columns line up, and every
 language formatter wants to destroy that. We already work around it: the

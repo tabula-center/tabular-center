@@ -57,8 +57,8 @@ extension Timer {
         states: ["Idle", "Running", "Done"],
         actions: ["Start", "Tick", "Cancel"],
         cells: [
-            [.handle, .ignore, .ignore],
-            [.ignore, .handle, .go(target: "Idle", effects: ["StopClock"])],
+            [.handle,                                         .ignore, .ignore],
+            [.ignore,                                         .handle, .go(target: "Idle", effects: ["StopClock"])],
             [.go(target: "Running", effects: ["StartClock"]), .ignore, .ignore],
         ],
         initial: "Idle"

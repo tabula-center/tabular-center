@@ -20,8 +20,8 @@ let SESSION_TABLE = Table(
     actions: ["Credentials", "StartOver", "Logout"],
     cells: [
         [.delegate(child: "auth"), .delegate(child: "auth"), .ignore],
-        [.ignore, .ignore, .go(target: "Banned", effects: ["Audit"])],
-        [.ignore, .ignore, .ignore],
+        [.ignore,                  .ignore,                  .go(target: "Banned", effects: ["Audit"])],
+        [.ignore,                  .ignore,                  .ignore],
     ],
     initial: "LoggedOut"
 )

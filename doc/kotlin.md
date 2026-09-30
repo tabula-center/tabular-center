@@ -156,10 +156,10 @@ child's whole surface:
     effects = [F.Log::class],
     initial = S.Idle::class,
 )
-//                          Run                                              Tick                                             Cancel
-@Row(S.Idle::class,       [CellSpec(Kind.HANDLE),                           CellSpec(Kind.IGNORE),                           CellSpec(Kind.IGNORE)])
+//                          Run                                                Tick                                               Cancel
+@Row(S.Idle::class,       [CellSpec(Kind.HANDLE),                             CellSpec(Kind.IGNORE),                             CellSpec(Kind.IGNORE)])
 @Row(S.Retrying::class,   [CellSpec(Kind.DELEGATE, child = RetrySpec::class), CellSpec(Kind.DELEGATE, child = RetrySpec::class), CellSpec(Kind.GO, to = S.Done::class, emit = [F.Log::class])])
-@Row(S.Done::class,       [CellSpec(Kind.IGNORE),                           CellSpec(Kind.IGNORE),                           CellSpec(Kind.IGNORE)])
+@Row(S.Done::class,       [CellSpec(Kind.IGNORE),                             CellSpec(Kind.IGNORE),                             CellSpec(Kind.IGNORE)])
 interface JobSpec {
     fun handle(ctx: Ctx, state: S, action: A): Step<S, F>
 }

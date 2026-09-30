@@ -14,6 +14,6 @@ val TABLE = Table(
     cells = listOf(
         listOf(Cell.Go("Green"), Cell.Go("Red")),
         listOf(Cell.Go("Amber"), Cell.Go("Red")),
-        listOf(Cell.Handle, Cell.Go("Red")),
+        listOf(Cell.Handle,      Cell.Go("Red")),
     ),
 )

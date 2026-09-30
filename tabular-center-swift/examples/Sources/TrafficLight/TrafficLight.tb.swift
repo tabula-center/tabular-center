@@ -19,7 +19,7 @@ extension TrafficLight {
         cells: [
             [.go(target: "Green", effects: []), .go(target: "Red", effects: [])],
             [.go(target: "Amber", effects: []), .go(target: "Red", effects: [])],
-            [.handle, .go(target: "Red", effects: [])],
+            [.handle,                           .go(target: "Red", effects: [])],
         ],
         initial: "Red"
     )

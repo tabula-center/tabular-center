@@ -21,8 +21,8 @@ transition_matrix! {
     states  { Booting, Running { child: connection::State }, Ended }
     actions { Boot, Tap, Finish }
 
-    //            Boot                                          Tap                     Finish
-    Booting  => [ GO!(Running { child: connection::State::Idle(connection::Idle) }), IGNORE, IGNORE            ];
-    Running  => [ IGNORE,                                       DELEGATE!(connection), GO!(Ended, Note)        ];
-    Ended    => [ IGNORE,                                       IGNORE,                IGNORE                  ];
+    //            Boot                                                               Tap                    Finish
+    Booting  => [ GO!(Running { child: connection::State::Idle(connection::Idle) }), IGNORE,                IGNORE                  ];
+    Running  => [ IGNORE,                                                            DELEGATE!(connection), GO!(Ended, Note)        ];
+    Ended    => [ IGNORE,                                                            IGNORE,                IGNORE                  ];
 }
