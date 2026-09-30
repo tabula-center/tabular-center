@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# The formatter's steps of what "green" means.
+#
+# tabular-center-fmt is the fourth component beside the three implementations
+# (spec/tabular-center-fmt.md), and its steps are handed over by the root
+# tools/verify by name, exactly as the languages' are. These check the TOOL:
+# its tests (the contract as cases, and idempotence), clippy, and rustfmt on
+# its own source. Whether the repository's matrices are aligned is a separate
+# step, not yet wired; see PLAN.md.
+#
+# Usage:  tabular-center-fmt/tools/verify [step ...]   (default: every step)
+#         tabular-center-fmt/tools/verify --list
+# Steps:  tb-fmt-test tb-fmt-clippy tb-fmt-rustfmt
+set -uo pipefail
+
+cd "$(dirname "$0")/../.." || exit 1
+
+CARGO_FLAGS="--offline --locked"
+fail=0
+
+# A missing directory here is almost never a missing directory.
+#
+# `nix flake check` builds from the git tree, and on a DIRTY tree nix includes
+# tracked files that were modified but EXCLUDES files that are untracked. So a
+# patch applied with `git apply` rather than `git am` shows up as: the modified
+# scripts are there, and every newly added directory is not.
+#
+# That produces `cd: examples/swift: No such file or directory` from inside a
+# nix build while the directory sits plainly in the working tree, which is a
+# confusing enough five minutes to be worth six lines.
+require_dir() {
+    [ -d "$1" ] && return 0
+    echo "missing directory: $1"
+    echo
+    echo "  If this is a nix build and the directory exists in your working"
+    echo "  tree, it is probably untracked: nix excludes untracked files from a"
+    echo "  dirty tree. Commit it, or 'git add -A', or apply patches with"
+    echo "  'git am' rather than 'git apply'."
+    return 1
+}
+
+# The same trap as require_dir, one level down.
+#
+# require_dir catches a whole new directory going missing. It does not catch a
+# new *file* landing in a directory that already exists -- which is what a new
+# golden is. That cost a nix-build round trip: the harness reported "no golden
+# cov, run with --bless" for all four fixtures while the four files sat in the
+# working tree, untracked, and therefore absent from the source nix copied in.
+#
+# "run --bless" is the wrong advice in that situation and blessing would have
+# regenerated files that already existed. Check the set up front instead, and
+# say the thing that is actually true.
+#
+# It earns its keep twice: it also catches adding a .tbl fixture and forgetting
+# to bless it, which produces the same misleading message.
+offline() { [ -n "${TABULAR_CENTER_OFFLINE:-}" ]; }
+
+# Every skip, collected.
+#
+# A skip is the most dangerous line this script prints. It is not an error, so
+# nothing counts it; it scrolls past in a green run; and the summary at the end
+# says "all green" either way. Two separate things were skipped for months
+# behind that -- the whole Kotlin suite, and the KSP example -- and in both
+# cases the output looked correct.
+#
+# So every step's output goes through `tee` into one file, and the end of the
+# run reprints whatever said `skip`. Nothing is required of the step functions,
+# which is the point: a ledger that only sees the sites someone remembered to
+# instrument is a ledger that lies by omission.
+TALLY="$(mktemp)"
+trap 'rm -f "$TALLY"' EXIT
+
+run() {
+    local name="$1"; shift
+    printf '\n\033[1m== %s ==\033[0m\n' "$name"
+    # Piped, so the ledger sees the output, and PIPESTATUS because with a pipe
+    # `$?` belongs to tee. Streaming is preserved -- a five-minute cargo build
+    # still prints as it goes, which capture-then-print would have cost.
+    "$@" 2>&1 | tee -a "$TALLY"
+    local rc="${PIPESTATUS[0]}"
+    [ "$rc" -eq 0 ] && return 0
+    echo "FAILED: $name"
+    fail=1
+}
+
+# Both cargo workspaces. The examples sit outside the main one on purpose, and
+# for a while that meant neither fmt nor clippy saw them -- which is how a line
+# of trailing whitespace reached a patch that `cargo fmt --check` had passed.
+
+fmt_cargo() {
+    if ! command -v cargo >/dev/null 2>&1; then
+        echo "skip $1 (\$cargo not found)"
+        return 0
+    fi
+    # shellcheck disable=SC2086
+    (cd tabular-center-fmt && "${@:2}")
+}
+
+# shellcheck disable=SC2086
+step_tb_fmt_test() { fmt_cargo tb-fmt-test cargo test $CARGO_FLAGS; }
+step_tb_fmt_clippy() {
+    # shellcheck disable=SC2086
+    fmt_cargo tb-fmt-clippy cargo clippy --all-targets $CARGO_FLAGS -- -D warnings
+}
+step_tb_fmt_rustfmt() { fmt_cargo tb-fmt-rustfmt cargo fmt --check; }
+
+STEPS_DEFAULT=(tb-fmt-test tb-fmt-clippy tb-fmt-rustfmt)
+STEPS_EXTRA=()
+
+# `--list` is how the root finds out which steps are this script's.
+case "${1:-}" in
+    --list) printf '%s\n' "${STEPS_DEFAULT[@]}"; exit 0 ;;
+    # `${a[@]+...}`: an empty array under `set -u` is an error in bash < 4.4,
+    # which is macOS's /bin/bash.
+    --list-all) printf '%s\n' "${STEPS_DEFAULT[@]}" ${STEPS_EXTRA[@]+"${STEPS_EXTRA[@]}"}; exit 0 ;;
+esac
+
+steps=("$@")
+[ ${#steps[@]} -eq 0 ] && steps=("${STEPS_DEFAULT[@]}")
+
+for s in "${steps[@]}"; do
+    case "$s" in
+        tb-fmt-test)    run tb-fmt-test    step_tb_fmt_test ;;
+        tb-fmt-clippy)  run tb-fmt-clippy  step_tb_fmt_clippy ;;
+        tb-fmt-rustfmt) run tb-fmt-rustfmt step_tb_fmt_rustfmt ;;
+        *) echo "unknown step: $s (formatter steps only; the root tools/verify knows them all)"; exit 2 ;;
+    esac
+done
+
+echo
+
+# Called by the root tools/verify, which keeps one ledger for the whole run:
+# its tee already saw every `skip` line printed above, and a second ledger
+# here would list each of them twice.
+[ -n "${TABULAR_CENTER_NESTED:-}" ] && exit "$fail"
+
+# The ledger, before the verdict, because "all green" read on its own is what
+# made two missing suites invisible. Anything listed here did not run, and a
+# run with no list is the only one that means what it says.
+# POSIX classes, not \s. BSD grep and sed do not understand \s, and
+# this script runs without nix too, and on macOS that means BSD tools -- where
+# the ledger would have silently matched nothing, which is the exact failure
+# it exists to stop.
+if grep -q '^[[:space:]]*skip ' "$TALLY"; then
+    echo "verify: skipped ---------------------------------------------"
+    grep '^[[:space:]]*skip ' "$TALLY" | sed 's/^[[:space:]]*/  /'
+    echo "------------------------------------------------------------"
+    echo
+fi
+
+if [ "$fail" -eq 0 ]; then
+    echo "verify: all green"
+else
+    echo "verify: FAILED"
+fi
+exit "$fail"

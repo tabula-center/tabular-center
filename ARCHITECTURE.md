@@ -938,6 +938,9 @@ tabular-center/
 │   │                             #   the .macro target waits in pending/
 │   └── examples/                # separate package, `.package(path: "..")`
 │
+├── tabular-center-fmt/          # aligns `.tb.` matrices; the format's, not a
+│                                 #   language's. Rust, no deps, its own flake
+│                                 #   (spec/tabular-center-fmt.md)
 └── tools/
     ├── verify                   # the single definition of green: runs the
     │                             #   cross-language steps, hands the rest to

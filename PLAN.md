@@ -2129,12 +2129,26 @@ extension narrows that to exactly the files that need it.
 - [x] `spec/tabula-fmt.md`: the contract. Written first for the reason
       `SURFACE.md` was — a formatter's contract is almost all of its risk, and
       it is the part reviewable by reading.
-- [ ] `tabula-fmt` itself, at the repository root in `tabula-fmt/`. One tool
-      for all three languages: the matrices differ in punctuation and agree in
-      structure, and a tool that parses neither Rust nor Kotlin is correct for
-      both. Root rather than inside `tabular-center-rust/` because a home in one language's
-      directory would imply an ownership that is not true — it belongs to the
-      `.tb.` format, which is language-agnostic.
+- [x] `tabular-center-fmt` itself, at the repository root in
+      `tabular-center-fmt/` (named `tabula-fmt` when this was written): Rust,
+      no dependencies, its own workspace and its own flake -- the fourth,
+      composed by the root like the languages, with `tb-fmt-test`,
+      `tb-fmt-clippy` and `tb-fmt-rustfmt` handed over by name.
+      `nix run .#tb-fmt [-- --check]`. Prototyped first, in Python, over all
+      52 `.tb.` files: that settled what the contract left open (which
+      bracket is the row, columns never shrink, closers stay the author's,
+      header keys and `@Path` never form runs) and the contract now says so.
+      The Rust tests are that prototype's outputs, so they also say the two
+      implementations agree. Idempotence asserted on every case
+- [ ] Wire `--check` over the repository's matrices into `tools/verify`.
+      The prototype says 9 files would change -- compact Kotlin `listOf` and
+      Swift tables, and rows where one long cell overflows a shared column
+      (`Job.tb.kt`, iced's `session.tb.rs`, `TimerSpec.tb.kt`). Those edits
+      should come from running the tool, not from the prototype: run
+      `nix run .#tb-fmt -- --check`, compare with that list, then
+      `nix run .#tb-fmt` and commit. Mind the compile-fail fixtures: their
+      `//~ AT:` markers match line content, so a realigned fixture row needs
+      its marker checked (the prototype changes none of them)
 
 **The problem.** A matrix is only readable while its columns line up, and every
 language formatter wants to destroy that. We already work around it: the

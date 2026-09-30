@@ -597,7 +597,9 @@ step_matrix_covered() {
     return "$bad"
 }
 
-LANGS=(rust kotlin swift)
+# The three implementations, and the `.tb.` formatter: every component with a
+# tools/verify of its own, by directory suffix.
+LANGS=(rust kotlin swift fmt)
 ROOT_STEPS=(version docs matrix-covered diagnostics-coverage fixtures-complete no-bless no-generated diagnostics-tested renderings-agree)
 
 lang_script() { echo "tabular-center-$1/tools/verify"; }
@@ -641,7 +643,7 @@ if [ ${#steps[@]} -eq 0 ]; then
     for l in "${LANGS[@]}"; do
         sc="$(lang_script "$l")"
         # A language directory without its script is a broken tree, not a
-        # language that is absent: all three are always here. Failing loudly
+        # language that is absent: all four are always here. Failing loudly
         # is the only honest answer; see require_dir for the usual cause.
         if [ ! -x "$sc" ]; then
             require_dir "tabular-center-$l/tools" | tee -a "$TALLY"

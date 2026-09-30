@@ -1,0 +1,21 @@
+# tabular-center-fmt: aligns the cells of `.tb.` matrix rows, and nothing else.
+# The contract is spec/tabular-center-fmt.md.
+#
+# Its own workspace, at the repository root: it belongs to the `.tb.` format,
+# not to any one language, and ships on its own cadence -- a formatting change
+# should not force a library version bump.
+[workspace]
+
+[package]
+name = "tabular-center-fmt"
+description = "Pads the cells of .tb. transition-matrix rows so their columns line up"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/tabula-center/tabular-center"
+publish = false
+
+# None, as for the library: a formatter is a tool people run on source they
+# care about, and every dependency is something else that can break it.
+[dependencies]

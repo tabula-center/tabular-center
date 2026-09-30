@@ -43,15 +43,48 @@ for Kotlin, and a tool that understands neither is correct for both.
 ## What it does
 
 1. Find **runs**: two or more consecutive lines with the same leading
-   indentation and the same bracket shape.
+   indentation and the same bracket shape -- the same brackets, the same
+   trailing punctuation, and the same number of cells.
 2. Split each into cells on top-level commas — top-level meaning outside
    brackets, parens and string literals. `GO!(Idle, StopClock)` is one cell.
-3. Pad each cell to the widest in its column, leaving one space after the
-   comma.
+3. Pad each cell so its column lines up, leaving one space after the comma.
 4. Leave every line not in a run exactly as it found it.
 
 A run of one line is not a run. A single row has no column to align to, and
 padding it to some remembered width is how a formatter starts having opinions.
+
+### Decided by running it
+
+Points 1 and 3 left choices open. Each was settled by running a prototype over
+every `.tb.` file in the repository before the tool was written -- 52 files,
+idempotent on all of them, none refused -- and each answer is what that run
+showed:
+
+- **Which list is the row.** The shallowest `[` among the brackets that close
+  at the end of the line; with no `[`, the shallowest `(` with a comma in it.
+  So in `@Row(S.Idle::class, [CellSpec(...), ...])` the row is the `[...]`,
+  never `@Row`'s parentheses, and never one cell's own arguments -- which
+  "the group with the most commas" got wrong for one-cell rows such as
+  `[CellSpec(Kind.GO, to = S.Busy::class)]`.
+- **Columns never shrink.** A column is as wide as its widest cell or its
+  widest *current* slot, whichever is larger. Most matrices here carry a
+  hand-aligned column-header comment (`//   Start   Tick   Cancel`), and
+  padding only to the widest cell would pull every cell out from under it on
+  the first run. Misaligned rows grow to match; nothing is compacted.
+- **Closers belong to the author.** If a run's closing brackets are already
+  aligned -- Rust's matrices align theirs -- they stay aligned. Otherwise each
+  row's last cell and whatever follows it are left exactly as written: Kotlin
+  and Swift tables close compactly, and padding their last cells only to line
+  up `]` produced runs of spaces nobody would write.
+- **Header lines are never rows.** "The `machine`/`states`/`actions` header
+  lines" above is enforced by name: a line whose prefix is a `.tb.` header key
+  -- `machine`, `states`, `actions`, `effects`, `initial`, `context`, `paths`,
+  `cells` -- followed by `:` or `=`, or a `@Path` spine, never joins a run,
+  even with a row's shape. Swift's `states: [...]` and `actions: [...]` have
+  exactly that shape, one after the other. These are the format's own words,
+  not a parse of any language. `@Path` also matters for another reason: the
+  compile-fail fixtures that exercise paths match their `//~ AT:` markers by
+  line content, and realigning a path would silently break them.
 
 ## What it must not do
 

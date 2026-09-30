@@ -67,6 +67,7 @@ result-*
 # included, which had simply never been built in a working tree before.
 /tabular-center-kotlin/examples/*/build/
 /tabular-center-rust/examples/target/
+/tabular-center-fmt/target/
 /tabular-center-rust/examples/05-iced/target/
 /tabular-center-swift/examples/.build/
 /tabular-center-swift/examples/Package.resolved

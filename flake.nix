@@ -51,6 +51,14 @@
       inputs.nixpkgs-swift.follows = "nixpkgs-swift";
       inputs.flake-utils.follows = "flake-utils";
     };
+    # Not a language: the `.tb.` formatter (spec/tabular-center-fmt.md),
+    # composed the same way, and merged the same way below.
+    tabular-center-fmt = {
+      url = "path:./tabular-center-fmt";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+      inputs.rust-overlay.follows = "rust-overlay";
+    };
   };
 
   # This file stays a table of contents. The cross-language checks, the
@@ -63,6 +71,7 @@
           rust = inputs.tabular-center-rust;
           kotlin = inputs.tabular-center-kotlin;
           swift = inputs.tabular-center-swift;
+          fmt = inputs.tabular-center-fmt;
         };
         ctx = import ./nix/context.nix { inherit self system nixpkgs langs; };
         per = attr: nixpkgs.lib.foldl' (acc: l: acc // (l.${attr}.${system} or { })) { }
@@ -87,6 +96,7 @@
         # not merged: at the root, `verify` means every step.
         apps = {
           inherit (langs.rust.apps.${system}) table-diff bench;
+          inherit (langs.fmt.apps.${system}) tb-fmt;
           inherit (langs.kotlin.apps.${system}) gradle-lock;
           inherit (langs.swift.apps.${system}) swift-lock;
         } // import ./nix/apps.nix ctx;
