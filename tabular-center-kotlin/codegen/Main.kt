@@ -198,6 +198,31 @@ private val all = mapOf(
     // The rendering surface (ARCHITECTURE §9): the Timer again, plus a render
     // prototype. Its transitions stay `suspend` and its renderers are plain,
     // which is the point of a second prototype -- two surfaces, two colors.
+    // The narrowed surface (spec/happy-paths.md): a path through Idle ->
+    // Connecting -> Live, where Drop in Connecting is a HANDLE the path does not
+    // name -- so connectingReady can end in any state -- and emits an effect,
+    // which comes back with the outcome rather than being run.
+    "connect" to buildDesc(
+        RawMachine(
+            packageName = "generated.connect",
+            machine = "Connect",
+            stateType = "S",
+            actionType = "A",
+            effectType = "F",
+            ctxType = "Ctx",
+            initial = "Idle",
+            states = listOf(RawVariant("Idle"), RawVariant("Connecting"), RawVariant("Live"), RawVariant("Failed")),
+            actions = listOf(RawVariant("Start"), RawVariant("Ready"), RawVariant("Drop")),
+            effects = listOf(RawVariant("Banner")),
+            rows = listOf(
+                RawRow("Idle", listOf(RawCell("HANDLE"), RawCell("IGNORE"), RawCell("IGNORE"))),
+                RawRow("Connecting", listOf(RawCell("IGNORE"), RawCell("HANDLE"), RawCell("HANDLE"))),
+                RawRow("Live", listOf(RawCell("IGNORE"), RawCell("IGNORE"), RawCell("IGNORE"))),
+                RawRow("Failed", listOf(RawCell("IGNORE"), RawCell("IGNORE"), RawCell("IGNORE"))),
+            ),
+            paths = listOf(RawPath("connect", listOf("Idle", "Start", "Connecting", "Ready", "Live"))),
+        ),
+    ),
     "timerrender" to timerDesc.copy(
         packageName = "generated.timerrender",
         render = RenderDesc(returnType = "String"),

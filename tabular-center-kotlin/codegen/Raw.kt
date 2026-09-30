@@ -221,9 +221,24 @@ fun buildDesc(raw: RawMachine): MachineDesc {
         prototypeReceiver = raw.prototypeReceiver,
         visibility = raw.visibility,
         render = raw.render,
+        hops = hopsOf(raw),
     )
     checkMemberCollisions(desc)
     return desc
+}
+
+/**
+ * Forward hops of every path, in declaration order, deduplicated by
+ * `(from, action)`. Called after the paths were validated, so every name
+ * resolves. Backward walks (`RawPath.back`) generate no narrowed members yet:
+ * PLAN.md, happy paths.
+ */
+private fun hopsOf(raw: RawMachine): List<HopDesc> {
+    val state = raw.states.map { it.name }
+    val action = raw.actions.map { it.name }
+    return raw.paths.flatMap { it.hops }
+        .map { (f, a, t) -> HopDesc(state.indexOf(f), action.indexOf(a), state.indexOf(t)) }
+        .distinctBy { it.from to it.action }
 }
 
 /**

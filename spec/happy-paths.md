@@ -177,11 +177,17 @@ A hop is `(from, action, to)`, and that is exactly the signature of a call a
 developer makes. So the surface is generated per hop, named after both halves:
 
 ```kotlin
-// In state Connecting, sending Ready.
-val live: S.Live = cells.connectingReady(ctx, state) elvis (
-    Failed = { showBanner(it) },
+// In state Connecting, whatever arrived: Ready is the happy continuation.
+val (live, effects) = cells.connectingReady(ctx, state, action).elvis(
+    Connecting = { return stillWaiting() }, // an IGNOREd action: nothing moved
+    Failed = { return showBanner(it.state) },
 )
 ```
+
+(The first sketch here wrote `x elvis (Failed = { ... })`, which is not
+Kotlin: an `infix` call takes one expression, and a named argument is not one.
+Named handlers need `.elvis(...)`; the `infix` form is for exactly one
+alternative, with a trailing lambda -- `hop elvis { ... }`.)
 
 Three things fall out of the hop, none of which a states-only spine could give:
 
@@ -212,16 +218,69 @@ it. A cell the happy path does not pass through is reached through `step`, the
 way everything was before. That asymmetry is the feature: corner cases are
 second-class in the interface because they are second-class in the intent.
 
-### Open, and worth settling before implementation
+### Settled before implementation
 
-- **The `elvis` spelling in each language.** Kotlin's named-argument form is
-  `hadilq/happy`'s and reads well. Rust's is `?` over a generated `Result`-alike
-  and probably needs no DSL at all. Swift's is a `throws` overload with `try`,
-  because `guard case ... else` does not reject a missing case.
-- **Whether the effects pump is part of it.** `step` returns a `Step` carrying
-  effects, and this returns a state. Something has to run `perform`, and doing
-  it inside the generated member would hide an effect execution inside what
-  looks like a state transition.
+Three questions, answered here because three implementations depend on the
+answers, and "worth settling before implementation" meant exactly that.
+
+**What a hop member takes: the action that arrived.** Not the hop's own
+action -- the one the caller has, from the outside world. The reason is
+derivation, above: a `HANDLE` named by a hop is turned into a `GO` to the hop's
+next state, so after derivation every hop cell is a `GO`, and a member that
+performed the hop's own action would have exactly one outcome. Its `elvis`
+would handle nothing. What the example above means -- `Failed` as a parameter
+because `Drop` leads there -- is the row: *in `Connecting`, whatever arrives,
+the happy continuation is `Live`, and here is what else can happen*. So:
+
+```kotlin
+val (live, effects) = cells.connectingReady(ctx, state, action).elvis(
+    Connecting = { return stillWaiting() }, // an IGNOREd action: nothing moved
+    Failed = { return showBanner(it.state) },
+)
+```
+
+The member is named for the hop, because the hop is what makes it exist and
+what an IDE should offer "next" on; it dispatches through `step`, so the
+matrix, not the member, decides.
+
+**Its outcomes are the states the `from` row can produce**, by cell kind:
+
+| cell in the `from` row | outcome |
+|---|---|
+| the hop's own cell (`GO(to)` after derivation) | `to` -- the happy one |
+| `GO(t)` | `t` |
+| `EMIT`, `IGNORE`, `DELEGATE` | `from` -- the machine stays |
+| a `HANDLE` the path does not name | any state: its code decides |
+| `UNREACHABLE` | none: it is a trap, not an outcome |
+
+Every outcome but `to` is a named, required parameter, keyed by **state** --
+two actions reaching `Failed` are one `Failed` parameter, and an action
+reaching `to` by another route is the happy outcome too. This is what makes
+"adding a state adds a parameter" true: a state becomes reachable from
+`Connecting` by a new `GO`, or by any `HANDLE` in the row, and every call site
+stops compiling until it says what to do there.
+
+**Effects come back with the state; the member never runs them.** The outcome
+carries the `Step`'s effects beside its state, so the happy result is
+`(state, effects)` and running them stays the caller's, visible at the call
+site. Running `perform` inside would hide an effect execution inside what
+looks like a transition -- the concern this question was left open for.
+
+**The spelling, per language** -- each keeps the property that a new outcome
+breaks every call site:
+
+- **Kotlin:** `hadilq/happy`'s shape, which its source shows is required.
+  The member returns a generated sealed outcome type, one per hop; `elvis` is
+  an `inline` extension on it, one UpperCamel lambda per non-happy outcome,
+  `infix` when there is exactly one. `inline` is what lets a handler `return`
+  from the caller -- the railway -- and why it cannot be a `Cells` member.
+- **Swift:** labelled closures, one per non-happy outcome, `rethrows`:
+  `try hop.elvis(failed: { ... })`. A missing label does not compile; a
+  handler escapes by throwing, which is Swift's non-local exit. (Not
+  `guard case`, which does not reject a missing case.)
+- **Rust:** a generated enum per hop and `into_happy()` returning
+  `Result<(Live, Effects), ConnectingReadyElse>`, so `?` is the railway, and a
+  `match` on the `Else` enum is exhaustive -- no DSL at all.
 
 ## What `hadilq/happy` does, read from its source
 
@@ -432,8 +491,29 @@ after three implementations is the expensive version.
       Four compile-fail fixtures. One message differs from Kotlin's: a path
       of the wrong shape cannot say how many elements it has, because a
       `compile_error!` message is a literal and the count is not
-- [ ] The narrowed calling surface: one member per hop, per the section above.
-      The two open questions there are decisions, not implementation.
+- [x] The narrowed calling surface, decided: a hop member takes the action
+      that arrived, its outcomes are the states the `from` row can produce,
+      effects come back with the state, and each language has its spelling.
+      See "Settled before implementation". Answered by derivation: after it,
+      every hop cell is a `GO`, so the only reading with anything for `elvis`
+      to handle is the row.
+- [x] Kotlin (emitter and KSP): `HopDesc` on `MachineDesc`, from the validated
+      paths' forward hops, deduplicated by `(from, action)`; per hop a sealed
+      outcome type, the member (`Cells.` extension, or a `cells` parameter when
+      the prototype's receiver takes that slot), and an `inline` `elvis`,
+      `infix` for one alternative. States the row cannot produce map to
+      `error(...)` in an exhaustive `when` -- unreachable, and no `else`. Hop
+      members join `member-collision`'s list. Proven by `kotlin-codegen` (a
+      `connect` machine whose `Drop` is an unnamed HANDLE, a call site using
+      both `elvis` forms, and `connect_missing_outcome.kt` refused), by
+      `Tests.kt` (outcome sets, and the additive property with hops set
+      aside), and by `kotlin-ksp`/`kotlin-compose`, which compile the surface
+      KSP generates for `Spine.tb.kt` and the Compose checkout
+- [ ] Swift, then Rust, each with a fixture proving a missing outcome does not
+      compile
+- [ ] Backward walks (`back`) generate no narrowed members yet: a hop walked
+      backwards is `(next, back) -> previous`, and whether it earns a member
+      of its own is a question the Compose example should answer
 - [ ] The Compose and iced examples (PLAN backlog). They are the acceptance
       test: if the sugar does not read well in a `@Composable` or a `view()`,
       the sugar is wrong, not the app.

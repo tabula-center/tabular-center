@@ -172,6 +172,10 @@ fun emit(d: MachineDesc): String = buildString {
         appendLine("}")
     }
 
+    // -- narrowed surface: one member per hop (optional) ----------------
+    // Only for a machine with paths; without one nothing here is emitted.
+    for (h in d.hops) hop(d, h, vis, mods, recv)
+
     // -- table ----------------------------------------------------------
     appendLine()
     appendLine("/** The matrix as inert data. Diagrams, lints, and coverage read this. */")
@@ -210,6 +214,104 @@ private inline fun forEachCell(d: MachineDesc, body: (Int, Int, CellDesc) -> Uni
 }
 
 /**
+ * The states `from` can end up in when an action arrives there, per
+ * spec/happy-paths.md: a `GO` its target, `EMIT`/`IGNORE`/`DELEGATE` `from`
+ * itself, a `HANDLE` any state (its code decides), `UNREACHABLE` none. The
+ * hop's own cell is a `GO` to `to` after derivation, so `to` is always in.
+ * Sorted, in declaration order.
+ */
+internal fun hopOutcomes(d: MachineDesc, h: HopDesc): List<Int> {
+    val out = sortedSetOf(h.to)
+    for (cell in d.rows[h.from]) {
+        when (cell) {
+            is CellDesc.Go -> out += d.states.indexOfFirst { it.name == cell.target }
+            is CellDesc.Emit, CellDesc.Ignore, is CellDesc.Delegate -> out += h.from
+            CellDesc.Handle -> out += d.states.indices
+            CellDesc.Unreachable -> {}
+        }
+    }
+    return out.toList()
+}
+
+/**
+ * One hop's narrowed surface: a sealed outcome type, the member that steps
+ * `from` with the action that arrived, and an `inline` `elvis` over the
+ * outcome. spec/happy-paths.md, "Settled before implementation".
+ */
+private fun StringBuilder.hop(d: MachineDesc, h: HopDesc, vis: String, mods: String, recv: String) {
+    val name = member(d, h.from, h.action)
+    val type = cap(name)
+    val st = d.stateType
+    val from = d.states[h.from].name
+    val to = d.states[h.to].name
+    val outcomes = hopOutcomes(d, h)
+    val others = outcomes.filter { it != h.to }
+
+    appendLine()
+    appendLine("/**")
+    appendLine(" * Where `$from` can go when an action arrives, on the path through")
+    appendLine(" * `$from -${d.actions[h.action].name}-> $to`: `$to` is the happy outcome, the rest are")
+    appendLine(" * what else the `$from` row can produce. Each carries the step's effects.")
+    appendLine(" */")
+    appendLine("${vis}sealed class $type {")
+    appendLine("    abstract val effects: List<${d.effectType}>")
+    for (i in outcomes) {
+        val s = d.states[i].name
+        appendLine("    data class $s(val state: $st.$s, override val effects: List<${d.effectType}>) : $type()")
+    }
+    appendLine("}")
+
+    // With a receiver prototype the receiver slot is taken, so `cells` is a
+    // parameter; `step` is then reached through that receiver, as it is here.
+    val self = if (recv.isEmpty()) "Cells." else recv
+    val cellsParam = if (recv.isEmpty()) "" else "cells: Cells, "
+    val cellsArg = if (recv.isEmpty()) "this" else "cells"
+    appendLine()
+    appendLine("/** `$from` receives [action]; the matrix decides the outcome. Effects come back, never run. */")
+    appendLine(
+        "$vis${mods}fun $self$name(${cellsParam}ctx: ${d.ctxType}, state: $st.$from, action: ${d.actionType}): " +
+            "$type {"
+    )
+    appendLine("    val s = step($cellsArg, ctx, state, action)")
+    appendLine("    val next: $st = when (s) {")
+    appendLine("        is Step.Go -> s.next")
+    appendLine("        is Step.Stay -> state")
+    appendLine("        is Step.Ignored -> state")
+    appendLine("    }")
+    appendLine("    return when (next) {")
+    for ((i, v) in d.states.withIndex()) {
+        if (i in outcomes) {
+            appendLine("        is $st.${v.name} -> $type.${v.name}(next, s.effects)")
+        } else {
+            appendLine("        is $st.${v.name} -> error(\"tabular-center: the `$from` row cannot produce `${v.name}`\")")
+        }
+    }
+    appendLine("    }")
+    appendLine("}")
+
+    // `inline`, so a handler may `return` from the caller: the railway.
+    appendLine()
+    appendLine("/** The happy outcome of [$name], or each handler's answer for the others. */")
+    if (others.isEmpty()) {
+        appendLine("${vis}inline fun $type.elvis(): $type.$to = when (this) {")
+    } else {
+        val infix = if (others.size == 1) "infix " else ""
+        appendLine("${vis}inline ${infix}fun $type.elvis(")
+        for (i in others) {
+            val s = d.states[i].name
+            appendLine("    $s: ($type.$s) -> $type.$to,")
+        }
+        appendLine("): $type.$to = when (this) {")
+    }
+    appendLine("    is $type.$to -> this")
+    for (i in others) {
+        val s = d.states[i].name
+        appendLine("    is $type.$s -> $s(this)")
+    }
+    appendLine("}")
+}
+
+/**
  * One member of the generated `Cells` interface, and what it was generated
  * from -- for `tabular-center::member-collision`.
  */
@@ -242,6 +344,12 @@ internal fun cellsMembers(d: MachineDesc): List<GeneratedMember> = buildList {
         }
     }
     for (e in d.effects) add(GeneratedMember(lower(e.name), "effect ${e.name}", null))
+    // Not `Cells` members, but named on the same scheme: two hops meeting at one
+    // name would be two top-level functions of the same signature.
+    for (h in d.hops) {
+        val at = "hop (${d.states[h.from].name}, ${d.actions[h.action].name})"
+        add(GeneratedMember(member(d, h.from, h.action), at, d.states[h.from].name))
+    }
 }
 
 private fun child(d: MachineDesc, alias: String): ChildDesc =

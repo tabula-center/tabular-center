@@ -277,7 +277,8 @@ between its parts can meet another: `LogIn`+`Start` and `Log`+`InStart` are
 both `logInStart`. `hadilq/happy` names nested cases the same way and does not
 check either (spec/happy-paths.md). Every member of the generated `Cells`
 surface is checked against every other, from the same list the emitter names
-them from.
+them from -- and so is every hop's narrowed member, which is named on the same
+scheme though it is a top-level function rather than a `Cells` member.
 
 Kotlin and Swift. In Swift a collision between payload-free cells does not
 compile: both members take only `_ ctx`, and the second is an "invalid

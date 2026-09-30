@@ -2612,6 +2612,15 @@ carries its own checklist; the boxes below track it rather than duplicate it.
       *Design constraint from the `happy` reading:* Kotlin's `elvis` must be
       an `inline` extension on a generated per-hop outcome type, not a `Cells`
       member, for handlers to `return` from the caller
+      *Decided* in `spec/happy-paths.md`, "Settled before implementation": a
+      hop member takes the action that arrived (after derivation every hop
+      cell is a `GO`, so the hop's own action has one outcome and nothing for
+      `elvis` to do); its outcomes are the states the `from` row can produce,
+      keyed by state; effects come back with the state, never run inside;
+      Kotlin `inline` extension on a per-hop sealed type, Swift labelled
+      `rethrows` closures, Rust `into_happy()` and `?`. Kotlin implemented
+      (emitter, KSP, fixture); Swift and Rust next -- the checklist is in
+      `spec/happy-paths.md`, "Order of work"
 - [x] Defaults derived from the spine: a `HANDLE` named by a hop becomes a
       `GO` (`derive` in `codegen/Raw.kt` and `TabulaCodegen/Raw.swift`), shown
       by `examples/kotlin/06-generated/src/Spine.tb.kt` and pinned by

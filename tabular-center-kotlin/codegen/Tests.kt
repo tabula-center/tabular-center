@@ -235,8 +235,38 @@ private fun runAdditiveTest() {
     val longhand = buildDesc(conn(longhandRows, emptyList()))
     val underived = buildDesc(conn(spineRows, emptyList()))
 
-    check("a spine-derived machine equals its longhand twin", derived == longhand)
-    check("... and emits byte-identical source, TABLE included", emit(derived) == emit(longhand))
+    // The path now adds one thing on purpose: the narrowed surface, one member
+    // per hop. Everything else is still exactly the longhand machine.
+    val bare = derived.copy(hops = emptyList())
+    check("a spine-derived machine equals its longhand twin, hops aside", bare == longhand)
+    check("... and emits byte-identical source, TABLE included", emit(bare) == emit(longhand))
+    check("the path's two hops are recorded", derived.hops == listOf(HopDesc(0, 0, 1), HopDesc(1, 1, 2)))
+
+    // The narrowed surface, per spec/happy-paths.md "Settled before implementation".
+    val out = emit(derived).lines()
+    // Connecting: Start is IGNORE (stays), Ready goes to Live, Drop is a HANDLE
+    // the path does not name -- so any state. Every state is an outcome.
+    check("(Connecting, Ready) can end anywhere: a HANDLE is in its row", hopOutcomes(derived, derived.hops[1]) == listOf(0, 1, 2, 3))
+    check(
+        "... so its elvis takes every state but Live, and is not infix",
+        "inline fun ConnectingReady.elvis(" in out &&
+            "    Idle: (ConnectingReady.Idle) -> ConnectingReady.Live," in out &&
+            "    Connecting: (ConnectingReady.Connecting) -> ConnectingReady.Live," in out &&
+            "    Failed: (ConnectingReady.Failed) -> ConnectingReady.Live," in out &&
+            out.none { it.startsWith("    Live: ") }
+    )
+    // Idle: Start goes to Connecting; the other two are IGNORE.
+    check("(Idle, Start) ends in Connecting or stays Idle", hopOutcomes(derived, derived.hops[0]) == listOf(0, 1))
+    check("... one alternative, so infix", "inline infix fun IdleStart.elvis(" in out)
+    check(
+        "the member takes the action that arrived",
+        "fun Cells.connectingReady(ctx: Ctx, state: S.Connecting, action: A): ConnectingReady {" in out
+    )
+    check(
+        "a state the row cannot produce is unreachable, not an else",
+        out.none { it.trim().startsWith("else") } &&
+            "        is S.Live -> error(\"tabular-center: the `Idle` row cannot produce `Live`\")" in out
+    )
     // The control. Without it, a `derive` that did nothing would still pass
     // the two checks above whenever the longhand twin was written wrong.
     check("without the path, the same rows are a different machine", underived != longhand)

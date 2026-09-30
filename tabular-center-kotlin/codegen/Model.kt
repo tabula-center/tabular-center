@@ -64,6 +64,13 @@ data class MachineDesc(
      * the rendering surface existed generates exactly what it did.
      */
     val render: RenderDesc? = null,
+    /**
+     * The forward hops of every declared path, deduplicated by
+     * `(from, action)`: two paths through one hop share one narrowed member.
+     * Empty for a machine without paths, which then emits exactly what it did
+     * before the narrowed surface existed. See [HopDesc].
+     */
+    val hops: List<HopDesc> = emptyList(),
 ) {
     init {
         require(rows.size == states.size) {
@@ -106,6 +113,15 @@ data class RenderDesc(
     /** What a render member returns: `Unit` for a composable, a view type otherwise. */
     val returnType: String = "Unit",
 )
+
+/**
+ * One hop of a happy path, `from -action-> to`, as indices into
+ * [MachineDesc.states] and [MachineDesc.actions]. spec/happy-paths.md,
+ * "Settled before implementation": it generates a narrowed member that takes
+ * the action that ARRIVED in `from`, and a sealed outcome type with one variant
+ * per state the `from` row can produce -- `to` the happy one.
+ */
+data class HopDesc(val from: Int, val action: Int, val to: Int)
 
 /**
  * One variant of a sealed hierarchy.
