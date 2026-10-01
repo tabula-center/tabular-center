@@ -2607,7 +2607,7 @@ carries its own checklist; the boxes below track it rather than duplicate it.
       `path-unterminated`, `path-unknown-state`, `path-duplicate`, in Kotlin
       and Swift, with four fixtures each. **Not Rust**, where `@Path` does not
       exist yet.
-- [ ] The narrowed calling surface, `elvis`-shaped, with the two-outcome
+- [x] The narrowed calling surface, `elvis`-shaped, with the two-outcome
       `elseIf` special case allowed and everything else refused.
       *Design constraint from the `happy` reading:* Kotlin's `elvis` must be
       an `inline` extension on a generated per-hop outcome type, not a `Cells`
@@ -2779,8 +2779,13 @@ rather than letting a green check imply more than it covers:
 
 ### Order of work
 
-- [ ] Happy-path sugar, per the backlog above. These apps are its acceptance
-      test and should not be written before it.
+- [x] Happy-path sugar, per the backlog above. These apps are its acceptance
+      test and should not be written before it. (They were written first,
+      and served as its acceptance test after.) Finding, in
+      `spec/happy-paths.md`: it reads well in code that owns its stepping --
+      `CheckoutCheck`'s `purchase` -- and has no place in a `model()` that
+      `rememberMachine` drives, since the narrowed members hand effects back
+      for their caller to run
 - [x] `Cargo.lock`-driven vendoring for `examples/rust`, so a crates.io
       dependency can exist at all. `examplesVendor` in `nix/context.nix` is
       `importCargoLock` over the committed lock, and the `rust-examples` check

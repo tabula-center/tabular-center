@@ -541,9 +541,22 @@ after three implementations is the expensive version.
       and an `IGNORE` handed back as the state reached; a `?` railway), and
       `narrow_unmatched_outcome.rs`: a `match` on the `Err` state that leaves
       a state out does not compile
-- [ ] Backward walks (`back`) generate no narrowed members yet: a hop walked
-      backwards is `(next, back) -> previous`, and whether it earns a member
-      of its own is a question the Compose example should answer
-- [ ] The Compose and iced examples (PLAN backlog). They are the acceptance
-      test: if the sugar does not read well in a `@Composable` or a `view()`,
-      the sugar is wrong, not the app.
+- [x] Backward walks (`back`) generate no narrowed members -- answered by the
+      Compose example, as this item asked: nothing in it wants one. Walking
+      back is a corner case of a forward hop, and there it already is: in the
+      checkout's `purchase`, `addressNext`'s `Cart = { ... }` handler is the
+      derived back step. A member of its own would name the same transition
+      twice
+- [x] The Compose and iced examples (PLAN backlog), as the acceptance test.
+      The finding is about scope, and it is recorded rather than argued away:
+      the narrowed surface reads well in code that **owns its stepping**, and
+      has no place in a UI driven by a generic holder. The checkout's
+      `model()` sends every action through `rememberMachine`, which
+      dispatches uniformly and runs every effect; the narrowed members hand
+      effects back, for a caller that runs them itself, so using them there
+      would bypass the driver to show off syntax. Where the app does own its
+      stepping -- `CheckoutCheck`'s `purchase`, one screen per event, each
+      corner case a named handler that `return`s -- the four hops read
+      straight down, and three checks pin the happy path, a decline and a
+      derived back step. iced's machine has no path, so nothing to narrow.
+      So: right sugar, narrower home than "every `@Composable`"
