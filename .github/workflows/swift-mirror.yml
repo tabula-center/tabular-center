@@ -16,6 +16,11 @@ name: swift-mirror
 on:
   push:
     tags: ["v*"]
+  # By hand, from the Actions tab: "Run workflow", and under "Use workflow
+  # from" pick the release TAG (v0.1.0), not a branch -- the version is read
+  # from it. GitHub shows the button only once this file is on the default
+  # branch.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -23,6 +28,8 @@ permissions:
 jobs:
   mirror:
     runs-on: ubuntu-latest
+    # The secret lives in this environment, so any protection rules on it
+    # (required reviewers, say) gate the push to the mirror.
     environment: swift-mirror
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +39,12 @@ jobs:
       - name: The tag is the VERSION being released
         run: |
           set -euo pipefail
+          # Run by hand from a branch, the ref is a branch name, not a version.
+          if [ "$GITHUB_REF_TYPE" != tag ]; then
+            echo "run from $GITHUB_REF_TYPE '$GITHUB_REF_NAME': pick the release tag (v$(tr -d '[:space:]' < VERSION))"
+            echo "under 'Use workflow from' instead -- the version is read from the tag"
+            exit 1
+          fi
           tagged="${GITHUB_REF_NAME#v}"
           declared="$(tr -d '[:space:]' < VERSION)"
           if [ "$tagged" != "$declared" ]; then
