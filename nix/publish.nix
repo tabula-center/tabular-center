@@ -129,14 +129,18 @@ in
         echo "  see RELEASING.md"
       ''}
 
-      echo "== swift: package index =="
-      # No registry: the Package Index resolves from git tags, so publishing is
-      # pushing the tag `release` created. The three products (TabularCenter,
-      # TabularCenterMacros, TabularCenterTesting) ship from one repository by definition.
+      echo "== swift: mirror, then package index =="
+      # No registry: SwiftPM and the Package Index resolve from a git
+      # repository with Package.swift at its root, which this one is not. So
+      # pushing the tag `release` created is what publishes Swift: it triggers
+      # .github/workflows/swift-mirror.yml, which splits tabular-center-swift/
+      # into tabula-center/tabular-center-swift and tags it `$version`.
       if [ "$execute" -eq 1 ]; then
         git push --follow-tags
+        echo "  pushed v$version; swift-mirror publishes tabular-center-swift $version"
       else
         echo "  would: git push --follow-tags   (tag v$version)"
+        echo "  which triggers swift-mirror: tabula-center/tabular-center-swift @ $version"
       fi
 
       echo

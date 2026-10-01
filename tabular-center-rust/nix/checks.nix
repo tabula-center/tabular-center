@@ -16,6 +16,8 @@ in
   rust-clippy = verify "rust-clippy" "clippy" rustInputs;
   rust-test = verify "rust-test" "test" rustInputs;
   rust-no-std = verify "rust-no-std" "no-std" rustInputs;
+  # The crate as crates.io would receive it, built from the archive alone.
+  rust-package = verify "rust-package" "package" rustInputs;
   rust-compile-fail = verify "rust-compile-fail" "compile-fail" rustInputs;
 
   # The counterpart to kotlin-matrix-stable, and the reason it is separate from

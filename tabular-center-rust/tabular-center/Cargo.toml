@@ -6,6 +6,12 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+# What crates.io shows. The README is the crate's own, not the monorepo's:
+# the published archive holds this directory and nothing above it.
+readme = "README.md"
+homepage = "https://tabula-center.github.io/tabular-center/doc/rust"
+keywords = ["state-machine", "fsm", "transition-matrix", "no-std", "macro"]
+categories = ["rust-patterns", "no-std", "data-structures"]
 
 [features]
 default = ["std"]

@@ -376,7 +376,30 @@ step_rust_render() {
         "--emit=$TABULAR_CENTER_RENDER_DIR" ../spec/conformance) >/dev/null
 }
 
-STEPS_DEFAULT=(fmt clippy test no-std compile-fail conformance examples rust-matrix-stable rust-gui)
+# The crate, exactly as crates.io would receive it, built from that archive
+# alone.
+#
+# `cargo package` writes the `.crate` -- the crate directory and nothing
+# above it, with the workspace's inherited fields written in -- unpacks it
+# under target/package/, and compiles it there. A source file that reached
+# outside the crate, or a field the workspace supplied that did not survive
+# packaging, fails here rather than on publish day. No dependencies, so it
+# runs offline. `--allow-dirty` because a working tree with changes is still a
+# tree worth checking, and the nix sandbox has no git at all.
+step_package() {
+    if ! command -v cargo >/dev/null 2>&1; then
+        echo "skip package (\$cargo not found)"
+        return 0
+    fi
+    require_dir tabular-center-rust || return 1
+    # shellcheck disable=SC2086
+    (cd tabular-center-rust && cargo package -p tabular-center $CARGO_FLAGS --allow-dirty --list) \
+        | sed 's/^/  packaged: /'
+    # shellcheck disable=SC2086
+    (cd tabular-center-rust && cargo package -p tabular-center $CARGO_FLAGS --allow-dirty)
+}
+
+STEPS_DEFAULT=(fmt clippy test no-std compile-fail conformance examples rust-matrix-stable rust-gui package)
 STEPS_EXTRA=(rust-render)
 
 # `--list` is how the root finds out which steps are this script's, so a step
@@ -395,6 +418,8 @@ for s in "${steps[@]}"; do
         clippy)             run clippy             step_clippy ;;
         test)               run test               step_test ;;
         no-std)             run no-std             step_no_std ;;
+
+        package)             run package             step_package ;;
         compile-fail)       run compile-fail       step_compile_fail ;;
         conformance)        run conformance        step_conformance ;;
         examples)           run examples           step_examples ;;

@@ -1150,7 +1150,10 @@ so they no-op until Phase 5 rather than sitting red.
 
 This phase deliberately produces the code the macro will later generate. It
 defines the target.
-
+      *The Swift mirror adds a requirement:* a `git subtree split` of
+      `tabular-center-swift/` carries nothing from the root, so the license
+      files need copies inside that directory too (and inside the Rust crate,
+      whose archive likewise holds only its own directory)
 - [x] `Step<S, F>`: `go`, `stay`, `ignored`; `Debug`, `PartialEq`
 - [x] `Cell` enum (six kinds) as inert data
 - [x] Effect collection shape: `[Option<F>; K]` const-generic, `no_std`-clean
@@ -1831,6 +1834,19 @@ a warning refuses nothing and every other fixture here proves a refusal.
       included from the examples; the "before" code is other libraries', not
       compiled here, and the page says so where it shows it
 - [ ] Publish: crates.io, Maven Central, Swift Package Index
+      *Distribution decided, and made checkable before any credential
+      exists.* Rust: crates.io receives an archive of the crate directory
+      alone, so `rust-package` runs `cargo package` -- which builds the crate
+      from exactly that archive -- on every push; the crate gained its own
+      README and crates.io metadata. Kotlin: Maven Central gets compiled jars,
+      nothing to check. Swift: SwiftPM and the Package Index need
+      `Package.swift` at a repository's root, so Swift ships through a mirror,
+      `tabula-center/tabular-center-swift`, made on each `v*` tag by
+      `.github/workflows/swift-mirror.yml` (`git subtree split`, tagged with
+      the bare version); `swift-standalone` builds `tabular-center-swift/` with
+      nothing beside it, which is what the mirror holds. Still needed once,
+      by hand: the mirror repository, its `SWIFT_MIRROR_TOKEN` secret, and its
+      Package Index registration (RELEASING.md)
 - [x] Semantic-versioning policy — specifically, what counts as a breaking
       change to *generated* code. `RELEASING.md`: generated code is API, one
       `VERSION` for all three, and one test -- does an unchanged declaration

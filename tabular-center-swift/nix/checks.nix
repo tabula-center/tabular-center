@@ -45,6 +45,8 @@ in
 // lib.optionalAttrs swiftChecked {
   # Wherever a Swift toolchain exists, Linux included (ARCHITECTURE 13).
   swift = verify "swift";
+  # The package as the mirror publishes it: this directory alone, built.
+  swift-standalone = verify "swift-standalone";
 
   # swift-format comes from the same pin as swift itself, so this needed no
   # lock entry: the version question is answered by the pin that answers

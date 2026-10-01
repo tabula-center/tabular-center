@@ -1,0 +1,54 @@
+# Publishes the Swift package to its mirror, tabula-center/tabular-center-swift.
+#
+# SwiftPM resolves a dependency from a git repository with Package.swift at
+# its root, and ours is in tabular-center-swift/. On a release tag (`v0.1.0`,
+# made by `nix run .#release`), this splits that directory out with its
+# history and pushes it to the mirror, tagged `0.1.0` -- SwiftPM wants bare
+# semver. The split is deterministic, so each release fast-forwards the
+# mirror's `main`. That the directory builds alone is checked on every push,
+# long before this runs: `swift-standalone` in tabular-center-swift/tools/verify.
+#
+# Needs one secret, SWIFT_MIRROR_TOKEN: a fine-grained token with
+# `contents: write` on the mirror repository and nothing else. This workflow's
+# own token stays read-only. See RELEASING.md.
+name: swift-mirror
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    environment: swift-mirror
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: The tag is the VERSION being released
+        run: |
+          set -euo pipefail
+          tagged="${GITHUB_REF_NAME#v}"
+          declared="$(tr -d '[:space:]' < VERSION)"
+          if [ "$tagged" != "$declared" ]; then
+            echo "tag $GITHUB_REF_NAME says $tagged, VERSION says $declared: not mirroring"
+            exit 1
+          fi
+
+      - name: Split tabular-center-swift/ out, with its history
+        run: git subtree split --prefix=tabular-center-swift -b swift-mirror
+
+      - name: Push to the mirror, and tag it
+        env:
+          MIRROR_TOKEN: ${{ secrets.SWIFT_MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          remote="https://x-access-token:${MIRROR_TOKEN}@github.com/tabula-center/tabular-center-swift.git"
+          git push "$remote" swift-mirror:main
+          git tag "$version" swift-mirror
+          git push "$remote" "refs/tags/$version"

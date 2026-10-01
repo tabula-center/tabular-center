@@ -119,5 +119,29 @@ told otherwise — because a bad release is a corrected commit, while a bad
 publish is a version burned forever on crates.io, which does not allow
 deletion.
 
-Swift has no registry: the Package Index resolves from git tags, so publishing
-is `git push --follow-tags`.
+Swift has no registry: SwiftPM and the Swift Package Index resolve from a git
+repository with `Package.swift` at its root, and this repository's is in
+`tabular-center-swift/`. So Swift is published through a **mirror**,
+`tabula-center/tabular-center-swift`: pushing the release tag runs
+`.github/workflows/swift-mirror.yml`, which splits `tabular-center-swift/` out
+with `git subtree split` -- that directory and its history, nothing else -- and
+pushes it to the mirror's `main`, tagged with the bare version (`0.1.0`, not
+`v0.1.0`: SwiftPM wants semver). A Swift user depends on the mirror and clones
+only Swift:
+
+```swift
+.package(url: "https://github.com/tabula-center/tabular-center-swift", from: "0.1.0")
+```
+
+Before the first release, once: create the empty mirror repository, add a
+fine-grained token with `contents: write` on it (and nothing else) as this
+repository's `SWIFT_MIRROR_TOKEN` secret, and register the mirror -- not this
+repository -- with the Swift Package Index. The workflow refuses a tag that
+disagrees with `VERSION`.
+
+That the mirror would build is checked on every push, not discovered at
+release: `swift-standalone` copies `tabular-center-swift/` somewhere with
+nothing beside it -- what a mirror clone holds -- and builds it. Rust's
+equivalent is `rust-package`: `cargo package` builds the crate from the archive
+crates.io would receive, which likewise holds the crate directory and nothing
+above it. Kotlin publishes compiled jars and needs neither.

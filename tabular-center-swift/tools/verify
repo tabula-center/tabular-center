@@ -927,7 +927,48 @@ step_swift_render() {
     echo "skip renderings-agree (swift: \$SWIFT not found)"
 }
 
-STEPS_DEFAULT=(swift-format-config swift-macro-support swift-matrix-stable swift swift-compile-fail swift-conformance swift-examples swift-codegen swift-macros)
+# The package as the mirror publishes it: this directory, alone.
+#
+# SwiftPM resolves a dependency from a git repository with `Package.swift` at
+# its root, so Swift is published through a mirror,
+# `tabula-center/tabular-center-swift`, made by `git subtree split` of this
+# directory on each release (RELEASING.md). A mirror clone holds this
+# directory and nothing beside it: no spec/, no root files, no other
+# language. Copy it somewhere with nothing around it and build every target
+# there; anything that reached outside fails here, before a release is cut.
+step_swift_standalone() {
+    if ! swift_available; then
+        echo "skip swift-standalone (\$SWIFT not found; nix develop .#swift provides it)"
+        return 0
+    fi
+    require_dir tabular-center-swift || return 1
+
+    local scratch alone out rc
+    scratch="$(mktemp -d)"
+    swift_home "$scratch"
+    alone="$scratch/mirror/tabular-center-swift"
+    mkdir -p "$scratch/mirror"
+    cp -R tabular-center-swift "$alone"
+    rm -rf "$alone/.build"
+
+    # `-c release`, as every Swift step here but one: macOS signs DEBUG
+    # executables for a debugger with /usr/bin/codesign, which a nix build's
+    # PATH lacks (see the swift-examples step), and this package has
+    # executable targets.
+    # shellcheck disable=SC2046
+    out="$( (cd "$alone" && "$SWIFT" build -c release $(swift_paths "$scratch")) 2>&1 )"
+    rc=$?
+    printf '%s\n' "$out" | tail -15
+    rm -rf "$scratch"
+    if [ "$rc" -ne 0 ]; then
+        echo "FAIL swift-standalone -- the package does not build without the rest of"
+        echo "     the repository, which is all a mirror clone has"
+        return 1
+    fi
+    echo "ok   tabular-center-swift builds alone, as the mirror will hold it"
+}
+
+STEPS_DEFAULT=(swift-format-config swift-macro-support swift-matrix-stable swift swift-compile-fail swift-conformance swift-examples swift-codegen swift-macros swift-standalone)
 STEPS_EXTRA=(swift-render)
 
 # `--list` is how the root finds out which steps are this script's, so a step
@@ -946,6 +987,7 @@ for s in "${steps[@]}"; do
         swift-macro-support) run swift-macro-support step_swift_macro_support ;;
         swift-matrix-stable) run swift-matrix-stable step_swift_matrix_stable ;;
         swift)               run swift               step_swift ;;
+        swift-standalone)    run swift-standalone    step_swift_standalone ;;
         swift-compile-fail)  run swift-compile-fail  step_swift_compile_fail ;;
         swift-conformance)   run swift-conformance   step_swift_conformance ;;
         swift-examples)      run swift-examples      step_swift_examples ;;
