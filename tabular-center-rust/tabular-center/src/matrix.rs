@@ -325,6 +325,8 @@ macro_rules! transition_matrix {
         backs=[$($backs:tt)*] paths=[]
     ) => {
         $crate::__tabula_define_hops! { ($) hops=[$($acc)*] backs=[$($backs)*] lasts=[$($lasts)*] }
+        // The narrowed surface: one `Hop` impl per forward hop, and `narrow`.
+        $crate::__tabula_narrow! { c=$c hdr=$hdr hops=[$($acc)*] }
         $crate::transition_matrix!(@derive c=$c hdr=$hdr acts=$acts done=[] todo=$rows);
     };
 
@@ -1109,6 +1111,84 @@ macro_rules! __tabula_handle_call {
     };
     (Async; $cty:ident $m:ident $st:ident $ca:ident; $bc:ident $bx:ident $bsv:ident $act:ident) => {
         <$cty as $crate::AsyncHandle<$m, $st, $ca>>::handle($bc, $bx, $bsv, $act).await
+    };
+}
+
+/// A machine's narrowed surface: `spec/happy-paths.md`, "Settled before
+/// implementation", in the shape `macro_rules!` can produce (see `hop.rs`).
+///
+/// One `Hop` impl per forward hop, keyed by the hop's existing types -- no new
+/// names, which `macro_rules!` cannot make -- and one `narrow`, in the
+/// machine's color, that steps `from` with the action that arrived and splits
+/// the result: the happy state, or the whole `State` the matrix reached.
+/// Effects come back either way, never run.
+///
+/// A hop shared by two paths generates its impl twice, and rustc reports the
+/// conflict (E0119) -- `macro_rules!` cannot deduplicate the hop list the way
+/// the Kotlin and Swift emitters do.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __tabula_narrow {
+    (c=$c:tt hdr=[
+        machine $m:ident; context $x:ident; state $s:ident; action $a:ident;
+        effects $e:ident $effs:tt $($rest:tt)*
+    ] hops=[$( ($pn:ident $st:ident $ac:ident $nx:ident) )*]) => {
+        $(
+            impl $crate::Hop<$ac> for $st {
+                type State = $s;
+                type To = $nx;
+
+                fn into_state(self) -> $s {
+                    $s::$st(self)
+                }
+
+                fn happy(next: $s) -> ::core::result::Result<$nx, $s> {
+                    match next {
+                        $s::$nx(to) => ::core::result::Result::Ok(to),
+                        other => ::core::result::Result::Err(other),
+                    }
+                }
+            }
+        )*
+
+        $crate::__tabula_colored_fn! { $c;
+        /// Step `from` with the action that arrived, on a happy-path hop:
+        /// `Ok((to, effects))` if the matrix took the hop, `Err((state,
+        /// effects))` with whatever state it reached otherwise.
+        ///
+        /// `let (live, effects) = narrow::<Connecting, Ready, _>(&mut cells, &mut ctx, state, action)?;`
+        ///
+        /// A `match` on the `Err` state is exhaustive over `State`, so a new
+        /// state breaks it; `?` is the railway. The effects are the caller's
+        /// to run, either way.
+        #[allow(dead_code)]
+        pub fn narrow<TabulaFrom, TabulaAction, TabulaCells>(
+            cells: &mut TabulaCells,
+            ctx: &mut $x,
+            from: TabulaFrom,
+            action: $a,
+        ) -> ::core::result::Result<
+            (<TabulaFrom as $crate::Hop<TabulaAction>>::To, $crate::Effects<$e>),
+            ($s, $crate::Effects<$e>),
+        >
+        where
+            TabulaFrom: $crate::Hop<TabulaAction, State = $s>,
+            TabulaCells: Cells,
+        {
+            let current = <TabulaFrom as $crate::Hop<TabulaAction>>::into_state(from);
+            let stepped = $crate::__tabula_delegate_step!($c; step(cells, ctx, current, action));
+            let next = match stepped.outcome {
+                $crate::Outcome::Go(next) => next,
+                $crate::Outcome::Stay | $crate::Outcome::Ignored => current,
+            };
+            match <TabulaFrom as $crate::Hop<TabulaAction>>::happy(next) {
+                ::core::result::Result::Ok(to) => ::core::result::Result::Ok((to, stepped.effects)),
+                ::core::result::Result::Err(other) => {
+                    ::core::result::Result::Err((other, stepped.effects))
+                }
+            }
+        }
+        }
     };
 }
 

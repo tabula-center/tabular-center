@@ -222,3 +222,56 @@ fn a_path_may_be_walked_backwards() {
         Outcome::Go(both_ways::State::Connecting(both_ways::Connecting))
     );
 }
+
+/// The narrowed surface, per `spec/happy-paths.md` "Settled before
+/// implementation", in Rust's shape: `narrow::<From, Action, _>` takes the
+/// action that arrived, and its `Err` side is the whole `State`.
+mod narrowing {
+    use super::{spine as m, Ctx, Impl};
+
+    #[test]
+    fn narrow_takes_the_hop_when_the_matrix_does() {
+        let a = m::Action::Ready(m::Ready);
+        let r = m::narrow::<m::Connecting, m::Ready, _>(&mut Impl, &mut Ctx, m::Connecting, a);
+        assert!(matches!(r, Ok((m::Live, _))));
+    }
+
+    #[test]
+    fn narrow_hands_back_whatever_else_the_matrix_did() {
+        // Drop in Connecting is a HANDLE the path does not name: it went to Failed.
+        let a = m::Action::Drop(m::Drop);
+        let r = m::narrow::<m::Connecting, m::Ready, _>(&mut Impl, &mut Ctx, m::Connecting, a);
+        assert!(matches!(r, Err((m::State::Failed(_), _))));
+
+        // Start in Connecting is IGNORE: nothing moved, which is an outcome too.
+        let a = m::Action::Start(m::Start);
+        let r = m::narrow::<m::Connecting, m::Ready, _>(&mut Impl, &mut Ctx, m::Connecting, a);
+        assert!(matches!(r, Err((m::State::Connecting(_), _))));
+    }
+
+    /// The railway: each hop's other outcomes leave through `?`, and the happy
+    /// path reads straight down.
+    fn connect(cells: &mut Impl, first: m::Action, then: m::Action) -> Result<m::Live, m::State> {
+        let started = m::narrow::<m::Idle, m::Start, _>(cells, &mut Ctx, m::Idle, first);
+        let (connecting, _) = started.map_err(|(state, _)| state)?;
+        let ready = m::narrow::<m::Connecting, m::Ready, _>(cells, &mut Ctx, connecting, then);
+        let (live, _) = ready.map_err(|(state, _)| state)?;
+        Ok(live)
+    }
+
+    #[test]
+    fn the_happy_path_reads_straight_down() {
+        let start = m::Action::Start(m::Start);
+        let ready = m::Action::Ready(m::Ready);
+        let dropped = m::Action::Drop(m::Drop);
+        assert_eq!(connect(&mut Impl, start, ready), Ok(m::Live));
+        assert_eq!(
+            connect(&mut Impl, start, dropped),
+            Err(m::State::Failed(m::Failed))
+        );
+        assert_eq!(
+            connect(&mut Impl, ready, ready),
+            Err(m::State::Idle(m::Idle))
+        );
+    }
+}

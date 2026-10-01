@@ -278,9 +278,19 @@ breaks every call site:
   `try hop.elvis(failed: { ... })`. A missing label does not compile; a
   handler escapes by throwing, which is Swift's non-local exit. (Not
   `guard case`, which does not reject a missing case.)
-- **Rust:** a generated enum per hop and `into_happy()` returning
-  `Result<(Live, Effects), ConnectingReadyElse>`, so `?` is the railway, and a
-  `match` on the `Else` enum is exhaustive -- no DSL at all.
+- **Rust:** `narrow::<Connecting, Ready, _>(cells, ctx, state, action)`,
+  returning `Result<(Live, Effects), (State, Effects)>`, so `?` is the
+  railway. *Revised when implemented,* from a generated enum per hop with an
+  exactly-row-shaped `Else`: `macro_rules!` cannot join identifiers into a new
+  name (`connecting_ready`, `ConnectingReadyElse`) or deduplicate a set (two
+  `GO`s to `Failed` must be one variant), and the crate takes no proc-macro or
+  `paste` dependency to get round that. So `transition_matrix!` implements a
+  `Hop<Ready>` trait on the hop's existing `from` type, and the `Err` side is
+  the machine's whole `State`. The guarantee stands -- a `match` on it is
+  exhaustive, so a new state breaks every call site that matches -- and the
+  cost is precision: a handler sees states a given row cannot produce. One
+  more: a hop shared by two paths generates its `Hop` impl twice, which rustc
+  reports as a conflict (E0119), where Kotlin and Swift deduplicate.
 
 ## What `hadilq/happy` does, read from its source
 
@@ -524,7 +534,13 @@ after three implementations is the expensive version.
       additive property via `withoutHops`). The payload branch -- a hop from,
       or an outcome in, a payload state -- is emitted but not yet compiled by
       a machine that has one
-- [ ] Rust, with a fixture proving a missing outcome does not compile
+- [x] Rust, in the revised shape above: the `Hop` trait (`src/hop.rs`), a
+      `Hop` impl per forward hop and a `narrow` per machine with paths, both
+      from `__tabula_narrow!` at the end of the macro's path walk, `narrow` in
+      the machine's color. Tests in `tests/spine.rs` (the hop taken; `Drop`
+      and an `IGNORE` handed back as the state reached; a `?` railway), and
+      `narrow_unmatched_outcome.rs`: a `match` on the `Err` state that leaves
+      a state out does not compile
 - [ ] Backward walks (`back`) generate no narrowed members yet: a hop walked
       backwards is `(next, back) -> previous`, and whether it earns a member
       of its own is a question the Compose example should answer

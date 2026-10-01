@@ -2618,9 +2618,12 @@ carries its own checklist; the boxes below track it rather than duplicate it.
       `elvis` to do); its outcomes are the states the `from` row can produce,
       keyed by state; effects come back with the state, never run inside;
       Kotlin `inline` extension on a per-hop sealed type, Swift labelled
-      `rethrows` closures, Rust `into_happy()` and `?`. Kotlin and Swift
-      implemented (emitter, fixture; KSP for Kotlin); Rust next -- the
-      checklist is in `spec/happy-paths.md`, "Order of work"
+      `rethrows` closures, Rust `into_happy()` and `?`. Implemented in all
+      three: Kotlin (emitter, KSP) and Swift row-precise; Rust generic,
+      `narrow::<From, Action, _>` with the whole `State` as its `Err` side,
+      chosen over a proc-macro or `paste` dependency because `macro_rules!`
+      cannot build names or deduplicate sets. The checklist is in
+      `spec/happy-paths.md`, "Order of work"
 - [x] Defaults derived from the spine: a `HANDLE` named by a hop becomes a
       `GO` (`derive` in `codegen/Raw.kt` and `TabulaCodegen/Raw.swift`), shown
       by `examples/kotlin/06-generated/src/Spine.tb.kt` and pinned by
