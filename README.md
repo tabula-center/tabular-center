@@ -4,7 +4,7 @@
 
 State machines whose declaration *is* the transition matrix.
 
-**Documentation: <https://tabula-center.github.io/tabular-center/doc/>** -- a
+**Documentation: <https://tabula.center/>** -- a
 page per language ([Rust](doc/rust.md), [Kotlin](doc/kotlin.md),
 [Swift](doc/swift.md)), with the same
 machine in each, the code you write around it, and what the compiler says when

@@ -1,5 +1,0 @@
-# Minimal, and deliberately so. A theme with its own build step would be a
-# second thing that can fail between a commit and a published page.
-theme: jekyll-theme-primer
-title: tabular-center
-description: State machines whose declaration is the transition matrix, for Rust, Kotlin and Swift.

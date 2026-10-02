@@ -434,7 +434,7 @@ deprecation period, and `VERSION` stays where it is.
       either spelling
 - [x] The repository URL: `https://github.com/tabula-center/tabular-center`,
       in `Cargo.toml` and in `tools/docs`, which also moves the docs base to
-      `https://tabula-center.github.io/tabular-center` -- the address
+      `https://tabula.center` -- the address
       `spec/diagnostics.md` tells every message to end with
 
 ### R5. Each implementation owns its examples
@@ -1134,6 +1134,19 @@ green in CI for all three languages.
       release: published coordinates never change. Whether the Kotlin package
       follows (`dev.tabularcenter` -> `center.tabula`) is a separate choice --
       a package need not match its group, but conventionally does
+- [x] The site is deployed by a workflow again, and `doc/` is no longer
+      committed -- reversing the 0009 decision, on purpose. Branch-serving
+      needed no setting, but Pages serves only a branch's root or a folder
+      named `docs/`, so the site root was the repository's and generated
+      output lived in git behind a staleness check. Now
+      `.github/workflows/pages.yml` runs `tools/docs`, renders with GitHub's
+      Jekyll action and deploys the artifact; the generated `doc/` is the site,
+      so `doc/index.md` is `https://tabula.center/` and pages lose the `/doc`
+      segment. The original failure -- Pages' Source left on the branch, so the
+      workflow was ignored and every page 404'd -- is guarded twice: the
+      setting is written down (RELEASING.md, "The site"), and `deploy-pages`
+      fails rather than falling back. `tools/verify docs` keeps what still
+      matters: every sample resolves, every diagnostic has its anchor
 - [ ] License files. Every manifest declares `MIT OR Apache-2.0`, but the tree
       has no `LICENSE-MIT` or `LICENSE-APACHE`. This box was ticked with the
       two above; the September 2026 re-audit found nothing behind it. Needs

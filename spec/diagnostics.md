@@ -14,7 +14,7 @@ fix.
 ```
 tabular-center::row-arity: row `Running` has 2 cells; `actions` declares 3.
   The first missing column is `Cancel`.
-  https://tabula-center.github.io/tabular-center/doc/diagnostics#tabular-center-row-arity
+  https://tabula.center/diagnostics#tabular-center-row-arity
 ```
 
 The anchor is injected by `tools/docs`, not derived from the heading text.

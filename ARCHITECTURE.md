@@ -846,7 +846,7 @@ tabular-center/
 │   ├── checks.nix               # the cross-language checks — each calls tools/verify
 │   ├── apps.nix                 # nix run .#verify, .#conformance, .#docs
 │   └── publish.nix              # release + publish, allowed to touch the network
-├── doc/                         # the Pages site, served from the branch; written by
+├── doc/                         # the Pages site: build output, not committed; written by
 │                                 #   tools/docs from spec/ and code samples, never by hand
 ├── justfile                     # thin aliases over tools/verify
 ├── VERSION                      # single source of truth; every manifest derives

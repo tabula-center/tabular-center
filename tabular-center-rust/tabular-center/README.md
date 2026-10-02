@@ -1,4 +1,4 @@
-<img src="https://tabula-center.github.io/tabular-center/doc/assets/logo.svg" alt="tabular-center" width="96">
+<img src="https://tabula.center/assets/logo.svg" alt="tabular-center" width="96">
 
 # tabular-center
 
@@ -17,7 +17,7 @@ fall into.
   Kotlin and Swift implementations.
 
 The guide, with examples the project's CI compiles and runs:
-<https://tabula-center.github.io/tabular-center/doc/rust>
+<https://tabula.center/rust>
 
 Source, specification and the other two implementations:
 <https://github.com/tabula-center/tabular-center>

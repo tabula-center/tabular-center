@@ -191,16 +191,20 @@ they live only in the `maven-central` environment:
    Kotlin group today is `dev.tabularcenter`, which that domain cannot prove,
    so it becomes `center.tabula` before the first release (PLAN.md) -- after
    it, coordinates never change.
-2. **User token.** Generate a Central Portal *user token* (not the portal
+2. **POM metadata.** Central rejects a POM without a name, description, url,
+   licenses, developers and scm. The url is the project site,
+   `https://tabula.center`; scm points at
+   `https://github.com/tabula-center/tabular-center`.
+3. **User token.** Generate a Central Portal *user token* (not the portal
    login) -> secrets `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`.
-3. **Signing key.** Keep the primary key offline, used only to certify; give CI
+4. **Signing key.** Keep the primary key offline, used only to certify; give CI
    a **signing subkey** with an expiry, passphrase-protected:
    `gpg --armor --export-secret-subkeys <SUBKEY-ID>!` -> secret `SIGNING_KEY`,
    its passphrase -> `SIGNING_KEY_PASSWORD`. Publish the public key to
    `keys.openpgp.org` and `keyserver.ubuntu.com`, where Central looks; keep a
    revocation certificate offline. A leaked subkey is revoked and replaced
    without touching the identity the primary key carries.
-4. **Environment.** `maven-central`: required reviewers, only `v*` tags. Then
+5. **Environment.** `maven-central`: required reviewers, only `v*` tags. Then
    set the repository variable `MAVEN_CENTRAL_ENABLED=true` -- once the Kotlin
    Gradle publication exists (PLAN.md); until then the job is skipped, so the
    secrets are never loaded.
@@ -211,3 +215,19 @@ There is nothing to sign or upload: SwiftPM resolves a tag and records the
 commit it found in `Package.resolved`, so a moved tag is caught on the next
 resolve rather than trusted. Protect the mirror's tags with a ruleset, so only
 the mirror token can create them and nothing can move or delete them.
+
+## The site
+
+`https://tabula.center` is built from every push to `main` by
+`.github/workflows/pages.yml`: `tools/docs` generates `doc/` (build output,
+never committed), GitHub's Jekyll action renders it, and the result is
+deployed as a Pages artifact. The generated `doc/` is the site, so
+`doc/index.md` is the front page. Once, in Settings -> Pages:
+
+- **Source: GitHub Actions.** This is the setting an earlier version of the
+  workflow failed on: left on "Deploy from a branch", Pages ignores the
+  workflow and renders `README.md`, and every other page is a 404. The deploy
+  step now fails, visibly, if it is wrong.
+- **Custom domain: `tabula.center`**, then **Enforce HTTPS** once the
+  certificate is issued. No `CNAME` file: an Actions deployment takes the
+  domain from this setting.

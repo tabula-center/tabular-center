@@ -81,3 +81,6 @@ result-*
 # branch. `tools/verify docs` fails if it is stale. The old uncommitted
 # location is still ignored so a leftover local copy stays out of commits.
 /docs/
+
+# The Pages site: build output of tools/docs, deployed by .github/workflows/pages.yml.
+/doc/

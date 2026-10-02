@@ -1,4 +1,4 @@
-<img src="https://tabula-center.github.io/tabular-center/doc/assets/logo.svg" alt="tabular-center" width="96">
+<img src="https://tabula.center/assets/logo.svg" alt="tabular-center" width="96">
 
 # tabular-center — Swift
 
