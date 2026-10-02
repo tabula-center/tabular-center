@@ -31,6 +31,8 @@ jobs:
     # The secret lives in this environment, so any protection rules on it
     # (required reviewers, say) gate the push to the mirror.
     environment: swift-mirror
+    permissions:
+      actions: write
     steps:
       - uses: actions/checkout@v4
         with:
