@@ -68,7 +68,7 @@ sourceSets["test"].kotlin.srcDir("test")
 sourceSets["test"].kotlin.srcDir("../harness")
 
 dependencies {
-    ksp("dev.tabularcenter:tabular-center-ksp:0.1.0")
+    ksp("center.tabula:tabular-center-ksp:0.1.0")
 
     // The state machine layer needs the Compose RUNTIME only -- `remember`,
     // `mutableStateOf`, recomposition. That is the point of the architecture:

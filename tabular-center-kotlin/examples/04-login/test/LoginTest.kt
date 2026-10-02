@@ -3,7 +3,7 @@
 // `tests/` directory. A test in the same unit can reach anything, so it
 // never shows that the example's own surface is usable.
 
-import dev.tabularcenter.Step
+import center.tabula.Step
 import examples.login.*
 
 fun main() {
@@ -42,7 +42,7 @@ fun main() {
 
     Check.eq(
         session.TABLE.cell(0, 2),
-        dev.tabularcenter.Cell.Ignore,
+        center.tabula.Cell.Ignore,
         "login: coverage is not inherited silently",
     )
 

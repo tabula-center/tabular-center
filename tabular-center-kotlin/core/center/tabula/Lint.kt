@@ -1,4 +1,4 @@
-package dev.tabularcenter
+package center.tabula
 
 /**
  * Findings computable from a machine's table.

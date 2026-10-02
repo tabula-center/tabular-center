@@ -9,7 +9,7 @@
  */
 package generated.stopwatch
 
-import dev.tabularcenter.Step
+import center.tabula.Step
 
 internal sealed interface S {
     data object Idle : S

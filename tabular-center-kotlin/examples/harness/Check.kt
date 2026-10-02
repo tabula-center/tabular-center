@@ -1,7 +1,7 @@
 // A four-function assertion harness, shared by every example's tests.
 //
 // No package, so an example's test file can call it without an import while
-// still being compiled as its own unit. Deliberately not `dev.tabularcenter.testing`:
+// still being compiled as its own unit. Deliberately not `center.tabula.testing`:
 // that module is part of the library and an example must not appear to need a
 // test dependency the library does not ship.
 object Check {

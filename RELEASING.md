@@ -191,9 +191,9 @@ they live only in the `maven-central` environment:
    domain reversed. The project owns `tabula.center`, so the namespace is
    **`center.tabula`**: register it in the Central Portal, which hands back a
    verification key to publish as a DNS TXT record on `tabula.center`. The
-   Kotlin group today is `dev.tabularcenter`, which that domain cannot prove,
-   so it becomes `center.tabula` before the first release (PLAN.md) -- after
-   it, coordinates never change.
+   Kotlin group and package are `center.tabula` to match (they were
+   `dev.tabularcenter`, a domain the project never owned); published
+   coordinates never change.
 2. **POM metadata.** Central rejects a POM without a name, description, url,
    licenses, developers and scm. The url is the project site,
    `https://tabula.center`; scm points at

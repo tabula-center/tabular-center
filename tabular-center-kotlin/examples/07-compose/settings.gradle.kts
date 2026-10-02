@@ -44,13 +44,13 @@ rootProject.name = "tabular-center-example-compose"
 // rather than by name.
 //
 // A composite build is the right shape: the example depends on
-// `dev.tabularcenter:tabular-center-ksp` the way any consumer would, and the substitution
+// `center.tabula:tabular-center-ksp` the way any consumer would, and the substitution
 // says "resolve that from source, here". Nothing is published to that
 // coordinate; it exists to be named, which is the point -- when the processor
 // is published, deleting this block is the whole migration.
 includeBuild("../../ksp") {
     dependencySubstitution {
-        substitute(module("dev.tabularcenter:tabular-center-ksp"))
+        substitute(module("center.tabula:tabular-center-ksp"))
             .using(project(":"))
             .because("the example builds the processor from source, not from a repository")
     }

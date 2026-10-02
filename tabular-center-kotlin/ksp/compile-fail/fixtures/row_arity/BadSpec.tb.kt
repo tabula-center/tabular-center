@@ -14,11 +14,11 @@
 // to normalise exactly that. See `spec/matrix-files.md`.
 package fixtures.rowarity
 
-import dev.tabularcenter.CellSpec
-import dev.tabularcenter.Kind
-import dev.tabularcenter.Machine
-import dev.tabularcenter.Row
-import dev.tabularcenter.Step
+import center.tabula.CellSpec
+import center.tabula.Kind
+import center.tabula.Machine
+import center.tabula.Row
+import center.tabula.Step
 
 @Machine(
     states = [S.Idle::class, S.Busy::class],

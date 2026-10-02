@@ -1,4 +1,4 @@
-package dev.tabularcenter
+package center.tabula
 
 /**
  * A machine's transition matrix, emitted alongside the dispatcher.

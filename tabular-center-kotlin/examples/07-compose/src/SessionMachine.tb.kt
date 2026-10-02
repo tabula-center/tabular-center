@@ -7,14 +7,14 @@
  */
 package example.compose.session
 
-import dev.tabularcenter.CellSpec as C
-import dev.tabularcenter.Kind.DELEGATE
-import dev.tabularcenter.Kind.GO
-import dev.tabularcenter.Kind.HANDLE
-import dev.tabularcenter.Kind.IGNORE
-import dev.tabularcenter.Machine
-import dev.tabularcenter.Row
-import dev.tabularcenter.Step
+import center.tabula.CellSpec as C
+import center.tabula.Kind.DELEGATE
+import center.tabula.Kind.GO
+import center.tabula.Kind.HANDLE
+import center.tabula.Kind.IGNORE
+import center.tabula.Machine
+import center.tabula.Row
+import center.tabula.Step
 import example.compose.connection.ConnectionSpec
 import example.compose.session.A.Boot
 import example.compose.session.A.Finish

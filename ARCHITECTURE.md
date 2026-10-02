@@ -902,9 +902,9 @@ tabular-center/
 │   │                             #   KSP: gradle-lock.json + gradle-repo.nix
 │   ├── tools/verify             # the Kotlin steps
 │   ├── tools/gradle-lock        # writes nix/gradle-lock.json (network)
-│   ├── core/dev/tabularcenter/         # Step, Cell, Table, Export, Lint, Driver
-│   ├── annotations/dev/tabularcenter/  # @Machine, @Row, @Path, cell markers
-│   ├── testing/dev/tabularcenter/testing/
+│   ├── core/center/tabula/         # Step, Cell, Table, Export, Lint, Driver
+│   ├── annotations/center/tabula/  # @Machine, @Row, @Path, cell markers
+│   ├── testing/center/tabula/testing/
 │   ├── codegen/                 # MachineDesc -> String, + support/ and compile_fail/
 │   ├── ksp/                     # JVM processor — Gradle, offline via nix/gradle-lock.json
 │   ├── test/                    # reference machine + harness

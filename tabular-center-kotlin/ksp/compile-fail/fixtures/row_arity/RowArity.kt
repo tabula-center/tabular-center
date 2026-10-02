@@ -10,7 +10,7 @@
 // that keeps finding it.
 package fixtures.rowarity
 
-import dev.tabularcenter.Step
+import center.tabula.Step
 
 sealed interface S {
     data object Idle : S

@@ -89,7 +89,7 @@ A row is one line, and the cells line up in columns. Reading down a column
 answers "what does this action do, everywhere?", which is the question a list
 of screens cannot answer at all. Two things make it survive:
 
-- **Aliased imports.** `import dev.tabularcenter.CellSpec as C` and the `Kind`
+- **Aliased imports.** `import center.tabula.CellSpec as C` and the `Kind`
   members, plus the nested state and action classes, so a cell reads
   `C(GO, to = Failed::class)` rather than
   `CellSpec(Kind.GO, to = S.Failed::class)`. That is the difference between a

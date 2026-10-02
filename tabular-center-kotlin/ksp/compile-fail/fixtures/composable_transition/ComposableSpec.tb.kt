@@ -9,7 +9,7 @@
 // It proves a second thing by building at all. The warning's advice is sound
 // only if a `@Composable` prototype generates code that compiles, and it did
 // not: the processor copied `handle`'s annotations by short name into a file
-// that imports only `dev.tabularcenter`, so `@Composable` could not resolve
+// that imports only `center.tabula`, so `@Composable` could not resolve
 // there. Copied qualified since Phase 9b, the generated cells below carry
 // `@androidx.compose.runtime.Composable` and compile against the stub beside
 // this file.
@@ -18,11 +18,11 @@
 package fixtures.composabletransition
 
 import androidx.compose.runtime.Composable
-import dev.tabularcenter.CellSpec
-import dev.tabularcenter.Kind
-import dev.tabularcenter.Machine
-import dev.tabularcenter.Row
-import dev.tabularcenter.Step
+import center.tabula.CellSpec
+import center.tabula.Kind
+import center.tabula.Machine
+import center.tabula.Row
+import center.tabula.Step
 
 @Machine(
     states = [S.Idle::class, S.Busy::class],

@@ -6,7 +6,7 @@
  */
 package generated.connect
 
-import dev.tabularcenter.Step
+import center.tabula.Step
 
 class CompleteConnect : Cells {
     override fun connectingDrop(ctx: Ctx, state: S.Connecting, action: A.Drop): Step<S, F> =

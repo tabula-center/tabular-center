@@ -9,7 +9,7 @@
  */
 package generated.job
 
-import dev.tabularcenter.Step
+import center.tabula.Step
 
 class JobImpl : Cells {
     // The child's cells, required through `generated.retry.Cells`.

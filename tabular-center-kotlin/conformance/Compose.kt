@@ -3,11 +3,11 @@ package conformance
 import composition.Impl
 import composition.job
 import composition.retry
-import dev.tabularcenter.Payloads
-import dev.tabularcenter.Step
-import dev.tabularcenter.testing.Expect
-import dev.tabularcenter.testing.Spec
-import dev.tabularcenter.testing.Trace
+import center.tabula.Payloads
+import center.tabula.Step
+import center.tabula.testing.Expect
+import center.tabula.testing.Spec
+import center.tabula.testing.Trace
 
 /**
  * Adapters for `retry.tbl` and `nested-delegate.tbl`.

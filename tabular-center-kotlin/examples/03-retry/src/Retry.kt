@@ -8,8 +8,8 @@
  */
 package examples.retry
 
-import dev.tabularcenter.Driver
-import dev.tabularcenter.Step
+import center.tabula.Driver
+import center.tabula.Step
 
 sealed interface S {
     data object Ready : S

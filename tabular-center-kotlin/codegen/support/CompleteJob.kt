@@ -5,7 +5,7 @@
  */
 package generated.job
 
-import dev.tabularcenter.Step
+import center.tabula.Step
 
 class CompleteJob : Cells {
     // The child's cells and effect handlers, required through `generated.retry.Cells`.

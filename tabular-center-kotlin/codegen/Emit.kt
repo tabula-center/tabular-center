@@ -22,9 +22,10 @@ fun emit(d: MachineDesc): String = buildString {
     appendLine("// between a convention and a guarantee.")
     appendLine("package ${d.packageName}")
     appendLine()
-    appendLine("import dev.tabularcenter.Cell")
-    appendLine("import dev.tabularcenter.Step")
-    appendLine("import dev.tabularcenter.Table")
+    appendLine("import center.tabula.Cell")
+    appendLine("import center.tabula.Payloads")
+    appendLine("import center.tabula.Step")
+    appendLine("import center.tabula.Table")
     appendLine()
 
     // -- cell surface --------------------------------------------------
@@ -197,9 +198,9 @@ fun emit(d: MachineDesc): String = buildString {
     appendLine("/** State payload fields, as `(state, field, type)`. */")
     val payloadStates = d.states.filter { it.hasPayload }
     if (payloadStates.isEmpty()) {
-        appendLine("${vis}val PAYLOADS: dev.tabularcenter.Payloads = emptyList()")
+        appendLine("${vis}val PAYLOADS: Payloads = emptyList()")
     } else {
-        appendLine("${vis}val PAYLOADS: dev.tabularcenter.Payloads = listOf(")
+        appendLine("${vis}val PAYLOADS: Payloads = listOf(")
         for (v in payloadStates) {
             for ((f, t) in v.fields) {
                 appendLine("    Triple(${q(v.name)}, ${q(f)}, ${q(t)}),")

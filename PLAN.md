@@ -1129,11 +1129,18 @@ green in CI for all three languages.
       `swiftAvailable` (ARCHITECTURE 13)
 - [x] `CONTRIBUTING.md`, `.editorconfig` (incl. ktlint alignment
       exemptions for annotated declarations)
-- [ ] Kotlin group `dev.tabularcenter` -> `center.tabula`, the namespace the
-      domain `tabula.center` proves (RELEASING.md). Before the first Maven
-      release: published coordinates never change. Whether the Kotlin package
-      follows (`dev.tabularcenter` -> `center.tabula`) is a separate choice --
-      a package need not match its group, but conventionally does
+- [x] Kotlin group and package `dev.tabularcenter` -> `center.tabula`, the
+      namespace the domain `tabula.center` proves (RELEASING.md), before any
+      Maven release -- published coordinates never change. As 0023 did for
+      `dev.tabula`: source directories moved (`core/center/tabula/`, ...), the
+      KSP service file, the processor's group and the three builds'
+      substitution, the emitter's imports and the processor's qualified-name
+      constants, all rewritten (258 occurrences, PLAN's history untouched).
+      One hazard particular to this name: `center` is a common identifier,
+      and a qualified `center.tabula.X` resolves its first segment by scope.
+      Generated code wrote only `PAYLOADS: center.tabula.Payloads` that way --
+      a type position, so values could not shadow it, but it now imports
+      `Payloads` like every other library type it uses
 - [x] The site is deployed by a workflow again, and `doc/` is no longer
       committed -- reversing the 0009 decision, on purpose. Branch-serving
       needed no setting, but Pages serves only a branch's root or a folder

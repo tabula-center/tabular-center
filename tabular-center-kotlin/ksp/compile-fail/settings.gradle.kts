@@ -25,7 +25,7 @@ rootProject.name = "tabular-center-ksp-compile-fail"
 
 includeBuild("..") {
     dependencySubstitution {
-        substitute(module("dev.tabularcenter:tabular-center-ksp"))
+        substitute(module("center.tabula:tabular-center-ksp"))
             .using(project(":"))
             .because("the harness builds the processor from source, not from a repository")
     }

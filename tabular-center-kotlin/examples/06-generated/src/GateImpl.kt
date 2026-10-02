@@ -1,7 +1,7 @@
 // The one cell a developer writes, and the one effect handler.
 package generated.gate
 
-import dev.tabularcenter.Step
+import center.tabula.Step
 
 class GateImpl : Cells {
     override suspend fun closedRequest(ctx: Ctx, state: S.Closed, action: A.Request): Step<S, F> =

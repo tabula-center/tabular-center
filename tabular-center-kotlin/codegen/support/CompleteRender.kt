@@ -9,7 +9,7 @@
  */
 package generated.timerrender
 
-import dev.tabularcenter.Step
+import center.tabula.Step
 
 class CompleteRender : Cells, Renders {
     override suspend fun idleStart(ctx: Ctx, state: S.Idle, action: A.Start) =

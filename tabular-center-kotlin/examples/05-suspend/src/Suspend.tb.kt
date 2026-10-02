@@ -3,8 +3,8 @@
 // rest of this example is ordinary Kotlin, formatted normally.
 package examples.suspending
 
-import dev.tabularcenter.Cell
-import dev.tabularcenter.Table
+import center.tabula.Cell
+import center.tabula.Table
 
 //            Start    Arrived   Give
 // Idle       HANDLE   IGNORE    IGNORE

@@ -12,7 +12,7 @@
 // child, so no requirement would propagate and the hole would go unnoticed.
 package cf3
 
-import dev.tabularcenter.*
+import center.tabula.*
 import composition.*
 
 class ChildHole : job.Cells {

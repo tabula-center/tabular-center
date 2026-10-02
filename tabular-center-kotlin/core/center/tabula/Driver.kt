@@ -1,4 +1,4 @@
-package dev.tabularcenter
+package center.tabula
 
 /** Why a driver call could not proceed. */
 sealed interface DriverError {

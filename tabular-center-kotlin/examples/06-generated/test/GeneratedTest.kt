@@ -5,7 +5,7 @@
 // indistinguishable from hand-written code at the call site, and the only way
 // to show that is to call it the same way.
 
-import dev.tabularcenter.Step
+import center.tabula.Step
 import generated.turnstile.A
 import generated.turnstile.Ctx
 import generated.turnstile.F

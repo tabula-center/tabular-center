@@ -1,7 +1,7 @@
 // Tests for `../src/Suspend.kt`, compiled as their own unit against the
 // example's output rather than alongside it.
 
-import dev.tabularcenter.Step
+import center.tabula.Step
 import examples.suspending.*
 
 fun main() {

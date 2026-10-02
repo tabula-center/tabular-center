@@ -155,7 +155,7 @@ fun runValidationTests(): Int {
     // payload-hoist: rule R4, asked as a question.
     check(
         "a field in three states is flagged",
-        dev.tabularcenter.payloadHoist(
+        center.tabula.payloadHoist(
             listOf(
                 Triple("Connecting", "retryCount", "Int"),
                 Triple("Backoff", "retryCount", "Int"),
@@ -163,17 +163,17 @@ fun runValidationTests(): Int {
                 Triple("Reconnecting", "retryCount", "Int"),
             )
         ).singleOrNull().let {
-            it is dev.tabularcenter.Finding.PayloadHoist &&
+            it is center.tabula.Finding.PayloadHoist &&
                 it.states == listOf("Connecting", "Backoff", "Reconnecting")
         }
     )
     check(
         "two states is a coincidence, not a pattern",
-        dev.tabularcenter.payloadHoist(listOf(Triple("A", "n", "Int"), Triple("B", "n", "Int"))).isEmpty()
+        center.tabula.payloadHoist(listOf(Triple("A", "n", "Int"), Triple("B", "n", "Int"))).isEmpty()
     )
     check(
         "the same name at different types is not the same field",
-        dev.tabularcenter.payloadHoist(
+        center.tabula.payloadHoist(
             listOf(
                 Triple("A", "count", "Int"),
                 Triple("B", "count", "String"),

@@ -2,7 +2,7 @@
 // matrix lives in the `.tb.kt` beside it (`spec/matrix-files.md`).
 package fixtures.pathunterminated
 
-import dev.tabularcenter.Step
+import center.tabula.Step
 
 sealed interface S {
     data object Idle : S

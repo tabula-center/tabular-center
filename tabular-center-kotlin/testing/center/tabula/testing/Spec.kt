@@ -1,6 +1,6 @@
-package dev.tabularcenter.testing
+package center.tabula.testing
 
-import dev.tabularcenter.*
+import center.tabula.*
 
 /**
  * Parses `spec/conformance` — the same `.tbl` and `.trace` files the Rust

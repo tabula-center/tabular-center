@@ -4,7 +4,7 @@
 // machine and every handler in the codebase stops compiling.
 package cf
 
-import dev.tabularcenter.*
+import center.tabula.*
 import reference.*
 
 class NoStop : TimerMachine() {

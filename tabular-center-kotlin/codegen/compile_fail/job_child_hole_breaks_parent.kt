@@ -9,7 +9,7 @@
 // composition.
 package generated.job
 
-import dev.tabularcenter.Step
+import center.tabula.Step
 
 class Incomplete : Cells {
     override fun readyAttempt(ctx: generated.retry.Ctx, state: generated.retry.S.Ready, action: generated.retry.A.Attempt): Step<generated.retry.S, generated.retry.F> =

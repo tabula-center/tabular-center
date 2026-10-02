@@ -1,8 +1,8 @@
 package conformance
 
-import dev.tabularcenter.Export
-import dev.tabularcenter.testing.*
-import dev.tabularcenter.report
+import center.tabula.Export
+import center.tabula.testing.*
+import center.tabula.report
 import java.io.File
 
 /**

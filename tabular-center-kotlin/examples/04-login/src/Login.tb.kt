@@ -7,8 +7,8 @@
 // still write `session.TABLE`.
 package examples.login
 
-import dev.tabularcenter.Cell
-import dev.tabularcenter.Table
+import center.tabula.Cell
+import center.tabula.Table
 
 val AUTH_TABLE = Table(
     machine = "Auth",

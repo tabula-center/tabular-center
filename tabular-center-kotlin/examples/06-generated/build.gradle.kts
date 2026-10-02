@@ -52,7 +52,7 @@ sourceSets["test"].kotlin.srcDir("../harness")
 
 dependencies {
     // Named, and substituted to the included build in settings.gradle.kts.
-    ksp("dev.tabularcenter:tabular-center-ksp:0.1.0")
+    ksp("center.tabula:tabular-center-ksp:0.1.0")
 }
 
 kotlin { jvmToolchain(21) }

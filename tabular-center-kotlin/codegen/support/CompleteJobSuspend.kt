@@ -6,7 +6,7 @@
  */
 package generated.jobsuspend
 
-import dev.tabularcenter.Step
+import center.tabula.Step
 
 class CompleteJobSuspend : Cells {
     override fun readyAttempt(ctx: generated.retry.Ctx, state: generated.retry.S.Ready, action: generated.retry.A.Attempt): Step<generated.retry.S, generated.retry.F> =

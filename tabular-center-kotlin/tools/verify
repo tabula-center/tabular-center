@@ -180,13 +180,13 @@ kotlin_cp() { echo "$1/core:$1/annotations:$1/testing"; }
 
 kotlin_artifacts() {
     local out="$1"
-    "$KOTLINC" core/dev/tabularcenter/*.kt -d "$out/core" 2>&1 | grep -v "^info:" || true
+    "$KOTLINC" core/center/tabula/*.kt -d "$out/core" 2>&1 | grep -v "^info:" || true
     [ -d "$out/core" ] || { echo "tabular-center-core failed to compile"; return 1; }
 
-    "$KOTLINC" annotations/dev/tabularcenter/*.kt -d "$out/annotations" 2>&1 | grep -v "^info:" || true
+    "$KOTLINC" annotations/center/tabula/*.kt -d "$out/annotations" 2>&1 | grep -v "^info:" || true
     [ -d "$out/annotations" ] || { echo "tabular-center-annotations failed to compile"; return 1; }
 
-    "$KOTLINC" -cp "$out/core" testing/dev/tabularcenter/testing/*.kt -d "$out/testing" 2>&1 \
+    "$KOTLINC" -cp "$out/core" testing/center/tabula/testing/*.kt -d "$out/testing" 2>&1 \
         | grep -v "^info:" || true
     [ -d "$out/testing" ] || { echo "tabular-center-testing failed to compile"; return 1; }
 
@@ -731,7 +731,7 @@ step_kotlin_ksp() {
     local twins gen name twin bad=0 n=0
     twins="$(mktemp -d)"
     # Built exactly as kotlin-codegen builds it: against tabular-center-core. The
-    # codegen check's tests reach `dev.tabularcenter` by qualified name with no
+    # codegen check's tests reach `center.tabula` by qualified name with no
     # import, so a build without the classpath fails there -- which is how
     # this step first failed. From `tabular-center-kotlin/`, because the helpers are.
     local built

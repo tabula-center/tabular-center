@@ -10,7 +10,7 @@
 package example.compose
 
 import androidx.compose.runtime.Composable
-import dev.tabularcenter.Step
+import center.tabula.Step
 import example.compose.connection.A
 import example.compose.connection.Cells
 import example.compose.connection.Ctx
@@ -18,7 +18,7 @@ import example.compose.connection.F
 import example.compose.connection.Renders
 import example.compose.connection.S
 import example.compose.connection.render
-import dev.tabularcenter.Export
+import center.tabula.Export
 import example.compose.connection.TABLE
 import example.compose.connection.perform
 import example.compose.connection.step

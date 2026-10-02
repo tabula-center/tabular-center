@@ -8,7 +8,7 @@
 // refused for is the renderer it leaves out.
 package generated.timerrender
 
-import dev.tabularcenter.Step
+import center.tabula.Step
 
 class Blank : Cells, Renders {
     override suspend fun idleStart(ctx: Ctx, state: S.Idle, action: A.Start) =

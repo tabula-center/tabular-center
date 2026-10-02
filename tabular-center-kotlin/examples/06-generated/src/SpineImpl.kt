@@ -6,7 +6,7 @@
 // what is left to implement is the retry.
 package generated.spine
 
-import dev.tabularcenter.Step
+import center.tabula.Step
 
 class SpineImpl : Cells {
     override fun failedStart(ctx: Ctx, state: S.Failed, action: A.Start): Step<S, F> =

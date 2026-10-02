@@ -147,7 +147,7 @@ data class Variant(
  * it: `generated.retry.Cells`, `generated.retry.step`, `generated.retry.S`.
  *
  * Qualified rather than imported: the generated file imports only
- * `dev.tabularcenter`, so it cannot collide with anything the parent's package
+ * `center.tabula`, so it cannot collide with anything the parent's package
  * declares. Until the September 2026 audit the emitter qualified with the
  * alias, which only worked for a child in a root package named exactly like
  * the alias, and [packageName] went unused.

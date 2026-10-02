@@ -29,14 +29,14 @@
  */
 package example.compose.checkout
 
-import dev.tabularcenter.CellSpec as C
-import dev.tabularcenter.Kind.GO
-import dev.tabularcenter.Kind.HANDLE
-import dev.tabularcenter.Kind.IGNORE
-import dev.tabularcenter.Machine
-import dev.tabularcenter.Path
-import dev.tabularcenter.Row
-import dev.tabularcenter.Step
+import center.tabula.CellSpec as C
+import center.tabula.Kind.GO
+import center.tabula.Kind.HANDLE
+import center.tabula.Kind.IGNORE
+import center.tabula.Machine
+import center.tabula.Path
+import center.tabula.Row
+import center.tabula.Step
 import example.compose.checkout.A.Abandon
 import example.compose.checkout.A.Back
 import example.compose.checkout.A.Decline

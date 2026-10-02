@@ -1,4 +1,4 @@
-package dev.tabularcenter.ksp
+package center.tabula.ksp
 
 import codegen.ChildDesc
 import codegen.RawCell
@@ -275,7 +275,7 @@ class TabularCenterProcessor(
         return buildList {
             if (Modifier.SUSPEND in proto.modifiers) add("suspend")
             // Qualified, as `renderOf` copies them: the generated file imports
-            // only `dev.tabularcenter`, so a short name would not resolve there.
+            // only `center.tabula`, so a short name would not resolve there.
             // Short names were copied until Phase 9b; no machine had put an
             // annotation on `handle`, so it had never run.
             proto.annotations.forEach { a ->
@@ -322,7 +322,7 @@ class TabularCenterProcessor(
      *
      * Its color is read the way [prototypeModifiers] reads `handle`'s, with
      * one difference: annotations are copied by QUALIFIED name. The generated
-     * file imports nothing but `dev.tabularcenter`, so `@Composable` copied as
+     * file imports nothing but `center.tabula`, so `@Composable` copied as
      * a short name would not resolve there; `@androidx.compose.runtime.Composable`
      * does, with no import. (`handle`'s annotations are still copied short --
      * no example has put one there yet. PLAN.md, Phase 9b.)
@@ -360,7 +360,7 @@ class TabularCenterProcessor(
     /**
      * The prototype's extension receiver, fully qualified, or empty.
      *
-     * Qualified because the generated file imports nothing but `dev.tabularcenter`,
+     * Qualified because the generated file imports nothing but `center.tabula`,
      * and the receiver -- unlike `S`, `A` and `Ctx` -- is usually a type from
      * somewhere else: a clock, a scope, a logger.
      *
@@ -501,7 +501,7 @@ class TabularCenterProcessor(
         ann.classes(name).firstOrNull()?.parentDeclaration?.simpleName?.asString() ?: "Unit"
 
     private companion object {
-        const val MACHINE_ANNOTATION = "dev.tabularcenter.Machine"
+        const val MACHINE_ANNOTATION = "center.tabula.Machine"
         const val MACHINE_SIMPLE = "Machine"
         const val ROW_SIMPLE = "Row"
         const val PATH_SIMPLE = "Path"
