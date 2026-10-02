@@ -162,7 +162,10 @@ crates.io revokes when the job ends. Nothing long-lived exists to leak.
 Once, by hand:
 
 1. The **first** release of a crate cannot use trusted publishing -- the crate
-   must exist first. Create a crates.io API token scoped to `publish-new`, for
+   must exist first, and crates.io has no "create crate" button: a crate comes
+   into being with its first `cargo publish`. crates.io also refuses to publish
+   from an account without a **verified email** (Account Settings), which a
+   GitHub sign-in does not verify for you. Create a crates.io API token scoped to `publish-new`, for
    the crate name `tabular-center` only, with the shortest expiry offered;
    then `CARGO_REGISTRY_TOKEN=... nix run .#publish -- --execute --only rust`
    from a clean checkout of the tag, and revoke the token.

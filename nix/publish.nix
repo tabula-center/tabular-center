@@ -38,6 +38,14 @@ in
         exit 1
       fi
 
+      # Before the long check, not after it: a tag that already exists would
+      # otherwise fail the last line, once everything else had passed.
+      if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+        echo "tag v$version already exists; delete it first (git tag -d v$version)"
+        echo "if it was never pushed, or choose another version"
+        exit 1
+      fi
+
       # A failed release must leave nothing behind. Everything below edits
       # tracked files, and `tools/verify` runs `--locked`, so a half-applied
       # bump would fail every later run with a stale-lockfile error that says
@@ -88,7 +96,15 @@ in
       echo "== committing and tagging =="
       trap - ERR
       git add -A
-      git commit -m "release: $version"
+      # Releasing the version the tree already carries -- a project's first
+      # release, typically -- bumps nothing, and `git commit` with nothing to
+      # commit exits non-zero, which ended this script before the tag. The
+      # tree that passed the check is HEAD then, so HEAD is what gets tagged.
+      if git diff --cached --quiet; then
+        echo "the tree already carries $version: nothing to commit, tagging HEAD"
+      else
+        git commit -m "release: $version"
+      fi
       git tag -a "v$version" -m "tabular-center $version"
 
       echo

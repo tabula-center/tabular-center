@@ -2,24 +2,23 @@
 #
 # SwiftPM resolves a dependency from a git repository with Package.swift at
 # its root, and ours is in tabular-center-swift/. On a release tag (`v0.1.0`,
-# made by `nix run .#release`), this splits that directory out with its
-# history and pushes it to the mirror, tagged `0.1.0` -- SwiftPM wants bare
+# made by `nix run .#release`), this splits that directory out of the tag with
+# its history and pushes it to the mirror, tagged `0.1.0` -- SwiftPM wants bare
 # semver. The split is deterministic, so each release fast-forwards the
-# mirror's `main`. That the directory builds alone is checked on every push,
-# long before this runs: `swift-standalone` in tabular-center-swift/tools/verify.
+# mirror's `main`. That the directory builds alone is checked on every push:
+# `swift-standalone` in tabular-center-swift/tools/verify.
 #
-# Needs one secret, SWIFT_MIRROR_TOKEN: a fine-grained token with
-# `contents: write` on the mirror repository and nothing else. This workflow's
-# own token stays read-only. See RELEASING.md.
+# Needs one secret, SWIFT_MIRROR_TOKEN, in the swift-mirror environment: a
+# fine-grained token with `contents: write` on the mirror repository and
+# nothing else. This workflow's own token stays read-only. See RELEASING.md.
 name: swift-mirror
 
 on:
   push:
     tags: ["v*"]
-  # By hand, from the Actions tab: "Run workflow", and under "Use workflow
-  # from" pick the release TAG (v0.1.0), not a branch -- the version is read
-  # from it. GitHub shows the button only once this file is on the default
-  # branch.
+  # By hand, from the Actions tab. From a tag, that tag is mirrored; from a
+  # branch, the tag VERSION names -- which must exist. Either way the mirror
+  # gets the released content, never a branch's current state.
   workflow_dispatch:
 
 permissions:
@@ -31,39 +30,52 @@ jobs:
     # The secret lives in this environment, so any protection rules on it
     # (required reviewers, say) gate the push to the mirror.
     environment: swift-mirror
-    permissions:
-      actions: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # Not this workflow's token in .git/config: git sends it for every
+          # github.com URL, ahead of the mirror token in the push URL, and the
+          # push becomes github-actions[bot]'s -- a 403 on the mirror.
+          persist-credentials: false
 
-      - name: The tag is the VERSION being released
+      - name: Resolve the release tag
+        id: release
         run: |
           set -euo pipefail
-          # Run by hand from a branch, the ref is a branch name, not a version.
-          if [ "$GITHUB_REF_TYPE" != tag ]; then
-            echo "run from $GITHUB_REF_TYPE '$GITHUB_REF_NAME': pick the release tag (v$(tr -d '[:space:]' < VERSION))"
-            echo "under 'Use workflow from' instead -- the version is read from the tag"
-            exit 1
-          fi
-          tagged="${GITHUB_REF_NAME#v}"
           declared="$(tr -d '[:space:]' < VERSION)"
-          if [ "$tagged" != "$declared" ]; then
-            echo "tag $GITHUB_REF_NAME says $tagged, VERSION says $declared: not mirroring"
-            exit 1
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag="$GITHUB_REF_NAME"
+            if [ "${tag#v}" != "$declared" ]; then
+              echo "tag $tag says ${tag#v}, VERSION says $declared: not mirroring"
+              exit 1
+            fi
+          else
+            tag="v$declared"
+            if ! git rev-parse -q --verify "refs/tags/$tag^{commit}" >/dev/null; then
+              echo "VERSION says $declared, but there is no tag $tag: release it first (nix run .#release)"
+              exit 1
+            fi
           fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Split tabular-center-swift/ out, with its history
-        run: git subtree split --prefix=tabular-center-swift -b swift-mirror
+      - name: Split tabular-center-swift/ out of the tag, with its history
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: git subtree split --prefix=tabular-center-swift "$TAG" -b swift-mirror
 
       - name: Push to the mirror, and tag it
         env:
           MIRROR_TOKEN: ${{ secrets.SWIFT_MIRROR_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
+          if [ -z "$MIRROR_TOKEN" ]; then
+            echo "SWIFT_MIRROR_TOKEN is empty: is it set in the swift-mirror environment?"
+            exit 1
+          fi
           remote="https://x-access-token:${MIRROR_TOKEN}@github.com/tabula-center/tabular-center-swift.git"
           git push "$remote" swift-mirror:main
-          git tag "$version" swift-mirror
-          git push "$remote" "refs/tags/$version"
+          git tag "$VERSION" swift-mirror
+          git push "$remote" "refs/tags/$VERSION"
