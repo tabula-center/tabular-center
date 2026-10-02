@@ -4,11 +4,11 @@ version = 3
 
 [[package]]
 name = "tabular-center"
-version = "0.1.1"
+version = "0.1.2"
 
 [[package]]
 name = "tabular-center-conformance"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "tabular-center",
 ]
