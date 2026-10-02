@@ -84,3 +84,7 @@ result-*
 
 # The Pages site: build output of tools/docs, deployed by .github/workflows/pages.yml.
 /doc/
+
+# Kotlin 2.x keeps per-project compiler session data here, wherever a
+# Gradle build runs (07-compose made one under `nix run .#release`).
+.kotlin/

@@ -21,6 +21,10 @@ set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 
 fail=0
+# The steps that failed, by name, for the verdict. A failure prints
+# `FAILED: <step>` where it happens, and in a long run that line scrolls away
+# -- the verdict names them again, as the ledger does for skips.
+failed_steps=()
 
 # A missing directory here is almost never a missing directory.
 #
@@ -122,6 +126,7 @@ run() {
     local rc="${PIPESTATUS[0]}"
     [ "$rc" -eq 0 ] && return 0
     echo "FAILED: $name"
+    failed_steps+=("$name")
     fail=1
 }
 
@@ -1141,6 +1146,8 @@ fi
 if [ "$fail" -eq 0 ]; then
     echo "verify: all green"
 else
-    echo "verify: FAILED"
+    echo "verify: FAILED ----------------------------------------------"
+    printf '  %s\n' "${failed_steps[@]}"
+    echo "------------------------------------------------------------"
 fi
 exit "$fail"

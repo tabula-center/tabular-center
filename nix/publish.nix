@@ -1,7 +1,7 @@
 # Publication, as two apps.
 #
 # `release` prepares: it is the only thing that writes a version number, and it
-# refuses to tag a tree that does not pass `tools/verify`. `publish` ships, and
+# refuses to tag a tree that does not pass `nix flake check`. `publish` ships, and
 # is a dry run unless told otherwise.
 #
 # The split matters because the failure modes differ. A bad release is a
@@ -20,9 +20,11 @@ in
 {
   release = pkgs.writeShellApplication {
     name = "tabular-center-release";
-    # Rust and Kotlin, as before the split: without Swift on PATH the Swift
-    # steps report `skip`, which is what a release run on Linux always did.
-    runtimeInputs = commonInputs ++ rustInputs ++ kotlinInputs;
+    # cargo, to refresh lockfiles, and GNU sed for the in-place edits below on
+    # any host. The checks themselves run in nix's sandbox (`nix flake check`),
+    # so they need nothing from here -- and `nix` itself is the host's, kept on
+    # PATH by writeShellApplication.
+    runtimeInputs = commonInputs ++ rustInputs ++ [ pkgs.gnused ];
     text = ''
       version="''${1:-}"
       if [ -z "$version" ]; then
@@ -66,9 +68,22 @@ in
       echo "== refreshing lockfiles =="
       (cd tabular-center-rust && cargo update --workspace --offline)
       (cd tabular-center-rust/examples && cargo update --workspace --offline)
+      # The GUI example has its own package and lock, outside that workspace.
+      # Not `cargo update`: that re-resolves iced's whole tree, offline, from
+      # whatever this host has cached. A path dependency's lock entry is just
+      # its name and version, so edit exactly that line.
+      sed -i "/^name = \"tabular-center\"$/{n;s/^version = \".*\"$/version = \"$version\"/}" \
+        tabular-center-rust/examples/05-iced/Cargo.lock
 
-      echo "== verifying =="
-      ./tools/verify
+      # `nix flake check`, not the host's `tools/verify`: the definition of
+      # green is what CI runs, in the sandbox, with the GUI example's vendored
+      # crates and its toolchain, and the Swift checks built rather than
+      # skipped. The host run was an approximation that depended on what the
+      # host had cached -- rust-gui failed offline on a crate missing from
+      # ~/.cargo while `nix flake check` passed. Nix reads tracked files with
+      # their uncommitted changes, so this checks the bumped tree.
+      echo "== verifying: nix flake check =="
+      nix flake check --print-build-logs
 
       echo "== committing and tagging =="
       trap - ERR

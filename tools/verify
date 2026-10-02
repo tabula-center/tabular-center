@@ -24,6 +24,10 @@ set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
 fail=0
+# The steps that failed, by name, for the verdict. A failure prints
+# `FAILED: <step>` where it happens, and in a long run that line scrolls away
+# -- the verdict names them again, as the ledger does for skips.
+failed_steps=()
 
 # A missing directory here is almost never a missing directory.
 #
@@ -125,6 +129,7 @@ run() {
     local rc="${PIPESTATUS[0]}"
     [ "$rc" -eq 0 ] && return 0
     echo "FAILED: $name"
+    failed_steps+=("$name")
     fail=1
 }
 
@@ -155,10 +160,14 @@ step_version() {
         bad=1
     fi
 
-    # Both lockfiles record tabular-center's version: the workspace's own, and the
-    # examples' because they depend on it by path.
+    # Every lockfile records tabular-center's version: the workspace's own, the
+    # examples', and the GUI example's -- its own package and lock, outside the
+    # examples workspace -- because they depend on it by path. The third was
+    # once missed: a bump would have left it behind, and rust-gui's --locked
+    # build would have failed on the next release.
     local lock
-    for lock in tabular-center-rust/Cargo.lock tabular-center-rust/examples/Cargo.lock; do
+    for lock in tabular-center-rust/Cargo.lock tabular-center-rust/examples/Cargo.lock \
+        tabular-center-rust/examples/05-iced/Cargo.lock; do
         [ -f "$lock" ] || continue
         if ! grep -A1 '^name = "tabular-center"$' "$lock" | grep -q "^version = \"$want\"$"; then
             echo "$lock does not record tabular-center $want"
@@ -171,10 +180,12 @@ step_version() {
         echo "  to resync after a version change:"
         echo "    (cd tabular-center-rust && cargo update --workspace --offline)"
         echo "    (cd tabular-center-rust/examples && cargo update --workspace --offline)"
+        echo "  and in tabular-center-rust/examples/05-iced/Cargo.lock, the version line"
+        echo "  under name = \"tabular-center\" (nix run .#release does all three)"
         echo "  or to abandon it:  git checkout -- ."
         return 1
     fi
-    echo "version $want, consistent across VERSION and both Cargo.lock files"
+    echo "version $want, consistent across VERSION and all three Cargo.lock files"
 }
 
 # The renderings the three implementations must agree on.
@@ -714,6 +725,8 @@ fi
 if [ "$fail" -eq 0 ]; then
     echo "verify: all green"
 else
-    echo "verify: FAILED"
+    echo "verify: FAILED ----------------------------------------------"
+    printf '  %s\n' "${failed_steps[@]}"
+    echo "------------------------------------------------------------"
 fi
 exit "$fail"
