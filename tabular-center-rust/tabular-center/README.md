@@ -1,3 +1,5 @@
+<img src="https://tabula-center.github.io/tabular-center/doc/assets/logo.svg" alt="tabular-center" width="96">
+
 # tabular-center
 
 Transition-matrix state machines whose completeness is enforced by the

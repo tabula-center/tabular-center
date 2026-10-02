@@ -145,3 +145,69 @@ nothing beside it -- what a mirror clone holds -- and builds it. Rust's
 equivalent is `rust-package`: `cargo package` builds the crate from the archive
 crates.io would receive, which likewise holds the crate directory and nothing
 above it. Kotlin publishes compiled jars and needs neither.
+
+## Publishing from CI
+
+`.github/workflows/publish.yml` runs on the release tag and does what
+`nix run .#publish -- --execute` does, one registry per job, each holding only
+its own credentials. The order of work is still: `nix run .#release -- X.Y.Z`
+by hand, review, `git push --follow-tags`. The tag starts `publish` (crates.io,
+and Maven Central once enabled) and `swift-mirror` (Swift).
+
+### crates.io: no stored secret
+
+crates.io supports **trusted publishing**: the `crates-io` job's GitHub OIDC
+identity is exchanged, by `rust-lang/crates-io-auth-action`, for a token
+crates.io revokes when the job ends. Nothing long-lived exists to leak.
+Once, by hand:
+
+1. The **first** release of a crate cannot use trusted publishing -- the crate
+   must exist first. Create a crates.io API token scoped to `publish-new`, for
+   the crate name `tabular-center` only, with the shortest expiry offered;
+   then `CARGO_REGISTRY_TOKEN=... nix run .#publish -- --execute --only rust`
+   from a clean checkout of the tag, and revoke the token.
+2. On crates.io, the crate's Settings -> Trusted Publishing: repository
+   `tabula-center/tabular-center`, workflow `publish.yml`, environment
+   `crates-io`.
+3. In this repository, create the `crates-io` environment, allowing only `v*`
+   tags to deploy to it.
+
+**Signing:** crates.io has no artifact signatures to upload. Integrity is the
+registry's checksum -- the index records each `.crate`'s SHA-256, cargo
+verifies every download against it, and `Cargo.lock` pins it. Provenance is the
+trusted-publishing record: crates.io knows which repository, workflow and
+environment published each version.
+
+### Maven Central: stored secrets, so the strongest guard
+
+Central has **no** OIDC publishing, and requires every artifact to carry a
+detached PGP signature. So this is the one place with long-lived secrets, and
+they live only in the `maven-central` environment:
+
+1. **Namespace.** Central requires proof of the group's namespace, which is a
+   domain reversed. The project owns `tabula.center`, so the namespace is
+   **`center.tabula`**: register it in the Central Portal, which hands back a
+   verification key to publish as a DNS TXT record on `tabula.center`. The
+   Kotlin group today is `dev.tabularcenter`, which that domain cannot prove,
+   so it becomes `center.tabula` before the first release (PLAN.md) -- after
+   it, coordinates never change.
+2. **User token.** Generate a Central Portal *user token* (not the portal
+   login) -> secrets `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`.
+3. **Signing key.** Keep the primary key offline, used only to certify; give CI
+   a **signing subkey** with an expiry, passphrase-protected:
+   `gpg --armor --export-secret-subkeys <SUBKEY-ID>!` -> secret `SIGNING_KEY`,
+   its passphrase -> `SIGNING_KEY_PASSWORD`. Publish the public key to
+   `keys.openpgp.org` and `keyserver.ubuntu.com`, where Central looks; keep a
+   revocation certificate offline. A leaked subkey is revoked and replaced
+   without touching the identity the primary key carries.
+4. **Environment.** `maven-central`: required reviewers, only `v*` tags. Then
+   set the repository variable `MAVEN_CENTRAL_ENABLED=true` -- once the Kotlin
+   Gradle publication exists (PLAN.md); until then the job is skipped, so the
+   secrets are never loaded.
+
+### Swift: tags only
+
+There is nothing to sign or upload: SwiftPM resolves a tag and records the
+commit it found in `Package.resolved`, so a moved tag is caught on the next
+resolve rather than trusted. Protect the mirror's tags with a ruleset, so only
+the mirror token can create them and nothing can move or delete them.

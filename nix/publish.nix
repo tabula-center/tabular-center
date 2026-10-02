@@ -87,8 +87,26 @@ in
     name = "tabular-center-publish";
     runtimeInputs = commonInputs ++ rustInputs ++ kotlinInputs ++ swiftInputs;
     text = ''
+      # `--only rust|kotlin|swift` publishes one ecosystem, so CI can give each
+      # job exactly one registry's credentials (.github/workflows/publish.yml).
+      # Default: all three, as before.
       execute=0
-      for a in "$@"; do [ "$a" = "--execute" ] && execute=1; done
+      only=""
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --execute) execute=1 ;;
+          --only)
+            only="''${2:-}"
+            case "$only" in
+              rust|kotlin|swift) ;;
+              *) echo "publish: --only takes rust, kotlin or swift, not '$only'"; exit 2 ;;
+            esac
+            shift ;;
+          *) echo "publish: unknown argument '$1'"; exit 2 ;;
+        esac
+        shift
+      done
+      want() { [ -z "$only" ] || [ "$only" = "$1" ]; }
 
       version="$(cat VERSION 2>/dev/null || echo unknown)"
       if [ "$execute" -eq 0 ]; then
@@ -97,6 +115,7 @@ in
       fi
 
       # See RELEASING.md for why each language ships the artifacts it does.
+      if want rust; then
       echo "== rust: crates.io =="
       # One crate. `transition_matrix!` is macro_rules, which ships inside the
       # library it is declared in, so there is nothing to separate. The
@@ -106,7 +125,9 @@ in
       else
         (cd tabular-center-rust && cargo publish -p tabular-center --dry-run)
       fi
+      fi
 
+      if want kotlin; then
       ${lib.optionalString has.kotlinGradle ''
         echo "== kotlin: maven =="
         # Five artifacts, because they have different scopes: core is
@@ -129,6 +150,9 @@ in
         echo "  see RELEASING.md"
       ''}
 
+      fi
+
+      if want swift; then
       echo "== swift: mirror, then package index =="
       # No registry: SwiftPM and the Package Index resolve from a git
       # repository with Package.swift at its root, which this one is not. So
@@ -141,6 +165,7 @@ in
       else
         echo "  would: git push --follow-tags   (tag v$version)"
         echo "  which triggers swift-mirror: tabula-center/tabular-center-swift @ $version"
+      fi
       fi
 
       echo

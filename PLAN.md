@@ -1129,6 +1129,11 @@ green in CI for all three languages.
       `swiftAvailable` (ARCHITECTURE 13)
 - [x] `CONTRIBUTING.md`, `.editorconfig` (incl. ktlint alignment
       exemptions for annotated declarations)
+- [ ] Kotlin group `dev.tabularcenter` -> `center.tabula`, the namespace the
+      domain `tabula.center` proves (RELEASING.md). Before the first Maven
+      release: published coordinates never change. Whether the Kotlin package
+      follows (`dev.tabularcenter` -> `center.tabula`) is a separate choice --
+      a package need not match its group, but conventionally does
 - [ ] License files. Every manifest declares `MIT OR Apache-2.0`, but the tree
       has no `LICENSE-MIT` or `LICENSE-APACHE`. This box was ticked with the
       two above; the September 2026 re-audit found nothing behind it. Needs
@@ -1846,7 +1851,15 @@ a warning refuses nothing and every other fixture here proves a refusal.
       the bare version); `swift-standalone` builds `tabular-center-swift/` with
       nothing beside it, which is what the mirror holds. Still needed once,
       by hand: the mirror repository, its `SWIFT_MIRROR_TOKEN` secret, and its
-      Package Index registration (RELEASING.md)
+      Package Index registration (RELEASING.md). *Pipeline:* `.github/workflows/publish.yml` on
+      the release tag -- `verify` reruns the checks on the tagged commit;
+      `crates-io` publishes by trusted publishing (OIDC, no stored secret);
+      `maven-central` holds the only long-lived secrets (user token, signing
+      subkey) in its own environment, and stays off until the Kotlin Gradle
+      publication exists. `publish` gained `--only rust|kotlin|swift` so each
+      job carries one registry's credentials. Actions pinned to commits.
+      The domain is `tabula.center`, so Maven's namespace is `center.tabula`
+      (a DNS TXT record proves it)
 - [x] Semantic-versioning policy — specifically, what counts as a breaking
       change to *generated* code. `RELEASING.md`: generated code is API, one
       `VERSION` for all three, and one test -- does an unchanged declaration

@@ -174,6 +174,8 @@ S=tabular-center-swift
 {
 front "tabular-center"
 prose <<'MD'
+![tabular-center: a state machine declared as a transition matrix. One cell is missing, and the compiler refuses it with tabular-center::row-arity.](assets/banner.svg)
+
 # tabular-center
 
 **State machines whose declaration *is* the transition matrix** -- for Rust,
@@ -787,6 +789,18 @@ line per row. See [Swift](swift) for what is available today and what waits
 on the `@Machine` macro.
 MD
 } > "$out/migrating.md"
+
+# The logo and banner. Their sources are assets/ at the root, copied here so
+# the site serves them -- as images, which the crate's and the Swift mirror's
+# READMEs rely on: neither copy holds assets/, so they link here by URL.
+mkdir -p "$out/assets" "$out/_includes"
+cp assets/*.svg "$out/assets/"
+# The site's icon. jekyll-theme-primer includes _includes/head-custom.html in
+# every page's <head>; every page sits flat in doc/, so a relative href works
+# from all of them, and no Liquid is needed.
+cat > "$out/_includes/head-custom.html" <<'EOF'
+<link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+EOF
 
 cat > "$out/_config.yml" <<'EOF'
 # Minimal, and deliberately so. A theme with its own build step would be a

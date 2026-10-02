@@ -7,6 +7,8 @@ title: tabular-center
 
 [Home](./) · [Rust](rust) · [Kotlin](kotlin) · [Swift](swift) · [Migrating](migrating) · [Cells](cells) · [Diagnostics](diagnostics) · [Matrix files](matrix-files) · [Source](https://github.com/tabula-center/tabular-center)
 
+![tabular-center: a state machine declared as a transition matrix. One cell is missing, and the compiler refuses it with tabular-center::row-arity.](assets/banner.svg)
+
 # tabular-center
 
 **State machines whose declaration *is* the transition matrix** -- for Rust,
