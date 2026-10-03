@@ -1,7 +1,6 @@
 # The formatter's own checks: its tests (the contract as cases, and
-# idempotence), clippy, and rustfmt on its own source. Whether the repository's
-# matrices are aligned is a separate question, and not yet a check: see
-# PLAN.md, the `tabular-center-fmt` backlog.
+# idempotence), clippy, and rustfmt on its source. Whether the repository's
+# matrices are aligned is the root's `tb-aligned`.
 ctx:
 
 let

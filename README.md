@@ -82,7 +82,7 @@ child under a plain parent does not compile.
 | 8 | Introspection, lints, renderings | done (all three); renderings produced by each and diffed (`renderings-agree`) |
 | 9a | Driver and mailbox | done (all three) |
 | 9b | Rendering surface | done (Kotlin and Swift; `@Composable` and `@ViewBuilder` renderers) |
-| 10 | Release | in progress: publication open |
+| 10 | Release | in progress: Maven Central published; crates.io and Swift pending |
 
 See `ARCHITECTURE.md` for the design, `PLAN.md` for the task breakdown, and
 `tabular-center-<lang>/examples/` for the worked machines — the same four core examples in every

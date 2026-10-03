@@ -1,15 +1,13 @@
-# What the root modules share: a package set for the cross-language checks,
-# the three language toolchains as their flakes export them, and the builders.
-# Imported once per system and threaded through as `ctx`.
+# What the root modules share, imported once per system as `ctx`: a package
+# set for the cross-language checks, each language's toolchain as its flake
+# exports it ({ inputs; env; setup; available; }), and mkCheck, which runs one
+# tools/verify step over the whole checkout.
 { self, system, nixpkgs, langs }:
 
 let
   pkgs = import nixpkgs { inherit system; };
   inherit (pkgs) lib;
 
-  # Each language flake's `legacyPackages.<system>.toolchain`:
-  #   { inputs; env; setup; available; }
-  # A toolchain is declared once, in its own flake; the root only combines.
   toolchains = lib.mapAttrs (_: l: l.legacyPackages.${system}.toolchain) langs;
 
   allInputs = lib.concatMap (t: t.inputs) (builtins.attrValues toolchains);
@@ -17,18 +15,11 @@ let
   allSetup = lib.concatMapStringsSep "\n" (t: t.setup) (builtins.attrValues toolchains);
 
   has = {
-    # Read by nix/publish.nix only: Maven publication needs a Gradle build the
-    # library does not have yet (RELEASING.md), and ARCHITECTURE 12 says it
-    # will not get one. No check gates on this.
     kotlinGradle = builtins.pathExists ../tabular-center-kotlin/settings.gradle.kts;
   };
 
   commonInputs = [ pkgs.git pkgs.jq pkgs.just pkgs.graphviz pkgs.nixpkgs-fmt ];
 
-  # The root's checks are text-only except `renderings-agree`, which takes
-  # every toolchain and every toolchain's environment. `env` is merged into
-  # the derivation for all of them: it is only variables (JAVA_HOME, NIX_CC),
-  # and one builder is simpler than two that differ by an attribute set.
   mkCheck = name: inputs: script:
     pkgs.runCommand "tabular-center-check-${name}"
       ({
@@ -44,13 +35,6 @@ let
 
         cp -r ${self} src && chmod -R u+w src && cd src
 
-        # Every script here starts `#!/usr/bin/env bash`, and the build
-        # sandbox has no /usr/bin/env: on a strict sandbox (CI) the first step
-        # died "bad interpreter", while a local nix with the sandbox relaxed
-        # saw the host's /usr/bin/env and passed. patchShebangs points each
-        # shebang at the store's bash -- the verify scripts, and every script
-        # they call by path (compile-fail, the language scripts the root hands
-        # steps to) -- so the check no longer depends on the host at all.
         patchShebangs --build . >/dev/null
         ${script}
         touch $out
@@ -61,12 +45,6 @@ let
     packages = commonInputs ++ extra;
     shellHook = ''
       echo "tabular-center :: ${name}"
-      # Gradle's cache, kept with the Kotlin it serves -- the same place the
-      # Kotlin shell puts it (tabular-center-kotlin/nix/context.nix). It was
-      # `./.gradle-home`, relative to wherever `nix develop` was typed, so it
-      # landed at the repository root -- or in whichever subdirectory you
-      # happened to be in -- and the root carried a Kotlin-only directory.
-      # Anchored to the checkout instead, so every shell finds the same one.
       export GRADLE_USER_HOME="$(git rev-parse --show-toplevel 2>/dev/null || pwd)/tabular-center-kotlin/.gradle-home"
       ${lib.optionalString (!toolchains.swift.available) ''
         echo "  note: no swift toolchain on ${system}; tabular-center-swift/ is skipped."

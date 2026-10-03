@@ -1,29 +1,24 @@
 # Publication, as two apps.
 #
-# `release` prepares: it is the only thing that writes a version number, and it
-# refuses to tag a tree that does not pass `nix flake check`. `publish` ships, and
-# is a dry run unless told otherwise.
+#   nix run .#release -- X.Y.Z     bump every manifest from VERSION, run
+#                                  `nix flake check`, commit and tag
+#   nix run .#publish              dry run of every registry
+#   nix run .#publish -- --execute [--only rust|kotlin|swift]
 #
-# The split matters because the failure modes differ. A bad release is a
-# corrected commit; a bad publish is a version number burned forever on
-# crates.io, which does not allow deletion. So the destructive step is opt-in
-# and the safe one is the default.
+# `release` is safe and the default; `publish` is destructive (a version is
+# burned forever on crates.io) and opt-in. RELEASING.md is the procedure;
+# ARCHITECTURE.md 16 says why each step is shaped as it is.
 ctx:
 
 let
   inherit (ctx) pkgs lib has toolchains commonInputs;
   rustInputs = toolchains.rust.inputs;
   kotlinInputs = toolchains.kotlin.inputs;
-  # Empty where there is no Swift toolchain, so it can be appended as is.
   swiftInputs = toolchains.swift.inputs;
 in
 {
   release = pkgs.writeShellApplication {
     name = "tabular-center-release";
-    # cargo, to refresh lockfiles, and GNU sed for the in-place edits below on
-    # any host. The checks themselves run in nix's sandbox (`nix flake check`),
-    # so they need nothing from here -- and `nix` itself is the host's, kept on
-    # PATH by writeShellApplication.
     runtimeInputs = commonInputs ++ rustInputs ++ [ pkgs.gnused ];
     text = ''
       version="''${1:-}"
@@ -38,21 +33,12 @@ in
         exit 1
       fi
 
-      # Before the long check, not after it: a tag that already exists would
-      # otherwise fail the last line, once everything else had passed.
       if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
         echo "tag v$version already exists; delete it first (git tag -d v$version)"
         echo "if it was never pushed, or choose another version"
         exit 1
       fi
 
-      # A failed release must leave nothing behind. Everything below edits
-      # tracked files, and `tools/verify` runs `--locked`, so a half-applied
-      # bump would fail every later run with a stale-lockfile error that says
-      # nothing about the real cause.
-      # `git checkout -- .` only, never `git clean`: everything this script
-      # touches is tracked, and deleting a developer's untracked files to undo
-      # a version bump would be a wildly disproportionate response.
       restore() {
         echo "restoring the tree"
         git checkout -- .
@@ -62,43 +48,20 @@ in
       echo "== setting version to $version =="
       echo "$version" > VERSION
 
-      # VERSION is the single source of truth; every manifest is derived from
-      # it. Three files drifting apart is the normal way a polyglot release
-      # goes wrong.
       sed -i "s/^version = \".*\"$/version = \"$version\"/" tabular-center-rust/Cargo.toml
-      # Kotlin has no version line to edit: gradle/publication.gradle.kts
-      # reads VERSION itself.
 
-      # Bumping a version stales every Cargo.lock that records it -- including
-      # the examples', which pin tabular-center by path. Without this, `--locked` fails
-      # everywhere and the error names the lockfile rather than the bump.
       echo "== refreshing lockfiles =="
       (cd tabular-center-rust && cargo update --workspace --offline)
       (cd tabular-center-rust/examples && cargo update --workspace --offline)
-      # The GUI example has its own package and lock, outside that workspace.
-      # Not `cargo update`: that re-resolves iced's whole tree, offline, from
-      # whatever this host has cached. A path dependency's lock entry is just
-      # its name and version, so edit exactly that line.
       sed -i "/^name = \"tabular-center\"$/{n;s/^version = \".*\"$/version = \"$version\"/}" \
         tabular-center-rust/examples/05-iced/Cargo.lock
 
-      # `nix flake check`, not the host's `tools/verify`: the definition of
-      # green is what CI runs, in the sandbox, with the GUI example's vendored
-      # crates and its toolchain, and the Swift checks built rather than
-      # skipped. The host run was an approximation that depended on what the
-      # host had cached -- rust-gui failed offline on a crate missing from
-      # ~/.cargo while `nix flake check` passed. Nix reads tracked files with
-      # their uncommitted changes, so this checks the bumped tree.
       echo "== verifying: nix flake check =="
       nix flake check --print-build-logs
 
       echo "== committing and tagging =="
       trap - ERR
       git add -A
-      # Releasing the version the tree already carries -- a project's first
-      # release, typically -- bumps nothing, and `git commit` with nothing to
-      # commit exits non-zero, which ended this script before the tag. The
-      # tree that passed the check is HEAD then, so HEAD is what gets tagged.
       if git diff --cached --quiet; then
         echo "the tree already carries $version: nothing to commit, tagging HEAD"
       else
@@ -115,12 +78,8 @@ in
 
   publish = pkgs.writeShellApplication {
     name = "tabular-center-publish";
-    # curl and zip for the Maven Central bundle and its upload; jq is common.
     runtimeInputs = commonInputs ++ rustInputs ++ kotlinInputs ++ swiftInputs ++ [ pkgs.curl pkgs.zip ];
     text = ''
-      # `--only rust|kotlin|swift` publishes one ecosystem, so CI can give each
-      # job exactly one registry's credentials (.github/workflows/publish.yml).
-      # Default: all three, as before.
       execute=0
       only=""
       while [ $# -gt 0 ]; do
@@ -145,14 +104,10 @@ in
         echo
       fi
 
-      # See RELEASING.md for why each language ships the artifacts it does.
       if want rust; then
       echo "== rust: crates.io =="
-      # One crate. `transition_matrix!` is macro_rules, which ships inside the
-      # library it is declared in, so there is nothing to separate. The
-      # conformance harness and the examples are publish = false.
       if [ "$execute" -eq 1 ]; then
-        (cd tabular-center-rust && cargo publish -p tabular-center)   # needs CARGO_REGISTRY_TOKEN
+        (cd tabular-center-rust && cargo publish -p tabular-center)
       else
         (cd tabular-center-rust && cargo publish -p tabular-center --dry-run)
       fi
@@ -160,11 +115,6 @@ in
 
       if want kotlin; then
       echo "== kotlin: maven central =="
-      # Five artifacts with different scopes -- core `implementation`,
-      # annotations `compileOnly`, ksp `ksp`, testing `testImplementation`,
-      # codegen for builds that generate without KSP -- in ONE bundle, which
-      # Central validates and publishes as a unit. tools/central-bundle builds
-      # it; gradle/publication.gradle.kts holds the POM and the signing.
       bundle_dir="$(mktemp -d)"
       if [ "$execute" -eq 1 ]; then
         for v in MAVEN_CENTRAL_USERNAME MAVEN_CENTRAL_PASSWORD SIGNING_KEY SIGNING_KEY_ID; do
@@ -176,17 +126,12 @@ in
       fi
       tabular-center-kotlin/tools/central-bundle "$bundle_dir/staging" "$bundle_dir/bundle.zip"
       if [ "$execute" -eq 1 ]; then
-        # The Central Portal publisher API: the user token as a bearer, the
-        # bundle as a form upload; AUTOMATIC publishes once it validates.
         auth="$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')"
         api="https://central.sonatype.com/api/v1/publisher"
         id="$(curl -sS --fail-with-body -X POST -H "Authorization: Bearer $auth" \
           -F "bundle=@$bundle_dir/bundle.zip" \
           "$api/upload?name=tabular-center-$version&publishingType=AUTOMATIC")"
         echo "  uploaded: deployment $id"
-        # Validation takes minutes; publishing to the mirrors, longer. Past
-        # validation the release is Central's to finish, so PUBLISHING ends
-        # this as well as PUBLISHED does. FAILED prints Central's reasons.
         state=""
         for _ in $(seq 1 60); do
           status="$(curl -sS --fail-with-body -X POST -H "Authorization: Bearer $auth" "$api/status?id=$id")"
@@ -210,11 +155,6 @@ in
 
       if want swift; then
       echo "== swift: mirror, then package index =="
-      # No registry: SwiftPM and the Package Index resolve from a git
-      # repository with Package.swift at its root, which this one is not. So
-      # pushing the tag `release` created is what publishes Swift: it triggers
-      # .github/workflows/swift-mirror.yml, which splits tabular-center-swift/
-      # into tabula-center/tabular-center-swift and tags it `$version`.
       if [ "$execute" -eq 1 ]; then
         git push --follow-tags
         echo "  pushed v$version; swift-mirror publishes tabular-center-swift $version"

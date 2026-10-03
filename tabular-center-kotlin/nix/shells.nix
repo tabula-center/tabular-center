@@ -1,4 +1,4 @@
-# `nix develop ./tabular-center-kotlin`. The root flake re-exports it as `.#kotlin`.
+# `nix develop ./tabular-center-kotlin`; the root re-exports it as `.#kotlin`.
 ctx:
 
 {

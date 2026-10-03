@@ -1,5 +1,5 @@
-# The combined development shell. The per-language shells are the language
-# flakes' own, re-exported by name in ../flake.nix.
+# The combined development shell, `nix develop`: every toolchain at once.
+# The per-language shells are the language flakes' own, re-exported by name.
 ctx:
 
 with ctx;

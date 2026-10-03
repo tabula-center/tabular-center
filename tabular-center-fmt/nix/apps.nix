@@ -1,5 +1,5 @@
-# `nix run .#tb-fmt` -- align the matrices in the checkout, or with
-# `-- --check`, report what would change and exit non-zero.
+# `nix run .#tb-fmt` aligns the matrices in the checkout; with `-- --check`
+# it reports what would change and exits non-zero.
 ctx:
 
 let

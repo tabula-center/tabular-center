@@ -1,11 +1,14 @@
-# Runnable Rust entry points. Apps may touch the working tree; checks may not.
+# Runnable Rust entry points, run from the repository root:
+#
+#   nix run .#table-diff [-- <fixture>]   render a fixture's matrix, diffed
+#                                         against the generated table
+#   nix run .#bench                       time matrix vs hand-written dispatch
+#   nix run .#bench-asm                   compare them as assembly
 ctx:
 
 let
   inherit (ctx) pkgs commonInputs rustInputs;
 
-  # Every app works on the checkout, so it starts at the repository root --
-  # the same root tools/verify runs from.
   cdRoot = ''
     if root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
       cd "$root"
@@ -39,10 +42,6 @@ let
       cargo run -q -p tabular-center-conformance --bin table-diff --offline --locked -- "$@"
     '';
   };
-  # Dispatch cost: the matrix, its hand-written expansion, and a plain
-  # `match`, timed side by side. An app, not a check -- timing depends on the
-  # machine -- but the benchmark first asserts the three agree on every state,
-  # so a run that prints numbers is also a run that compared the same machine.
   bench = pkgs.writeShellApplication {
     name = "tabular-center-bench";
     runtimeInputs = commonInputs ++ [ pkgs.git ] ++ rustInputs;

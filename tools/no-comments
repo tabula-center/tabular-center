@@ -18,6 +18,7 @@ clean_patterns=(
     '*.toml'
     '*.yml'
     '*.yaml'
+    '*.nix'
 )
 
 skipped_directories=(.git target .build build .gradle .gradle-home .kotlin doc result node_modules)

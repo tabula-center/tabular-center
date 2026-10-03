@@ -154,6 +154,26 @@ its own credentials. The order of work is still: `nix run .#release -- X.Y.Z`
 by hand, review, `git push --follow-tags`. The tag starts `publish` (crates.io,
 and Maven Central once enabled) and `swift-mirror` (Swift).
 
+### Turning a registry on
+
+Each registry job is skipped until its switch is set, so a release tag pushed
+before the registry is configured publishes nothing there:
+
+| Job | Switch |
+|---|---|
+| `crates-io` | `CRATES_IO_ENABLED` = `true` |
+| `maven-central` | `MAVEN_CENTRAL_ENABLED` = `true` |
+
+Set each as a **repository variable**: Settings -> Secrets and variables ->
+Actions -> *Variables* tab -> *Repository variables*. **Not** as a variable of
+the `crates-io` or `maven-central` environment. The switch is read in the
+job's `if:`, and GitHub evaluates a job-level `if:` *before* the job enters
+its environment, so the `vars` context there holds only repository and
+organization variables. An environment variable named in it reads as empty,
+the comparison with `'true'` fails, and the job is skipped -- silently, with
+no error. Environment variables are for the job's steps (`SIGNING_KEY_ID`
+is one, and is read by a step, so it belongs in the environment).
+
 ### crates.io: no stored secret
 
 crates.io supports **trusted publishing**: the `crates-io` job's GitHub OIDC
@@ -174,6 +194,8 @@ Once, by hand:
    `crates-io`.
 3. In this repository, create the `crates-io` environment, allowing only `v*`
    tags to deploy to it.
+4. Set the **repository** variable `CRATES_IO_ENABLED` to `true` ("Turning a
+   registry on", above).
 
 **Signing:** crates.io has no artifact signatures to upload. Integrity is the
 registry's checksum -- the index records each `.crate`'s SHA-256, cargo
@@ -215,8 +237,10 @@ they live only in the `maven-central` environment:
    `keys.openpgp.org` and `keyserver.ubuntu.com`, where Central looks; keep a
    revocation certificate offline. A leaked subkey is revoked and replaced
    without touching the identity the primary key carries.
-5. **Environment.** `maven-central`: required reviewers, only `v*` tags. The
-   job runs on every release tag from then on.
+5. **Environment.** `maven-central`: required reviewers, only `v*` tags.
+6. **Switch.** Set the **repository** variable `MAVEN_CENTRAL_ENABLED` to
+   `true` ("Turning a registry on", above). The job runs on every release tag
+   from then on.
 
 **What is uploaded.** `tabular-center-kotlin/tools/central-bundle` builds one
 bundle for all five artifacts: the root Gradle build in `tabular-center-kotlin/`

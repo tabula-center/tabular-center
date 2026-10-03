@@ -1,9 +1,5 @@
-# The Rust half of `nix flake check`.
-#
-# Every check shells out to `tabular-center-rust/tools/verify <step>`, the
-# same script `./tools/verify` at the root hands Rust steps to. The names are
-# the ones the single root flake used, so a composed `nix flake check` lists
-# exactly the checks it always did.
+# The Rust half of `nix flake check`: one check per
+# `tabular-center-rust/tools/verify` step, named rust-<step>.
 ctx:
 
 let
@@ -16,16 +12,10 @@ in
   rust-clippy = verify "rust-clippy" "clippy" rustInputs;
   rust-test = verify "rust-test" "test" rustInputs;
   rust-no-std = verify "rust-no-std" "no-std" rustInputs;
-  # The crate as crates.io would receive it, built from the archive alone.
   rust-package = verify "rust-package" "package" rustInputs;
   rust-compile-fail = verify "rust-compile-fail" "compile-fail" rustInputs;
   rust-asm-identical = verify "rust-asm-identical" "asm-identical" rustInputs;
 
-  # The counterpart to kotlin-matrix-stable, and the reason it is separate from
-  # rust-fmt: `cargo fmt --check` asserts the tree matches rustfmt's opinion,
-  # which is a different question from whether rustfmt has an opinion about the
-  # matrices at all. It does not today -- macro bodies are left alone -- and the
-  # matrix files depend on that continuing to be true.
   rust-matrix-stable = verify "rust-matrix-stable" "rust-matrix-stable" rustInputs;
 }
 // lib.optionalAttrs has.conformance {
@@ -34,17 +24,10 @@ in
 // lib.optionalAttrs has.examples {
   rust-examples = verify "rust-examples" "examples" rustInputs;
 
-  # The GUI example: its own package, its own lock, and current stable rather
-  # than the 1.75 the library is pinned to -- iced's tree needs edition 2024,
-  # and the library's MSRV is not the place to pay for that.
-  #
-  # guiInputs because iced's build scripts look for fontconfig, xkbcommon, X11
-  # and wayland through pkg-config, which vendoring crates cannot supply.
   rust-gui =
     if icedVendor != null
     then
       mkCheck "rust-gui" ([ rustStable ] ++ guiInputs) ''
-        # Its own vendor directory, overriding the one mkCheck wrote.
         cat > "$CARGO_HOME/config.toml" <<VENDOR
         [source.crates-io]
         replace-with = "vendored-sources"

@@ -41,7 +41,7 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 8 Introspection & tooling | **done (all three)** |
 | 9a Driver and mailbox | **done (all three)** |
 | 9b Rendering surface | **done** (Kotlin and Swift emitters, KSP, `composable-transition`) |
-| 10 Release | in progress: README, migration guide, versioning policy, benchmark done; publication open |
+| 10 Release | in progress: README, migration guide, versioning policy, benchmark done; Maven Central published, crates.io and Swift pending |
 
 One exception to the table, found by the audit below: Rust had no prototype
 colors. It has one now, `async`, composing in both directions the rule
@@ -400,6 +400,15 @@ decision, which was reversed twice and left a sentence behind each time.
       `[S]` subkey when it refuses; the check passes the `0x` + 16 form a
       person copies from gpg; RELEASING.md says any spelling works and that
       it must be the subkey's ID, never the primary's
+- [x] **Found by the first real release: an environment variable in a job's
+      `if:` is never seen.** `maven-central` gained
+      `if: ${{ vars.MAVEN_CENTRAL_ENABLED == 'true' }}`, like `crates-io`'s
+      `CRATES_IO_ENABLED`, and set in the `maven-central` environment it
+      skipped the job: GitHub evaluates a job-level `if:` before the job enters
+      its environment, so `vars` there holds only repository and organization
+      variables. Neither switch was documented. RELEASING.md now has "Turning
+      a registry on" (both are repository variables, and why), each registry's
+      setup list ends with its switch, and ARCHITECTURE 16 records the gate
 - [x] `benches/dispatch.rs` ended by printing that `plain` is within noise of
       the other two. The recorded run says it is twice as fast, for the reason
       Phase 10 gives
@@ -418,7 +427,9 @@ staged like the rename -- one file type per patch, each green on its own --
 with `tools/no-comments` enforcing exactly the types already migrated
 (`clean_patterns`), so nothing migrated can regress while the rest waits.
 
-Per stage: read every comment; keep or write the file's header and each
+Per stage, Stage 2's method -- read every comment, write the headers, move
+the reasons, then strip mechanically and prove the only non-comment change
+is the intended one: read every comment; keep or write the file's header and each
 type's comment, as orientation and usage rather than history; move the rest
 a reader needs (design and constraints to ARCHITECTURE, the section it
 belongs to or 16 for build configuration; history and findings here;
@@ -453,9 +464,19 @@ ARCHITECTURE 15's exemptions and `is_directive` if it is not already.
       `swift-mirror.yml`, `pages.yml`, the examples workspace, `05-iced`'s
       manifest and toolchain file, `tabular-center-fmt`'s manifest) have it
       back, verbatim; mid-file comments stay out, their reasons in 16
-- [ ] Stage 2: `*.nix` -- 28 files, ~1,000 lines. To ARCHITECTURE 13 and a
-      "Nix" part of 16. Comments inside `''` strings are the embedded
-      scripts' comments and go too
+- [x] **Stage 2: `*.nix`** -- 28 files, 985 lines removed. Every file opens
+      with a header saying what it is and how to use it (the language
+      flakes' explanation used to sit after `{ description = ...; }`, not at
+      the top); the reasons are ARCHITECTURE 16's five "Nix" parts, grouped
+      by theme, so the `patchShebangs` and check-inputs explanations, once
+      repeated verbatim in four files, are stated once. Two were stale and
+      are corrected rather than moved: `nix/context.nix` still said Maven
+      publication needed a Gradle build the library did not have, and the
+      formatter's checks said alignment was "not yet a check" (it is
+      `tb-aligned`). Checked mechanically: across all 28 files the only
+      changed line that is not a comment or a blank is the one trailing
+      comment removed, and no heredoc body held a `#` line, so no generated
+      file changes
 - [ ] Stage 3: shell -- `tools/*`, `tabular-center-*/tools/*`, plus
       `justfile`, `.editorconfig`, `.gitignore`. ~1,750 lines, most of them
       in the four `verify` scripts, which carry the longest rationale in the
@@ -2040,6 +2061,12 @@ a warning refuses nothing and every other fixture here proves a refusal.
       included from the examples; the "before" code is other libraries', not
       compiled here, and the page says so where it shows it
 - [ ] Publish: crates.io, Maven Central, Swift Package Index
+      - [x] **Maven Central: published** (October 2026), from
+            `publish.yml`'s `maven-central` job, after two fixes the first
+            real run found: `SIGNING_KEY_ID` in gpg's long form, and the
+            registry switch set as an environment variable (both under
+            "Audit, October 2026")
+      - [ ] crates.io and the Swift Package Index: not yet reported
       *Distribution decided, and made checkable before any credential
       exists.* Rust: crates.io receives an archive of the crate directory
       alone, so `rust-package` runs `cargo package` -- which builds the crate

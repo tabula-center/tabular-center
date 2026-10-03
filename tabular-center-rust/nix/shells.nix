@@ -1,4 +1,4 @@
-# `nix develop ./tabular-center-rust`. The root flake re-exports it as `.#rust`.
+# `nix develop ./tabular-center-rust`; the root re-exports it as `.#rust`.
 ctx:
 
 {

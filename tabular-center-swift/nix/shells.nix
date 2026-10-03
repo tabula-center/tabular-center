@@ -1,11 +1,7 @@
-# `nix develop ./tabular-center-swift`. The root flake re-exports it as `.#swift`.
-#
-# Only the shells that carry Swift get LD_LIBRARY_PATH (mkShell sets it): it is
-# a blunt instrument, and there is no reason for a Rust or Kotlin shell to have
-# the Swift runtime ahead of anything.
+# `nix develop ./tabular-center-swift`; the root re-exports it as `.#swift`.
+# Carries the Swift runtime path (LD_LIBRARY_PATH) and curl for swift-lock.
 ctx:
 
 {
-  # curl for tools/swift-lock, which the swift-lock app runs in this shell.
   default = ctx.mkShell "swift" (ctx.swiftPkgs ++ [ ctx.pkgs.curl ]);
 }

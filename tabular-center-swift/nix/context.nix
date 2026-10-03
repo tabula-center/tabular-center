@@ -1,44 +1,18 @@
-# The Swift toolchain and the check builder, per system. Threaded through the
-# other modules in this directory as `ctx`.
-#
-# The toolchain half is the most expensive code in the repository per line:
-# every comment below records a round of `nix flake check` that failed on
-# nixpkgs' Swift packaging rather than on anything of ours. It moved here from
-# the root nix/context.nix unchanged.
+# The Swift toolchain and the check builder, per system, threaded through
+# this directory as `ctx`. nixpkgs' Swift is assembled here from its separate
+# parts -- wrapper, corelibs, runtime library path, NIX_CC -- in the one
+# arrangement that compiles and runs on Linux and Darwin; each choice, and the
+# failure that forced it, is ARCHITECTURE.md 16, "Nix: Swift". A check sees
+# this directory, spec/ and .editorconfig.
 { self, system, nixpkgs, nixpkgs-swift }:
 
 let
   pkgs = import nixpkgs { inherit system; };
 
-  # Swift comes from its own input. It was added when the pinned nixpkgs
-  # (25.05) had Swift 5.8, below the 5.9 macros require; `nixpkgs` is 26.05
-  # now and the input is on its way out (see the note in ../flake.nix).
   swiftPkgsSet = import nixpkgs-swift { inherit system; };
 
   inherit (pkgs) lib stdenv;
 
-  # What a check is given, each part its own store path.
-  #
-  # The checks run `tabular-center-swift/tools/verify` from a copy of the
-  # repository's layout holding three things: this directory, spec/ (the
-  # conformance contract, the one input all three languages share by design)
-  # and .editorconfig. Each is copied into the store separately with
-  # `builtins.path`, so each is hashed by its own contents -- and a check's
-  # inputs are exactly those three and its toolchain. Editing Kotlin does not
-  # rebuild a Rust check; editing spec/ rebuilds all three, as it should.
-  #
-  # It used to copy `self.sourceInfo` -- the whole checkout, one store path --
-  # so every commit anywhere rebuilt every check, even after each check had
-  # been trimmed to read only its own subtree. Reading less is what makes a
-  # check independent; depending on less is what makes it cheap.
-  #
-  # `../../spec` reaches above this flake's directory. That works exactly when
-  # the flake's source is the whole checkout: checked from git
-  # (`nix flake check ./tabular-center-swift`, which nix treats as `?dir=`) or
-  # composed by the root flake as a relative `path:` input (Nix 2.26 or later).
-  # Asked first, through `self.sourceInfo`, so any other way in gets this
-  # message rather than an "access to absolute path is forbidden" from
-  # whichever file happened to be read first.
   wholeCheckout = builtins.pathExists (self.sourceInfo.outPath + "/spec/conformance");
   fromCheckout = path:
     if wholeCheckout
@@ -56,13 +30,9 @@ let
   langSrc = builtins.path { path = ./..; name = "tabular-center-swift-src"; };
 
   has = {
-    # `macros/` is the only thing in the repository that links a remote
-    # package, and it can build offline exactly when this lock exists.
     swiftLock = builtins.pathExists ./swift-lock.json;
   };
 
-  # nixpkgs' SwiftPM with `CompilerPluginSupport` added. See the header of
-  # that file; null where there is no Swift to augment.
   swiftpmPluginSupport =
     if swiftAvailable && builtins.hasAttr "swiftpm" swiftPkgsSet
     then
@@ -77,51 +47,10 @@ let
     else null;
 
 
-  # Swift is first-class on Darwin. On Linux nixpkgs' swift lags and macro
-  # plugins are toolchain-version sensitive, so treat the Linux path as
-  # best-effort. See ARCHITECTURE.md section 13.
   swiftAvailable = stdenv.isDarwin || builtins.hasAttr "swift" swiftPkgsSet;
 
-  # Whether `nix flake check` runs the Swift checks.
-  #
-  # Back on for Linux. It was Darwin-only for four rounds while nixpkgs'
-  # packaging was worked out -- NIX_CC, a target-triple mismatch, a missing
-  # `ar`, and finally libdispatch not being on the loader path because the
-  # corelibs are separate derivations from the `swift` wrapper. None of it was
-  # our code, and `nix flake check` should not fail on a dependency's
-  # packaging while that is being untangled.
-  #
-  # It is untangled: the Swift checks pass on Linux. See swiftCorelibs above
-  # for the piece that was missing.
   swiftChecked = swiftAvailable;
 
-  # Swift's setup-hook reads NIX_CC and dies with `NIX_CC: unbound variable`
-  # without it. The obvious fix -- putting `stdenv.cc` in the inputs -- is
-  # WRONG: it puts gcc on the hook's path, swiftc then takes its default target
-  # from gcc (`x86_64-pc-linux-gnu`), and Swift's own stdlib is built for
-  # `x86_64-unknown-linux-gnu`. The result is
-  #
-  #   could not find module '_Concurrency' for target 'x86_64-pc-linux-gnu'
-  #
-  # which reads like a missing module and is really a triple mismatch. NIX_CC
-  # is supplied as a plain environment variable instead (see mkCheck), so the
-  # hook is satisfied without changing what swiftc thinks it targets.
-  # Every part of the Swift toolchain comes from the SAME nixpkgs.
-  #
-  # I had `binutils` from the pinned 25.05 next to `swift` from unstable, which
-  # is a mistake worth naming: two nixpkgs generations disagree about the host
-  # triple, and swiftc then reports `glibc not found for x86_64-pc-linux-gnu`
-  # while its own modules are built for `x86_64-unknown-linux-gnu`. Every Swift
-  # failure so far has carried that warning; it was the cause, not noise.
-  # The corelibs, which are separate derivations from the `swift` wrapper.
-  #
-  # `${swiftPkgsSet.swift}/lib/swift/linux` does not exist: the wrapper and the
-  # runtime live in different store paths, which is why a library path built
-  # only from `swift` still had no libdispatch.so in it. Named with `or null`
-  # so the set can differ between nixpkgs revisions without breaking eval.
-  #
-  # XCTest is in this list on purpose: if it turns out to be present, the
-  # checks can go back to being a real test target.
   swiftCorelibs = lib.optionals (builtins.hasAttr "swiftPackages" swiftPkgsSet) (
     lib.filter (x: x != null) (
       map (n: swiftPkgsSet.swiftPackages.${n} or null) [
@@ -134,31 +63,12 @@ let
     )
   );
 
-  # Packages whose LIBRARIES are needed but whose `bin` must stay off PATH.
-  #
-  # `swift-unwrapped` is the compiler without nix's wrapper. Putting it in the
-  # inputs shadowed `swift-wrapper/bin/swiftc`, and the unwrapped compiler does
-  # not know nix's target triple, so it reported
-  #
-  #   could not find module 'Swift' for target 'x86_64-pc-linux-gnu';
-  #   found: x86_64-unknown-linux-gnu
-  #
-  # -- the same triple mismatch as round 2, caused the same way: by adding a
-  # package to fix a library path and changing which compiler runs. Its `lib`
-  # output is still wanted, so it contributes to swiftLibraryPath only.
   swiftLibOnly = lib.optionals (builtins.hasAttr "swiftPackages" swiftPkgsSet) (
     lib.filter (x: x != null) (
       map (n: swiftPkgsSet.swiftPackages.${n} or null) [ "swift-unwrapped" ]
     )
   );
 
-  # Everything needed to COMPILE Swift, minus SwiftPM itself.
-  #
-  # Split out for one reason: `swiftpmPluginSupport` compiles Swift, so it
-  # needs this list, and `swiftPkgs` below CONTAINS its result. Passing the
-  # whole of `swiftPkgs` to it would be an infinite recursion, and passing a
-  # hand-picked subset is what cost four rounds of missing `NIX_CC`, missing
-  # binutils and missing `Foundation`. One list, named, used twice.
   swiftBase = lib.optionals swiftAvailable (
     [ swiftPkgsSet.swift swiftPkgsSet.binutils swiftPkgsSet.stdenv.cc ]
     ++ swiftCorelibs
@@ -169,42 +79,16 @@ let
   );
 
   swiftPkgs = swiftBase
-    # The augmented SwiftPM where there is one, so `import
-    # CompilerPluginSupport` resolves for every check and shell rather than
-    # only for whoever remembered to build the package. `tools/verify
-    # swift-macro-support` reports which is in effect.
     ++ lib.optionals (builtins.hasAttr "swiftpm" swiftPkgsSet) [
       (if swiftpmPluginSupport != null then swiftpmPluginSupport else swiftPkgsSet.swiftpm)
     ]
     ++ lib.optionals (builtins.hasAttr "swift-format" swiftPkgsSet) [ swiftPkgsSet.swift-format ];
 
 
-  # Where the Swift runtime actually is.
-  #
-  # `swiftc -print-target-info` reports the *module* search paths, and
-  # libdispatch.so is not in them: nixpkgs splits the toolchain across store
-  # paths, so the linker finds it via -L flags the wrapper injects while the
-  # loader knows nothing about it. Hence
-  #
-  #   error while loading shared libraries: libdispatch.so
-  #
-  # nix knows where every one of those packages is, so let nix say it rather
-  # than have the script guess. Both `lib` and `lib/swift/linux`, because the
-  # toolchain uses both.
   swiftLibraryPath = lib.concatStringsSep ":" (
     lib.concatMap (p: [ "${p}/lib" "${p}/lib/swift/linux" ]) (swiftPkgs ++ swiftLibOnly)
   );
 
-  # Exported before any step that runs Swift. The same line was repeated in
-  # every Swift check in the root checks.nix.
-  #
-  # NIX_CC too, for the apps. The checks set it on the derivation (see the note
-  # above swiftCorelibs); an app runs on the host and had neither, so
-  # `swiftc -print-target-info` died on `NIX_CC: unbound variable` before
-  # printing a byte, and SwiftPM reported the empty output as malformed JSON --
-  # the first time `swift-lock --check` ever ran in CI. Here, it reaches every
-  # Swift entry point: the checks, both Swift apps, and the root's through
-  # `allSetup`. Same value as mkCheck's, so the checks see no change.
   swiftSetup = ''
     export NIX_CC="${pkgs.stdenv.cc}"
     export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -216,40 +100,21 @@ let
     pkgs.runCommand "tabular-center-check-${name}"
       {
         nativeBuildInputs = commonInputs ++ inputs;
-        # For Swift's setup-hook. A variable, not a package on the path -- see
-        # the note above swiftCorelibs.
         NIX_CC = "${pkgs.stdenv.cc}";
       }
       ''
         export HOME="$TMPDIR/home"
 
-        # The sandbox has no network, and the steps that need one must SKIP
-        # rather than fail. Stated, not detected; tools/verify reads it.
         export TABULAR_CENTER_OFFLINE=1
 
         mkdir -p "$HOME"
 
-        # This directory, spec/, and .editorconfig -- laid out as in the
-        # repository, and nothing else. tools/verify runs from the repository
-        # root and names paths from there, so the layout is kept; what is left
-        # out is the other two languages and the root's own files. A step that
-        # reached into either would fail here rather than quietly working,
-        # which is what makes "independent" a checked property instead of a
-        # claim. spec/ is the one thing all three share by design: it is the
-        # cross-language contract.
         mkdir src
         cp -r ${specSrc} src/spec
         cp -r ${langSrc} src/tabular-center-swift
         cp ${editorconfig} src/.editorconfig
         chmod -R u+w src && cd src
 
-        # Every script here starts `#!/usr/bin/env bash`, and the build
-        # sandbox has no /usr/bin/env: on a strict sandbox (CI) the first step
-        # died "bad interpreter", while a local nix with the sandbox relaxed
-        # saw the host's /usr/bin/env and passed. patchShebangs points each
-        # shebang at the store's bash -- the verify scripts, and every script
-        # they call by path (compile-fail, the language scripts the root hands
-        # steps to) -- so the check no longer depends on the host at all.
         patchShebangs --build . >/dev/null
         ${script}
         touch $out
@@ -264,10 +129,6 @@ let
       ${lib.optionalString (!swiftAvailable) ''
         echo "  note: no swift toolchain on ${system}; tabular-center-swift/ is skipped."
       ''}
-      # The shell opens at the repository root and there is no Package.swift
-      # there, so a bare `swift build` fails with "Could not find
-      # Package.swift". There are three of them, and which one you want is not
-      # guessable -- so say so rather than cd somewhere on someone's behalf.
       echo "  swift packages: tabular-center-swift/ (core)  tabular-center-swift/examples/  tabular-center-swift/macros/"
       echo "  cd into one before \`swift build\`, or run ./tools/verify swift"
     '';
@@ -279,7 +140,6 @@ in
     swiftLibraryPath swiftSetup swiftDeps swiftpmPluginSupport commonInputs
     mkCheck mkShell;
 
-  # For the root flake. See `legacyPackages` in ../flake.nix.
   toolchain = {
     inputs = lib.optionals swiftChecked swiftPkgs;
     env = { NIX_CC = "${pkgs.stdenv.cc}"; };

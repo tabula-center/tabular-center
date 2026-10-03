@@ -1,18 +1,16 @@
+# The Rust language flake: transition_matrix!, its examples and its checks,
+# with only the Rust toolchain in its closure.
+#
+#   nix flake check ./tabular-center-rust
+#   nix develop ./tabular-center-rust
+#   nix run ./tabular-center-rust#bench
+#
+# Composed by the root flake, which makes these inputs follow its own. Needs
+# the whole checkout, for spec/; legacyPackages.toolchain is what the root
+# uses to put Rust into its own derivations.
 {
   description = "tabular-center, Rust implementation: transition_matrix! and its checks";
 
-  # One of three language flakes, composed by the flake at the repository root.
-  # Checkable on its own, with only the Rust toolchain in its closure:
-  #
-  #   nix flake check ./tabular-center-rust
-  #
-  # from a git checkout. Its examples are in ./examples; the one thing it needs
-  # from outside this directory is spec/, the conformance contract, reached
-  # through `self.sourceInfo` -- see nix/context.nix.
-  #
-  # The pins in flake.lock are the root flake's, copied, and the root makes
-  # every one of these inputs `follows` its own, so the two cannot disagree
-  # about which Rust they built.
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     flake-utils.url = "github:numtide/flake-utils";
@@ -32,12 +30,6 @@
         checks = import ./nix/checks.nix ctx;
         apps = import ./nix/apps.nix ctx;
 
-        # What the root flake needs to put Rust into a derivation of its own:
-        # the combined dev shell and `renderings-agree`, which runs all three
-        # languages at once. Exported rather than rebuilt at the root, so the
-        # toolchain is declared in exactly one place. legacyPackages because
-        # it is per-system and not a derivation; `nix flake check` does not
-        # build what is in it.
         legacyPackages.toolchain = ctx.toolchain;
 
         formatter = ctx.pkgs.nixpkgs-fmt;

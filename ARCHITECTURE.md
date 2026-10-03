@@ -1321,7 +1321,12 @@ are here. Grouped by file, so a reader of one finds its reasons in one place.
   portal login; `SIGNING_KEY_ID` is not secret, so it is an environment
   variable rather than a secret (RELEASING.md, step 4). A manual run resolves
   a tag first -- the dispatched tag, or the one `VERSION` names, which must
-  exist -- so it publishes a release, never a branch's current state.
+  exist -- so it publishes a release, never a branch's current state. Each
+  registry job is gated by a *repository* variable (`CRATES_IO_ENABLED`,
+  `MAVEN_CENTRAL_ENABLED`), so a tag pushed before a registry is configured
+  publishes nothing there. Repository, not environment: a job-level `if:` is
+  evaluated before the job enters its environment, where an environment's
+  variables do not yet exist (RELEASING.md, "Turning a registry on").
 - **`swift-mirror.yml` publishes Swift through a mirror**,
   `tabula-center/tabular-center-swift`, because SwiftPM resolves a repository
   with `Package.swift` at its root. On a release tag it `git subtree split`s
@@ -1342,3 +1347,222 @@ are here. Grouped by file, so a reader of one finds its reasons in one place.
   and `deploy-pages` fails loudly if it is wrong rather than letting Pages
   render README.md, which is how an earlier `pages.yml` failed. The custom
   domain is set on the same page.
+
+### Nix: shared shape
+
+- **Five flakes, one lock's worth of pins.** The root composes the three
+  language flakes and the formatter's as relative `path:` inputs (Nix 2.26 or
+  later; older versions lock such an input as a separate copy of the
+  subdirectory, and the language flakes need the whole checkout), and every
+  input they share `follows` the root's, so the composed flake has one
+  nixpkgs, one rust-overlay and one nixpkgs-swift. The root is a table of
+  contents: cross-language checks, the combined shell, release and
+  publication live in `nix/`, each toolchain in its own flake. Checks merge
+  without collision (a language's carry its prefix, the root's are the
+  cross-language step names); the languages' `verify` and `default` apps are
+  not merged, because at the root `verify` means every step.
+- **Every check is `tools/verify <step>`.** That script is the only
+  definition of green, so the flake, CI and a developer at a terminal run the
+  same commands. Three lint escapes reached CI while the flake kept its own
+  list; a duplicated list is how that happens.
+- **A check is given exactly what it reads.** A language check gets its own
+  directory, `spec/` (the one input all three share by design) and
+  `.editorconfig` -- Kotlin also `VERSION`, which every Kotlin build reads --
+  each copied with `builtins.path` so each is hashed by its own contents,
+  laid out as in the repository because `tools/verify` names paths from the
+  root. Leaving the other languages out makes "independent" a checked
+  property: a step reaching into one fails rather than quietly working.
+  Hashing separately makes it cheap: editing Kotlin rebuilds no Rust check.
+  (They once copied `self.sourceInfo`, the whole checkout, so every commit
+  rebuilt every check.) `../../spec` reaches above the flake, which works
+  exactly when the flake's source is the whole checkout -- checked from git
+  or composed by the root -- so `self.sourceInfo` is asked first and any
+  other way in gets a sentence instead of "access to absolute path is
+  forbidden". The formatter reads nothing outside its directory and copies
+  only that.
+- **`patchShebangs` on every script.** The scripts start
+  `#!/usr/bin/env bash` and the build sandbox has no `/usr/bin/env`: on CI's
+  strict sandbox the first step died "bad interpreter" while a local Nix with
+  a relaxed sandbox passed. Every script a check runs by path is pointed at
+  the store's bash, so no check depends on the host.
+- **Offline is stated, not detected.** The sandbox has no network; a step
+  that needs one must skip, so the check builder sets a variable
+  `tools/verify` reads, unset everywhere else (a developer without Nix, who
+  has the network, still gets the online path). Cargo runs `--offline
+  --locked` with a writable `HOME` it would otherwise lack.
+- **Absence is loud.** A check that is missing from the attribute set cannot
+  report that it is missing, and `nix flake check` prints a tidy green
+  summary over it -- how `lib.optionalAttrs` on `pathExists ../kotlin/src` hid
+  six checks for months (PLAN 0c). So the KSP checks exist without their lock
+  and fail naming the command that fixes it, and a platform with no Swift gets
+  a `swift-unavailable` check that passes and says so (red there would mean
+  the flake can never pass on that platform, whatever anyone does).
+- **Checks and apps are different things.** A check is hermetic and offline;
+  an app may touch the network, the git index and a registry token. Exactly
+  two commands reach the network, `gradle-lock` and `swift-lock`; each
+  writes a committed lock that a derivation consumes as ordinary `fetchurl`s,
+  and neither is a derivation, since a check that reaches the network is not
+  a check. Every app starts by changing to the repository root: they all
+  assumed it, and `nix run .#docs` from a subdirectory failed on
+  `./tools/docs: No such file` -- the bug was in all four apps at the time.
+- **Apps pin what the host would otherwise choose.** An app runs on the host,
+  so it inherits the host's `JAVA_HOME` -- GitHub's Ubuntu image sets
+  Temurin 17 -- and Gradle on 17 failed to load a KSP processor compiled by
+  the pinned 21 ("class file version 65.0"); the Gradle apps set the pinned
+  JDK. `writeShellApplication` prepends its inputs to `PATH` and falls back
+  to the host's, which on macOS is BSD `find` and `sed`, so apps that edit
+  files list the GNU tools. The root apps run the Swift setup (runtime
+  library path, `NIX_CC`) the Swift checks run.
+- **The docs preview.** Jekyll is only in the `docs` app: it is the one
+  consumer, and a shell would put Ruby on every Rust developer's path. The
+  app regenerates `doc/` before serving -- a preview of something the
+  repository does not contain is worse than none -- and renders without
+  `jekyll-theme-primer`, a Pages built-in absent from nixpkgs' Jekyll, by
+  overriding the config rather than editing the generated one: a content
+  preview, not a pixel copy of the site.
+- **`nix fmt` is not a check:** a formatter bump should not fail CI on files
+  nobody touched.
+
+### Nix: Rust
+
+- **The GUI check alone carries the GUI's system libraries.** winit and wgpu
+  find fontconfig, xkbcommon, X11 and wayland through pkg-config; vendoring
+  crates cannot supply them, and putting them in the common inputs would put
+  an X11 stack behind `cargo test` for a library with nothing to draw. Linux
+  only: on macOS iced draws through Metal and AppKit from the default SDK,
+  and nixpkgs refuses even to *evaluate* `wayland` for Darwin -- a refusal
+  that once took every Darwin check down. The X11 packages are named
+  `new or old` (`libx11` or `xorg.libX11`) so the pin can move either way.
+- **Vendored crates come straight from the committed `Cargo.lock`**
+  (`importCargoLock`), so there is nothing to generate or keep in step. The
+  vendor configuration is written for every check, not "the ones that need
+  it": that list was wrong the first time (clippy resolves the examples
+  workspace too, and failed on `iced` while the examples check passed). The
+  GUI example's lock and toolchain (current stable) are separate, and null
+  until its lock exists, because `importCargoLock` on a missing file fails at
+  evaluation and would take the whole flake down.
+- `rust-matrix-stable` is separate from `rust-fmt`: `cargo fmt --check` asks
+  whether the tree matches rustfmt; the matrices need rustfmt to have no
+  opinion about them at all, which it does not today (macro bodies are left
+  alone). `package` builds the crate from the archive crates.io would receive.
+
+### Nix: Kotlin
+
+- **kotlinc is pinned and owned** (2.1.20, matching both Gradle builds, the
+  KSP pair and the README). It was `pkgs.kotlin`, and moving nixpkgs for
+  Swift moved the Kotlin compiler with it. That matters because four
+  fixtures assert on kotlinc's own message text, which spec/diagnostics.md
+  says must not be normalised: the fixtures should move when we move the
+  compiler, on purpose. Owned rather than overridden, since an override
+  depends on nixpkgs' installPhase; the distribution is shell scripts and
+  jars and wrapping it is five lines. Bump the version and hash together,
+  with the Gradle builds.
+- **The JDK, and only the JDK.** `JAVA_HOME` is nixpkgs' declared home, not
+  the package root (on Darwin it is `.../Contents/Home`, and a wrong one sends
+  Gradle looking for a JVM itself). Gradle's auto-detection is switched off
+  in `GRADLE_USER_HOME`'s `gradle.properties`, which outranks the project's:
+  on a macOS runner, whose sandbox is not sealed the way Linux's is, it found
+  the runner's JDK 17 and failed on the processor 21 compiled. The store path
+  exists only there, so nothing committed names one.
+- **Gradle's cache lives with the Kotlin it serves**, anchored to the
+  checkout; it was `./.gradle-home`, relative to wherever `nix develop` was
+  typed.
+- **The offline Maven repository is assembled from the lock**, one
+  `fetchurl` per artifact. It replaced a fixed-output derivation that ran
+  Gradle in the sandbox and hashed its cache, wrong twice over: networking
+  from the JVM inside a build turns a missing route, missing DNS and an
+  unread CA bundle into one indistinguishable error, and a Gradle cache does
+  not hash reproducibly. Lock entries carry the Maven layout path, so nothing
+  parses coordinates (a rule with exceptions -- classifiers, packaging,
+  plugin markers); files are `install -D`'d, not symlinked, because Gradle
+  writes lock and `.part` files beside what it reads and a read-only symlink
+  farm fails three layers down; checksum sidecars are omitted because Gradle
+  never asks for them from a path repository. The core of gradle2nix, owned.
+- `kotlin-ksp` is its own check because its inputs are not only source: a
+  failure there is a stale lock or a broken processor, and inside the
+  examples step it would read as an example being broken.
+
+### Nix: Swift
+
+- **The `nixpkgs-swift` input is on its way out.** It exists because nixos-25.05
+  shipped Swift 5.8, below the 5.9 macros need; delete it once a Darwin run
+  confirms `swift-macros` passes on `nixpkgs` alone.
+- **What nixpkgs' Swift needs, learned one failed round at a time.** Its
+  setup hook requires `NIX_CC`, supplied as a plain variable: adding
+  `stdenv.cc` instead puts gcc on the path, swiftc takes its target from gcc
+  (`x86_64-pc-linux-gnu`) while its stdlib is built for
+  `x86_64-unknown-linux-gnu`, and "could not find module '_Concurrency'" is
+  really a triple mismatch. Every Swift part comes from one nixpkgs, since
+  two generations disagree about the host triple ("glibc not found" was the
+  cause, not noise). The corelibs are separate derivations from the `swift`
+  wrapper, so the runtime path is built from them, by Nix, rather than from
+  `swift` or from `swiftc -print-target-info`, which reports module paths
+  and not where `libdispatch.so` is. `swift-unwrapped` contributes its
+  libraries only: its `bin` shadowed the wrapper's swiftc and reintroduced
+  the triple mismatch. The compile inputs are one named list used twice,
+  because the augmented SwiftPM needs them and is itself part of the full
+  set. The setup, `NIX_CC` included, is exported to apps too: run on the
+  host without it, `swift-lock --check` died before printing a byte.
+- **The Swift checks run on Linux** too, since that packaging was untangled;
+  Darwin remains the primary toolchain (§13). Only Swift shells set
+  `LD_LIBRARY_PATH`, a blunt instrument. The Swift shell opens at the root,
+  where there is no `Package.swift` and three below it, so it says which
+  rather than choosing. `swift-lock` runs inside the dev shell, not as a bare
+  app, because Swift depends on what setup hooks export: run bare, swiftc
+  answered `-print-target-info` and SwiftPM still got an empty answer.
+- **The offline swift-syntax checkout set** is what SwiftPM needs to believe
+  it has resolved: `.build/checkouts/<name>/` and a `workspace-state.json`;
+  without the state file it re-resolves and fails offline, which looks like
+  the checkouts being ignored. `fetchurl`, not `fetchzip`: the generator
+  records `sha256sum` of the tarball, `fetchzip` hashes the unpacked tree,
+  and the two disagree by construction -- taking the `got:` value would pin a
+  NAR hash beside a tarball hash and leave the lock forever "stale". The
+  checkout directory is named after the repository (a mismatch silently
+  re-resolves), GitHub's archive wrapper directory is stripped, and the
+  state file's version (6, what SwiftPM 5.9-5.10 writes) is pinned, because
+  one the toolchain does not recognise is discarded silently. The core of
+  swiftpm2nix, owned. `swift-deps` is buildable alone so those two values can
+  be inspected in one command.
+- **`swiftpm-plugin-support`: nixpkgs' SwiftPM with `CompilerPluginSupport`.**
+  An `overrideAttrs`, because a copy cannot work: the manifest API path is
+  baked into the `swift-package` binary at build time, so a copy inherits
+  the original's and is never consulted (four rounds went to copies).
+  `PackageDescription` is rebuilt with a private module interface, because
+  `CompilerPluginSupport` imports it through SPI that a public interface
+  strips. Both modules are compiled separately and linked into the one
+  library the manifest loader names, `libPackageDescription`: a separate
+  library is not found, and modern `ld` will not resolve through
+  `DT_NEEDED` (`--no-copy-dt-needed-entries`). The work is in `postFixup`,
+  because the derivation's custom `installPhase` never runs `postInstall`;
+  the source root is found rather than guessed; exported symbols are read
+  with `nm -D` on ELF and `nm -gU` on Mach-O, which has no dynamic table.
+  The build fails unless the module and its symbols are present -- five
+  earlier attempts reported success while broken -- and the symbol check
+  goes through a file, never `nm | grep -q`, because under `pipefail` an
+  early-exiting grep SIGPIPEs nm and turns a found symbol into a failure.
+  Build it through the flake: against an ambient `<nixpkgs>` it picks a
+  different Swift with no cached build.
+
+### Nix: release and publication
+
+- **`release` prepares and `publish` ships**, because their failures differ:
+  a bad release is a corrected commit, a bad publish is a version burned
+  forever on crates.io. So the destructive step is opt-in (a dry run unless
+  `--execute`) and the safe one is the default.
+- `release` checks the tag is free before the long check, not after; edits
+  only tracked files and on failure restores them with `git checkout -- .`,
+  never `git clean`, which would delete a developer's untracked work; derives
+  every manifest from `VERSION` (Kotlin reads `VERSION` itself); refreshes
+  each `Cargo.lock` the bump stales -- editing the GUI example's single path
+  entry rather than `cargo update`, which would re-resolve iced offline from
+  whatever the host cached; and runs `nix flake check`, not the host's
+  `tools/verify`, as the definition of green (a host run once failed
+  `rust-gui` offline on a crate missing from `~/.cargo`). Releasing the
+  version the tree already carries commits nothing and tags `HEAD`.
+- `publish --only rust|kotlin|swift` publishes one ecosystem, so each CI job
+  holds one registry's credentials. Rust is one crate (`macro_rules!` ships
+  in the library that declares it). Kotlin is five artifacts in one Central
+  bundle, validated and published as a unit through the Portal API; past
+  validation the release is Central's to finish, so `PUBLISHING` ends the
+  wait as `PUBLISHED` does, and `FAILED` prints Central's reasons. Swift has
+  no registry: the pushed tag triggers the mirror workflow.
