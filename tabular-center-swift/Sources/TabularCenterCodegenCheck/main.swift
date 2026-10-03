@@ -1,12 +1,11 @@
+// Tests for the validation layer, plus a determinism check of the emitted source.
+//
+// Every diagnostic in `spec/diagnostics.md` that concerns the *declaration*
+// has a case here — which is the point of `buildDesc` existing at all. They
+// would otherwise live in the macro, which cannot be tested without
+// swift-syntax, which cannot be fetched in a sandbox with no network.
 import Foundation
 import TabularCenterCodegen
-
-/// Tests for the validation layer, plus a determinism check of the emitted source.
-///
-/// Every diagnostic in `spec/diagnostics.md` that concerns the *declaration*
-/// has a case here — which is the point of `buildDesc` existing at all. They
-/// would otherwise live in the macro, which cannot be tested without
-/// swift-syntax, which cannot be fetched in a sandbox with no network.
 
 var failures = 0
 var checks = 0
@@ -53,8 +52,6 @@ func raw(
         effects: effects, rows: rows, children: children)
 }
 
-// MARK: - Validation
-
 check("a well-formed machine builds", (try? buildDesc(raw()))?.rows.count == 2)
 
 expectError("row with too few cells", "tabular-center::row-arity") {
@@ -90,8 +87,6 @@ expectError("GO to an undeclared state", "tabular-center::unknown-state") {
     ]))
 }
 
-// Rule R3: a GO cell is resolved entirely by the generator, so its target must
-// be constructible without developer code.
 expectError("GO to a payload state with no literal args", "tabular-center::go-target") {
     _ = try buildDesc(raw(rows: [
         RawRow("Idle", [RawCell("GO", target: "Running"), RawCell("IGNORE")]),
@@ -138,15 +133,6 @@ expectError("an undeclared initial state", "tabular-center::unknown-state") {
     _ = try buildDesc(raw(initial: "Nope"))
 }
 
-// MARK: - Happy paths: the additive test
-//
-// `spec/happy-paths.md`, checked rather than stated. A machine whose `HANDLE`
-// cells a spine turns into `GO`s, and the same machine with those `GO`s written
-// by hand, must be indistinguishable downstream. Equal emitted source is the
-// strong form: `TABLE` is a literal inside it, and every golden is a pure
-// function of `TABLE`. Kotlin's twin is `runAdditiveTest` in
-// `tabular-center-kotlin/codegen/Tests.kt`, on the same machine.
-
 let spineQuiet = [RawCell("IGNORE"), RawCell("IGNORE"), RawCell("IGNORE")]
 
 func spineConn(_ rows: [RawRow], paths: [RawPath]) -> RawMachine {
@@ -157,8 +143,6 @@ func spineConn(_ rows: [RawRow], paths: [RawPath]) -> RawMachine {
         effects: [RawVariant("Go")], rows: rows, paths: paths)
 }
 
-// Idle -Start-> Connecting -Ready-> Live, and Live is terminal. Drop from
-// Connecting is a HANDLE the spine does not name, so it must survive.
 let spineConnect = RawPath(name: "connect", elements: ["Idle", "Start", "Connecting", "Ready", "Live"])
 let spineRows = [
     RawRow("Idle", [RawCell("HANDLE"), RawCell("IGNORE"), RawCell("IGNORE")]),
@@ -179,14 +163,11 @@ do {
     let underived = try buildDesc(spineConn(spineRows, paths: []))
 
     check("a spine-derived machine equals its longhand twin", derived.rows == longhand.rows)
-    // The path now adds one thing on purpose: the narrowed surface, one member
-    // per hop. Everything else is still exactly the longhand machine.
     check("... and, hops aside, emits byte-identical source, TABLE included",
           emit(derived.withoutHops) == emit(longhand))
     check("the path's two hops are recorded",
           derived.hops == [HopDesc(from: 0, action: 0, to: 1), HopDesc(from: 1, action: 1, to: 2)])
 
-    // The narrowed surface, per spec/happy-paths.md "Settled before implementation".
     let lines = emit(derived).split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
     check("(Connecting, Ready) can end anywhere: a HANDLE is in its row",
           hopOutcomes(derived, derived.hops[1]) == [0, 1, 2, 3])
@@ -198,8 +179,6 @@ do {
     check("a state the row cannot produce is a trap, not a default",
           lines.contains("        case .live: fatalError(\"tabular-center: the `Idle` row cannot produce `Live`\")")
             && !lines.contains { $0.hasSuffix("default:") })
-    // The control: without it, a `derive` that did nothing would still pass the
-    // two checks above whenever the longhand twin was written wrong.
     check("without the path, the same rows are a different machine", underived.rows != longhand.rows)
     check("a HANDLE no hop names is left alone", derived.rows[1][2] == .handle)
 } catch {
@@ -207,17 +186,6 @@ do {
     failures += 1
     print("FAIL additive test: \(error)")
 }
-
-// MARK: - Happy paths: walking the route backwards
-//
-// `back` names the action that walks a path in reverse, so for each hop
-// `A -next-> B` the cell `(B, back)` derives to `GO(A)`. Over HANDLE cells
-// only, like the forward direction, so an explicit cell wins and a path
-// without `back` derives exactly what it did before.
-//
-// The machine ends at `Done`, which nothing but the back action leaves:
-// `path-unterminated` asks whether anything leaves a path's end, and walking
-// back is not leaving.
 
 func backMachine(back: String, payBack: RawCell, doneBack: RawCell = RawCell("IGNORE")) -> RawMachine {
     RawMachine(
@@ -267,11 +235,6 @@ expectError("a back action the machine does not declare", "tabular-center::path-
     _ = try buildDesc(backMachine(back: "Backwards", payBack: RawCell("HANDLE")))
 }
 
-// MARK: - Golden emitted source
-
-/// `timer.tbl`, as the macro would build it from syntax -- plus `Note`, an
-/// effect no static cell names, so the payload-carrying handler is emitted and
-/// compiled. `codegen-support/Types.swift` declares the types it names.
 func timerMachine(_ name: String, modifiers: [String] = [], render: RenderDesc? = nil) -> RawMachine {
     RawMachine(
         machine: name,
@@ -290,18 +253,12 @@ func timerMachine(_ name: String, modifiers: [String] = [], render: RenderDesc? 
             RawVariant("StartClock"),
             RawVariant("StopClock"),
             RawVariant("Note", hasPayload: true, fields: [(name: "text", type: "String")]),
-            // A payload type NESTED in the machine's enum, qualified the way
-            // `MachineSyntax` now qualifies it. The file-scope protocol can
-            // only resolve it qualified; this is what proves it does.
             RawVariant("Halt", hasPayload: true, fields: [(name: "reason", type: "Timer.Reason")]),
         ],
         rows: [
             RawRow("Idle", [RawCell("HANDLE"), RawCell("IGNORE"), RawCell("IGNORE")]),
             RawRow("Running", [
                 RawCell("IGNORE"), RawCell("HANDLE"),
-                // A static cell emitting a payload-carrying effect, arguments
-                // and all. The dispatcher emits the call verbatim; `TABLE`
-                // records the name.
                 RawCell("GO", target: "Idle", effects: ["StopClock", "Halt(reason: .cancelled)"]),
             ]),
             RawRow("Done", [
@@ -316,13 +273,8 @@ func timerMachine(_ name: String, modifiers: [String] = [], render: RenderDesc? 
 
 let timerRaw = timerMachine("Timer")
 
-/// The same machine, colored. `async throws` must land after the parameter
-/// list and put `try await` on every call into a cell -- the emitter used to
-/// splat both before `func`, which is not Swift.
 let timerAsyncRaw = timerMachine("TimerAsync", modifiers: ["async", "throws"])
 
-/// The child in `Compose.swift`: a retry machine, written knowing nothing
-/// about any parent.
 func retryMachine(_ name: String, modifiers: [String] = []) -> RawMachine {
     RawMachine(
         machine: name,
@@ -343,15 +295,12 @@ func retryMachine(_ name: String, modifiers: [String] = []) -> RawMachine {
     )
 }
 
-/// The parent in `Compose.swift`: its `Retrying` state holds the child's
-/// state, and two of its cells delegate to the child.
 func jobMachine(_ name: String, child: String, modifiers: [String] = []) -> RawMachine {
     RawMachine(
         machine: name,
         initial: "Idle",
         states: [
             RawVariant("Idle"),
-            // The child's namespace is spelled by the alias: `.retry` is `Retry`.
             RawVariant("Retrying", hasPayload: true, fields: [
                 (name: "child", type: String(child.prefix(1)).uppercased() + String(child.dropFirst()) + ".S"),
             ]),
@@ -372,9 +321,6 @@ func jobMachine(_ name: String, child: String, modifiers: [String] = []) -> RawM
     )
 }
 
-// The rendering surface (ARCHITECTURE 9) is additive and exhaustive: the two
-// properties Kotlin's `Tests.kt` checks of its emitter. Line-based on purpose:
-// `String.contains(String)` is macOS 13+, and this runs on 10.13's target.
 do {
     let plain = try buildDesc(timerMachine("RenderProbe"))
     let color = RenderDesc(modifiers: ["@MainActor"])
@@ -389,8 +335,6 @@ do {
         !plainLines.contains { $0.hasSuffix("Renders {") || $0.hasSuffix("Render one state. No `default:` branch.") }
     )
 
-    // Cut both render blocks out of the rendered output; what is left must be
-    // the plain machine's output, byte for byte.
     var rest = outLines
     if let a = rest.firstIndex(of: "/// The rendering surface: one required member per state, the state narrowed."),
        let b = rest[a...].firstIndex(of: "}") {
@@ -429,7 +373,6 @@ do {
     print("FAIL render test: \(error)")
 }
 
-// Builder mode: SwiftUI's shape, with names in place of SwiftUI.
 do {
     let view = RenderDesc(modifiers: ["@MainActor"], builder: "ViewBuilder", conformance: "View")
     let out = emit(try buildDesc(timerMachine("ViewProbe", render: view)))
@@ -479,20 +422,11 @@ do {
     print("FAIL builder render test: \(error)")
 }
 
-/// Every machine the check emits. `refused` ones must NOT compile, and are
-/// written apart so `tools/verify` compiles them only with the fixture that
-/// names them.
 let emitted: [(name: String, raw: RawMachine, refused: Bool)] = [
     ("timer", timerRaw, false),
     ("timer-async", timerAsyncRaw, false),
-    // The rendering surface: async cells, plain renderers. Two prototypes,
-    // two colors.
     ("timer-render", timerMachine("TimerRender", modifiers: ["async", "throws"], render: RenderDesc(returnType: "String")), false),
-    // Builder mode, SwiftUI's shape, with the stand-in `ViewishBuilder`: SwiftUI
-    // does not exist on Linux, and the generator only needs the names.
     ("timer-view", timerMachine("TimerView", render: RenderDesc(builder: "ViewishBuilder", conformance: "Viewish")), false),
-    // The narrowed surface (spec/happy-paths.md): Drop in Connecting is a HANDLE
-    // the path does not name, so `connectingReady` can end in any state.
     ("connect", RawMachine(
         machine: "Connect", initial: "Idle",
         states: [RawVariant("Idle"), RawVariant("Connecting"), RawVariant("Live"), RawVariant("Failed")],
@@ -509,16 +443,10 @@ let emitted: [(name: String, raw: RawMachine, refused: Bool)] = [
     ("retry", retryMachine("Retry"), false),
     ("retry-async", retryMachine("RetryAsync", modifiers: ["async", "throws"]), false),
     ("job", jobMachine("Job", child: "retry"), false),
-    // Colorless child in a colored parent: allowed, and compiled.
     ("job-async", jobMachine("JobAsync", child: "retry", modifiers: ["async", "throws"]), false),
-    // Colored child in a colorless parent: color flows one way, so refused.
     ("job-mixed", jobMachine("JobMixed", child: "retryAsync"), true),
 ]
 
-/// Where to write the emitted source for `tools/verify` to compile, if asked.
-/// Never into the tree: generated code is not committed, as source or as a
-/// golden. The compile stages prove the output is Swift; this file proves
-/// what a golden diff also implied, that emission is deterministic.
 let emitDir = CommandLine.arguments
     .first { $0.hasPrefix("--emit=") }
     .map { String($0.dropFirst("--emit=".count)) }
@@ -533,9 +461,6 @@ for (name, machine, refused) in emitted {
         let source = emit(desc)
         check("\(name) emits deterministically", source == emit(desc))
         if let dir = emitDir {
-            // `.emitted.swift`, not `.swift`: swiftc refuses two inputs with the
-            // same base name even from different directories, and the complete
-            // implementation it is compiled with is `complete/<name>.swift`.
             let sub = refused ? "\(dir)/refused" : dir
             try source.write(toFile: "\(sub)/\(name).emitted.swift", atomically: true, encoding: .utf8)
         }

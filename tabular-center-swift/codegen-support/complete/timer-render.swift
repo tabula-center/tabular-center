@@ -26,7 +26,6 @@ final class CompleteTimerRender: TimerRenderCells, TimerRenderRenders {
     func renderDone() -> String { "done" }
 }
 
-/// Rendering is synchronous even though stepping is not: no `await` here.
 func describeTimerRender() -> String {
     TimerRender.render(CompleteTimerRender(), .running(since: 3))
 }

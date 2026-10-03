@@ -1,16 +1,15 @@
+// Parses `spec/conformance` — the same `.tbl` and `.trace` files the Rust and
+// Kotlin harnesses read.
+//
+// Published as **TabularCenterTesting**, separately from the runtime: a machine in
+// production has no use for a fixture parser, and a test dependency that ships
+// to users is a test dependency nobody removes later.
+//
+// A third parser rather than a shared one, deliberately. The format was chosen
+// to parse in about sixty lines precisely so each language could own its
+// parser with no dependency; three small parsers that agree are worth more
+// than one that no language can build offline.
 import TabularCenter
-
-/// Parses `spec/conformance` — the same `.tbl` and `.trace` files the Rust and
-/// Kotlin harnesses read.
-///
-/// Published as **TabularCenterTesting**, separately from the runtime: a machine in
-/// production has no use for a fixture parser, and a test dependency that ships
-/// to users is a test dependency nobody removes later.
-///
-/// A third parser rather than a shared one, deliberately. The format was chosen
-/// to parse in about sixty lines precisely so each language could own its
-/// parser with no dependency; three small parsers that agree are worth more
-/// than one that no language can build offline.
 
 /// A cell as the fixture declares it.
 public enum CellSpec: Equatable {
@@ -21,7 +20,6 @@ public enum CellSpec: Equatable {
     case emit(effects: [String])
     case delegate(child: String)
 
-    /// Rendered the way the fixture writes it, for diagnostics.
     public var text: String {
         switch self {
         case .ignore: return "IGNORE"
@@ -66,9 +64,6 @@ public struct Trace {
     public var name: String
     public var ctx: [String: Int] = [:]
     public var from: String = ""
-    /// Payload fields of the starting state. `go` accepted these from the
-    /// start and `from` did not, which silently began a composition trace in
-    /// the wrong child state. The two must stay symmetric.
     public var fromFields: [String: Int] = [:]
     public var steps: [TraceStep] = []
 }
@@ -80,16 +75,6 @@ public struct SpecError: Error, CustomStringConvertible {
     public init(_ message: String) { self.message = message }
 }
 
-/// Reduce an effect or state rendering to its bare variant name.
-///
-/// Three shapes must all land on `StopClock`: the fixture's own `StopClock`, a
-/// qualified `F.StopClock`, and a Swift enum description like
-/// `stopClock(reason: elapsed)`.
-///
-/// **Order matters.** Taking the last path segment first breaks on the third,
-/// because the payload may contain a separator. Strip the payload, then split
-/// the path. Rust learned this from four conformance failures and Kotlin
-/// inherited the fix; this is the same rule a third time.
 public func lastSegment(_ s: String) -> String {
     let cut = s.firstIndex { $0 == "(" || $0 == "{" || $0 == " " }
     let head = cut.map { String(s[s.startIndex..<$0]) } ?? s
@@ -98,12 +83,6 @@ public func lastSegment(_ s: String) -> String {
     return trim(afterColon)
 }
 
-/// Stdlib-only helpers.
-///
-/// `trimmingCharacters(in:)` and `components(separatedBy:)` are Foundation,
-/// and this is a published library: importing Foundation to trim a string
-/// would put the whole of it on every consumer's link line. The runner may
-/// import it — it needs file IO — but the library should not.
 private func trim(_ s: String) -> String {
     var t = Substring(s)
     while let f = t.first, f == " " || f == "\t" { t = t.dropFirst() }
@@ -111,8 +90,6 @@ private func trim(_ s: String) -> String {
     return String(t)
 }
 
-/// Split on the first `=>`. Written out because `range(of:)` is Foundation and
-/// `firstRange(of:)` is newer than the tools-version this package declares.
 private func splitOnArrow(_ s: String) -> (String, String)? {
     let chars = Array(s)
     var i = 0
@@ -165,7 +142,6 @@ private func parseCell(_ text: String, _ at: String) throws -> CellSpec {
     )
 }
 
-/// Parse a `.tbl` fixture.
 public func parseSpec(_ src: String, _ origin: String) throws -> Spec {
     var machine: String?
     var initial: String?
@@ -225,7 +201,6 @@ private func parseKV(_ w: [String], _ at: String) throws -> [String: Int] {
     return m
 }
 
-/// Parse a `.trace` file, which may hold several traces.
 public func parseTraces(_ src: String, _ origin: String) throws -> [Trace] {
     var out: [Trace] = []
 
@@ -297,10 +272,6 @@ private func matches(_ got: Cell, _ want: CellSpec) -> Bool {
     }
 }
 
-/// Compare a generated table against a fixture, cell by cell.
-///
-/// Not redundant with trace replay: several wrong tables produce right answers
-/// on any one trace.
 public func checkTable(_ got: Table, _ want: Spec) -> [String] {
     var errs: [String] = []
     if got.machine != want.machine {

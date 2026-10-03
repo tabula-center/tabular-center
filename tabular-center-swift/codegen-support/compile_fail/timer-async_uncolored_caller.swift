@@ -18,8 +18,6 @@ final class Cells: TimerAsyncCells {
     func halt(_ ctx: TimerAsync.Ctx, _ effect: Timer.Reason) async throws -> TimerAsync.A? { nil }
 }
 
-// `throws` and `try`, so the one thing missing is `async`: the error this
-// fixture expects is then the only one, rather than one of two.
 func uncolored() throws -> Step<TimerAsync.S, TimerAsync.F> {
     try TimerAsync.step(Cells(), TimerAsync.Ctx(), .idle, .start)
 }

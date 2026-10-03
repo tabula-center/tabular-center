@@ -36,21 +36,12 @@ enum Turnstile {
     }
 
     struct Impl: Cells {
-        /// The one cell with a decision in it. It could have been
-        /// `GO(Locked)`; it is `HANDLE` because it touches context, and a
-        /// static cell cannot.
         func unlockedPush(_ ctx: Ctx) -> Step<S, Never> {
             ctx.admitted += 1
             return .go(.locked, effects: [])
         }
     }
 
-    /// The same matrix, as a reviewer would read it.
-    ///
-    /// Inline rather than a file on disk: a SwiftPM `resources:` declaration
-    /// plus Foundation to read it would be two dependencies acquired to
-    /// demonstrate a library that has none. A real project keeps this in
-    /// `spec/` next to the code and loads it however it already loads files.
     static let FIXTURE = """
         machine Turnstile
         initial Locked
@@ -61,15 +52,6 @@ enum Turnstile {
         Unlocked | IGNORE       | HANDLE
         """
 
-    /// The same fixture with one cell changed, to show the diff is real.
-    ///
-    /// Without this the example would only prove that `checkTable` can agree
-    /// with itself. A check that has never failed is a check nobody has
-    /// tested.
-    /// Written out in full rather than derived from `FIXTURE` with a string
-    /// substitution: `replacingOccurrences` is Foundation, and acquiring
-    /// Foundation to demonstrate a library that has no dependencies would
-    /// undercut the example it appears in.
     static let DRIFTED = """
         machine Turnstile
         initial Locked

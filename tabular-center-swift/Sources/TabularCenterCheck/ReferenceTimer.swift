@@ -1,34 +1,31 @@
+// **The Swift macro's specification.**
+//
+// Hand-written, exactly as `reference_timer.rs` and `ReferenceTimer.kt` are
+// for their generators: the generator needs a target before it needs an
+// implementation. Everything below the `GENERATED` line is what the macro
+// must emit.
+//
+// ## Which shape Swift takes
+//
+// ARCHITECTURE §11.0 records a divergence that runs one way: *Rust reaches
+// for generics wherever `macro_rules!` cannot build an identifier; Kotlin
+// names things.* Swift macros **can** build identifiers, and a Swift type
+// cannot conform to one generic protocol at two different arguments — the
+// same restriction Kotlin has.
+//
+// So Swift lands with Kotlin, not with Rust: a protocol with **named
+// members**, one per cell. That was the prediction, and it holds for both
+// reasons independently.
+//
+// The matrix being specified:
+//
+// ```text
+//               Start                   Tick     Cancel
+//   Idle    [   HANDLE,                 IGNORE,  IGNORE              ]
+//   Running [   IGNORE,                 HANDLE,  GO(Idle, StopClock) ]
+//   Done    [   GO(Running, StartClock) IGNORE,  IGNORE              ]
+// ```
 import TabularCenter
-
-/// **The Swift macro's specification.**
-///
-/// Hand-written, exactly as `reference_timer.rs` and `ReferenceTimer.kt` are
-/// for their generators: the generator needs a target before it needs an
-/// implementation. Everything below the `GENERATED` line is what the macro
-/// must emit.
-///
-/// ## Which shape Swift takes
-///
-/// ARCHITECTURE §11.0 records a divergence that runs one way: *Rust reaches
-/// for generics wherever `macro_rules!` cannot build an identifier; Kotlin
-/// names things.* Swift macros **can** build identifiers, and a Swift type
-/// cannot conform to one generic protocol at two different arguments — the
-/// same restriction Kotlin has.
-///
-/// So Swift lands with Kotlin, not with Rust: a protocol with **named
-/// members**, one per cell. That was the prediction, and it holds for both
-/// reasons independently.
-///
-/// The matrix being specified:
-///
-/// ```text
-///               Start                   Tick     Cancel
-///   Idle    [   HANDLE,                 IGNORE,  IGNORE              ]
-///   Running [   IGNORE,                 HANDLE,  GO(Idle, StopClock) ]
-///   Done    [   GO(Running, StartClock) IGNORE,  IGNORE              ]
-/// ```
-
-// MARK: - What the developer declares
 
 enum S: Equatable {
     case idle
@@ -59,16 +56,8 @@ final class Ctx {
     init(limit: Int) { self.limit = limit }
 }
 
-// MARK: - Narrowed variant types
-//
-// One struct per payload-carrying variant, so a cell receives its payload
-// already destructured. Payload-free variants need no type: the cell simply
-// takes no state argument for them.
-
 struct Running: Equatable { let since: Int }
 struct Tick: Equatable { let now: Int }
-
-// MARK: - GENERATED — everything below is what the macro must emit
 
 /// The cell surface: one required member per non-static cell, with narrowed
 /// argument types.
@@ -82,23 +71,10 @@ protocol TimerCells {
     func idleStart(_ ctx: Ctx) -> Step<S, F>
     func runningTick(_ ctx: Ctx, _ state: Running, _ action: Tick) -> Step<S, F>
 
-    // One required member per effect variant. Add an effect to the declaration
-    // and every handler stops compiling.
     func startClock(_ ctx: Ctx) -> A?
     func stopClock(_ ctx: Ctx, _ effect: Reason) -> A?
 }
 
-/// Dispatch one `(state, action)` pair.
-///
-/// The `switch` exists **only here**. A developer never writes one, so
-/// `default:` is not a temptation — it is not available. That is the
-/// difference between a convention and a guarantee, and it is why the macro
-/// owns the dispatcher rather than checking one the developer wrote.
-///
-/// Note the absence of `default:`. Adding a case to `S` or `A` breaks this
-/// switch at compile time via Swift's own exhaustiveness checking — the free
-/// second guarantee, the same one rustc gives the Rust macro and kotlinc gives
-/// the Kotlin one.
 func step(_ cells: TimerCells, _ ctx: Ctx, _ s: S, _ a: A) -> Step<S, F> {
     switch (s, a) {
     case (.idle, .start):
@@ -124,7 +100,6 @@ func step(_ cells: TimerCells, _ ctx: Ctx, _ s: S, _ a: A) -> Step<S, F> {
     }
 }
 
-/// Carry out one effect, returning any follow-up action.
 func perform(_ cells: TimerCells, _ ctx: Ctx, _ f: F) -> A? {
     switch f {
     case .startClock:
@@ -134,7 +109,6 @@ func perform(_ cells: TimerCells, _ ctx: Ctx, _ f: F) -> A? {
     }
 }
 
-/// The matrix as inert data. Diagrams, lints, and coverage read this.
 let TIMER_TABLE = Table(
     machine: "Timer",
     states: ["Idle", "Running", "Done"],
@@ -147,22 +121,16 @@ let TIMER_TABLE = Table(
     initial: "Idle"
 )
 
-// MARK: - DEVELOPER — two cells, two effects, four members
-
 struct Timer: TimerCells {
     func idleStart(_ ctx: Ctx) -> Step<S, F> {
         .go(.running(since: 0), effects: [.startClock])
     }
 
     func runningTick(_ ctx: Ctx, _ state: Running, _ action: Tick) -> Step<S, F> {
-        // Payload arrives destructured and non-optional: no `if case`, no
-        // cast, no force-unwrap. Rule R2.
         ctx.ticksSeen += 1
         if action.now - state.since >= ctx.limit {
             return .go(.done, effects: [.stopClock(reason: .elapsed)])
         }
-        // Handled, staying put. Distinct from `.ignored`, which would claim a
-        // tick is meaningless while running.
         return .stay(effects: [])
     }
 

@@ -26,8 +26,6 @@ final class CompleteTimerView: TimerViewCells, TimerViewRenders {
     func renderDone() -> ViewishLabel { ViewishLabel(text: "done") }
 }
 
-/// One opaque view for any state. Opaque result types need macOS 10.15 at
-/// runtime, which the generated `render` declares; so does its caller.
 @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
 func viewForTimer() -> some Viewish {
     TimerView.render(CompleteTimerView(), .running(since: 3))

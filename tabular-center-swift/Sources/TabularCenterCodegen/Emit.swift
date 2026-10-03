@@ -31,17 +31,10 @@ public func emit(_ d: MachineDesc) -> String {
     out += "// difference between a convention and a guarantee.\n"
     out += "import TabularCenter\n\n"
 
-    // -- refusals ------------------------------------------------------
-    //
-    // What this emitter cannot produce correctly, it refuses at the top of the
-    // file, in the user's build, naming the variant. The alternative is source
-    // that fails to compile somewhere in the middle, with a message about
-    // generated code the user never wrote.
     for line in refusals(d) {
         out += "#error(\(q(line)))\n"
     }
 
-    // -- cell surface --------------------------------------------------
     out += "/// The cell surface: one required member per non-static cell, with narrowed\n"
     out += "/// argument types.\n"
     out += "///\n"
@@ -60,9 +53,6 @@ public func emit(_ d: MachineDesc) -> String {
                 out += argList(d, i, j)
                 out += ")\(color.suffix) -> \(stepType)\n"
             case let .delegate(child):
-                // The action prism, and the only per-cell part of composition.
-                // Narrowed like a HANDLE cell, as `Compose.swift`'s
-                // `retryingRunToChild(_ ctx: JobCtx, _ s: JobRetrying)`.
                 guard let ch = d.children.first(where: { $0.alias == child }) else { continue }
                 out += "    \(color.prefix)func \(member(d, i, j))ToChild(_ ctx: \(own(d.ctxType))"
                 out += argList(d, i, j)
@@ -73,13 +63,6 @@ public func emit(_ d: MachineDesc) -> String {
         }
     }
 
-    // Lens members are per CHILD, not per cell: a second delegate cell to the
-    // same child reuses them. Only the action prism above is per cell.
-    //
-    // The lens takes the parent's whole state, as Kotlin's does: one lens
-    // serves every DELEGATE cell to the child, and those cells may sit in
-    // states with different payloads. Uncolored, as in Kotlin -- it is a
-    // projection, not a cell.
     for ch in d.children {
         let c = childType(ch)
         out += "\n    // Lens onto `\(c)`. Per child, not per cell.\n"
@@ -100,9 +83,6 @@ public func emit(_ d: MachineDesc) -> String {
     }
     out += "}\n\n"
 
-    // -- rendering surface (optional) ------------------------------------
-    // Only for a machine that declares a rendering prototype (ARCHITECTURE
-    // 9). Without one nothing here is emitted, and the output is what it was.
     if let r = d.render {
         let rc = Color(r.modifiers)
         out += "/// The rendering surface: one required member per state, the state narrowed.\n"
@@ -114,8 +94,6 @@ public func emit(_ d: MachineDesc) -> String {
         for st in d.states {
             let arg = st.hasPayload ? "_ state: \(own(st.name))" : ""
             if let bld = r.builder {
-                // SwiftUI's shape: an associated type per state, the builder on
-                // the requirement, so a conformer writes `some View`.
                 out += "    associatedtype \(cap(st.name))Body: \(r.conformance)\n"
                 out += "    \(rc.prefix)@\(bld) func render\(cap(st.name))(\(arg))\(rc.suffix) -> \(cap(st.name))Body\n"
             } else {
@@ -125,15 +103,8 @@ public func emit(_ d: MachineDesc) -> String {
         out += "}\n\n"
     }
 
-    // -- generated members, in the machine's namespace -------------------
     out += "extension \(d.machine) {\n"
 
-    // -- dispatcher ----------------------------------------------------
-    //
-    // Only HANDLE and DELEGATE arms bind payloads, because only they hand the
-    // payload on. Every other arm matches the bare case, which Swift allows
-    // for a case with associated values -- and which leaves no unused
-    // bindings behind.
     out += "    /// Dispatch one `(state, action)` pair. No `default:` branch.\n"
     out += "    \(color.prefix)static func step(_ cells: \(d.machine)Cells, _ ctx: \(own(d.ctxType)), "
     out += "_ s: \(own(d.stateType)), _ a: \(own(d.actionType)))\(color.suffix) -> \(stepType) {\n"
@@ -150,9 +121,6 @@ public func emit(_ d: MachineDesc) -> String {
                 if d.actions[j].hasPayload { args += ", \(ab.value)" }
                 out += "        case \(binds ? "let " : "")(\(sb.pattern), \(ab.pattern)):\n"
                 if case let .delegate(child) = c {
-                    // Two statements rather than a nested call, so a colored
-                    // machine writes `try await` once per call, not twice in
-                    // one expression.
                     out += "            let childAction = \(color.call)cells.\(member(d, i, j))ToChild(\(args))\n"
                     out += "            return \(color.call)delegateTo\(cap(child))(cells, ctx, s, childAction)\n"
                 } else {
@@ -166,14 +134,6 @@ public func emit(_ d: MachineDesc) -> String {
     }
     out += "        }\n    }\n"
 
-    // -- delegation ------------------------------------------------------
-    //
-    // One helper per child, as `Compose.swift` and Kotlin's generator write
-    // it. It carries the PARENT's color and calls the child's `step` with the
-    // parent's `try` / `await`. That is one-way color flow by construction:
-    // a colored child under an uncolored parent is a call to an `async` or
-    // `throws` function with neither, which swiftc refuses; the reverse is a
-    // redundant `await`, which it accepts.
     for ch in d.children {
         let c = childType(ch)
         out += "\n    /// Run `\(c)` and fold the result back through the lens.\n"
@@ -196,7 +156,6 @@ public func emit(_ d: MachineDesc) -> String {
         out += "    }\n"
     }
 
-    // -- effect dispatch -----------------------------------------------
     if !d.effects.isEmpty {
         out += "\n    /// Carry out one effect, returning any follow-up action.\n"
         out += "    \(color.prefix)static func perform(_ cells: \(d.machine)Cells, _ ctx: \(own(d.ctxType)), "
@@ -208,8 +167,6 @@ public func emit(_ d: MachineDesc) -> String {
                 out += "        case .\(lower(e.name)):\n"
                 out += "            return \(color.call)cells.\(lower(e.name))(ctx)\n"
             } else {
-                // One field passes its value, as `ReferenceTimer` passes a
-                // `Reason`; several pass a labelled tuple.
                 let arg = b.names.count == 1
                     ? b.names[0]
                     : "(" + zip(e.fields, b.names).map { f, n in
@@ -222,17 +179,9 @@ public func emit(_ d: MachineDesc) -> String {
         out += "        }\n    }\n"
     }
 
-    // -- render dispatcher (optional) ------------------------------------
-    // Binds a payload state's fields and builds its narrowed struct, the way
-    // `step` does for a HANDLE cell; a payload-free state's renderer takes
-    // nothing.
     if let r = d.render {
         let rc = Color(r.modifiers)
         out += "\n    /// Render one state. No `default:` branch.\n"
-        // Builder mode is generic over the conformer (a protocol with
-        // associated types is not a type), returns one opaque view the builder
-        // assembles from the `switch`, and so writes no `return`: a `return`
-        // inside a result-builder body turns the builder off.
         let lead: String
         if let bld = r.builder {
             out += "    @available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)\n"
@@ -258,11 +207,8 @@ public func emit(_ d: MachineDesc) -> String {
         out += "        }\n    }\n"
     }
 
-    // -- narrowed surface: one member per hop (optional) ----------------
-    // Only for a machine with paths; without one nothing here is emitted.
     for h in d.hops { out += hop(d, h, color, own) }
 
-    // -- table ----------------------------------------------------------
     out += "\n    /// The matrix as inert data. Diagrams, lints, and coverage read this.\n"
     out += "    static let TABLE = Table(\n"
     out += "        machine: \(q(d.machine)),\n"
@@ -276,7 +222,6 @@ public func emit(_ d: MachineDesc) -> String {
     out += "        initial: \(q(d.initial))\n"
     out += "    )\n"
 
-    // -- payloads --------------------------------------------------------
     out += "\n    /// State payload fields, as `(state, field, type)`.\n"
     let entries = d.states.flatMap { v in v.fields.map { (v.name, $0.name, $0.type) } }
     if entries.isEmpty {
@@ -300,11 +245,8 @@ public func emit(_ d: MachineDesc) -> String {
 /// and `throws` go after the parameter list -- and every call into a colored
 /// member needs `try` / `await`, which is how the color reaches the caller.
 private struct Color {
-    /// Attributes and modifiers: `@MainActor `, `nonisolated `.
     let prefix: String
-    /// Effect specifiers, after the parameters: ` async throws`.
     let suffix: String
-    /// What a call into a member of this color needs: `try await `.
     let call: String
 
     init(_ mods: [String]) {
@@ -313,24 +255,13 @@ private struct Color {
         let after = mods.filter { specifiers.contains($0) }
         prefix = before.isEmpty ? "" : before.joined(separator: " ") + " "
         suffix = after.isEmpty ? "" : " " + after.joined(separator: " ")
-        // `after` is `[String]`, so this is Array's `contains(_:)` -- an element
-        // test, available everywhere -- not the macOS-13 `String.contains`.
         let throwing = after.contains("throws") || after.contains("rethrows")
         call = (throwing ? "try " : "") + (after.contains("async") ? "await " : "")
     }
 }
 
-/// The dispatcher's own parameter names. A payload field bound under one of
-/// these would shadow it, and `cells.idleStart(ctx, ...)` would quietly pass
-/// the field instead of the context.
 private let reserved: Set<String> = ["cells", "ctx", "s", "a"]
 
-/// A pattern binding a variant's payload, and the narrowed value built from it.
-///
-/// `Running(since: Int)` binds as `.running(since)` and constructs
-/// `Timer.Running(since: since)` -- the narrowed struct, declared in the
-/// machine's enum beside `S`. An unlabelled field binds positionally
-/// (`s0`, `a0`) and constructs without a label.
 private func bind(_ v: Variant, side: String, avoid: Set<String>, owner: String)
     -> (pattern: String, value: String, names: [String])
 {
@@ -353,8 +284,6 @@ private func bind(_ v: Variant, side: String, avoid: Set<String>, owner: String)
     )
 }
 
-/// The effect handler's payload parameter: the value for one field, a
-/// labelled tuple for several, nothing for none.
 private func effectParam(_ e: Variant) -> String {
     guard e.hasPayload, !e.fields.isEmpty else { return "" }
     if e.fields.count == 1 { return ", _ effect: \(e.fields[0].type)" }
@@ -362,16 +291,11 @@ private func effectParam(_ e: Variant) -> String {
     return ", _ effect: (\(parts.joined(separator: ", ")))"
 }
 
-/// Everything this emitter knows it cannot produce, as `#error` messages.
 private func refusals(_ d: MachineDesc) -> [String] {
     var out: [String] = []
-    // `Variant.fields` may be empty with `hasPayload` true: a generator that
-    // cannot resolve a type still gets its lints. It cannot get a binding.
     for v in d.states + d.actions + d.effects where v.hasPayload && v.fields.isEmpty {
         out.append("tabular-center: the payload fields of `\(v.name)` are unknown, so the generator cannot bind them")
     }
-    // A hop from a payload state rebuilds `S` from the narrowed struct, field
-    // by field, and an unnamed field has no property to read back.
     for h in d.hops {
         let v = d.states[h.from]
         if v.hasPayload && v.fields.contains(where: { $0.name.isEmpty }) {
@@ -389,15 +313,6 @@ private func refusals(_ d: MachineDesc) -> [String] {
     return out
 }
 
-/// Cell member name: `Idle` x `Start` becomes `idleStart`.
-///
-/// Swift macros can build identifiers, so Swift names cells — the same choice
-/// Kotlin makes, and the opposite of Rust, where `macro_rules!` cannot.
-/// The states `from` can end up in when an action arrives there, per
-/// spec/happy-paths.md: a `go` its target, `emit`/`ignore`/`delegate` `from`
-/// itself, a `handle` any state, `unreachable` none. The hop's own cell is a
-/// `go` to `to` after derivation, so `to` is always in. Declaration order.
-/// The Kotlin twin is `hopOutcomes` in its `Emit.kt`.
 public func hopOutcomes(_ d: MachineDesc, _ h: HopDesc) -> [Int] {
     var out: Set<Int> = [h.to]
     for cell in d.rows[h.from] {
@@ -415,14 +330,6 @@ public func hopOutcomes(_ d: MachineDesc, _ h: HopDesc) -> [Int] {
     return out.sorted()
 }
 
-/// One hop's narrowed surface, inside the machine's extension: an outcome
-/// enum -- one case per state the `from` row can produce, a payload state's
-/// case carrying its narrowed struct -- with an `elvis` method, and the member
-/// that steps `from` with the action that arrived.
-///
-/// Swift's non-local exit is `throw`, so `elvis` is `rethrows` and a handler
-/// leaves by throwing: `try hop.elvis(failed: { _, _ in throw Detour.failed })`.
-/// Every non-happy state is a required label.
 private func hop(
     _ d: MachineDesc, _ h: HopDesc, _ color: Color, _ own: (String) -> String
 ) -> String {
@@ -433,9 +340,6 @@ private func hop(
     let outcomes = hopOutcomes(d, h)
     let others = outcomes.filter { $0 != h.to }
     let fx = "[\(own(d.effectType))]"
-    // What a case carries, and so what `elvis` hands back: the narrowed
-    // struct and the effects for a payload state, the effects alone for one
-    // without (a one-element tuple is not a Swift type).
     func carried(_ v: Variant) -> String { v.hasPayload ? "(\(own(v.name)), \(fx))" : fx }
 
     var out = "\n    /// Where `\(from.name)` can go when an action arrives, on the path through\n"
@@ -455,8 +359,6 @@ private func hop(
         let args = v.hasPayload ? "\(own(v.name)), \(fx)" : fx
         return "\(lower(v.name)): (\(args)) throws -> \(carried(to))"
     }
-    // `rethrows` needs a throwing parameter to rethrow; with no alternatives
-    // there is none, and `rethrows` alone would not compile.
     let rethrowsClause = others.isEmpty ? "" : " rethrows"
     out += "        func elvis(\(params.joined(separator: ", ")))\(rethrowsClause) -> \(carried(to)) {\n"
     out += "            switch self {\n"
@@ -473,8 +375,6 @@ private func hop(
     }
     out += "            }\n        }\n    }\n"
 
-    // The member. A payload `from` takes its narrowed struct and rebuilds the
-    // state from it; a payload-free one takes nothing.
     let stateParam = from.hasPayload ? "_ state: \(own(from.name)), " : ""
     let rebuilt = from.hasPayload
         ? ".\(lower(from.name))(" + from.fields.map { "\($0.name): state.\($0.name)" }.joined(separator: ", ") + ")"
@@ -515,14 +415,6 @@ struct GeneratedMember {
     let origin: String
 }
 
-/// Every member the generated `Cells` protocol declares: one per HANDLE cell,
-/// one per DELEGATE cell's action prism, four lens members per child, one per
-/// effect. The one list both the emitter's naming and `buildDesc`'s collision
-/// check read, so the check cannot disagree with what is emitted.
-///
-/// Swift is where a collision bites: a payload-free cell's member takes only
-/// `_ ctx`, so two payload-free cells named alike declare the same signature
-/// twice -- an "invalid redeclaration" inside generated code.
 func cellsMembers(_ d: MachineDesc) -> [GeneratedMember] {
     var out: [GeneratedMember] = []
     for (i, row) in d.rows.enumerated() {
@@ -546,7 +438,6 @@ func cellsMembers(_ d: MachineDesc) -> [GeneratedMember] {
     for e in d.effects {
         out.append(GeneratedMember(name: lower(e.name), origin: "effect \(e.name)"))
     }
-    // Not protocol members, but named on the same scheme.
     for h in d.hops {
         let at = "hop (\(d.states[h.from].name), \(d.actions[h.action].name))"
         out.append(GeneratedMember(name: member(d, h.from, h.action), origin: at))
@@ -558,7 +449,6 @@ private func member(_ d: MachineDesc, _ i: Int, _ j: Int) -> String {
     lower(d.states[i].name) + cap(d.actions[j].name)
 }
 
-/// Narrowed arguments, only for variants that carry a payload.
 private func argList(_ d: MachineDesc, _ i: Int, _ j: Int) -> String {
     var s = ""
     if d.states[i].hasPayload { s += ", _ state: \(d.machine).\(d.states[i].name)" }
@@ -566,8 +456,6 @@ private func argList(_ d: MachineDesc, _ i: Int, _ j: Int) -> String {
     return s
 }
 
-/// Every arm but HANDLE and DELEGATE, which bind and are written by the
-/// dispatcher itself.
 private func arm(_ d: MachineDesc, _ i: Int, _ j: Int) -> String {
     switch d.rows[i][j] {
     case .ignore, .handle, .delegate:
@@ -575,7 +463,6 @@ private func arm(_ d: MachineDesc, _ i: Int, _ j: Int) -> String {
     case .unreachable:
         return "fatalError(\(q("tabular-center: \(d.states[i].name) x \(d.actions[j].name) was declared UNREACHABLE but occurred")))"
     case let .go(target, args, effects):
-        // Verbatim, arguments included: `.stopClock(reason: .cancelled)`.
         let e = effects.map { ".\(lower($0))" }.joined(separator: ", ")
         return ".go(.\(lower(target))\(args), effects: [\(e)])"
     case let .emit(effects):
@@ -589,8 +476,6 @@ private func cellData(_ c: CellDesc) -> String {
     case .ignore: return ".ignore"
     case .handle: return ".handle"
     case .unreachable: return ".unreachable"
-    // `TABLE` records WHICH effect a cell emits, not with what: the arguments
-    // are the dispatcher's, and the conformance goldens compare names.
     case let .go(target, _, effects):
         let e = effects.map { q(effectName($0)) }.joined(separator: ", ")
         return ".go(target: \(q(target)), effects: [\(e)])"
@@ -602,7 +487,6 @@ private func cellData(_ c: CellDesc) -> String {
     }
 }
 
-/// A child's namespace: `.delegate(.retry)` names the machine `Retry`.
 private func childType(_ ch: ChildDesc) -> String { cap(ch.alias) }
 
 private func q(_ s: String) -> String { "\"\(s)\"" }

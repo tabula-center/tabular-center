@@ -25,6 +25,4 @@ final class BlankTimerRender: TimerRenderCells, TimerRenderRenders {
 
     func renderIdle() -> String { "idle" }
     func renderRunning(_ state: TimerRender.Running) -> String { "running since \(state.since)" }
-
-    // renderDone is missing.
 }

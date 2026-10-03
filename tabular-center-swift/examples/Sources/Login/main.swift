@@ -41,8 +41,6 @@ Check.eq(
     .go(.authenticated, effects: []),
     "login: the child is a machine in its own right")
 
-// Coverage is not inherited silently: the LoggedOut row lists all three
-// columns, and one of them is not a delegate.
 Check.eq(SESSION_TABLE.cell(0, 2), .ignore, "login: coverage is not inherited silently")
 
 exit(Check.report("swift login"))

@@ -10,8 +10,6 @@ import TabularCenterTesting
     import Darwin
 #endif
 
-// The machine works, first. An example whose only content is its own test
-// harness teaches nothing.
 let ctx = Turnstile.Ctx()
 let cells = Turnstile.Impl()
 Check.eq(
@@ -28,9 +26,6 @@ Check.eq(
     "turnstile: pushing through relocks")
 Check.eq(ctx.admitted, 1, "turnstile: the handler counted the admission")
 
-// Now the point of the example: the generated table agrees with the fixture a
-// reviewer reads. `checkTable` returns the differences, so no differences is
-// an empty array rather than a boolean.
 do {
     let spec = try parseSpec(Turnstile.FIXTURE, "Turnstile.FIXTURE")
     Check.eq(
@@ -38,10 +33,6 @@ do {
         [],
         "spec: the matrix matches the fixture a reviewer reads")
 
-    // And it notices when they disagree. One cell changed from HANDLE to
-    // GO(Locked) -- a difference that compiles, passes every behavioural test
-    // that does not exercise that cell, and is exactly what a table diff is
-    // for.
     let drifted = try parseSpec(Turnstile.DRIFTED, "Turnstile.DRIFTED")
     let differences = checkTable(Turnstile.TABLE, drifted)
     Check.ok(!differences.isEmpty, "spec: a changed cell is reported, not shrugged at")

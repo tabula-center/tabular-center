@@ -9,7 +9,7 @@
 // dispatcher is regenerated from the declaration and would simply grow a case.
 import TabularCenter
 
-enum S { case idle, running, paused }  // paused added after generation
+enum S { case idle, running, paused }
 enum A { case go }
 
 func step(_ s: S, _ a: A) -> Step<S, Never> {

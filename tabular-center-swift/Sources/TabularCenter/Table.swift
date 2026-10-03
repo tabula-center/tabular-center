@@ -3,6 +3,13 @@
 /// Rows are states, columns are actions, both in declaration order — which is
 /// what lets diagram export and the conformance runner agree on cell identity
 /// across languages.
+///
+/// - `cell`: The cell at `(stateIndex, actionIndex)`.
+/// - `stateIndex`: Row index of a state variant by name.
+/// - `actionIndex`: Column index of an action variant by name.
+/// - `coverage`: Counts by cell kind.
+/// - `staticallyUnreached`: States no cell can statically transition into, excluding the initial one.
+/// - `isFullyStatic`: Whether every cell is static, i.e.
 public struct Table: Equatable {
     public let machine: String
     public let states: [String]
@@ -24,16 +31,12 @@ public struct Table: Equatable {
         self.initial = initial
     }
 
-    /// The cell at `(stateIndex, actionIndex)`.
     public func cell(_ state: Int, _ action: Int) -> Cell { cells[state][action] }
 
-    /// Row index of a state variant by name.
     public func stateIndex(_ name: String) -> Int? { states.firstIndex(of: name) }
 
-    /// Column index of an action variant by name.
     public func actionIndex(_ name: String) -> Int? { actions.firstIndex(of: name) }
 
-    /// Counts by cell kind.
     public func coverage() -> Coverage {
         let flat = cells.flatMap { $0 }
         return Coverage(
@@ -48,22 +51,20 @@ public struct Table: Equatable {
         )
     }
 
-    /// States no cell can statically transition into, excluding the initial
-    /// one.
-    ///
-    /// Only static targets are knowable at build time, so a state reached
-    /// solely from a `handle` cell appears here. That is why the reachability
-    /// lint is gated on `isFullyStatic`.
     public func staticallyUnreached() -> [String] {
         let targets = Set(cells.flatMap { $0 }.compactMap(\.staticTarget))
         return states.filter { $0 != initial && !targets.contains($0) }
     }
 
-    /// Whether every cell is static, i.e. whether reachability is knowable.
     public func isFullyStatic() -> Bool { cells.flatMap { $0 }.allSatisfy(\.isStatic) }
 }
 
 /// Counts by cell kind, for the build-time coverage report.
+///
+/// - `total`: Total cells, i.e.
+/// - `requiredMembers`: Cells the developer must implement.
+/// - `ignorePercent`: Proportion of the matrix that is `ignore`, in percent.
+/// - `unreachablePercent`: Proportion of the matrix that is `unreachable`, in percent.
 public struct Coverage: Equatable {
     public let ignore: Int
     public let go: Int
@@ -72,17 +73,11 @@ public struct Coverage: Equatable {
     public let delegate: Int
     public let unreachable: Int
 
-    /// Total cells, i.e. states x actions.
     public var total: Int { ignore + go + emit + handle + delegate + unreachable }
 
-    /// Cells the developer must implement.
-    ///
-    /// `unreachable` is excluded: writing it *is* the implementation.
     public var requiredMembers: Int { handle + delegate }
 
-    /// Proportion of the matrix that is `ignore`, in percent.
     public var ignorePercent: Int { total == 0 ? 0 : ignore * 100 / total }
 
-    /// Proportion of the matrix that is `unreachable`, in percent.
     public var unreachablePercent: Int { total == 0 ? 0 : unreachable * 100 / total }
 }

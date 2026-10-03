@@ -30,15 +30,6 @@ public struct MachineMacro: MemberMacro {
         let raw = try MachineSyntax.read(decl)
         let desc = try buildDesc(raw)
 
-        // `emit` renders a FILE — package line, imports, then declarations —
-        // because the Kotlin and Rust generators write files and one emitter
-        // serves all three. A member macro may only contribute members, so the
-        // rendered source is parsed back and its top-level declarations taken.
-        //
-        // Parsing rather than string-slicing: the boundary between the header
-        // and the first declaration is a question about Swift syntax, and
-        // there is a parser right here that answers it. A `hasPrefix("import")`
-        // scan would work until an import appeared in a doc comment.
         let rendered = Parser.parse(source: emit(desc))
         return rendered.statements.compactMap { stmt -> DeclSyntax? in
             guard let d = stmt.item.as(DeclSyntax.self) else { return nil }

@@ -23,6 +23,4 @@ final class BlankTimerView: TimerViewCells, TimerViewRenders {
 
     func renderIdle() -> ViewishLabel { ViewishLabel(text: "idle") }
     func renderRunning(_ state: TimerView.Running) -> ViewishLabel { ViewishLabel(text: "running since \(state.since)") }
-
-    // renderDone is missing.
 }

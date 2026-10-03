@@ -2,16 +2,14 @@
 ///
 /// Pure functions of `Table`, which is the payoff for emitting the matrix as
 /// data: none of this had to be built as a feature.
+///
+/// - `toGrid`: The matrix as an aligned ASCII grid.
+/// - `toMermaid`: Mermaid `stateDiagram-v2`.
+/// - `toDot`: Graphviz DOT.
+/// - `toCoverageReport`: The build-time coverage report.
+/// - `edges`: Every drawable edge, in row-major matrix order.
 public enum Export {
 
-    /// The matrix as an aligned ASCII grid.
-    ///
-    /// Lines are right-trimmed: trailing padding is invisible, trips every
-    /// whitespace check, and makes golden snapshots noisy in review.
-    ///
-    /// Must match the Rust and Kotlin renderers byte for byte — the golden
-    /// `.grid` files in `spec/conformance` are shared, and two renderers
-    /// agreeing on padding is a stronger statement than it looks.
     public static func toGrid(_ t: Table) -> String {
         func text(_ c: Cell) -> String {
             switch c {
@@ -49,11 +47,6 @@ public enum Export {
         return out
     }
 
-    /// Mermaid `stateDiagram-v2`.
-    ///
-    /// Only statically-known transitions become real edges. `handle` and
-    /// `delegate` cells are drawn as annotated self-loops, because their target
-    /// is not knowable at build time and a diagram that pretends otherwise lies.
     public static func toMermaid(_ t: Table) -> String {
         var out = "stateDiagram-v2\n"
         if let initial = t.initial { out += "    [*] --> \(initial)\n" }
@@ -61,7 +54,6 @@ public enum Export {
         return out
     }
 
-    /// Graphviz DOT. Dynamic edges are dashed; static ones are solid.
     public static func toDot(_ t: Table) -> String {
         var out = "digraph \(t.machine) {\n    rankdir=LR;\n"
         out += "    node [shape=box, style=rounded];\n"
@@ -77,11 +69,6 @@ public enum Export {
         return out
     }
 
-    /// The build-time coverage report.
-    ///
-    /// Thresholds are the lint's, referenced rather than repeated: this and
-    /// `report` are two views of one matrix and must not disagree about what
-    /// is worth warning about.
     public static func toCoverageReport(_ t: Table) -> String {
         let c = t.coverage()
         var out = "\(t.machine): \(c.total) cells "
@@ -92,12 +79,9 @@ public enum Export {
             out += "  warning: \(c.ignorePercent)% of cells are IGNORE; "
             out += "consider splitting this machine\n"
         }
-        // One or two deliberate `unreachable` cells stay silent. See spec/cells.md.
         if c.unreachablePercent >= unreachableHeavyPercent {
             out += "  warning: \(c.unreachable) UNREACHABLE cell(s); usually a modelling error\n"
         }
-        // With any dynamic cell present, staticallyUnreached is an
-        // approximation, so the report must not present it as a result.
         if t.isFullyStatic() {
             for state in t.staticallyUnreached() {
                 out += "  warning: `\(state)` has no static incoming transition\n"
@@ -118,17 +102,6 @@ public enum Export {
         effects.isEmpty ? action : "\(action) / \(effects.joined(separator: ", "))"
     }
 
-    /// Every drawable edge, in row-major matrix order.
-    ///
-    /// One walk feeding all three formats, so a machine renders in the same
-    /// order whichever you ask for. Row-major because that is the order the
-    /// matrix is read in — and because Rust rendered mermaid in two passes for
-    /// a while, every `go` edge before every self-loop, which produced the same
-    /// edge set in a different order from this. Nothing compared diagram
-    /// output, so nothing said so.
-    ///
-    /// `ignore` and `unreachable` draw nothing. Neither is a transition: one
-    /// says the action does not apply, the other says the pair cannot occur.
     private static func edges(_ t: Table) -> [Edge] {
         var out: [Edge] = []
         for (i, row) in t.cells.enumerated() {

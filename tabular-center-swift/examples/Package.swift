@@ -1,6 +1,5 @@
 // swift-tools-version: 5.7
-import PackageDescription
-
+//
 // A separate package that depends on TabularCenter BY PATH, the way a user would —
 // the same reason the Rust examples sit outside the cargo workspace. It is the
 // only place the public API is exercised from outside.
@@ -20,6 +19,8 @@ import PackageDescription
 // costs nothing and the next rename should not have to rediscover this. It breaks the
 // symmetry with `tabular-center-rust/examples` and `tabular-center-kotlin/examples`, which is a smaller cost
 // than a package that cannot resolve.
+import PackageDescription
+
 let package = Package(
     name: "TabularCenterExamples",
     products: [
@@ -34,24 +35,8 @@ let package = Package(
         .package(path: "..")
     ],
     targets: [
-        // The assertion harness, as its own target, so every example depends
-        // on it explicitly rather than sharing a module by accident.
         .target(name: "ExampleCheck"),
 
-        // One target per example. Each has its own dependency line, which is
-        // the configuration axis here: `TrafficLight` names `TabularCenter` and
-        // nothing else, and would stop building the day an example started
-        // needing more than the runtime.
-        //
-        // `package: "tabular-center-swift"` is the DIRECTORY name of the path
-        // dependency, not the `name` in its manifest -- SwiftPM identifies path dependencies
-        // by directory, and said so itself:
-        //
-        //   unknown package 'TabularCenter' ... valid packages are: 'swift'
-        //
-        // The bare `dependencies: ["TabularCenter"]` form does not work either: by-name
-        // lookup matches the *package* name `TabularCenter` and resolves to this
-        // package.
         .executableTarget(
             name: "TrafficLight",
             dependencies: [.product(name: "TabularCenter", package: "tabular-center-swift"), "ExampleCheck"]
@@ -68,16 +53,10 @@ let package = Package(
             name: "Login",
             dependencies: [.product(name: "TabularCenter", package: "tabular-center-swift"), "ExampleCheck"]
         ),
-        // The only target whose checks can report `skip`. ObservableStore is
-        // Darwin only, so off Darwin this builds, runs, checks the machine,
-        // and says so rather than passing silently or failing loudly.
         .executableTarget(
             name: "ObservableCounter",
             dependencies: [.product(name: "TabularCenter", package: "tabular-center-swift"), "ExampleCheck"]
         ),
-        // The only target that names TabularCenterTesting. That product ships in the
-        // library's manifest and, until this example, nothing outside the
-        // library had ever imported it.
         .executableTarget(
             name: "SpecCheck",
             dependencies: [

@@ -27,5 +27,4 @@ protocol Cells {
 
 struct Hole: Cells {
     func idleStart(_ ctx: Ctx) -> Step<S, F> { .stay(effects: []) }
-    // runningTick is missing.
 }

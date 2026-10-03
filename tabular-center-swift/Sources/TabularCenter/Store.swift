@@ -8,14 +8,19 @@
 ///
 /// `Store` binds them once at construction. That is the whole difference, and
 /// it is the difference between a library type and an application type.
+///
+/// - `init`: - Parameters: - perform: runs one effect and may return a follow-up action.
+/// - `state`: The current state.
+/// - `pending`: Pending actions.
+/// - `capacity`: Mailbox capacity.
+/// - `send`: Dispatch one action and drain everything it causes.
+/// - `enqueue`: Add an action to the back of the mailbox without draining.
+/// - `drain`: Drain the mailbox.
 public final class Store<S, A, F> {
     private let driver: Driver<S, A, F>
     private let stepFn: (S, A) -> Step<S, F>
     private let performFn: (F) -> A?
 
-    /// - Parameters:
-    ///   - perform: runs one effect and may return a follow-up action. The
-    ///     follow-up is **queued, never recursed** — see `Driver.run`.
     public init(
         initial: S,
         capacity: Int = 8,
@@ -27,32 +32,21 @@ public final class Store<S, A, F> {
         self.performFn = perform
     }
 
-    /// The current state.
     public var state: S { driver.state }
 
-    /// Pending actions.
     public var pending: Int { driver.pending }
 
-    /// Mailbox capacity.
     public var capacity: Int { driver.capacity }
 
-    /// Dispatch one action and drain everything it causes.
     @discardableResult
     public func send(_ action: A) throws -> Progress {
         try driver.dispatch(action, step: stepFn, perform: performFn)
     }
 
-    /// Add an action to the back of the mailbox without draining.
-    ///
-    /// For enqueuing several actions and then draining once, which is not the
-    /// same as sending them one at a time: a follow-up from the first would
-    /// otherwise be processed before the second, and FIFO order is a property
-    /// callers depend on.
     public func enqueue(_ action: A) throws {
         try driver.enqueue(action)
     }
 
-    /// Drain the mailbox.
     @discardableResult
     public func drain() throws -> Progress {
         try driver.run(step: stepFn, perform: performFn)
@@ -70,6 +64,13 @@ public final class Store<S, A, F> {
 /// `state` and `pending` are `async` from outside, which is not an
 /// inconvenience to be worked around. A state read that crossed the isolation
 /// boundary synchronously would be a state read that could tear.
+///
+/// - `state`: The current state.
+/// - `pending`: Pending actions.
+/// - `capacity`: Mailbox capacity.
+/// - `send`: Dispatch one action and drain everything it causes.
+/// - `enqueue`: Add an action to the back of the mailbox without draining.
+/// - `drain`: Drain the mailbox.
 public actor AsyncStore<S, A, F> {
     private let driver: AsyncDriver<S, A, F>
     private let stepFn: (S, A) async -> Step<S, F>
@@ -86,52 +87,27 @@ public actor AsyncStore<S, A, F> {
         self.performFn = perform
     }
 
-    /// The current state.
     public var state: S { driver.state }
 
-    /// Pending actions.
     public var pending: Int { driver.pending }
 
-    /// Mailbox capacity.
     public var capacity: Int { driver.capacity }
 
-    /// Dispatch one action and drain everything it causes.
     @discardableResult
     public func send(_ action: A) async throws -> Progress {
         try await driver.dispatch(action, step: stepFn, perform: performFn)
     }
 
-    /// Add an action to the back of the mailbox without draining.
     public func enqueue(_ action: A) throws {
         try driver.enqueue(action)
     }
 
-    /// Drain the mailbox.
     @discardableResult
     public func drain() async throws -> Progress {
         try await driver.run(step: stepFn, perform: performFn)
     }
 }
 
-// MARK: - The observable store
-
-// Apple platforms only, and that is the type's honest scope rather than a
-// concession. `ObservableStore` exists to be watched by SwiftUI, and SwiftUI
-// does not exist off Darwin, so a Linux build has nothing to observe it with.
-//
-// Two weaker guards were tried first and each answered a question adjacent to
-// the one being asked:
-//
-//   - `#if canImport(Observation)` asks whether the module is present. It is
-//     present on the pinned Linux toolchain, and `@Observable` still fails to
-//     resolve, because a module says nothing about whether macro plugins load.
-//   - Removing the macro got it compiling and linking, and the binary then
-//     died on startup: `libswiftObservation.so: undefined symbol`. The module
-//     is present, importable, and broken.
-//
-// Each guard was nearly right, and a guard that is nearly right reports green
-// until the moment it matters. The question this type actually wants answered
-// is "is there a SwiftUI to observe me", and `os(...)` asks it directly.
 #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
     import Observation
 
@@ -163,6 +139,13 @@ public actor AsyncStore<S, A, F> {
     /// and `drain` copy the driver's state out afterwards. The copy is the
     /// price of observation and it is confined to this type; `Store` above
     /// still has one state and one owner.
+    ///
+    /// - `state`: The current state.
+    /// - `pending`: Pending actions.
+    /// - `capacity`: Mailbox capacity.
+    /// - `send`: Dispatch one action and drain everything it causes.
+    /// - `enqueue`: Add an action to the back of the mailbox without draining.
+    /// - `drain`: Drain the mailbox.
     @available(macOS 14, iOS 17, tvOS 17, watchOS 10, *)
     @MainActor
     public final class ObservableStore<S, A, F>: Observable {
@@ -182,40 +165,25 @@ public actor AsyncStore<S, A, F> {
             )
         }
 
-        /// The current state. Reading this inside a SwiftUI `body` subscribes.
         public var state: S {
             registrar.access(self, keyPath: \.state)
             return storedState
         }
 
-        /// Pending actions.
         public var pending: Int { store.pending }
 
-        /// Mailbox capacity.
         public var capacity: Int { store.capacity }
 
-        /// Dispatch one action and drain everything it causes.
-        ///
-        /// The mirror is refreshed in a `defer`, so a throw part-way through a
-        /// drain still leaves `state` showing where the machine actually got
-        /// to. Reporting the old state after a partial drain would be worse
-        /// than reporting the error.
         @discardableResult
         public func send(_ action: A) throws -> Progress {
             defer { publish() }
             return try store.send(action)
         }
 
-        /// Add an action to the back of the mailbox without draining.
-        ///
-        /// Deliberately does not publish: nothing has been stepped, so a view
-        /// that redrew here would be showing a state the machine has not
-        /// reached.
         public func enqueue(_ action: A) throws {
             try store.enqueue(action)
         }
 
-        /// Drain the mailbox.
         @discardableResult
         public func drain() throws -> Progress {
             defer { publish() }

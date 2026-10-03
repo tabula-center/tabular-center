@@ -38,5 +38,4 @@ struct ChildHole: SessionCells {
     func loggedOutCredentials(_ ctx: SessionCtx) -> Step<SessionS, SessionF> {
         .stay(effects: [])
     }
-    // authSubmit is missing — a CHILD cell.
 }

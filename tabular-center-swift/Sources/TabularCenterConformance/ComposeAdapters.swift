@@ -1,19 +1,16 @@
+// Adapters for `retry.tbl` and `nested-delegate.tbl`.
+//
+// Two adapters over one pair of machines, because the child must be conformant
+// **on its own**: being composed does not change it, and a child that only
+// works inside its parent is not a reusable machine.
 import TabularCenter
 import TabularCenterTesting
-
-/// Adapters for `retry.tbl` and `nested-delegate.tbl`.
-///
-/// Two adapters over one pair of machines, because the child must be conformant
-/// **on its own**: being composed does not change it, and a child that only
-/// works inside its parent is not a reusable machine.
 
 struct RetryAdapter: Adapter {
     let name = "retry"
     let table = RETRY_TABLE
     let payloads: Payloads = [(state: "Waiting", field: "attempt", type: "Int")]
 
-    /// See `TimerAdapter.effectName` — Swift cases are lowerCamel, the fixtures
-    /// are UpperCamel.
     static func effectName(_ f: RetryF) -> String {
         switch f {
         case .sleep: return "Sleep"
@@ -76,9 +73,6 @@ struct RetryAdapter: Adapter {
 struct JobAdapter: Adapter {
     let name = "nested-delegate"
     let table = JOB_TABLE
-    // `retrying` holds the child's state, not a scalar. Nothing to hoist and
-    // nothing the lint compares, so the list is empty rather than guessing a
-    // spelling for a nested machine.
     let payloads: Payloads = []
 
     static func effectName(_ f: JobF) -> String {
@@ -93,9 +87,6 @@ struct JobAdapter: Adapter {
         let ctx = JobCtx(retry: RetryCtx(maxAttempts: trace.ctx["max_attempts"] ?? 1))
         let cells = ComposedImpl()
 
-        // `from Retrying child_attempt=N` starts the child in waiting(N);
-        // absent means ready. The trace format is flat by design, so a nested
-        // state is addressed by a prefixed field rather than by nesting.
         var state: JobS
         switch trace.from {
         case "Idle": state = .idle

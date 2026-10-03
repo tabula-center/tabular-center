@@ -26,8 +26,6 @@ enum Counter {
     }
 
     enum F: Equatable {
-        /// Emitted on the transition into `full`, so there is something for an
-        /// effect handler to see.
         case announce(n: Int)
     }
 

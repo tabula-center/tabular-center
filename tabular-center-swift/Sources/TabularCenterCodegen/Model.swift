@@ -29,17 +29,9 @@ public struct MachineDesc {
     public let actions: [Variant]
     public let effects: [Variant]
     public let rows: [[CellDesc]]
-    /// Copied verbatim onto every generated member. See ARCHITECTURE §5.
     public let prototypeModifiers: [String]
-    /// Child machines reached by `delegate`, in first-appearance order.
     public let children: [ChildDesc]
-    /// The rendering prototype, or nil for a machine without one. See
-    /// `RenderDesc`. Nil is the default and emits nothing, so every machine
-    /// declared before the rendering surface generates exactly what it did.
     public let render: RenderDesc?
-    /// The forward hops of every declared path, deduplicated by
-    /// `(from, action)`: two paths through one hop share one narrowed member.
-    /// Empty for a machine without paths. See `HopDesc`.
     public let hops: [HopDesc]
 
     public init(
@@ -76,9 +68,6 @@ public struct MachineDesc {
 }
 
 extension MachineDesc {
-    /// The same machine with its narrowed surface set aside: what a path's
-    /// derivation must equal, cell for cell, in its longhand twin. The Kotlin
-    /// twin is `copy(hops = emptyList())`.
     public var withoutHops: MachineDesc {
         MachineDesc(
             machine: machine, stateType: stateType, actionType: actionType,
@@ -136,13 +125,9 @@ public struct HopDesc: Equatable {
 /// `builder` and `conformance` are names, not SwiftUI: the checks use a
 /// stand-in builder, because SwiftUI does not exist on Linux.
 public struct RenderDesc: Equatable {
-    /// Copied onto every render member and onto `render`.
     public let modifiers: [String]
-    /// What a render member returns, in concrete mode.
     public let returnType: String
-    /// The result builder, without `@`: `ViewBuilder`. Nil for concrete mode.
     public let builder: String?
-    /// The protocol each state's view conforms to, in builder mode: `View`.
     public let conformance: String
 
     public init(

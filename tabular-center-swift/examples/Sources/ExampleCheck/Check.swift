@@ -26,9 +26,6 @@ public enum Check {
         }
     }
 
-    /// Returns the process exit code, so the caller decides how to exit --
-    /// this target imports no Glibc or Darwin and has no business calling
-    /// `exit` on someone else's behalf.
     public static func report(_ name: String) -> Int32 {
         if failures == 0 {
             print("ok   \(name) (\(checks) checks)")

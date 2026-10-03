@@ -9,7 +9,6 @@ import TabularCenter
 
 final class Incomplete: JobCells {
     func readyAttempt(_ ctx: Retry.Ctx) -> Step<Retry.S, Retry.F> { .ignored }
-    // waitingElapsed is missing -- a child cell.
     func sleep(_ ctx: Retry.Ctx) -> Retry.A? { nil }
     func giveUp(_ ctx: Retry.Ctx) -> Retry.A? { nil }
 

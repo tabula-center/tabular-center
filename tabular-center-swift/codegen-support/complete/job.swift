@@ -4,7 +4,6 @@ import TabularCenter
 // implementing the parent requires implementing the child. The emitted twin
 // of `Sources/TabularCenterConformance/Compose.swift`'s `ComposedImpl`.
 final class CompleteJob: JobCells {
-    // The child's cells and effect handlers, required through `RetryCells`.
     func readyAttempt(_ ctx: Retry.Ctx) -> Step<Retry.S, Retry.F> {
         .go(.waiting(attempt: 1), effects: [.sleep])
     }
@@ -18,18 +17,15 @@ final class CompleteJob: JobCells {
     func sleep(_ ctx: Retry.Ctx) -> Retry.A? { .elapsed }
     func giveUp(_ ctx: Retry.Ctx) -> Retry.A? { nil }
 
-    // The parent's own cell and effect handler.
     func idleRun(_ ctx: Job.Ctx) -> Step<Job.S, Job.F> {
         .go(.retrying(child: .ready), effects: [.log])
     }
 
     func log(_ ctx: Job.Ctx) -> Job.A? { nil }
 
-    // The action prisms, one per DELEGATE cell.
     func retryingRunToChild(_ ctx: Job.Ctx, _ state: Job.Retrying) -> Retry.A? { .attempt }
     func retryingTickToChild(_ ctx: Job.Ctx, _ state: Job.Retrying) -> Retry.A? { .elapsed }
 
-    // The lens, once per child.
     func retryChildState(_ s: Job.S) -> Retry.S {
         if case let .retrying(child) = s { return child }
         return .ready

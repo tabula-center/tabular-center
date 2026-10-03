@@ -29,15 +29,6 @@ import SwiftSyntax
 import TabularCenterCodegen
 import TabularCenterMacroSyntax
 
-/// `haystack` contains `needle`, as text.
-///
-/// Not `String.contains(_: some StringProtocol)`. That overload comes from
-/// Swift's string-processing library and is `@available(macOS 13)`; Linux has
-/// no availability gates, so it crept in unnoticed, and the first macOS run --
-/// which builds for the package's default 10.13 target -- refused to compile.
-/// This is `starts(with:)` and `dropFirst()`, which exist everywhere. Internal
-/// on purpose, one copy per module that needs it: a public extension on String
-/// would be API nobody asked for.
 func containsText(_ haystack: some StringProtocol, _ needle: some StringProtocol) -> Bool {
     if needle.isEmpty { return true }
     var rest = Substring(haystack)
@@ -59,29 +50,12 @@ func check(_ ok: Bool, _ what: String) {
     }
 }
 
-/// The declaration from `SURFACE.md`, read **out of `SURFACE.md`**.
-///
-/// It was a copy of that block pasted here, and a copy is a drift path: the
-/// normative description of the surface and the only thing checking the
-/// surface could disagree, and the check would go on passing against a
-/// declaration nobody writes any more. The same shape as every other gap this
-/// repository has closed — a green light over a question nobody asked.
-///
-/// So the document is executable. Edit the fenced block in `SURFACE.md` and
-/// this runs against the edit; edit it into something the traversal cannot
-/// read and this goes red, which is the only way a specification stays true.
-///
-/// Foundation is fine here, unlike in `TabularCenterCheck`: this target already links
-/// swift-syntax, so the argument for a dependency-free check does not apply.
 func surfaceDeclaration() -> String {
     let path = "SURFACE.md"
     guard let text = try? String(contentsOfFile: path, encoding: .utf8) else {
         print("FAIL could not read \(path) (run from tabular-center-swift/macros)")
         exit(1)
     }
-    // The first ```swift fence. That file has one declaration and its later
-    // fences are diagnostics, so "first" is a fact about the document rather
-    // than a guess.
     let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
     guard let open = lines.firstIndex(where: { $0.hasPrefix("```swift") }) else {
         print("FAIL \(path) has no ```swift block; the surface must stay documented")
@@ -113,9 +87,6 @@ if let machine = decls.first {
         "the nested enums are readable from the attached declaration's members"
     )
 
-    // Order is meaning (SURFACE.md): the cells of a row line up with the cases
-    // of the action enum by position, so a traversal that sorted or used a
-    // dictionary would lose the property the library exists for.
     if let actions = enums.first(where: { $0.name.text == "A" }) {
         let cases = actions.memberBlock.members
             .compactMap { $0.decl.as(EnumCaseDeclSyntax.self) }
@@ -132,8 +103,6 @@ if let machine = decls.first {
     check(rows.count == 2, "@Row on a `static let` parses as an attribute")
 }
 
-// MARK: - The traversal
-
 if let machine = decls.first {
     do {
         let raw = try MachineSyntax.read(machine)
@@ -149,10 +118,6 @@ if let machine = decls.first {
         check(first.first?.target == "unlocked", "GO target")
         check(first.first?.effects == ["click"], "GO effects")
 
-        // No validation here, by design: `buildDesc` owns every diagnostic in
-        // spec/diagnostics.md, and a second implementation would be two
-        // messages for one error drifting apart. So the real check is that the
-        // two halves meet.
         let desc = try buildDesc(raw)
         check(desc.machine == "Turnstile", "buildDesc accepts what the traversal produces")
     } catch {
@@ -160,7 +125,6 @@ if let machine = decls.first {
     }
 }
 
-// A shape it cannot read is an error, never a silent drop.
 do {
     let bad = Parser.parse(source: """
         @Machine
@@ -183,13 +147,6 @@ do {
     }
 }
 
-// MARK: - The handover is checked, not assumed
-//
-// `MachineSyntax` checks no rules: `buildDesc` owns every one in
-// spec/diagnostics.md so that each has a single message rather than two that
-// drift. "One owner" is only true if the owner actually runs on what the
-// traversal produces, so it is asserted here rather than described in a
-// comment.
 do {
     let bad = Parser.parse(source: """
         @Machine
@@ -217,22 +174,6 @@ do {
     }
 }
 
-// MARK: - pending/Machine.swift
-//
-// Compiled by nothing. It holds the `@Machine` declaration, moved out of the
-// build when the manifest had to drop its `.macro` target (see
-// `Package.swift`), and it goes back when a SwiftPM ships
-// `CompilerPluginSupport`.
-//
-// Which makes it the single most rot-prone file here: excluded from the build,
-// so no compiler reads it, and not due back for months. The restore was going
-// to find whatever state it had drifted into, at the moment someone was
-// already busy with a toolchain upgrade.
-//
-// Parsing is not compiling and does not pretend to be. It catches the failure
-// that actually happens to an unbuilt file -- an edit that leaves it
-// syntactically broken -- and it checks the one fact the restore depends on:
-// that `#externalMacro` still names the module `Package.swift` will declare.
 do {
     let path = "pending/Machine.swift"
     guard let text = try? String(contentsOfFile: path, encoding: .utf8) else {
@@ -246,25 +187,6 @@ do {
         "\(path) still names the module Package.swift will declare")
 }
 
-// MARK: - The diagnostics, as fixtures
-//
-// Swift's half of PLAN's "every diagnostic gets a UI test", and worth being
-// exact about what it does and does not reach.
-//
-// `swift-macro-testing` asserts on macro EXPANSION, which needs a `.macro`
-// target, which needs `CompilerPluginSupport`, which this SwiftPM does not
-// ship. That is the blocked part and it stays blocked.
-//
-// What was never blocked is everything underneath it. A macro's job here is
-// `SwiftParser` -> `MachineSyntax` -> `buildDesc`, and a malformed matrix is
-// rejected by the third step regardless of who called it. So these fixtures
-// run the same pipeline the macro would and assert the same diagnostic, in the
-// same `//~ EXPECT:` form as `tabular-center-rust/tools/compile-fail` and the KSP harness.
-//
-// The one property this cannot check is the one expansion adds: that the error
-// arrives attached to a source position. The Kotlin harness checks exactly
-// that and this cannot, which is the honest size of the remaining gap -- one
-// property, not the whole item.
 do {
     let dir = "fixtures"
     let names = ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).sorted()
@@ -299,25 +221,11 @@ do {
         } catch let e as TabularCenterError {
             check(e.code == expect, "\(name): \(e.code)")
         } catch {
-            // A SyntaxError here means the fixture cannot be READ, which is a
-            // broken fixture rather than a diagnostic -- the traversal is not
-            // where these rules live.
             check(false, "\(name): expected \(expect), got \(error)")
         }
     }
 }
 
-// MARK: - A spine that works
-//
-// Every fixture in `fixtures/` is a REJECTION, so none of them reaches
-// `derive` -- the check that turns a HANDLE named by a hop into a GO. Swift's
-// half of that was written with nothing exercising it, which is the blind spot
-// Kotlin had until KSP's Spine output was compared against a stated twin.
-//
-// Asserted through `emit` rather than by matching on `CellDesc`: what a reader
-// cares about is that the cell stopped being a required member, and the
-// emitted surface says so in a way that does not depend on the shape of an
-// enum this file has no other reason to know.
 do {
     let source = """
         @Machine
@@ -345,16 +253,9 @@ do {
         do {
             let desc = try buildDesc(MachineSyntax.read(decl))
             let out = emit(desc)
-            // On the spine: written HANDLE, generated GO, so no `Cells`
-            // requirement -- `func name(_ ctx: ...`. The name itself does now
-            // appear, as the hop's narrowed member, `static func name(_ cells:
-            // ...` (spec/happy-paths.md); these checks once tested the bare
-            // name, and the narrowed surface is what they then caught.
             check(!containsText(out, "func idleStart(_ ctx"), "a hop's HANDLE stops being a cell member")
             check(!containsText(out, "func connectingReady(_ ctx"), "and so does the second hop's")
             check(containsText(out, "static func idleStart(_ cells"), "the hop gets its narrowed member instead")
-            // Off the spine: no hop names it, so it stays a member. Without
-            // this the check would pass if `derive` rewrote everything.
             check(containsText(out, "func failedStart(_ ctx"), "a HANDLE no hop names stays a member")
         } catch {
             check(false, "the spine machine is accepted: \(error)")
@@ -364,14 +265,6 @@ do {
     }
 }
 
-// MARK: - Nested payload types are qualified
-//
-// The generated cell protocol sits at file scope, and an effect handler's
-// parameter type is copied into it. `Reason` declared inside `enum Timer`
-// resolves there as written and nowhere else, so `MachineSyntax` qualifies
-// every reference to a type the machine nests. What must be left alone is as
-// much the test as what must change: a module type, an already-qualified
-// type, and `Timer` itself.
 do {
     let source = """
         @Machine
@@ -416,12 +309,6 @@ do {
     }
 }
 
-// MARK: - A static cell's effect keeps its arguments
-//
-// `.stopClock(reason: .cancelled)` parses as a CALL wrapping the member
-// access. Reading only the member access dropped every payload-carrying
-// effect from the machine silently -- no diagnostic, just a GO that emits
-// nothing -- which is what this fixes and what this checks.
 do {
     let source = """
         @Machine
@@ -444,8 +331,6 @@ do {
         do {
             let raw = try MachineSyntax.read(decl)
             let goCell = raw.rows[0].cells[0]
-            // Not `emit`: that is TabularCenterCodegen's function, and a local of
-            // that name shadows it three lines down.
             let emitCell = raw.rows[1].cells[0]
             check(
                 goCell.effects == ["chime", "log(line: \"x\")"],
@@ -468,10 +353,6 @@ do {
     }
 }
 
-// MARK: - `back:` on a path, read from the surface
-//
-// The route walked in reverse, named once. A labelled third argument, so
-// every `@Path("name", [..])` already written parses exactly as before.
 do {
     let source = """
         @Machine
@@ -500,13 +381,10 @@ do {
             check(raw.paths.first?.back == "back", "the back action is read from the attribute")
 
             let out = emit(try buildDesc(raw))
-            // Both directions derived, so neither is a `Cells` requirement.
-            // Forward hops get a narrowed member; backward ones none yet.
             check(!containsText(out, "func addrBack(_ ctx"), "a hop's far side stops being a cell member")
             check(!containsText(out, "func cartNext(_ ctx"), "and the forward direction still does")
             check(containsText(out, "static func cartNext(_ cells"), "the forward hop gets its narrowed member")
             check(!containsText(out, "addrBack(_ cells"), "a backward hop gets none yet")
-            // And the path's end may be left by its own back action.
             check(!containsText(out, "doneBack"), "the end's back cell derives rather than demanding code")
         } catch {
             check(false, "the machine with a back action is accepted: \(error)")

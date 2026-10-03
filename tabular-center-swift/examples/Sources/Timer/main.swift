@@ -28,7 +28,6 @@ Check.eq(
     Timer.step(m, Timer.Ctx(limit: 3), .running(since: 2), .tick(now: 9)),
     .go(.done, effects: [.stopClock(reason: .elapsed)]),
     "timer: the limit finishes the timer")
-// The same effect, a different reason. The payload tells them apart.
 Check.eq(
     Timer.step(m, Timer.Ctx(limit: 100), .running(since: 0), .cancel).effects,
     [.stopClock(reason: .cancelled)],

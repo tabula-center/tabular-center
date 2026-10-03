@@ -6,15 +6,6 @@ import Glibc
 import Darwin
 #endif
 
-/// `haystack` contains `needle`, as text.
-///
-/// Not `String.contains(_: some StringProtocol)`. That overload comes from
-/// Swift's string-processing library and is `@available(macOS 13)`; Linux has
-/// no availability gates, so it crept in unnoticed, and the first macOS run --
-/// which builds for the package's default 10.13 target -- refused to compile.
-/// This is `starts(with:)` and `dropFirst()`, which exist everywhere. Internal
-/// on purpose, one copy per module that needs it: a public extension on String
-/// would be API nobody asked for.
 func containsText(_ haystack: some StringProtocol, _ needle: some StringProtocol) -> Bool {
     if needle.isEmpty { return true }
     var rest = Substring(haystack)
@@ -24,14 +15,6 @@ func containsText(_ haystack: some StringProtocol, _ needle: some StringProtocol
     }
     return false
 }
-
-/// The same assertions as the Rust and Kotlin references.
-///
-/// Deliberately the same: the three implementations agreeing is what
-/// `spec/conformance` checks for fixtures, and it is where every
-/// cross-language finding so far has come from.
-
-// MARK: - Transitions
 
 func transitions() {
     let cells = Timer()
@@ -63,8 +46,6 @@ func transitions() {
     Assert.eq(stayed, .stay(effects: []), "a tick below the limit stays")
     Assert.ok(!stayed.isIgnored, "a tick while running is meaningful, not ignored")
 
-    // Narrowed payloads: `runningTick` takes Running and Tick directly, so
-    // `state.since` and `action.now` are plain fields.
     let ctx = Ctx(limit: 3)
     Assert.eq(
         cells.runningTick(ctx, Running(since: 2), Tick(now: 20)),
@@ -74,15 +55,11 @@ func transitions() {
     Assert.eq(ctx.ticksSeen, 1, "context outlives the transition")
 }
 
-// MARK: - Effect surface
-
 func effectSurface() {
     let ctx = Ctx(limit: 1)
     Assert.ok(perform(Timer(), ctx, .stopClock(reason: .elapsed)) == nil, "perform dispatches")
     Assert.eq(ctx.log, ["stop:elapsed"], "effect handler receives a narrowed payload")
 }
-
-// MARK: - Table, lints, export
 
 func tableAndLints() {
     let c = TIMER_TABLE.coverage()
@@ -93,15 +70,11 @@ func tableAndLints() {
     Assert.eq(c.requiredMembers, 2, "exactly the two cell members on TimerCells")
 
     Assert.ok(!TIMER_TABLE.isFullyStatic(), "a HANDLE cell makes reachability unknowable")
-    // Same tightening as Rust and Kotlin: no-static-entry stays silent once
-    // any cell is dynamic, or it fires on nearly every healthy machine.
     let quiet = lint(TIMER_TABLE).allSatisfy {
         if case .noStaticEntry = $0 { return false } else { return true }
     }
     Assert.ok(quiet, "no-static-entry is silent on a machine with HANDLE cells")
 
-    // The golden .grid files in spec/conformance are shared across languages,
-    // so the renderers must agree byte for byte — including the trimming.
     let grid = Export.toGrid(TIMER_TABLE)
     let untrimmed = grid.split(separator: "\n", omittingEmptySubsequences: false)
         .contains { $0.hasSuffix(" ") }
@@ -115,8 +88,6 @@ func tableAndLints() {
         containsText(mermaid, "Running --> Idle: Cancel / StopClock"),
         "mermaid draws static transitions"
     )
-    // A HANDLE cell's target is not knowable at build time, so it is a
-    // self-loop rather than an invented edge.
     Assert.ok(containsText(mermaid, "Idle --> Idle: Start / ?handle"), "HANDLE cells are self-loops")
 
     let dot = Export.toDot(TIMER_TABLE)
@@ -130,24 +101,6 @@ func tableAndLints() {
         "dot leaves static edges solid"
     )
 
-    // The walk, derived from both renderers rather than written down.
-    //
-    // Mermaid and DOT come off one `edges` call, so they must list the same
-    // edges in the same order. They did not always: mermaid was rendered in
-    // two passes for a while, every GO edge before every self-loop, while the
-    // other implementations interleaved them in cell order, and nothing
-    // compared diagram output so nothing failed.
-    //
-    // This compared mermaid against PlantUML until that format was removed,
-    // and against a hand-written list for a while after. The literal was a
-    // step down: its first entry said `Idle->Running` where HANDLE draws a
-    // SELF-LOOP, because a handled cell's target is not knowable at build
-    // time. Reading correctly from the matrix and being wrong about the
-    // diagram is what a derived comparison cannot do.
-    //
-    // Tokenised rather than string-replaced because this target imports no
-    // Foundation -- no trimmingCharacters, no replacingOccurrences. Splitting
-    // on spaces drops the indentation for free.
     func mermaidEdges(_ s: String) -> [String] {
         s.split(separator: "\n").compactMap { raw -> String? in
             let parts = raw.split(separator: " ").map(String.init)
@@ -159,10 +112,6 @@ func tableAndLints() {
             return "\(parts[0])->\(to)|\(rest)"
         }
     }
-    // Split on the quote, not on spaces: a DOT label contains spaces and the
-    // edge does not, so the quote is the only reliable boundary. It also does
-    // the filtering for free -- `digraph`, `node [...]` and the `__start`
-    // lines carry no quoted label and fall out here.
     func dotEdges(_ s: String) -> [String] {
         s.split(separator: "\n").compactMap { raw -> String? in
             let quoted = raw.split(separator: "\"")
@@ -192,7 +141,6 @@ func lintRules() {
     Assert.ok(f.contains(.deadColumn(action: "X")), "a column nothing responds to is dead")
     Assert.ok(f.contains(.noStaticEntry(state: "B")), "unreachable in a fully static matrix")
     Assert.ok(f.contains(.ignoreHeavy(percent: 100)), "100% IGNORE is flagged")
-    // Two warnings for one problem is how a lint earns a reputation for noise.
     let noExit = f.contains { if case .noStaticExit = $0 { return true } else { return false } }
     Assert.ok(!noExit, "dead-row subsumes no-static-exit")
 
@@ -204,7 +152,6 @@ func lintRules() {
             (state: "Reconnecting", field: "retryCount", type: "Int"),
         ]),
         [.payloadHoist(
-            // Canonical, not "Int". See spec/diagnostics.md.
             field: "retryCount",
             type: "int",
             states: ["Connecting", "Backoff", "Reconnecting"]
@@ -246,11 +193,7 @@ func lintRules() {
     )
 }
 
-// MARK: - Driver
-
 func drivers() {
-    // An effect handler returning an action: the whole reason `step` is
-    // non-reentrant. The follow-up is queued, not recursed.
     let ctx = Ctx(limit: 1)
     let cells = Timer()
     let driver = Driver<S, A, F>(initial: .idle)
@@ -274,8 +217,6 @@ func drivers() {
         Assert.ok(false, "driver threw: \(error)")
     }
 
-    // A handler inspecting state must see where the machine has gone, not
-    // where it was.
     let ctx2 = Ctx(limit: 100)
     let d2 = Driver<S, A, F>(initial: .idle)
     var observed: [S] = []
@@ -297,12 +238,7 @@ func drivers() {
     }
 }
 
-// MARK: - Stores
-
 func stores() {
-    // A Store is a Driver with its two closures bound once. The behaviour it
-    // inherits is not re-checked here; what is checked is that binding them
-    // once really does mean the same loop runs.
     let ctx = Ctx(limit: 1)
     let cells = Timer()
     var seen: [F] = []
@@ -326,10 +262,6 @@ func stores() {
         Assert.ok(false, "store threw: \(error)")
     }
 
-    // enqueue-then-drain is not send-twice. Both actions are in the mailbox
-    // before either is stepped, so the first one's follow-up lands behind the
-    // second -- which is what FIFO means and what a caller batching input
-    // depends on.
     let d = Store<S, A, F>(
         initial: .idle,
         step: { s, a in step(Timer(), Ctx(limit: 100), s, a) },
@@ -357,13 +289,6 @@ func stores() {
     }
 }
 
-/// The async half.
-///
-/// `AsyncDriver` had no check at all before this: sixty lines of duplicated
-/// loop, documented in `tabular-center-swift/README.md`, exercised by nothing. Duplicated
-/// code that nothing runs is the pair most likely to drift, and it is the same
-/// blind spot the conformance goldens kept turning up -- something that exists
-/// in one place and is compared against nothing.
 func asyncStores() async {
     let cells = Timer()
     let ctx = Ctx(limit: 1)
@@ -386,8 +311,6 @@ func asyncStores() async {
         Assert.ok(false, "async store threw: \(error)")
     }
 
-    // The colored loop must agree with the colorless one, since it is the same
-    // loop written twice. Same machine, same input, same Progress.
     let sync = Store<S, A, F>(
         initial: .idle,
         step: { s, a in step(Timer(), Ctx(limit: 1), s, a) },
@@ -412,15 +335,6 @@ func asyncStores() async {
     }
 }
 
-/// The observable store.
-///
-/// `@MainActor`, so it is called with `await` from the async top level rather
-/// than from the synchronous checks -- a MainActor method cannot be called
-/// from a nonisolated synchronous function at all.
-///
-/// Guarded to match the type: `os(...)` because `ObservableStore` is Darwin
-/// only -- it exists to be watched by SwiftUI -- and `#available` because the
-/// package has no platforms clause and so still builds for older targets.
 @MainActor
 func observableStores() async {
     #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
@@ -443,18 +357,11 @@ func observableStores() async {
         do {
             let p = try store.send(.start)
             Assert.eq(p.steps, 2, "observable store: the start, then the queued tick")
-            // The mirror is the whole point of the type. If `state` were a
-            // computed property forwarding to the driver, @Observable would
-            // track nothing and a SwiftUI view would never update -- so the
-            // check that matters is that the mirror actually moved.
             Assert.eq(store.state, .done, "observable store: state mirrors the driver")
         } catch {
             Assert.ok(false, "observable store threw: \(error)")
         }
 
-        // enqueue does not drain, so the mirror must not move either: a view
-        // showing a state the machine has not reached is the failure this
-        // type invites.
         let d = ObservableStore<S, A, F>(
             initial: .idle,
             step: { s, a in step(Timer(), Ctx(limit: 100), s, a) },
@@ -471,8 +378,6 @@ func observableStores() async {
     #endif
 }
 
-// MARK: - Entry point
-
 transitions()
 effectSurface()
 tableAndLints()
@@ -486,12 +391,5 @@ await observableStores()
 
 let failures = Assert.report("swift reference")
 if failures > 0 {
-    // `exit`, not `fatalError`. stdout is block-buffered when piped, and
-    // `fatalError` traps without flushing -- the conformance runner reported a
-    // failure count with every diagnostic line swallowed before this was
-    // fixed. `exit` flushes stdio on the way out.
-    //
-    // The earlier worry about importing a C module was reasonable when nothing
-    // compiled; it does now, and losing the diagnostics is the worse failure.
     exit(1)
 }

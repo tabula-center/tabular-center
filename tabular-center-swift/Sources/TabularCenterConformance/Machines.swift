@@ -1,12 +1,9 @@
+// The fixture machines, written in the shape the macro will generate.
+//
+// Each is the Swift counterpart of a Rust adapter in `tabular-center-conformance` and
+// a Kotlin one in `conformance/`. The three agreeing on these fixtures is the
+// only thing keeping the implementations from drifting.
 import TabularCenter
-
-/// The fixture machines, written in the shape the macro will generate.
-///
-/// Each is the Swift counterpart of a Rust adapter in `tabular-center-conformance` and
-/// a Kotlin one in `conformance/`. The three agreeing on these fixtures is the
-/// only thing keeping the implementations from drifting.
-
-// MARK: - timer.tbl
 
 enum TimerS: Equatable { case idle, running(since: Int), done }
 enum TimerA: Equatable { case start, tick(now: Int), cancel }
@@ -65,8 +62,6 @@ struct TimerImpl: TimerCells {
     }
 }
 
-// MARK: - toggle.tbl — the only coverage for EMIT and UNREACHABLE
-
 enum ToggleS: Equatable { case off, on }
 enum ToggleA: Equatable { case flip, poke, reset }
 enum ToggleF: Equatable { case light, buzz }
@@ -86,8 +81,6 @@ func toggleStep(
     case (.off, .reset): return .ignored
     case (.on, .flip): return .go(.off, effects: [])
     case (.on, .poke): return c.onPoke(ctx)
-    // UNREACHABLE compiles to a trap. Writing it *is* the implementation, so
-    // it generates no member.
     case (.on, .reset):
         fatalError("tabular-center: On x Reset was declared UNREACHABLE but occurred")
     }
@@ -107,8 +100,6 @@ let TOGGLE_TABLE = Table(
 struct ToggleImpl: ToggleCells {
     func onPoke(_ ctx: ToggleCtx) -> Step<ToggleS, ToggleF> { .stay(effects: []) }
 }
-
-// MARK: - effects-never
 
 /// A machine with an uninhabited effect enum.
 ///
@@ -156,14 +147,9 @@ let GATE_TABLE = Table(
 )
 
 struct GateImpl: GateCells {
-    /// The only route into `Open`, and deliberately dynamic: a statically
-    /// resolvable transition here would make the matrix fully static and
-    /// defeat the reachability gate this fixture pins.
     func onUnlock(_ ctx: GateCtx) -> Step<GateS, GateF> { .go(.open, effects: []) }
     func onPush(_ ctx: GateCtx) -> Step<GateS, GateF> { .stay(effects: []) }
 }
-
-// MARK: - payload-hoist.tbl — the only coverage for `tabular-center::payload-hoist`
 
 /// `attempt` in three states, which is what the lint is looking for.
 ///
@@ -205,9 +191,6 @@ func connStep(
 ) -> Step<ConnS, ConnF> {
     switch (s, a) {
     case (.connecting, .open): return c.connectingOpen(ctx)
-    // A static cell cannot read the state it is leaving, so the counter
-    // restarts here. That is what GO means, and it is half of why this machine
-    // wants the field in Context.
     case (.connecting, .fail): return .go(.backoff(attempt: 0), effects: [])
     case (.connecting, .timeout): return .go(.backoff(attempt: 0), effects: [])
     case (.backoff, .open): return .ignored
@@ -240,15 +223,12 @@ struct ConnImpl: ConnCells {
     func connectingOpen(_ ctx: ConnCtx) -> Step<ConnS, ConnF> { .go(.live, effects: []) }
     func reconnectingOpen(_ ctx: ConnCtx) -> Step<ConnS, ConnF> { .go(.live, effects: []) }
 
-    /// The only cell that advances the counter, and the only one that can.
     func backoffTimeout(_ ctx: ConnCtx, _ s: ConnBackoff) -> Step<ConnS, ConnF> {
         s.attempt >= ctx.maxAttempts
             ? .stay(effects: [])
             : .go(.reconnecting(attempt: s.attempt + 1), effects: [])
     }
 }
-
-// MARK: - dead-column.tbl — the only coverage for `tabular-center::dead-column`
 
 /// A vending machine whose refund button was never wired up.
 ///
@@ -313,15 +293,10 @@ struct VendImpl: VendCells {
         .go(.charged(credit: 1), effects: [])
     }
 
-    /// `.stay`, not `.ignored`, when the credit is short. The distinction the
-    /// third trace exists for: this cell is HANDLE and refuses, while
-    /// `Charged`/`Insert` beside it is IGNORE and never runs.
     func chargedSelect(_ ctx: VendCtx, _ s: VendCharged) -> Step<VendS, VendF> {
         s.credit >= ctx.price ? .go(.dispensing, effects: []) : .stay(effects: [])
     }
 }
-
-// MARK: - ignore-heavy.tbl — the only coverage for `tabular-center::ignore-heavy`
 
 /// Four states, each answering one action and ignoring the other four.
 ///
@@ -389,15 +364,10 @@ let POLL_TABLE = Table(
 struct PollImpl: PollCells {
     func idleArm(_ ctx: PollCtx) -> Step<PollS, PollF> { .go(.armed, effects: []) }
 
-    /// `.stay`, not `.ignored`: the tick is handled and changes nothing.
-    /// `one-action-per-state` asserts exactly that, one step after an
-    /// `Arm => ignored` from the same state -- the two outcomes side by side.
     func armedTick(_ ctx: PollCtx) -> Step<PollS, PollF> { .stay(effects: []) }
 
     func firingFire(_ ctx: PollCtx) -> Step<PollS, PollF> { .go(.spent, effects: []) }
 }
-
-// MARK: - no-static-exit.tbl — the only coverage for `tabular-center::no-static-exit`
 
 /// `Fault` can be entered and, as far as the matrix can prove, never left.
 ///
@@ -447,15 +417,10 @@ let BEACON_TABLE = Table(
 )
 
 struct BeaconImpl: BeaconCells {
-    /// The only dynamic cell, and the reason the matrix is not fully static --
-    /// which is what keeps `no-static-entry` quiet about `Fault`, a state
-    /// nothing in the matrix enters.
     func idleStart(_ ctx: BeaconCtx) -> Step<BeaconS, BeaconF> {
         .go(.blinking, effects: [])
     }
 }
-
-// MARK: - no-static-entry.tbl — the only coverage for `tabular-center::no-static-entry`
 
 /// `Jammed` has a row and a way out, and nothing in the matrix leads in.
 ///
@@ -505,8 +470,6 @@ let DOOR_TABLE = Table(
 )
 
 struct DoorImpl: DoorCells {}
-
-// MARK: - unreachable-heavy.tbl — the only coverage for `tabular-center::unreachable-heavy`
 
 /// Three `unreachable` cells of twelve, which is `unreachableHeavyPercent`
 /// exactly — on the boundary, so `>` in place of `>=` fails it.
@@ -562,7 +525,6 @@ let LINK_TABLE = Table(
 )
 
 struct LinkImpl: LinkCells {
-    /// `.stay`, not `.ignored`, when refused: the cell ran and chose not to move.
     func dialingAck(_ ctx: LinkCtx) -> Step<LinkS, LinkF> {
         ctx.accept ? .go(.up, effects: []) : .stay(effects: [])
     }

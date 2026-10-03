@@ -31,11 +31,6 @@ enum TrafficLight {
     }
 
     struct Controller: Cells {
-        /// The one cell with a decision in it.
-        ///
-        /// It could have been a static `GO` — it is `HANDLE` because it touches
-        /// context, and a static cell cannot. That boundary is why both kinds
-        /// exist.
         func amberAdvance(_ ctx: Ctx) -> Step<S, Never> {
             ctx.cycles += 1
             return .go(.red, effects: [])

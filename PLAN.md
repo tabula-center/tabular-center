@@ -847,10 +847,10 @@ ARCHITECTURE 15's exemptions and `is_directive` if it is not already.
       functions, so the rule and the lint could not both stand, and stage 4
       would have met the same wall on the first doc comment it removed.
       ARCHITECTURE 15 says so, so nobody restores it
-- [ ] What `missing_docs` enforced that the rule keeps: every public type,
+- [x] What `missing_docs` enforced that the rule keeps: every public type,
       trait and macro carries a comment, and every module a header. **Rust:
       done in stage 4b** (`documented_paths`), **Kotlin in stage 5** (`core`,
-      `annotations`); Swift's `Sources/TabularCenter` joins it in stage 6
+      `annotations`), **Swift in stage 6** (`Sources/TabularCenter`)
 - [x] **Stage 4a: Rust outside the library** -- tests and compile-fail
       fixtures, the bench, the conformance crate, the examples,
       `tabular-center-fmt`: 68 files, 578 comment lines and 4 trailing
@@ -932,11 +932,40 @@ ARCHITECTURE 15's exemptions and `is_directive` if it is not already.
             means not `private`/`internal`/`protected`, KDoc lines count as
             comment, multi-line annotations are skipped by parenthesis depth.
             Clean on all 18 published files; 3 of 3 planted defects caught
-- [ ] Stage 6: Swift -- ~2,300 lines. Doc comments on protocols, structs,
-      classes and actors stay; `// swift-format-ignore-file` and
-      `swift-tools-version` are exempt
-- [ ] Done: `clean_patterns` covers every type in ARCHITECTURE 15's scope,
-      and the staging list goes
+- [x] **Stage 6: Swift** -- 80 files, 1,340 comment lines and 1 trailing
+      comment removed. Kept: `// swift-format-ignore-file` in all 18
+      `.tb.swift` files, `// swift-tools-version:` on line 1 of each manifest,
+      the macro fixtures' prose (all of it header), file headers and the
+      comments on types. Member docs in `Sources/TabularCenter` fold into
+      their type's comment; members of an `extension` whose type lives in
+      another file fold into the file header. Eleven files' real explanation
+      is promoted to the header. Rationale: ARCHITECTURE 16, "Swift packaging
+      and generation".
+      Decided along the way: a Swift `extension` counts as a type
+      declaration (five `.tb.swift` files document theirs, "the matrix, in a
+      file of its own"), and a `#if` line between a comment and its type does
+      not detach it.
+      Checked: the Swift lexer (interpolation with nested strings, `#"..."#`
+      raw strings to any depth, multi-line strings, nested block comments)
+      ends all 80 files in code mode; code identical in every file; all 12
+      Swift samples `tools/docs` cuts still match
+      - [x] **A checker bug caught by its own test case**: inside a string,
+            the generic backslash-escape rule ran before the interpolation
+            check, so `\(` was swallowed as an escape and interpolation never
+            recognised. Interpolation now comes first, in the awk and the
+            port. (The first version of that test was itself wrong -- it
+            wrote `\\(`, an escaped backslash -- and was rewritten.)
+      - [x] `no-comments` enforces `*.swift`, understands interpolation and
+            raw strings, and the documented check covers
+            `Sources/TabularCenter` (public means `public` or `open`). Port
+            results: nothing in the stripped tree, now 301 source files;
+            exactly 1,341 on the Swift originals; documented check clean on 7
+            files, 3 of 3 planted defects caught
+- [x] **Done.** `clean_patterns` and `clean_files` cover every file type in
+      ARCHITECTURE 15's scope; the staging scaffold (`clean_paths`) is gone,
+      and `no-comments`' header describes the finished tool. 6,811
+      comment lines removed across stages 1-6, the reasons kept in
+      ARCHITECTURE 16 and this file
 
 Found while doing stage 1, not fixed here: `ci.yml` uses actions by moving
 tag (`actions/checkout@v4`, the Determinate Systems actions `@main`) where

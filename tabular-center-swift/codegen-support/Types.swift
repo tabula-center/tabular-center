@@ -29,12 +29,7 @@ enum Timer {
     enum F: Equatable {
         case startClock
         case stopClock
-        /// Named by no static cell, so it exists to exercise the
-        /// payload-carrying handler: `note(_ ctx: Timer.Ctx, _ effect: String)`.
         case note(text: String)
-        /// Its payload type is nested in `Timer`, so the emitted handler reads
-        /// `halt(_ ctx: Timer.Ctx, _ effect: Timer.Reason)` -- unqualified,
-        /// the file-scope protocol could not resolve it.
         case halt(reason: Reason)
     }
 
@@ -70,13 +65,6 @@ enum TimerRender {
     typealias Tick = Timer.Tick
 }
 
-// MARK: - Connect: the narrowed surface
-//
-// A path Idle -> Connecting -> Live, where Drop in Connecting is a HANDLE the
-// path does not name -- so `connectingReady` can end in any state -- and emits
-// an effect, which comes back with the outcome rather than being run. The
-// Kotlin twin is `generated.connect`.
-
 enum Connect {
     enum S: Equatable {
         case idle
@@ -97,14 +85,6 @@ enum Connect {
 
     final class Ctx {}
 }
-
-// MARK: - A stand-in for SwiftUI, for the builder-mode rendering surface
-//
-// SwiftUI does not exist on Linux, and `@ViewBuilder` renderers are generated
-// from names -- a builder and a protocol -- so this proves the generated shape
-// with the smallest builder that has SwiftUI's: `buildBlock` for one view,
-// `buildEither` for a `switch`, which the builder nests for more than two
-// cases, as `ViewBuilder` does with `_ConditionalContent`.
 
 protocol Viewish {}
 
@@ -137,8 +117,6 @@ enum TimerView {
     typealias Tick = Timer.Tick
 }
 
-// MARK: - Retry: the child
-
 enum Retry {
     enum S: Equatable { case ready, waiting(attempt: Int), exhausted }
     enum A: Equatable { case attempt, elapsed, abort }
@@ -159,8 +137,6 @@ enum RetryAsync {
     typealias Ctx = Retry.Ctx
     typealias Waiting = Retry.Waiting
 }
-
-// MARK: - Job: the parent, whose Retrying state holds the child's state
 
 enum Job {
     enum S: Equatable { case idle, retrying(child: Retry.S), done }

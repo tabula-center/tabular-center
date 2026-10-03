@@ -27,17 +27,22 @@
 /// ```
 ///
 /// Every closure may throw; the operations rethrow.
+///
+/// - `go`: Transition to the associated state.
+/// - `stay`: Handled; remain in the current state.
+/// - `ignored`: Not applicable in this state; nothing happened.
+/// - `effects`: Effects emitted, in order.
+/// - `target`: The target state, if this step transitions.
+/// - `isIgnored`: Whether the cell declared the action inapplicable.
+/// - `isTransition`: Whether the cell transitioned.
+/// - `mapEffects`: Relabel the effects, keeping the outcome.
 public enum Step<S, F> {
-    /// Transition to the associated state.
     case go(S, effects: [F])
-    /// Handled; remain in the current state.
     case stay(effects: [F])
-    /// Not applicable in this state; nothing happened.
     case ignored
 }
 
 extension Step {
-    /// Effects emitted, in order.
     public var effects: [F] {
         switch self {
         case let .go(_, effects): return effects
@@ -46,19 +51,16 @@ extension Step {
         }
     }
 
-    /// The target state, if this step transitions.
     public var target: S? {
         if case let .go(next, _) = self { return next }
         return nil
     }
 
-    /// Whether the cell declared the action inapplicable.
     public var isIgnored: Bool {
         if case .ignored = self { return true }
         return false
     }
 
-    /// Whether the cell transitioned.
     public var isTransition: Bool {
         if case .go = self { return true }
         return false
@@ -100,10 +102,6 @@ extension Step {
         self.zip(other) { ($0, $1) }
     }
 
-    /// Relabel the effects, keeping the outcome.
-    ///
-    /// Composition primitive: a `DELEGATE` cell lifts a child's effects into
-    /// the parent's vocabulary with this.
     public func mapEffects<G>(_ transform: (F) -> G) -> Step<S, G> {
         switch self {
         case let .go(next, effects): return .go(next, effects: effects.map(transform))

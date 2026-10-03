@@ -1,23 +1,22 @@
+// Runs the shared `spec/conformance` fixtures against the Swift
+// implementation.
+//
+// Three things are compared, and the third only exists because there are three
+// implementations:
+//
+// 1. The generated table, cell by cell.
+// 2. Traces: outcomes and effects, step by step.
+// 3. Nothing else here: the renderings (`.grid`, `.mmd`, `.lint`, `.cov`) are
+//    written out with `--emit=<dir>` and diffed against the other two
+//    implementations' by `tools/verify renderings-agree`, rather than each
+//    being compared against a committed copy of one implementation's output.
+//
+// Foundation is imported here and nowhere in `TabularCenterTesting`: the runner needs
+// file IO, and a published library should not put Foundation on every
+// consumer's link line to trim a string.
 import Foundation
 import TabularCenter
 import TabularCenterTesting
-
-/// Runs the shared `spec/conformance` fixtures against the Swift
-/// implementation.
-///
-/// Three things are compared, and the third only exists because there are three
-/// implementations:
-///
-/// 1. The generated table, cell by cell.
-/// 2. Traces: outcomes and effects, step by step.
-/// 3. Nothing else here: the renderings (`.grid`, `.mmd`, `.lint`, `.cov`) are
-///    written out with `--emit=<dir>` and diffed against the other two
-///    implementations' by `tools/verify renderings-agree`, rather than each
-///    being compared against a committed copy of one implementation's output.
-///
-/// Foundation is imported here and nowhere in `TabularCenterTesting`: the runner needs
-/// file IO, and a published library should not put Foundation on every
-/// consumer's link line to trim a string.
 
 /// Outcome of one replayed step, in fixture vocabulary.
 struct Observed {
@@ -30,15 +29,6 @@ protocol Adapter {
     var name: String { get }
     var table: Table { get }
 
-    /// Payload fields, as `(state, field, type)`.
-    ///
-    /// Separate from `table` because only `tabular-center::payload-hoist` needs it.
-    /// Rust has passed its `PAYLOADS` to the lint since the lint existed; this
-    /// side took the empty default, so the two agreed only because no fixture
-    /// had a field repeated often enough to fire.
-    ///
-    /// `type` is spelled in the implementation's own language. See
-    /// `spec/diagnostics.md`.
     var payloads: Payloads { get }
 
     func replay(_ trace: Trace) throws -> [Observed]
@@ -77,13 +67,6 @@ struct TimerAdapter: Adapter {
         return out
     }
 
-    /// Effect names as the *fixtures* spell them.
-    ///
-    /// Swift enum cases are lowerCamel — `stopClock` — while the shared
-    /// fixtures use the variant names the other two languages generate,
-    /// `StopClock`. String interpolation therefore does not agree with them,
-    /// and `lastSegment` cannot fix a case difference without also hiding real
-    /// drift. Naming them here keeps the comparison exact.
     static func effectName(_ f: TimerF) -> String {
         switch f {
         case .startClock: return "StartClock"
@@ -123,7 +106,6 @@ struct ToggleAdapter: Adapter {
     let name = "toggle"
     let table = TOGGLE_TABLE
 
-    /// See `TimerAdapter.effectName`.
     static func effectName(_ f: ToggleF) -> String {
         switch f {
         case .light: return "Light"
@@ -188,15 +170,6 @@ struct EffectsNeverAdapter: Adapter {
             default: throw SpecError("effects-never: unknown action `\(st.action)`")
             }
             let step = gateStep(cells, GateCtx(), state, action)
-            // Always empty, and the compiler says so out loud: mapping over
-            // these produced `warning: will never be executed`, because GateF
-            // is an enum with no cases and nothing can construct one.
-            //
-            // The map was there to run the same code path as every other
-            // adapter rather than short-circuit it. That argument does not
-            // survive the compiler proving the path unreachable -- an
-            // unreachable path is not a path -- so take its word and leave the
-            // uninhabited type to say what it means.
             let effects: [String] = []
             let expect: Expect
             switch step {
@@ -216,13 +189,6 @@ struct PayloadHoistAdapter: Adapter {
     let name = "payload-hoist"
     let table = CONN_TABLE
 
-    /// Spelled `Int`, not `int`.
-    ///
-    /// The adapter reports its own language's type and `canonicalType` maps it
-    /// onto the spec vocabulary before the comparison. Rust records `u32` and
-    /// Kotlin `Long` for this same field; all three land on `attempt: int` and
-    /// share one `.lint` golden. Writing `int` here would pass today and hide
-    /// the mapping the fixture exists to exercise.
     let payloads: Payloads = [
         (state: "Connecting", field: "attempt", type: "Int"),
         (state: "Backoff", field: "attempt", type: "Int"),
@@ -237,10 +203,6 @@ struct PayloadHoistAdapter: Adapter {
 
         for st in trace.steps {
             let step = connStep(cells, ctx, state, try actionOf(st.action))
-            // Always empty: `ConnF` has no cases, so nothing can construct one.
-            // Written as a literal rather than a map for the reason spelled
-            // out in EffectsNeverAdapter -- the compiler proves the map body
-            // unreachable and says so.
             let effects: [String] = []
             let expect: Expect
             switch step {
@@ -295,9 +257,6 @@ struct DeadColumnAdapter: Adapter {
     let name = "dead-column"
     let table = VEND_TABLE
 
-    /// One state, so `payload-hoist` stays out of this fixture's way. Spelled
-    /// `Int`; Kotlin says `Long` and Rust `u32`, and all three canonicalise to
-    /// `int` for the shared `.lint` golden.
     let payloads: Payloads = [
         (state: "Charged", field: "credit", type: "Int")
     ]
@@ -310,7 +269,6 @@ struct DeadColumnAdapter: Adapter {
 
         for st in trace.steps {
             let step = vendStep(cells, ctx, state, try actionOf(st.action))
-            // Always empty: `VendF` has no cases, so nothing can construct one.
             let effects: [String] = []
             let expect: Expect
             switch step {
@@ -368,8 +326,6 @@ struct IgnoreHeavyAdapter: Adapter {
 
         for st in trace.steps {
             let step = pollStep(cells, PollCtx(), state, try actionOf(st.action))
-            // Always empty: `PollF` has no cases. See EffectsNeverAdapter for
-            // why this is a literal rather than a map.
             let effects: [String] = []
             let expect: Expect
             switch step {
@@ -405,8 +361,6 @@ struct IgnoreHeavyAdapter: Adapter {
         }
     }
 
-    /// Exhaustive, so a state added to `PollS` without a name here is a build
-    /// error rather than a rendering the fixture never matches.
     private func nameOf(_ s: PollS) -> String {
         switch s {
         case .idle: return "Idle"
@@ -421,7 +375,6 @@ struct NoStaticExitAdapter: Adapter {
     let name = "no-static-exit"
     let table = BEACON_TABLE
 
-    /// See `TimerAdapter.effectName`.
     static func effectName(_ f: BeaconF) -> String {
         switch f {
         case .flash: return "Flash"
@@ -481,7 +434,6 @@ struct NoStaticEntryAdapter: Adapter {
     let name = "no-static-entry"
     let table = DOOR_TABLE
 
-    /// See `TimerAdapter.effectName`.
     static func effectName(_ f: DoorF) -> String {
         switch f {
         case .thud: return "Thud"
@@ -540,7 +492,6 @@ struct UnreachableHeavyAdapter: Adapter {
     let name = "unreachable-heavy"
     let table = LINK_TABLE
 
-    /// See `TimerAdapter.effectName`.
     static func effectName(_ f: LinkF) -> String {
         switch f {
         case .pong: return "Pong"
@@ -597,8 +548,6 @@ struct UnreachableHeavyAdapter: Adapter {
     }
 }
 
-/// Every adapter that has landed. A fixture with none is reported as skipped,
-/// never as passed.
 let adapters: [Adapter] = [
     TimerAdapter(), ToggleAdapter(), RetryAdapter(), JobAdapter(),
     EffectsNeverAdapter(), PayloadHoistAdapter(), DeadColumnAdapter(),
@@ -606,21 +555,10 @@ let adapters: [Adapter] = [
     UnreachableHeavyAdapter(),
 ]
 
-// MARK: - Runner
-
-/// The fixture directory: the first argument that is not a flag.
-///
-/// Skipping flags is defensive rather than decorative. `swift run` passes
-/// everything after the executable name to the program, so a build flag in the
-/// wrong position arrives here — and the first version took `--scratch-path`
-/// as the fixture root and reported `cannot read --scratch-path/timer.tbl`.
-/// That is a clear enough message, but only because the read was attempted;
-/// ignoring flags makes the mistake harmless.
 let root = CommandLine.arguments
     .dropFirst()
     .first { !$0.hasPrefix("--") } ?? "../spec/conformance"
 
-/// Where to write renderings, if anywhere.
 let emitDir: String? = CommandLine.arguments
     .first { $0.hasPrefix("--emit=") }
     .map { String($0.dropFirst("--emit=".count)) }
@@ -637,12 +575,6 @@ func read(_ path: String) throws -> String {
     return s
 }
 
-/// Write one rendering out, when asked with `--emit=<dir>`.
-///
-/// Nothing is compared here, and nothing is committed: `.tbl` and `.trace` are
-/// the contract, and the renderings of it are produced by all three
-/// implementations at check time and diffed against each other by
-/// `tools/verify renderings-agree`.
 func emit(_ dir: String?, _ name: String, _ ext: String, _ got: String) {
     guard let dir else { return }
     try? got.write(toFile: "\(dir)/\(name).\(ext)", atomically: true, encoding: .utf8)
@@ -664,13 +596,8 @@ for adapter in adapters {
 
     errs += checkTable(adapter.table, spec)
     emit(emitDir, adapter.name, "grid", Export.toGrid(adapter.table))
-    // The lints carry the most per-language logic there is -- thresholds, the
-    // dead-row/no-static-exit subsumption, the fully-static gate on
-    // reachability -- and nothing compared them across languages until now.
     emit(emitDir, adapter.name, "mmd", Export.toMermaid(adapter.table))
     emit(emitDir, adapter.name, "lint", report(adapter.table, payloads: adapter.payloads))
-    // The diagram. Three renderers agreeing on edge ORDER, not just on the
-    // edge set -- which is the thing that had already drifted.
     emit(emitDir, adapter.name, "cov", Export.toCoverageReport(adapter.table))
 
     var traces: [Trace] = []
@@ -734,12 +661,6 @@ do {
 print("")
 print("conformance (swift): \(adapters.count) tables, \(steps) trace steps, \(failed) failed")
 
-// A fixture with no adapter is skipped, not passed -- and each one is NAMED, on
-// its own line starting with `skip `, because that prefix is what `tools/verify`
-// collects into the ledger it prints before the verdict. A count said how many
-// were missing without saying which, and a count is invisible to the ledger, so
-// the one place skips are supposed to be visible was the one place these never
-// appeared.
 if let entries = try? FileManager.default.contentsOfDirectory(atPath: root) {
     let declared = entries.filter { $0.hasSuffix(".tbl") }
         .map { String($0.dropLast(4)) }.sorted()
@@ -750,9 +671,5 @@ if let entries = try? FileManager.default.contentsOfDirectory(atPath: root) {
 }
 
 if failed > 0 {
-    // `exit`, not `fatalError`. stdout is block-buffered when piped, and
-    // `fatalError` traps without flushing -- so the first run of this reported
-    // "2 fixture(s) failed" with every diagnostic line swallowed. `exit`
-    // flushes stdio on the way out.
     exit(1)
 }

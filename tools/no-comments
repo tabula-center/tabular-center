@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# The Cleanness rule (ARCHITECTURE 15), enforced over the file types already
-# migrated, listed in clean_patterns.
+# The Cleanness rule (ARCHITECTURE 15): source and configuration read without
+# comments, and published code keeps its documentation.
 #
 # A comment is allowed in three places: the header block at the top of a file,
 # before its first line of code; a block attached to a type declaration --
 # trait, struct, enum, class, interface, object, protocol, actor, type alias,
-# macro_rules! -- directly or through attribute and annotation lines; and the
-# directives a tool reads. Anything else is reported with its file and line.
-# String literals, Kotlin and Swift triple-quoted strings and shell heredocs
-# are skipped, so text a program writes is never taken for a comment.
+# Swift extension, macro_rules! -- directly or through attribute, annotation
+# or `#if` lines; and the directives a tool reads. Anything else is reported
+# with its file and line. Strings are understood per language (Rust raw
+# strings and char literals, Kotlin templates, Swift interpolation and raw
+# strings, triple-quoted strings, shell heredocs), so text a program writes is
+# never taken for a comment.
+#
+# In the published sources (documented_paths), every file needs a header and
+# every public type a comment.
 #
 #   tools/no-comments     exit 0 clean, 1 with every finding listed
 set -euo pipefail
@@ -22,14 +27,14 @@ clean_patterns=(
     '*.rs'
     '*.kt'
     '*.kts'
+    '*.swift'
 )
-
-clean_paths=()
 
 documented_paths=(
     'tabular-center-rust/tabular-center/src/*.rs'
     'tabular-center-kotlin/core/*.kt'
     'tabular-center-kotlin/annotations/*.kt'
+    'tabular-center-swift/Sources/TabularCenter/*.swift'
 )
 
 clean_files=(
@@ -60,9 +65,6 @@ done
 name_expression=(-false)
 for p in "${clean_patterns[@]}"; do
     name_expression+=(-o -name "$p")
-done
-for p in "${clean_paths[@]+"${clean_paths[@]}"}"; do
-    name_expression+=(-o -path "./$p")
 done
 
 files=()
@@ -109,12 +111,14 @@ find_comments() {
             return 0
         }
         function is_type_declaration(code) {
+            if (ENVIRON["FILE"] ~ /\.swift$/ && code ~ /^[[:space:]]*(((public|private|internal|fileprivate|open|final|indirect|nonisolated|@[A-Za-z_][A-Za-z0-9_.]*)[[:space:]]+)*)extension[[:space:]]/) return 1
             return code ~ /^[[:space:]]*(((pub(\([^)]*\))?|public|private|internal|protected|fileprivate|open|final|abstract|sealed|data|enum|annotation|inline|value|fun|indirect|companion|expect|actual|unsafe|@[A-Za-z_][A-Za-z0-9_.]*)[[:space:]]+)*(struct|enum|trait|union|type|class|interface|object|protocol|actor|typealias)[[:space:]]|macro_rules![[:space:]])/
         }
         function is_just_recipe(code) {
             return ENVIRON["FILE"] ~ /(^|\/)justfile$/ && code !~ /:=/ && code ~ /^@?[A-Za-z_][A-Za-z0-9_-]*([[:space:]].*)?:/
         }
         function is_attribute(code) {
+            if (ENVIRON["FILE"] ~ /\.swift$/ && code ~ /^[[:space:]]*#(if|elseif|else)([[:space:]]|$)/) return 1
             return code ~ /^[[:space:]]*(#!?\[|@[A-Za-z_])/
         }
         function hold(line) { held[++held_count] = sprintf("%s:%d: %s", ENVIRON["FILE"], FNR, line) }
@@ -133,6 +137,7 @@ find_comments() {
                 if (in_string) {
                     while (i <= n) {
                         c = substr(line, i, 1)
+                        if (ENVIRON["FILE"] ~ /\.swift$/ && substr(line, i, 2) == "\\(") { i = past_parens(line, i + 2); continue }
                         if (c == "\\") { i += 2; continue }
                         if (ENVIRON["FILE"] !~ /\.rs$/ && substr(line, i, 2) == "${") { i = past_template(line, i + 2); continue }
                         i++
@@ -149,6 +154,10 @@ find_comments() {
                 c = substr(line, i, 1)
                 if (substr(line, i, 2) == "//") { comment_at = i; return out }
                 if (substr(line, i, 2) == "/*") { comment_at = i; in_block_comment = 1; i += 2; continue }
+                if (ENVIRON["FILE"] ~ /\.swift$/ && match(substr(line, i), /^#+"("")?/)) {
+                    m = substr(line, i, RLENGTH); p = m; gsub(/"/, "", p)
+                    raw_end = ((m ~ /"""$/) ? "\"\"\"" : "\"") p; i += RLENGTH; continue
+                }
                 if (ENVIRON["FILE"] !~ /\.rs$/ && substr(line, i, 3) == "\"\"\"") { raw_end = "\"\"\""; i += 3; continue }
                 if (ENVIRON["FILE"] ~ /\.rs$/ && (i == 1 || substr(line, i - 1, 1) !~ /[A-Za-z0-9_]/) && match(substr(line, i), /^b?r#*"/)) {
                     m = substr(line, i, RLENGTH); sub(/^b?r/, "", m); sub(/"$/, "", m)
@@ -171,6 +180,21 @@ find_comments() {
                 }
                 if (c == "{") depth++
                 if (c == "}") { if (depth == 0) return i + 1; depth-- }
+                i++
+            }
+            return i
+        }
+        function past_parens(line, i,   depth, c, n) {
+            depth = 0; n = length(line)
+            while (i <= n) {
+                c = substr(line, i, 1)
+                if (c == "\"") {
+                    i++
+                    while (i <= n && substr(line, i, 1) != "\"") i += (substr(line, i, 1) == "\\") ? 2 : 1
+                    i++; continue
+                }
+                if (c == "(") depth++
+                if (c == ")") { if (depth == 0) return i + 1; depth-- }
                 i++
             }
             return i
@@ -246,6 +270,9 @@ find_undocumented() {
                 return line ~ /^[[:space:]]*pub[[:space:]]+(struct|enum|trait|union|type)[[:space:]]+[A-Za-z_]/ ||
                        line ~ /^[[:space:]]*macro_rules![[:space:]]+[A-Za-z][A-Za-z0-9_]*/
             }
+            if (ENVIRON["FILE"] ~ /\.swift$/) {
+                return line ~ /^[[:space:]]*((@[A-Za-z_][A-Za-z0-9_.]*(\([^)]*\))?|final|indirect|nonisolated)[[:space:]]+)*(public|open)[[:space:]]+((final|indirect|nonisolated)[[:space:]]+)*(struct|class|enum|protocol|actor|typealias)[[:space:]]+[A-Za-z_]/
+            }
             if (line !~ /^[[:space:]]*(((public|open|final|abstract|sealed|data|enum|annotation|inline|value|fun|companion|expect|actual|inner|private|internal|protected)[[:space:]]+)*)(class|interface|object|typealias)[[:space:]]+[A-Za-z_]/) return 0
             head = line
             sub(/(class|interface|object|typealias)[[:space:]].*$/, "", head)
@@ -260,7 +287,8 @@ find_undocumented() {
         /^[[:space:]]*(\/\/|\/\*)/ || (ENVIRON["FILE"] !~ /\.rs$/ && /^[[:space:]]*\*/) { last = "comment"; next }
         depth > 0 { depth += opens($0); next }
         /^[[:space:]]*#!?\[/ { next }
-        /^[[:space:]]*@[A-Za-z]/ { depth = opens($0); if (depth < 0) depth = 0; next }
+        ENVIRON["FILE"] ~ /\.swift$/ && /^[[:space:]]*#(if|elseif|else)([[:space:]]|$)/ { next }
+        /^[[:space:]]*@[A-Za-z]/ && !is_public_type($0) { depth = opens($0); if (depth < 0) depth = 0; next }
         {
             if (is_public_type($0) && last != "comment") {
                 printf "%s:%d: public type without a comment: %s\n", ENVIRON["FILE"], FNR, $0

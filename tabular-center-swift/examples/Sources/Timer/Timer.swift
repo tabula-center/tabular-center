@@ -59,12 +59,9 @@ enum Timer {
         }
 
         func runningTick(_ ctx: Ctx, _ state: Running, _ action: Tick) -> Step<S, F> {
-            // No `if case`, no cast, no force-unwrap: the dispatcher matched.
             if action.now - state.since >= ctx.limit {
                 return .go(.done, effects: [.stopClock(reason: .elapsed)])
             }
-            // Handled, and staying put. Distinct from `.ignored`, which would
-            // claim a tick is meaningless while running.
             return .stay(effects: [])
         }
 

@@ -17,7 +17,6 @@ final class CompleteTimer: TimerCells {
     func halt(_ ctx: Timer.Ctx, _ effect: Timer.Reason) -> Timer.A? { nil }
 }
 
-// The dispatcher and the effect pump are callable with it, uncolored.
 func driveTimer() -> Timer.A? {
     let cells = CompleteTimer()
     let ctx = Timer.Ctx()

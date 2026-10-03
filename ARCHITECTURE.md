@@ -1277,23 +1277,28 @@ every file needs a header and every public type, trait and macro a comment,
 directly or through attribute or annotation lines (a multi-line `@Machine(...)`
 included) -- what `#![warn(missing_docs)]` enforced that this rule keeps.
 In Kotlin, public means not `private`, `internal` or `protected`, and the
-published sources are `core` and `annotations`. Two exclusions, both of things that are not
+published sources are `core` and `annotations`; in Swift, whose default is
+`internal`, public means `public` or `open`, and the published source is
+`Sources/TabularCenter`. A Swift `extension` counts as a type declaration --
+it is how Swift spreads a type across files, the `.tb.swift` matrix included
+-- and a `#if` line between a comment and its type does not separate them. Two exclusions, both of things that are not
 API: items a macro generates (their names are metavariables, `pub enum $a`,
 and the generating macro documents them) and macros named `__*`, the
 convention for hidden helpers. Members' documentation lives in the type's
 comment as a list -- `- \`go\`: Transition to \`next\`, emitting nothing.` --
 so docs.rs still shows what every variant, field and method is for.
 
-**Enforced, by stage.** `tools/no-comments` (root step and check
+**Enforced.** `tools/no-comments` (root step and check
 `no-comments`) holds each comment block until the next line of code, then
 allows it if it is the file's header (nothing but comments and blank lines
 before it) or if it attaches to a type declaration -- directly, or through
 attribute and annotation lines (`#[derive]`, `@Target`, `@available`), with no
 blank line between. Any other comment, and any comment after code on the same
-line, is reported with its file and line. It checks the file types listed in
-its `clean_patterns`, and a type is added in the same patch that migrates it,
-so the check is green at every stage and a migrated type cannot regress. The
-stages and their state are in `PLAN.md`, "Cleanness".
+line, is reported with its file and line. It checks every file type in the
+scope above (`clean_patterns`, and `clean_files` for scripts and repository
+files, which have no extension to match). The migration was staged one file
+type at a time, each green on its own; its record is in `PLAN.md`,
+"Cleanness".
 
 ---
 
@@ -1866,6 +1871,40 @@ What their comments carried that a reader of the tree needs:
 - **The processor throws on an annotation shape it does not recognise**,
   where `filterIsInstance` once dropped it silently; a payload type it cannot
   resolve degrades only `payload-hoist`.
+
+### Swift packaging and generation
+
+- **Three packages.** The library's (`tabular-center-swift`) has no
+  dependencies at all, and its `TabularCenter` product links nothing but the
+  standard library -- not Foundation: a published library should not put
+  Foundation on a consumer's link line to trim a string. The examples are a
+  separate package that depends on the library by path, the only place the
+  public API is exercised from outside; its path dependency is identified by
+  directory name, which is why the library directory is not called `swift`.
+  The macro package is separate because it is the only target linking
+  swift-syntax, a remote package, while the rest builds with no network.
+  `TabularCenterCodegen` is a product, not just a target, because SwiftPM lets
+  one package reach only another's products.
+- **Checks are executables, not test targets**: nixpkgs' Swift ships no
+  XCTest. **No `platforms:` clause**: a deployment target there is a floor for
+  every consumer, so `ObservableStore`'s macOS 14 requirement lives on that
+  type, as `@available`.
+- **`ObservableStore` is gated on `os(macOS) || os(iOS) || ...`, not on a
+  module**, after two weaker guards each answered an adjacent question:
+  `#if canImport(Observation)` is true on the pinned Linux toolchain while
+  `@Observable` still fails to resolve, and removing the macro compiled and
+  linked a binary that died on `libswiftObservation.so: undefined symbol`. The
+  type exists to be watched by SwiftUI, and SwiftUI exists only on Apple
+  platforms, so the guard asks that directly.
+- **The Swift emitter** follows Kotlin's (validation in `buildDesc`, names
+  like `idleStart`, lens per child and prism per cell, effect references
+  verbatim with only names in `TABLE`). Swift-specific: what it cannot
+  produce correctly it refuses as `#error` at the top of the generated file;
+  a colored call is two statements so `try await` appears once; payload
+  bindings must not shadow the dispatcher's own parameter names; and
+  `rethrows` needs a throwing parameter, so a hop with no alternatives omits
+  it. The mailbox is fixed-capacity: an unbounded one only moves the failure
+  somewhere harder to see.
 
 ### The checks, step by step
 

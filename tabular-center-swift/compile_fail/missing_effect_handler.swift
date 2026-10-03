@@ -17,5 +17,4 @@ protocol Cells {
 
 struct NoStop: Cells {
     func startClock(_ ctx: Ctx) -> A? { nil }
-    // stopClock is missing.
 }

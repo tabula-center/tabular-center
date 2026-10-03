@@ -18,7 +18,6 @@ final class CompleteTimerAsync: TimerAsyncCells {
     func halt(_ ctx: TimerAsync.Ctx, _ effect: Timer.Reason) async throws -> TimerAsync.A? { nil }
 }
 
-// The color reaches the caller: `step` and `perform` need `try await`.
 func driveTimerAsync() async throws -> TimerAsync.A? {
     let cells = CompleteTimerAsync()
     let ctx = TimerAsync.Ctx()

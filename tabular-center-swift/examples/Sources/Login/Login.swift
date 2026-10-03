@@ -1,13 +1,12 @@
+// **4. Composition.**
+//
+// A login session delegating its authentication to a child machine.
+//
+// `protocol SessionCells: AuthCells` is the composition property in one line:
+// implementing the parent requires implementing the child, so a hole anywhere
+// in the child breaks any type conforming to the parent. Protocols are Swift's
+// trait bounds.
 import TabularCenter
-
-/// **4. Composition.**
-///
-/// A login session delegating its authentication to a child machine.
-///
-/// `protocol SessionCells: AuthCells` is the composition property in one line:
-/// implementing the parent requires implementing the child, so a hole anywhere
-/// in the child breaks any type conforming to the parent. Protocols are Swift's
-/// trait bounds.
 
 /// The child: authentication, written knowing nothing about sessions.
 enum Auth {
@@ -86,8 +85,6 @@ func sessionStep(
     }
 }
 
-/// A nil child action reports **ignored**, not stay: a parent action the
-/// child's alphabet does not contain was not handled.
 private func delegate(
     _ c: SessionCells, _ ctx: Session.Ctx, _ s: Session.LoggedOut, _ childAction: Auth.A?
 ) -> Step<Session.S, Session.F> {
@@ -119,7 +116,6 @@ struct LoginImpl: SessionCells {
 
     func authChildState(_ s: Session.LoggedOut) -> Auth.S { s.auth }
 
-    /// A child transition can be a parent transition.
     func authEmbed(_ s: Session.LoggedOut, _ child: Auth.S) -> Session.S {
         switch child {
         case .authenticated: return .active

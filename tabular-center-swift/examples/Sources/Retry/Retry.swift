@@ -13,7 +13,6 @@ enum Retry {
 
     final class Ctx {
         let maxAttempts: Int
-        /// Every effect the handler carried out, in order.
         var performed: [String] = []
         init(maxAttempts: Int) { self.maxAttempts = maxAttempts }
     }
@@ -62,10 +61,6 @@ enum Retry {
             return .go(.waiting(attempt: next), effects: [.sleep(ms: 100 * next)])
         }
 
-        /// Sleeping is what produces the next `elapsed`.
-        ///
-        /// Returned as **data**. The driver enqueues it; this function cannot
-        /// reach `step` even if it wanted to.
         func sleep(_ ctx: Ctx, _ ms: Int) -> A? {
             ctx.performed.append("sleep:\(ms)")
             return .elapsed
@@ -77,7 +72,6 @@ enum Retry {
         }
     }
 
-    /// Drive from `ready` until nothing is pending.
     static func run(maxAttempts: Int) throws -> (S, Ctx) {
         let ctx = Ctx(maxAttempts: maxAttempts)
         let cells = Impl()
