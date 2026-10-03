@@ -62,11 +62,6 @@ configure<PublishingExtension> {
                         url.set("https://opensource.org/license/mit")
                         distribution.set("repo")
                     }
-                    license {
-                        name.set("Apache-2.0")
-                        url.set("https://www.apache.org/licenses/LICENSE-2.0")
-                        distribution.set("repo")
-                    }
                 }
                 developers {
                     developer {

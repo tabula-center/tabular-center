@@ -4,7 +4,7 @@ description = "1. The minimum: three states, two actions, no payloads, no effect
 version = "0.0.1"
 edition = "2021"
 rust-version = "1.75"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 publish = false
 
 # The configuration corner this example covers: `default-features = false`.

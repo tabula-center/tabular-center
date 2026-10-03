@@ -1225,8 +1225,8 @@ green in CI for all three languages.
       `gpgconf --kill all` stops gpg-agent and keyboxd. (An earlier version
       committed a throwaway private key to avoid that; it granted nothing,
       but committing private keys is the habit to never teach)
-- [x] License files. Every manifest declares `MIT OR Apache-2.0`, but the tree
-      has no `LICENSE-MIT` or `LICENSE-APACHE`. This box was ticked with the
+- [x] License files. Every manifest declared `MIT OR Apache-2.0`, but the tree
+      had no `LICENSE-MIT` or `LICENSE-APACHE`. This box was ticked with the
       two above; the September 2026 re-audit found nothing behind it. Needs
       the copyright holder's name, which is not something to guess at, and
       must land before any Phase 10 publication.
@@ -1235,16 +1235,17 @@ green in CI for all three languages.
       files need copies inside that directory too (and inside the Rust crate,
       whose archive likewise holds only its own directory)
 
-      *Done, October 2026.* The holder was in the tree all along: the root
-      `LICENSE` (MIT) names Hadi Lashkati Ghouchani. It became `LICENSE-MIT`,
-      unchanged; `LICENSE-APACHE` is the Apache Software Foundation's text,
-      checked word for word against a second published copy. Both are copied
-      beside the crate and into `tabular-center-swift/` -- copies, because a
-      symlink dangles in the subtree mirror. `tabular-center-fmt` needs none:
-      it is `publish = false`. Two checks keep it true: root `licenses`
-      (both texts at the root, the copies identical, the manifest still
-      dual) and `package`, which now fails unless both files are inside the
-      `.crate` itself
+      *Done, October 2026, and decided: **MIT only.*** The dual license was
+      dropped rather than completed. `LICENSE` (MIT, naming Hadi Lashkati
+      Ghouchani) stays the single license file; every Cargo manifest says
+      `license = "MIT"` and the Maven POM lists MIT alone. Copies sit beside
+      the crate and in `tabular-center-swift/`, the two directories published
+      without the root -- copies, because a symlink to the parent dangles in
+      the subtree mirror; `tabular-center-fmt` is `publish = false`. Root
+      `licenses` checks the copies are identical to the root's and every
+      manifest says MIT; Rust `package` fails unless `LICENSE` is inside the
+      `.crate`. (A first version added `LICENSE-APACHE` to complete the
+      dual license; reverted on the owner's decision.)
 
 **Risk:** Swift toolchain on Linux via nixpkgs is the known-flaky piece. Do not
 let it block Phase 0 — pin it, mark it best-effort, move on.

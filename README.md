@@ -122,5 +122,4 @@ falls back to rustc's lints where clippy is unavailable.
 
 ## License
 
-Licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE),
-at your option.
+Licensed under the [MIT license](LICENSE).

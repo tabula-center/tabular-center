@@ -22,4 +22,4 @@ The guide, with examples the project's CI compiles and runs:
 Source, specification and the other two implementations:
 <https://github.com/tabula-center/tabular-center>
 
-Licensed under either of MIT or Apache-2.0, at your option.
+Licensed under the [MIT license](LICENSE).

@@ -12,7 +12,7 @@ description = "Pads the cells of .tb. transition-matrix rows so their columns li
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 repository = "https://github.com/tabula-center/tabular-center"
 publish = false
 
