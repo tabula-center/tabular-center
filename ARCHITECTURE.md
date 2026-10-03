@@ -717,6 +717,46 @@ That is checked, not asserted: `rust-asm-identical` compiles the Timer both
 ways -- `transition_matrix!` and the hand-written `tests/reference_timer.rs` --
 and requires their optimised dispatch code to be identical instruction for
 instruction (`tools/asm-diff`; PLAN, Phase 10).
+
+**How the macro is built** (`src/matrix.rs`), for whoever changes it:
+
+- **Color is one token**, `Plain` or `Async`, threaded through every rule and
+  taken apart only where it matters. A captured path cannot be used as a
+  trait bound, and a type-level color selector would turn rustc's "`T:
+  Handle<..>` is not satisfied" into a message about the selector -- so
+  `HANDLE` has one rule per color.
+- **Rows are munched, not repeated**: the action list and a row's cells sit
+  at different repetition depths, and `macro_rules!` cannot iterate two
+  independent repetitions in lockstep. Binding names are threaded as `ident`
+  arguments so the helpers stay hygienic.
+- **A run of four `IGNORE`s is consumed in one step** (and two, where a run is
+  broken): a realistic 8x12 machine is 78% `IGNORE` and blew the default
+  recursion limit when the muncher recursed once per cell.
+- **Structural checks come first.** Row count against state count is checked
+  during expansion, before type-checking: a missing row would otherwise
+  surface as an array-length mismatch on `TABLE`, and a `const` assertion
+  never runs once a type error aborts. `EMIT!()` with no effects must precede
+  the general `EMIT` rule, which matches zero tokens and once swallowed it.
+- **Narrowed variant types and `PAYLOADS` are emitted where the payload
+  fields are bound**: by the time the rows are walked the field names are
+  gone. `PAYLOADS` is a separate const, not a `TABLE` field -- the table is
+  the matrix, this is metadata about the states, and adding it broke no
+  existing `Table` literal.
+- **Paths (spines)** are rewritten before the main walk: each path is paired
+  into hops, every state and action checked as it goes, a lookup macro
+  defined whose rules *are* the names, and the rows rewritten through it, so
+  `@main` sees the spine as if written longhand. Back hops accumulate
+  separately because they are not checked alike. `($)` hands a helper a
+  literal `$`, which a macro cannot otherwise write in its output.
+  `path-duplicate` is left to rustc ("defined multiple times"), as
+  `unknown-child` is: both compare names the machine chose, so there is no
+  declared list to generate a lookup from.
+- **`GO!` cannot reach runtime data** -- the dispatcher's bindings are
+  `__tabula_`-prefixed, so rule R3 holds by construction. **`DELEGATE!`** runs
+  the child's `step` and folds the result back through the lens; in an async
+  parent the child is awaited whatever its color (a plain child's `Step` is
+  `IntoFuture`, ready at once). An action outside the child's alphabet is
+  `Ignored`, not `Stay`: nothing was handled.
 `cargo expand` is a supported auditing path, and `Step`, `Cell`, and the trait
 are all usable directly without the macro.
 
@@ -1231,6 +1271,17 @@ not prose for a person:
   sits directly above a matrix row (`Idle => [`), as in a test's
   `transition_matrix!`.
 
+**Published code keeps its documentation.** For the published libraries'
+sources (`documented_paths` in `tools/no-comments`; Rust's `src/` today),
+every file needs a header and every public type, trait and macro a comment,
+directly or through attribute lines -- what `#![warn(missing_docs)]`
+enforced that this rule keeps. Two exclusions, both of things that are not
+API: items a macro generates (their names are metavariables, `pub enum $a`,
+and the generating macro documents them) and macros named `__*`, the
+convention for hidden helpers. Members' documentation lives in the type's
+comment as a list -- `- \`go\`: Transition to \`next\`, emitting nothing.` --
+so docs.rs still shows what every variant, field and method is for.
+
 **Enforced, by stage.** `tools/no-comments` (root step and check
 `no-comments`) holds each comment block until the next line of code, then
 allows it if it is the file's header (nothing but comments and blank lines
@@ -1735,6 +1786,41 @@ What their comments carried that a reader of the tree needs:
   interleaves rounds across the three versions so drift lands on all of
   them, and keeps the work observable with `black_box`; `plain` returns
   `(State, Option<Effect>)` and is expected to be faster.
+
+### The Rust library's internals
+
+- **Lint thresholds are deliberately generous** (`IGNORE_HEAVY_PERCENT`,
+  `UNREACHABLE_HEAVY_PERCENT`, `PAYLOAD_HOIST_STATES` = 3): a lint that fires
+  on healthy machines is a lint people turn off. `dead-row` subsumes
+  `no-static-exit`, so one problem is one warning. Reachability findings are
+  reported only for a fully static matrix: a `HANDLE` target is unknowable at
+  build time, and guessing would make the lint lie. Payload fields group by
+  name *and* canonical type -- `count: u32` and `count: usize` are one idea,
+  `count: u32` and `count: String` are two -- and canonicalisation
+  (spec/diagnostics.md) lets three implementations agree byte for byte.
+  `Payloads` lives in `table`, not `lint`: declared in `lint` it made every
+  machine built without `alloc` fail to compile.
+- **One edge walk feeds every renderer**, so a machine renders in the same
+  order in Mermaid, DOT and the grid, and a new format cannot invent its own
+  -- Mermaid once emitted every `GO` edge before every self-loop while Kotlin
+  and Swift interleaved them. Dynamic cells are self-loops annotated with
+  what will run, never a guessed edge. The grid counts the machine name in
+  the first column's width and right-trims every line.
+- **The coverage report imports the lint's thresholds** rather than repeating
+  them: the two are views of one matrix and drifted while the report had no
+  golden (it warned on a single deliberate `UNREACHABLE`, the case the spec
+  says must stay silent).
+- **`TABLE` labels are bare variant names** -- `GO!(Running { since: 0 })` is
+  `Running` -- computed in `const` context, since `TABLE` is a `const`.
+- **The driver applies the outcome before performing effects**, so a handler
+  that enqueues an action sees the post-transition state; follow-ups are
+  queued at the back, never recursed into, strictly FIFO; re-entering `run`
+  is reported (`Reentered`) so that it is loud if the design's guarantee ever
+  breaks.
+- **`DEFAULT_EFFECT_CAPACITY` is 2**, deliberately small: a cell wanting more
+  is usually a cell that wants splitting, and the ceiling makes that
+  visible. Overflow is a programming error (capacity is a compile-time
+  property), so `push` panics and `try_push` exists where that is not true.
 
 ### The checks, step by step
 

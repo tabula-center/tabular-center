@@ -1,4 +1,6 @@
 //! The generated `TABLE` const and what can be computed from it.
+//!
+//! - `first_ident`: The leading identifier of a stringified expression.
 
 use crate::cell::{Cell, CellKind};
 
@@ -27,56 +29,57 @@ pub type Payloads = [(&'static str, &'static str, &'static str)];
 /// declaration order in the `states` and `actions` lists, which is what lets
 /// diagram export and the conformance runner agree on cell identity across
 /// languages.
+///
+/// - `machine`: Machine name, as declared.
+/// - `states`: State variant names, in row order.
+/// - `actions`: Action variant names, in column order.
+/// - `cells`: Cells, indexed `[state][action]`.
+/// - `initial`: Initial state variant name, if the machine declared one.
+/// - `cell`: The cell at `(state_index, action_index)`.
+/// - `state_index`: Row index of a state variant by name.
+/// - `action_index`: Column index of an action variant by name.
+/// - `coverage`: Counts by cell kind.
+/// - `statically_unreached`: States that no cell can statically transition into, excluding the initial state.
+/// - `is_fully_static`: Whether any cell dispatches dynamically, i.e.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Table<const N: usize, const M: usize> {
-    /// Machine name, as declared.
     pub machine: &'static str,
-    /// State variant names, in row order.
     pub states: [&'static str; N],
-    /// Action variant names, in column order.
     pub actions: [&'static str; M],
-    /// Cells, indexed `[state][action]`.
     pub cells: [[Cell; M]; N],
-    /// Initial state variant name, if the machine declared one.
     pub initial: Option<&'static str>,
 }
 
 /// Counts by cell kind, for the build-time coverage report.
+///
+/// - `ignore`: Cells declaring the action inapplicable.
+/// - `go`: Unconditional transitions.
+/// - `emit`: Stay-and-emit cells.
+/// - `handle`: Cells the developer implements.
+/// - `delegate`: Cells forwarding to a child machine.
+/// - `unreachable`: Cells asserted impossible.
+/// - `total`: Total cells, i.e.
+/// - `required_members`: Cells the developer must implement.
+/// - `ignore_percent`: Proportion of the matrix that is `IGNORE`, in percent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Coverage {
-    /// Cells declaring the action inapplicable.
     pub ignore: usize,
-    /// Unconditional transitions.
     pub go: usize,
-    /// Stay-and-emit cells.
     pub emit: usize,
-    /// Cells the developer implements.
     pub handle: usize,
-    /// Cells forwarding to a child machine.
     pub delegate: usize,
-    /// Cells asserted impossible.
     pub unreachable: usize,
 }
 
 impl Coverage {
-    /// Total cells, i.e. `N * M`.
     pub const fn total(&self) -> usize {
         self.ignore + self.go + self.emit + self.handle + self.delegate + self.unreachable
     }
 
-    /// Cells the developer must implement.
-    ///
-    /// `unreachable` is excluded: writing `UNREACHABLE` *is* the
-    /// implementation.
     pub const fn required_members(&self) -> usize {
         self.handle + self.delegate
     }
 
-    /// Proportion of the matrix that is `IGNORE`, in percent.
-    ///
-    /// A machine that is overwhelmingly `IGNORE` is usually several machines
-    /// wearing one coat. The build surfaces this rather than failing on it,
-    /// because the threshold is a judgement call.
     pub const fn ignore_percent(&self) -> usize {
         if self.total() == 0 {
             return 0;
@@ -86,22 +89,18 @@ impl Coverage {
 }
 
 impl<const N: usize, const M: usize> Table<N, M> {
-    /// The cell at `(state_index, action_index)`.
     pub const fn cell(&self, state: usize, action: usize) -> Cell {
         self.cells[state][action]
     }
 
-    /// Row index of a state variant by name.
     pub fn state_index(&self, name: &str) -> Option<usize> {
         self.states.iter().position(|s| *s == name)
     }
 
-    /// Column index of an action variant by name.
     pub fn action_index(&self, name: &str) -> Option<usize> {
         self.actions.iter().position(|a| *a == name)
     }
 
-    /// Counts by cell kind.
     pub const fn coverage(&self) -> Coverage {
         let mut c = Coverage {
             ignore: 0,
@@ -130,13 +129,6 @@ impl<const N: usize, const M: usize> Table<N, M> {
         c
     }
 
-    /// States that no cell can statically transition into, excluding the
-    /// initial state.
-    ///
-    /// Only static targets are knowable at build time, so a state reached only
-    /// from a `HANDLE` cell will appear here. That is why the reachability
-    /// check is a *warning* and not an error: unreachable-by-construction is
-    /// legitimate, and so is reached-only-dynamically.
     pub fn statically_unreached(&self) -> impl Iterator<Item = &'static str> + '_ {
         self.states.iter().copied().filter(move |name| {
             if Some(*name) == self.initial {
@@ -150,9 +142,6 @@ impl<const N: usize, const M: usize> Table<N, M> {
         })
     }
 
-    /// Whether any cell dispatches dynamically, i.e. whether
-    /// [`Table::statically_unreached`] can be trusted as a real reachability
-    /// result rather than an approximation.
     pub fn is_fully_static(&self) -> bool {
         self.cells.iter().flatten().all(Cell::is_static)
     }
@@ -215,21 +204,12 @@ mod tests {
 
     #[test]
     fn done_is_statically_unreached_because_only_a_handle_cell_leads_there() {
-        // `Idle` is initial; `Running` is reached by Done/Start. `Done` is
-        // only reachable through `running_tick`, which is opaque at build
-        // time -- exactly the case the warning exists to flag, and exactly why
-        // it must not be an error.
         let unreached: Vec<_> = T.statically_unreached().collect();
         assert_eq!(unreached, ["Done"]);
         assert!(!T.is_fully_static());
     }
 }
 
-/// The leading identifier of a stringified expression.
-///
-/// `GO!(Running { since: 0 })` should appear in the table as `Running`, not as
-/// the whole struct literal, so diagrams and grids stay readable. Runs in
-/// `const` context because `TABLE` is a `const`.
 pub const fn first_ident(s: &'static str) -> &'static str {
     let b = s.as_bytes();
     let mut i = 0;

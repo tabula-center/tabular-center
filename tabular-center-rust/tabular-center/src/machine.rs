@@ -37,8 +37,9 @@ pub trait Machine {
 /// receives payloads already destructured and non-optional. There is no `if
 /// let`, no `matches!`, and no unwrap anywhere in a cell body -- which is the
 /// thing that is impractical to write by hand once a matrix gets large.
+///
+/// - `handle`: Decide what happens for this `(state, action)` pair.
 pub trait Handle<M: Machine, SV, AV> {
-    /// Decide what happens for this `(state, action)` pair.
     fn handle(&mut self, ctx: &mut M::Ctx, state: SV, action: AV) -> Step<M::State, M::Effect>;
 }
 
@@ -55,12 +56,9 @@ pub trait Handle<M: Machine, SV, AV> {
 ///
 /// `EV` is the *narrowed* effect variant, so a handler receives its payload
 /// already destructured — the same treatment cells get.
+///
+/// - `perform`: Carry out the effect, optionally producing a follow-up action.
 pub trait Perform<M: Machine, EV> {
-    /// Carry out the effect, optionally producing a follow-up action.
-    ///
-    /// The action is returned as **data**. The driver enqueues it; a handler
-    /// is given no way back into `step`, which is what makes re-entrancy
-    /// impossible rather than merely discouraged. See [`crate::driver`].
     fn perform(&mut self, ctx: &mut M::Ctx, effect: EV) -> Option<M::Action>;
 }
 
@@ -76,12 +74,13 @@ pub trait Perform<M: Machine, EV> {
 /// The generated `step` of an async machine requires one `AsyncHandle` per
 /// HANDLE cell, exactly as a plain machine requires one [`Handle`]; a missing
 /// impl names the hole the same way.
+///
+/// - `handle`: Handle `action` in `state`, where both are narrowed to one variant.
 // `async fn` in a public trait warns that callers cannot add `Send` bounds to
 // the returned future. Accepted: `step` awaits it in place, and whether the
 // whole machine is `Send` is decided by the developer's impls.
 #[allow(async_fn_in_trait)]
 pub trait AsyncHandle<M: Machine, SV, AV> {
-    /// Handle `action` in `state`, where both are narrowed to one variant.
     async fn handle(
         &mut self,
         ctx: &mut M::Ctx,
@@ -92,8 +91,9 @@ pub trait AsyncHandle<M: Machine, SV, AV> {
 
 /// The colored twin of [`Perform`]: one per effect variant of an async
 /// machine, awaited by its generated `perform`.
+///
+/// - `perform`: Carry out `effect`, returning any follow-up action.
 #[allow(async_fn_in_trait)]
 pub trait AsyncPerform<M: Machine, EV> {
-    /// Carry out `effect`, returning any follow-up action.
     async fn perform(&mut self, ctx: &mut M::Ctx, effect: EV) -> Option<M::Action>;
 }

@@ -138,24 +138,6 @@
 /// says the name cannot be found.
 #[macro_export]
 macro_rules! transition_matrix {
-    // ---------------------------------------------------------------- entry
-    //
-    // The prototype chooses the machine's color, and the color is threaded
-    // through every rule below as one token, `Plain` or `Async`, taken apart
-    // only by the few rules that use it. A token rather than spliced trait
-    // paths: a path captured as `$($p:tt)*` cannot be used inside the rules'
-    // own `$(...)*` repetitions at a different depth.
-    //
-    // Two explicit prototypes rather than `prototype $($c:tt)* fn handle;`:
-    // `fn` is itself a token tree (and an identifier-or-keyword), so that
-    // matcher is ambiguous at `fn`, which rustc rejects.
-    //
-    // Why only `async`: Rust's cell surface is a library trait, not a
-    // generated declaration, so a color cannot be copied onto it
-    // (ARCHITECTURE 5); it needs a colored twin of the trait. Of the colors a
-    // Rust `fn` can carry, `async` is the one a trait method can carry on
-    // stable -- `const` trait methods are unstable and `extern` does not apply
-    // -- so `Handle` and `AsyncHandle` are the whole set Rust allows.
     (
         machine $m:ident;
         context $x:ident;
@@ -185,29 +167,10 @@ macro_rules! transition_matrix {
             "method can carry on stable."
         ));
     };
-    // No prototype: uncolored, as every machine was before prototypes existed.
     (machine $($rest:tt)*) => {
         $crate::transition_matrix!(@main c=Plain machine $($rest)*);
     };
 
-    // ---------------------------------------------------------------- paths
-    //
-    // A spine, as Kotlin's `@Path` and Swift's `paths:` declare it: states and
-    // actions alternating, `[Idle, Start, Connecting, Ready, Live]`. A HANDLE
-    // named by a hop becomes a GO to the hop's next state, so it needs no
-    // `Handle` impl and its dispatcher arm is static -- the derivation
-    // `spec/happy-paths.md` specifies, the same one `derive` performs in
-    // `tabular-center-kotlin/codegen/Raw.kt` and `tabular-center-swift/Sources/TabularCenterCodegen/Raw.swift`.
-    //
-    // `macro_rules!` cannot compare two identifiers, and every part of that
-    // asks whether one identifier is another. So the path is turned into a
-    // local macro whose rules ARE its identifiers -- `(Idle Start HANDLE)` --
-    // and each cell is passed through it. The rewrite happens once, here,
-    // before `@main` sees any row; `@main` then runs exactly as for a machine
-    // with no path. A machine without a `paths` block never reaches this arm.
-    //
-    // A block rather than a repeated `path` clause: `$(path ..)+` followed by
-    // `$($row:ident => ..)*` is ambiguous at `path`, which is also an ident.
     (@main c=$c:tt
         machine $m:ident;
         context $x:ident;
@@ -223,15 +186,8 @@ macro_rules! transition_matrix {
 
         $($row:ident => [ $($cell:tt)* ];)*
     ) => {
-        // Declared names, as lookups whose rules ARE the names: checked
-        // against every state and action a path mentions.
         $crate::__tabula_define_known! { ($) states=[$($sv)*] actions=[$($av)*] }
 
-        // `path-duplicate`, by rustc: one item per path name, so a repeated
-        // name is "defined multiple times". The other three codes are
-        // tabular-center's own text; this one compares two names the MACHINE chose,
-        // so there is no declared list to generate a lookup from -- the same
-        // reason `unknown-child` is left to rustc.
         #[allow(non_camel_case_types, dead_code)]
         mod __tabula_path_names {
             $( pub struct $pn; )+
@@ -257,13 +213,6 @@ macro_rules! transition_matrix {
         );
     };
 
-    // Pair each path into hops: `[Idle, Start, Connecting, ..]` gives
-    // `(connect Idle Start Connecting)`, then continues from `Connecting`.
-    // Every state and action named is checked against the declared ones as
-    // it goes (`path-unknown-state`).
-    //
-    // `start` marks a path's first step, so a path too short to hold one hop
-    // is told apart from one that has simply finished.
     (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=[$($acc:tt)*] lasts=$lasts:tt
         backs=$backs:tt
         paths=[ ($pn:ident $step:ident [$st:ident, $ac:ident, $nx:ident $(, $more:ident)*] b=[])
@@ -275,11 +224,6 @@ macro_rules! transition_matrix {
             acc=[$($acc)* ($pn $st $ac $nx)] lasts=$lasts backs=$backs
             paths=[ ($pn mid [$nx $(, $more)*] b=[]) $($ps)* ]);
     };
-    // The same hop, for a path that names how it is walked backwards: the
-    // far side goes back to this one. Accumulated separately from the
-    // forward hops because the two are NOT checked alike -- a forward hop's
-    // cell must be able to reach the next state, while a back cell may be
-    // anything at all, including a cell this path has no opinion about.
     (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=[$($acc:tt)*] lasts=$lasts:tt
         backs=[$($backs:tt)*]
         paths=[ ($pn:ident $step:ident [$st:ident, $ac:ident, $nx:ident $(, $more:ident)*]
@@ -293,7 +237,6 @@ macro_rules! transition_matrix {
             backs=[$($backs)* ($nx $pb $st)]
             paths=[ ($pn mid [$nx $(, $more)*] b=[$pb]) $($ps)* ]);
     };
-    // A path ends on a state, after at least one hop.
     (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=$acc:tt lasts=[$($lasts:tt)*]
         backs=$backs:tt paths=[ ($pn:ident mid [$last:ident] b=$b:tt) $($ps:tt)* ]
     ) => {
@@ -301,9 +244,6 @@ macro_rules! transition_matrix {
         $crate::transition_matrix!(@hops c=$c hdr=$hdr acts=$acts rows=$rows acc=$acc
             lasts=[$($lasts)* ($pn $last)] backs=$backs paths=[$($ps)*]);
     };
-    // Any other shape: fewer than three elements, or ending on an action.
-    // Reported, and the path dropped, so the rest of the machine still
-    // expands and this is the error a reader sees first.
     (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=$acc:tt lasts=$lasts:tt
         backs=$backs:tt paths=[ ($pn:ident $step:ident [$($bad:ident),*] b=$b:tt) $($ps:tt)* ]
     ) => {
@@ -316,26 +256,17 @@ macro_rules! transition_matrix {
         $crate::transition_matrix!(@hops c=$c hdr=$hdr acts=$acts rows=$rows acc=$acc
             lasts=$lasts backs=$backs paths=[$($ps)*]);
     };
-    // Every path paired: define the lookup, then rewrite the rows through it.
-    //
-    // `($)` hands the helper a literal `$`: a macro cannot write one in its
-    // own output, except as the last token of a delimited group, and the
-    // lookup it defines needs metavariables of its own.
     (@hops c=$c:tt hdr=$hdr:tt acts=$acts:tt rows=$rows:tt acc=[$($acc:tt)*] lasts=[$($lasts:tt)*]
         backs=[$($backs:tt)*] paths=[]
     ) => {
         $crate::__tabula_define_hops! { ($) hops=[$($acc)*] backs=[$($backs)*] lasts=[$($lasts)*] }
-        // The narrowed surface: one `Hop` impl per forward hop, and `narrow`.
         $crate::__tabula_narrow! { c=$c hdr=$hdr hops=[$($acc)*] }
         $crate::transition_matrix!(@derive c=$c hdr=$hdr acts=$acts done=[] todo=$rows);
     };
 
-    // Every row rewritten: run `@main` as if the spine had been written
-    // longhand -- which, by now, it has.
     (@derive c=$c:tt hdr=[$($h:tt)*] acts=$acts:tt done=[$($done:tt)*] todo=[]) => {
         $crate::transition_matrix!(@main c=$c $($h)* $($done)*);
     };
-    // Start a row: its cells, zipped with the action names in order.
     (@derive c=$c:tt hdr=$hdr:tt acts=$acts:tt done=$done:tt
         todo=[$row:ident => [ $($cells:tt)* ]; $($todo:tt)*]
     ) => {
@@ -343,7 +274,6 @@ macro_rules! transition_matrix {
             todo=[$($todo)*] row=$row left=$acts out=[] in=[$($cells)*]);
     };
 
-    // One cell: through the lookup, which calls back with it rewritten or not.
     (@cells c=$c:tt hdr=$hdr:tt acts=$acts:tt done=$done:tt todo=$todo:tt
         row=$row:ident left=[$act:ident $($more:ident)*] out=$out:tt
         in=[$k:ident $(! $g:tt)? $(, $($in:tt)*)?]
@@ -360,9 +290,6 @@ macro_rules! transition_matrix {
         $crate::transition_matrix!(@cells c=$c hdr=$hdr acts=$acts done=$done todo=$todo
             row=$row left=$left out=[$($out)* ($($cell)*)] in=$in);
     };
-    // The row's cells are exhausted -- or its actions are, in which case the
-    // leftover cells pass through untouched and `@check_rows` reports the
-    // arity, exactly as it would have without a path.
     (@cells c=$c:tt hdr=$hdr:tt acts=$acts:tt done=[$($done:tt)*] todo=$todo:tt
         row=$row:ident left=$left:tt out=[$( ($($o:tt)*) )*] in=[]
     ) => {
@@ -389,18 +316,10 @@ macro_rules! transition_matrix {
 
         $($row:ident => [ $($cell:tt)* ];)*
     ) => {
-        // -- narrowed variant types --------------------------------------
-        //
-        // The piece that is impractical to write by hand at scale, and the
-        // strongest argument for generating the dispatcher rather than
-        // hand-writing a `match`.
         $( $crate::__tabula_struct!($sv $({ $($sf : $sft),* })?); )*
         $( $crate::__tabula_struct!($av $({ $($af : $aft),* })?); )*
         $( $crate::__tabula_struct!($ev $({ $($eff : $efft),* })?); )*
 
-        // Emitted here, not in the terminal muncher rule: by the time the
-        // rows have been walked, `$sv` is a bare ident list and the payload
-        // field names are gone. Metadata has to be captured where it is bound.
         $crate::__tabula_payloads!(@go acc=[] rest=[$($sv $({ $($sf : $sft),* })?),*]);
 
         // -- the sum types, newtyping their narrowed structs -------------
@@ -439,21 +358,8 @@ macro_rules! transition_matrix {
             type Ctx = $x;
         }
 
-        // The effect surface -- `Handlers` and `perform` -- in the machine's
-        // color: `Perform` and a plain `perform`, or `AsyncPerform` and an
-        // `async fn perform`.
         $crate::__tabula_effects!($c; m=$m x=$x a=$a e=$e evs=[$($ev)*]);
 
-        // Check row count against state count *structurally*, before anything
-        // is type-checked. A missing row otherwise surfaces as an array-length
-        // mismatch on `TABLE`, and a `const` assertion would never run because
-        // type errors abort first. Only a `compile_error!` emitted during
-        // expansion gets to speak first.
-        //
-        // Passes through to `@bounds`, which collects one `Handle` bound per
-        // HANDLE cell and then emits `step` and `TABLE`. Bounds are the only
-        // thing needing accumulation across rows; arms and table rows are
-        // generated per row in place.
         $crate::transition_matrix!(@check_rows
             c=$c m=$m s=$s a=$a e=$e x=$x i=$i
             states=[$($sv)*]
@@ -466,7 +372,6 @@ macro_rules! transition_matrix {
         );
     };
 
-    // ------------------------------------------------ row-count check
     (@check_rows
         c=$c:tt m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
         states=[$($sv:ident)*] actions=[$($av:ident)*]
@@ -520,7 +425,6 @@ macro_rules! transition_matrix {
         ));
     };
 
-    // ------------------------------------------------- bound accumulation
     (@bounds
         c=$c:tt m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
         states=[$($sv:ident)*]
@@ -551,17 +455,7 @@ macro_rules! transition_matrix {
 
         impl<T> Cells for T where T: $($acc)* ::core::marker::Sized {}
 
-        // `step` in the machine's color: `async fn step` for an `Async`
-        // machine, whose HANDLE arms then `.await` their cells.
         $crate::__tabula_colored_fn! { $c;
-        /// Dispatch one `(state, action)` pair.
-        ///
-        /// The `where` clause below is the cell surface: one bound per
-        /// `HANDLE` cell. Omit an implementation and this call site fails
-        /// with `the trait bound ... is not satisfied`, naming the hole.
-        ///
-        /// Note also the absence of a wildcard arm: a missing row is caught
-        /// by `rustc`'s exhaustiveness checker, independently of us.
         pub fn step<C>(
             __tabula_cells: &mut C,
             __tabula_ctx: &mut $x,
@@ -571,16 +465,6 @@ macro_rules! transition_matrix {
         where
             C: $($acc)* ::core::marker::Sized,
         {
-            // Rows are walked by a muncher rather than by a repetition:
-            // `$($av)*` and `$($rc)*` are at different nesting depths, and
-            // macro_rules cannot iterate two independent repetitions in
-            // lockstep. Munching flattens them to depth zero.
-            //
-            // The binding names are threaded as `ident` arguments rather than
-            // written literally in the helper macros. macro_rules is hygienic:
-            // an identifier minted inside `__tabula_arms!` is a *different*
-            // identifier from one minted here, even spelled the same. Passing
-            // them preserves their syntax context.
             $crate::__tabula_arms!(@rows
                 s=$s a=$a c=$c m=$m et=$e
                 bind=[__tabula_state __tabula_action __tabula_cells __tabula_ctx __tabula_s]
@@ -591,16 +475,6 @@ macro_rules! transition_matrix {
         }
         }
 
-        /// State payload fields, as `(state, field, type)`.
-        ///
-        /// A separate const rather than a field on `TABLE`: the table is the
-        /// matrix, and this is metadata about the states. Keeping them apart
-        /// also means adding it broke no existing `Table` literal.
-        ///
-        /// Feeds `tabular-center::payload-hoist`, which asks whether a field repeated
-        /// across states is really context in disguise. See rule R4.
-        /// The matrix as inert data. Diagram export, coverage reporting, and
-        /// reachability analysis are pure functions of this.
         pub const TABLE: $crate::Table<
             { $crate::__tabula_count!($($sv)*) },
             { $crate::__tabula_count!($($av)*) },
@@ -634,7 +508,6 @@ macro_rules! transition_matrix {
         );
     };
 
-    // row exhausted, both lists empty -> next row
     (@bound_row
         c=$c:tt m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
         states=[$($sv:ident)*] actions=[$($av:ident)*] rows_all=[$($ra:tt)*]
@@ -648,7 +521,6 @@ macro_rules! transition_matrix {
         );
     };
 
-    // ---- arity diagnostics (tabular-center::row-arity) ----
     (@bound_row
         c=$c:tt m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
         states=[$($sv:ident)*] actions=[$($av:ident)*] rows_all=[$($ra:tt)*]
@@ -680,7 +552,6 @@ macro_rules! transition_matrix {
         ));
     };
 
-    // ---- cell separator ----
     (@bound_row
         c=$c:tt m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
         states=[$($sv:ident)*] actions=[$($av:ident)*] rows_all=[$($ra:tt)*]
@@ -697,7 +568,6 @@ macro_rules! transition_matrix {
         );
     };
 
-    // ---- HANDLE: the only cell kind that contributes a bound ----
     (@bound_row
         c=Plain m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
         states=[$($sv:ident)*] actions=[$($av:ident)*] rows_all=[$($ra:tt)*]
@@ -714,10 +584,6 @@ macro_rules! transition_matrix {
         );
     };
 
-    // ---- HANDLE, colored: `AsyncHandle` rather than `Handle`. A rule per
-    // color rather than a helper, because a macro cannot stand in bound
-    // position, and a type-level color selector would turn rustc's
-    // "`T: Handle<..>` is not satisfied" into a message about the selector.
     (@bound_row
         c=Async m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
         states=[$($sv:ident)*] actions=[$($av:ident)*] rows_all=[$($ra:tt)*]
@@ -734,9 +600,6 @@ macro_rules! transition_matrix {
         );
     };
 
-    // ---- DELEGATE: contributes the delegate bound AND the child's whole
-    // cell surface. This is what makes a total child compose into a total
-    // parent, checked by the compiler rather than asserted in a doc.
     (@bound_row
         c=$c:tt m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
         states=[$($sv:ident)*] actions=[$($av:ident)*] rows_all=[$($ra:tt)*]
@@ -758,14 +621,6 @@ macro_rules! transition_matrix {
         );
     };
 
-    // ---- static cells: consume a column, contribute nothing ----
-    // A run of four IGNOREs in one step.
-    //
-    // Not premature: an 8x12 order machine is 78% IGNORE and blew the default
-    // `recursion_limit` of 128, because the muncher recursed once per cell.
-    // Consuming runs cuts the depth on a realistic machine by roughly four.
-    // The design's central claim -- that IGNORE dominates real matrices -- is
-    // what makes this the right place to optimise.
     (@bound_row
         c=$c:tt m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
         states=[$($sv:ident)*] actions=[$($av:ident)*] rows_all=[$($ra:tt)*]
@@ -783,7 +638,6 @@ macro_rules! transition_matrix {
         );
     };
 
-    // ...and two, for rows where a GO or HANDLE breaks the run.
     (@bound_row
         c=$c:tt m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
         states=[$($sv:ident)*] actions=[$($av:ident)*] rows_all=[$($ra:tt)*]
@@ -849,19 +703,6 @@ macro_rules! transition_matrix {
         );
     };
 
-    // ---- EMIT!() with no effects (tabular-center::empty-emit) ----
-    //
-    // Must precede the general EMIT arm below: `$($g:tt)*` matches zero
-    // tokens, so it would otherwise swallow this and the cell would expand to
-    // `Step::stay()` with an empty effect list.
-    //
-    // That is what it did until now, which is why Kotlin and Swift rejected
-    // `EMIT()` and Rust quietly accepted it -- a divergence the conformance
-    // suite structurally cannot catch, since no fixture would ever write a
-    // cell the spec forbids.
-    //
-    // `$(,)?` rather than a bare `()`, so `EMIT!(,)` is caught too. It parses
-    // as an empty effect list for the same reason and means the same thing.
     (@bound_row
         c=$c:tt m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
         states=[$($sv:ident)*] actions=[$($av:ident)*] rows_all=[$($ra:tt)*]
@@ -893,7 +734,6 @@ macro_rules! transition_matrix {
         );
     };
 
-    // ---- unknown cell kind (tabular-center::unknown-cell) ----
     (@bound_row
         c=$c:tt m=$m:ident s=$s:ident a=$a:ident e=$e:ident x=$x:ident i=$i:ident
         states=[$($sv:ident)*] actions=[$($av:ident)*] rows_all=[$($ra:tt)*]
@@ -997,12 +837,6 @@ macro_rules! __tabula_define_hops {
                     $crate::transition_matrix!($d($d k)* cell=[$d($d cell)*]);
                 };
             )*
-            // Walked backwards. Two rules per reverse hop and no diagnostic:
-            // a HANDLE goes back a step, and anything else passes untouched.
-            // A back cell is not checked the way a forward hop's is, because
-            // a path has no opinion about it -- and passing here is also what
-            // keeps it away from the `path-unterminated` rules below, since
-            // walking a path backwards is walking the path.
             $(
                 ([$d($d k:tt)*] ; $bf $bact HANDLE) => {
                     $crate::transition_matrix!($d($d k)* cell=[GO!($bt)]);
@@ -1152,15 +986,6 @@ macro_rules! __tabula_narrow {
         )*
 
         $crate::__tabula_colored_fn! { $c;
-        /// Step `from` with the action that arrived, on a happy-path hop:
-        /// `Ok((to, effects))` if the matrix took the hop, `Err((state,
-        /// effects))` with whatever state it reached otherwise.
-        ///
-        /// `let (live, effects) = narrow::<Connecting, Ready, _>(&mut cells, &mut ctx, state, action)?;`
-        ///
-        /// A `match` on the `Err` state is exhaustive over `State`, so a new
-        /// state breaks it; `?` is the railway. The effects are the caller's
-        /// to run, either way.
         #[allow(dead_code)]
         pub fn narrow<TabulaFrom, TabulaAction, TabulaCells>(
             cells: &mut TabulaCells,
@@ -1230,10 +1055,6 @@ macro_rules! __tabula_effects {
         {
         }
 
-        /// Carry out one effect, returning any follow-up action.
-        ///
-        /// Pair with [`tabular_center::Driver`](crate::Driver), which enqueues the
-        /// follow-up rather than recursing into `step`.
         #[allow(unused_variables, unreachable_code)]
         pub fn perform<H: Handlers>(
             __tabula_handlers: &mut H,
@@ -1262,11 +1083,6 @@ macro_rules! __tabula_effects {
         {
         }
 
-        /// Carry out one effect, returning any follow-up action.
-        ///
-        /// `async`, like every member of this machine. `tabular_center::Driver` is
-        /// uncolored and does not drive it; an async caller writes its own
-        /// loop around `step` and `perform`, as `driver.rs` describes.
         #[allow(unused_variables, unreachable_code)]
         pub async fn perform<H: Handlers>(
             __tabula_handlers: &mut H,
@@ -1298,8 +1114,6 @@ macro_rules! __tabula_arms {
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$($av:ident)*] rows=[] acc=[$($acc:tt)*]
     ) => {
-        // No wildcard arm: a missing row is caught by rustc's own
-        // exhaustiveness checker, independently of this macro.
         match $bs { $($acc)* }
     };
 
@@ -1333,7 +1147,6 @@ macro_rules! __tabula_arms {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __tabula_row {
-    // done
     (@go c=$c:tt m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[] cells=[] arms=[$($arm:tt)*]
@@ -1341,7 +1154,6 @@ macro_rules! __tabula_row {
         match $ba { $($arm)* }
     };
 
-    // separator
     (@go c=$c:tt m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$($ca:ident)*] cells=[, $($crest:tt)*] arms=[$($arm:tt)*]
@@ -1351,7 +1163,6 @@ macro_rules! __tabula_row {
             actions=[$($ca)*] cells=[$($crest)*] arms=[$($arm)*])
     };
 
-    // IGNORE, four at a time. See the note in `transition_matrix!`.
     (@go c=$c:tt m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$c1:ident $c2:ident $c3:ident $c4:ident $($carest:ident)*]
@@ -1384,7 +1195,6 @@ macro_rules! __tabula_row {
             ])
     };
 
-    // IGNORE
     (@go c=$c:tt m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$ca:ident $($carest:ident)*] cells=[IGNORE $($crest:tt)*]
@@ -1396,7 +1206,6 @@ macro_rules! __tabula_row {
             arms=[$($arm)* $a::$ca(_) => $crate::Step::ignored(),])
     };
 
-    // HANDLE -- dispatches into developer code with narrowed arguments
     (@go c=$c:tt m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$ca:ident $($carest:ident)*] cells=[HANDLE $($crest:tt)*]
@@ -1410,7 +1219,6 @@ macro_rules! __tabula_row {
             },])
     };
 
-    // UNREACHABLE
     (@go c=$c:tt m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$ca:ident $($carest:ident)*] cells=[UNREACHABLE $($crest:tt)*]
@@ -1425,11 +1233,6 @@ macro_rules! __tabula_row {
             )),])
     };
 
-    // GO!(target) / GO!(target, effects..)
-    //
-    // The dispatcher's bindings are `__tabula_`-prefixed, so `ctx`, `state`,
-    // `action`, and `cells` are not in scope here. Rule R3 is enforced by
-    // construction: a target needing runtime data fails to resolve.
     (@go c=$c:tt m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$ca:ident $($carest:ident)*]
@@ -1448,15 +1251,6 @@ macro_rules! __tabula_row {
             },])
     };
 
-    // DELEGATE!(child_module)
-    //
-    // Runs the child's `step` and folds the result back through the lens.
-    //
-    // In an async parent the child's `step` is awaited whatever the child's
-    // color: a plain child's `Step` is `IntoFuture` and ready at once, an
-    // async child's future is awaited for real. A plain parent does not
-    // await, so an async child's future lands where a `Step` is required and
-    // rustc refuses it: one-way color flow, by construction.
     (@go c=$c:tt m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$ca:ident $($carest:ident)*]
@@ -1471,12 +1265,8 @@ macro_rules! __tabula_row {
                     $bc, $bx, &$bsv, __tabula_a,
                 );
                 match __child_action {
-                    // The child's alphabet does not contain this action.
-                    // `Ignored`, not `Stay`: nothing was handled.
                     ::core::option::Option::None => $crate::Step::ignored(),
                     ::core::option::Option::Some(__ca) => {
-                        // The lens is per (parent state, child); only the
-                        // action prism above is per cell.
                         let __cs =
                             <C as $crate::Lens<$m, $st, $ch::Marker>>::child_state($bc, &$bsv);
                         let __cx =
@@ -1501,7 +1291,6 @@ macro_rules! __tabula_row {
             },])
     };
 
-    // EMIT!(effects..)
     (@go c=$c:tt m=$m:ident s=$s:ident a=$a:ident et=$et:ident st=$st:ident
         bind=[$bs:ident $ba:ident $bc:ident $bx:ident $bsv:ident]
         actions=[$ca:ident $($carest:ident)*]
@@ -1570,8 +1359,6 @@ macro_rules! __tabula_cells {
 
     (@go cells=[EMIT ! ($($ef:expr),* $(,)?) $($r:tt)*] acc=[$($c:tt)*]) => {
         $crate::__tabula_cells!(@go cells=[$($r)*] acc=[$($c)* $crate::Cell::Emit {
-            // Normalised like GO targets: `StopClock { reason: 0 }` appears as
-            // `StopClock`, so grids and diagrams stay readable.
             effects: &[$($crate::table::first_ident(::core::stringify!($ef))),*],
         },])
     };
@@ -1582,14 +1369,6 @@ macro_rules! __tabula_cells {
 #[macro_export]
 macro_rules! __tabula_payloads {
     (@go acc=[$($acc:tt)*] rest=[]) => {
-        /// State payload fields, as `(state, field, type)`.
-        ///
-        /// A separate const rather than a field on `TABLE`: the table is the
-        /// matrix, and this is metadata about the states. Keeping them apart
-        /// also means adding it broke no existing `Table` literal.
-        ///
-        /// Feeds `tabular-center::payload-hoist`, which asks whether a field repeated
-        /// across states is really context in disguise. See rule R4.
         pub const PAYLOADS: &$crate::table::Payloads = &[$($acc)*];
     };
 

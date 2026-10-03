@@ -848,9 +848,9 @@ ARCHITECTURE 15's exemptions and `is_directive` if it is not already.
       would have met the same wall on the first doc comment it removed.
       ARCHITECTURE 15 says so, so nobody restores it
 - [ ] What `missing_docs` enforced that the rule keeps: every public type,
-      trait and macro carries a comment, and every module a header. A small
-      text check in `no-comments`' style for `.rs`, `.kt` and `.swift`, once
-      their stages land (stage 4 for Rust)
+      trait and macro carries a comment, and every module a header. **Rust:
+      done in stage 4b** (`documented_paths`); Kotlin's `core` and Swift's
+      `Sources/TabularCenter` join it in stages 5 and 6
 - [x] **Stage 4a: Rust outside the library** -- tests and compile-fail
       fixtures, the bench, the conformance crate, the examples,
       `tabular-center-fmt`: 68 files, 578 comment lines and 4 trailing
@@ -881,12 +881,29 @@ ARCHITECTURE 15's exemptions and `is_directive` if it is not already.
             zero findings; run over their originals as a negative test: 582,
             exactly the 578 lines and 4 trailing comments removed, and none of
             the text inside the formatter's raw strings
-- [ ] Stage 4b: the library, `tabular-center-rust/tabular-center/src` -- 11
-      files, ~1,240 lines. Doc comments on public types and on
-      `transition_matrix!` stay; on functions and methods they go, carried
-      into the type's comment where a user needs the usage. Doctests inside
-      function docs are tests: they move into the type's comment or into
-      `tests/`, never disappear. The type-documentation check lands here
+- [x] **Stage 4b: the Rust library**, `tabular-center-rust/tabular-center/src`
+      -- 11 files, 615 lines removed. Module headers and the comments on
+      public types and on `transition_matrix!` stay. Member docs -- enum
+      variants, struct fields, trait and inherent methods, free functions --
+      are not deleted but **folded**: each becomes one line in its type's
+      comment (`- \`go\`: Transition to \`next\`, emitting nothing.`), or in
+      the module header for free items, so docs.rs still says what every
+      member is for while the code reads clean. The one doctest in a removed
+      doc (`emit`'s) moved into `Step`'s type-level example. The macro's
+      maintainer notes are ARCHITECTURE 11.1, "How the macro is built"; the
+      rest is 16, "The Rust library's internals".
+      Checked as in 4a: code identical in all 11 files (strings included), no
+      new blank-line hazards, and the only added lines are folded member
+      lists and the relocated doctest line
+      - [x] `no-comments` now enforces `*.rs` everywhere, and gains the
+            documented check: in `documented_paths`, every file a header and
+            every public type, trait and macro a comment. It flagged six items
+            on first run, all undocumented before this stage too, and both
+            kinds are not API: items the macro generates (`pub enum $a`) and
+            `__tabula_*` helper macros. Both are excluded, and ARCHITECTURE 15
+            says so. Emulated: clean on the library, 4 of 4 planted defects
+            caught; the comment checker finds nothing in all 79 `.rs` files
+            and exactly 615 in the library's originals
 - [ ] Stage 5: Kotlin, `*.kt` and `*.kts` -- ~2,900 lines. KDoc on classes,
       interfaces and objects stays. `ReferenceTimer.kt`'s `GENERATED`
       marker: check whether anything reads it before removing

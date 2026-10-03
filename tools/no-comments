@@ -19,14 +19,13 @@ clean_patterns=(
     '*.yml'
     '*.yaml'
     '*.nix'
+    '*.rs'
 )
 
-clean_paths=(
-    'tabular-center-fmt/*.rs'
-    'tabular-center-rust/examples/*.rs'
-    'tabular-center-rust/tabular-center-conformance/*.rs'
-    'tabular-center-rust/tabular-center/benches/*.rs'
-    'tabular-center-rust/tabular-center/tests/*.rs'
+clean_paths=()
+
+documented_paths=(
+    'tabular-center-rust/tabular-center/src/*.rs'
 )
 
 clean_files=(
@@ -58,7 +57,7 @@ name_expression=(-false)
 for p in "${clean_patterns[@]}"; do
     name_expression+=(-o -name "$p")
 done
-for p in "${clean_paths[@]}"; do
+for p in "${clean_paths[@]+"${clean_paths[@]}"}"; do
     name_expression+=(-o -path "./$p")
 done
 
@@ -219,6 +218,37 @@ find_comments() {
     ' "$2"
 }
 
+find_undocumented() {
+    FILE="$1" awk '
+        BEGIN { last = "start" }
+        /^[[:space:]]*$/ { if (last != "start") last = "blank"; next }
+        last == "start" && $0 !~ /^[[:space:]]*\/\// {
+            printf "%s:%d: no file header\n", ENVIRON["FILE"], FNR
+            last = "code"
+        }
+        /^[[:space:]]*\/\// { last = "comment"; next }
+        /^[[:space:]]*#!?\[/ { next }
+        {
+            if ($0 ~ /^[[:space:]]*pub[[:space:]]+(struct|enum|trait|union|type)[[:space:]]+[A-Za-z_]/ || $0 ~ /^[[:space:]]*macro_rules![[:space:]]+[A-Za-z][A-Za-z0-9_]*/) {
+                if (last != "comment") printf "%s:%d: public type without a comment: %s\n", ENVIRON["FILE"], FNR, $0
+            }
+            last = "code"
+        }
+    ' "$1"
+}
+
+documented=()
+while IFS= read -r f; do
+    documented+=("$f")
+done < <(for p in "${documented_paths[@]}"; do find . -path "./$p" -type f; done | sed 's|^\./||' | LC_ALL=C sort)
+
+undocumented="$(for f in "${documented[@]+"${documented[@]}"}"; do find_undocumented "$f"; done)"
+if [ -n "$undocumented" ]; then
+    echo "FAIL every published file needs a header and every public type a comment (ARCHITECTURE 15):"
+    while IFS= read -r line; do echo "  $line"; done <<<"$undocumented"
+    exit 1
+fi
+
 findings="$(for f in "${files[@]}"; do find_comments "$(comment_style "$f")" "$f"; done)"
 
 if [ -n "$findings" ]; then
@@ -230,4 +260,4 @@ if [ -n "$findings" ]; then
     exit 1
 fi
 
-echo "ok   no comments in ${#files[@]} files (${clean_patterns[*]}, ${#clean_paths[@]} path patterns, ${#clean_files[@]} named files)"
+echo "ok   no comments in ${#files[@]} files (${clean_patterns[*]}, ${#clean_files[@]} named files); ${#documented[@]} published files documented"

@@ -47,34 +47,31 @@
 use crate::step::{Outcome, Step};
 
 /// Why a driver call could not proceed.
+///
+/// - `QueueFull`: The mailbox is full.
+/// - `QueueFull.capacity`: The mailbox capacity that was exceeded.
+/// - `Reentered`: [`Driver::run`] was called from inside itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DriverError {
-    /// The mailbox is full. Carries its capacity, which is a compile-time
-    /// property of the driver.
     QueueFull {
-        /// The mailbox capacity that was exceeded.
         capacity: usize,
     },
-    /// [`Driver::run`] was called from inside itself.
-    ///
-    /// Reaching this means something handed a handler a way back into the
-    /// driver. The design intends that to be impossible; the check exists so
-    /// that when it happens it is loud rather than silent.
     Reentered,
 }
 
 /// What one [`Driver::run`] accomplished.
+///
+/// - `steps`: Actions dispatched through `step`.
+/// - `effects`: Effects handed to the handler.
+/// - `follow_ups`: Follow-up actions the handler enqueued.
+/// - `transitions`: Transitions actually taken, i.e.
+/// - `ignored`: Actions the machine declared inapplicable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Progress {
-    /// Actions dispatched through `step`.
     pub steps: usize,
-    /// Effects handed to the handler.
     pub effects: usize,
-    /// Follow-up actions the handler enqueued.
     pub follow_ups: usize,
-    /// Transitions actually taken, i.e. `Outcome::Go`.
     pub transitions: usize,
-    /// Actions the machine declared inapplicable.
     pub ignored: usize,
 }
 
@@ -84,6 +81,14 @@ pub struct Progress {
 /// works under `no_std` with no allocator; overflow is reported rather than
 /// papered over, because an unbounded mailbox just moves the failure somewhere
 /// harder to see.
+///
+/// - `new`: A driver parked in `initial` with an empty mailbox.
+/// - `state`: The current state.
+/// - `pending`: Pending actions.
+/// - `capacity`: Mailbox capacity, i.e.
+/// - `enqueue`: Add an action to the back of the mailbox.
+/// - `dispatch`: Dispatch one action and drain everything it causes.
+/// - `run`: Drain the mailbox.
 pub struct Driver<S, A, const Q: usize = 8> {
     state: S,
     queue: [Option<A>; Q],
@@ -93,7 +98,6 @@ pub struct Driver<S, A, const Q: usize = 8> {
 }
 
 impl<S: Copy, A, const Q: usize> Driver<S, A, Q> {
-    /// A driver parked in `initial` with an empty mailbox.
     pub fn new(initial: S) -> Self {
         Self {
             state: initial,
@@ -104,22 +108,18 @@ impl<S: Copy, A, const Q: usize> Driver<S, A, Q> {
         }
     }
 
-    /// The current state.
     pub fn state(&self) -> S {
         self.state
     }
 
-    /// Pending actions.
     pub fn pending(&self) -> usize {
         self.len
     }
 
-    /// Mailbox capacity, i.e. `Q`.
     pub const fn capacity(&self) -> usize {
         Q
     }
 
-    /// Add an action to the back of the mailbox.
     pub fn enqueue(&mut self, action: A) -> Result<(), DriverError> {
         if self.len == Q {
             return Err(DriverError::QueueFull { capacity: Q });
@@ -140,13 +140,6 @@ impl<S: Copy, A, const Q: usize> Driver<S, A, Q> {
         a
     }
 
-    /// Dispatch one action and drain everything it causes.
-    ///
-    /// Equivalent to [`Driver::enqueue`] followed by [`Driver::run`].
-    ///
-    /// `env` is whatever both closures need — typically the cell object and
-    /// the context together. They receive it rather than capturing it, because
-    /// two closures capturing the same `&mut` do not compile.
     pub fn dispatch<Env, F, Ef, H, const K: usize>(
         &mut self,
         env: &mut Env,
@@ -162,12 +155,6 @@ impl<S: Copy, A, const Q: usize> Driver<S, A, Q> {
         self.run(env, step, perform)
     }
 
-    /// Drain the mailbox.
-    ///
-    /// Runs until nothing is pending: each action is stepped, its outcome
-    /// applied, its effects performed, and any follow-up actions the handler
-    /// returns are appended to the *back* of the mailbox. Strictly FIFO, so a
-    /// follow-up never jumps ahead of an action that was already waiting.
     pub fn run<Env, F, Ef, H, const K: usize>(
         &mut self,
         env: &mut Env,
@@ -203,8 +190,6 @@ impl<S: Copy, A, const Q: usize> Driver<S, A, Q> {
             let outcome = step(env, self.state, action);
             p.steps += 1;
 
-            // Outcome first, effects second: a handler that enqueues an action
-            // should see the post-transition state when that action is stepped.
             match outcome.outcome {
                 Outcome::Go(next) => {
                     self.state = next;
@@ -217,7 +202,6 @@ impl<S: Copy, A, const Q: usize> Driver<S, A, Q> {
             for effect in outcome.effects {
                 p.effects += 1;
                 if let Some(follow_up) = perform(env, effect) {
-                    // Queued, never recursed. This is the whole point.
                     self.enqueue(follow_up)?;
                     p.follow_ups += 1;
                 }
@@ -274,7 +258,6 @@ mod tests {
                 |_, s, a| machine(s, a),
                 |_, e| {
                     seen.borrow_mut().push(e);
-                    // Ping asks for another action. Queued, not recursed.
                     match e {
                         Eff::Ping => Some(Act::Again),
                         Eff::Done => None,
@@ -292,9 +275,6 @@ mod tests {
 
     #[test]
     fn the_outcome_is_applied_before_effects_are_performed() {
-        // A handler that inspects state must see where the machine has gone,
-        // not where it was. `Step::go(B).emit(E)` means "we are in B; now do
-        // E", never "do E, then move".
         let mut d: Driver<S, Act, 8> = Driver::new(S::A);
         let observed = RefCell::new(Vec::new());
         d.dispatch(

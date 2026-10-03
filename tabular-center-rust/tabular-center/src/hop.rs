@@ -17,15 +17,16 @@
 /// state for the hop's action: `impl Hop<Ready> for Connecting { type To = Live; .. }`.
 ///
 /// Not for implementing by hand; the generated `narrow` is what uses it.
+///
+/// - `into_state`: This narrowed state, back as the machine's state.
+/// - `happy`: `Ok` if `next` is the hop's happy state, the state reached otherwise.
 pub trait Hop<A> {
     /// The machine's state type.
     type State;
     /// The state the hop leads to: the happy outcome.
     type To;
 
-    /// This narrowed state, back as the machine's state.
     fn into_state(self) -> Self::State;
 
-    /// `Ok` if `next` is the hop's happy state, the state reached otherwise.
     fn happy(next: Self::State) -> Result<Self::To, Self::State>;
 }

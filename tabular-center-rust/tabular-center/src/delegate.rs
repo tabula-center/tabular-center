@@ -69,25 +69,18 @@ use crate::machine::Machine;
 /// Written **once per (parent state, child)**, however many cells of that row
 /// delegate. `M` is the parent machine, `SV` the parent's narrowed state
 /// variant, `CM` the child machine's marker (`child::Marker`).
+///
+/// - `child_state`: Read the child's state out of the parent's.
+/// - `embed`: Put the child's state back into the parent's.
+/// - `lift`: Lift a child effect into the parent's vocabulary.
+/// - `child_ctx`: Hand the child its context.
 pub trait Lens<M: Machine, SV, CM: Machine> {
-    /// Read the child's state out of the parent's. Half of the lens.
     fn child_state(&mut self, state: &SV) -> CM::State;
 
-    /// Put the child's state back into the parent's. The other half.
-    ///
-    /// Returns the full parent state rather than the narrowed variant, so a
-    /// delegate may move the parent elsewhere on a child transition — a child
-    /// reaching its terminal state is often the parent's cue to leave.
     fn embed(&mut self, state: SV, child: CM::State) -> M::State;
 
-    /// Lift a child effect into the parent's vocabulary.
     fn lift(&mut self, effect: CM::Effect) -> M::Effect;
 
-    /// Hand the child its context.
-    ///
-    /// When the parent's context *contains* the child's this is a field
-    /// access, which is the shape to aim for: the child then never sees parent
-    /// data it has no business with.
     fn child_ctx<'a>(&mut self, ctx: &'a mut M::Ctx) -> &'a mut CM::Ctx;
 }
 
@@ -95,13 +88,9 @@ pub trait Lens<M: Machine, SV, CM: Machine> {
 ///
 /// The only part of composition that is genuinely per cell. Everything else is
 /// [`Lens`].
+///
+/// - `to_child`: Translate the parent action into a child action.
 pub trait Delegate<M: Machine, SV, AV, CM: Machine>: Lens<M, SV, CM> {
-    /// Translate the parent action into a child action.
-    ///
-    /// `None` means this action has no meaning for the child, and the cell
-    /// reports [`crate::Outcome::Ignored`]. That is the honest answer for a
-    /// parent action the child's alphabet does not contain, and it keeps the
-    /// `IGNORE` / `Stay` distinction intact.
     fn to_child(&mut self, ctx: &mut M::Ctx, state: &SV, action: AV) -> Option<CM::Action>;
 }
 
