@@ -21,6 +21,20 @@ clean_patterns=(
     '*.nix'
 )
 
+clean_files=(
+    .editorconfig
+    .gitignore
+    justfile
+    tools/docs
+    tools/no-comments
+    tabular-center-fmt/tools/verify
+    tabular-center-kotlin/tools/central-bundle
+    tabular-center-kotlin/tools/gradle-lock
+    tabular-center-rust/tools/asm-diff
+    tabular-center-rust/tools/compile-fail
+    tabular-center-swift/tools/swift-lock
+)
+
 skipped_directories=(.git target .build build .gradle .gradle-home .kotlin doc result node_modules)
 
 prune_expression=(-false)
@@ -37,6 +51,14 @@ files=()
 while IFS= read -r f; do
     files+=("$f")
 done < <(find . \( "${prune_expression[@]}" \) -prune -o -type f \( "${name_expression[@]}" \) -print | sed 's|^\./||' | LC_ALL=C sort)
+
+for f in "${clean_files[@]}"; do
+    if [ ! -f "$f" ]; then
+        echo "FAIL no-comments: $f is listed in clean_files but does not exist"
+        exit 1
+    fi
+    files+=("$f")
+done
 
 if [ "${#files[@]}" -eq 0 ]; then
     echo "FAIL no-comments found no files matching ${clean_patterns[*]}; it checked nothing"
@@ -69,6 +91,9 @@ find_comments() {
         }
         function is_type_declaration(code) {
             return code ~ /^[[:space:]]*(((pub(\([^)]*\))?|public|private|internal|protected|fileprivate|open|final|abstract|sealed|data|enum|annotation|inline|value|fun|indirect|companion|expect|actual|unsafe|@[A-Za-z_][A-Za-z0-9_.]*)[[:space:]]+)*(struct|enum|trait|union|type|class|interface|object|protocol|actor|typealias)[[:space:]]|macro_rules![[:space:]])/
+        }
+        function is_just_recipe(code) {
+            return ENVIRON["FILE"] ~ /(^|\/)justfile$/ && code !~ /:=/ && code ~ /^@?[A-Za-z_][A-Za-z0-9_-]*([[:space:]].*)?:/
         }
         function is_attribute(code) {
             return code ~ /^[[:space:]]*(#!?\[|@[A-Za-z_])/
@@ -121,10 +146,11 @@ find_comments() {
 
             if (code ~ /^[[:space:]]*#/) { comment_line($0); next }
             if (code ~ /[[:space:]]#/) trailing($0)
+            if (is_just_recipe(code)) held_count = 0
             report_held()
             seen_code = 1
-            if (match(code, /<<-?[[:space:]]*["'"'"']?[A-Za-z_][A-Za-z0-9_]*["'"'"']?/)) {
-                marker = substr(code, RSTART, RLENGTH)
+            if ($0 !~ /<<</ && match($0, /<<-?[[:space:]]*["'"'"']?[A-Za-z_][A-Za-z0-9_]*["'"'"']?/)) {
+                marker = substr($0, RSTART, RLENGTH)
                 gsub(/^<<-?[[:space:]]*["'"'"']?|["'"'"']$/, "", marker)
                 heredoc_end = marker
             }
@@ -144,4 +170,4 @@ if [ -n "$findings" ]; then
     exit 1
 fi
 
-echo "ok   no comments in ${#files[@]} files (${clean_patterns[*]})"
+echo "ok   no comments in ${#files[@]} files (${clean_patterns[*]} and ${#clean_files[@]} named files)"

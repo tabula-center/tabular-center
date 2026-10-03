@@ -529,8 +529,9 @@ with `tools/no-comments` enforcing exactly the types already migrated
 (`clean_patterns`), so nothing migrated can regress while the rest waits.
 
 Per stage, Stage 2's method -- read every comment, write the headers, move
-the reasons, then strip mechanically and prove the only non-comment change
-is the intended one: read every comment; keep or write the file's header and each
+the reasons, strip mechanically, prove the only non-comment change is the
+intended one, and emulate `no-comments` over every file in scope before
+enabling it: read every comment; keep or write the file's header and each
 type's comment, as orientation and usage rather than history; move the rest
 a reader needs (design and constraints to ARCHITECTURE, the section it
 belongs to or 16 for build configuration; history and findings here;
@@ -578,12 +579,33 @@ ARCHITECTURE 15's exemptions and `is_directive` if it is not already.
       changed line that is not a comment or a blank is the one trailing
       comment removed, and no heredoc body held a `#` line, so no generated
       file changes
-- [ ] Stage 3: shell -- `tools/*`, `tabular-center-*/tools/*`, plus
-      `justfile`, `.editorconfig`, `.gitignore`. ~1,750 lines, most of them
-      in the four `verify` scripts, which carry the longest rationale in the
-      tree; much of it is already history in this file and is deleted rather
-      than moved. `no-comments` needs to select these by name and shebang, not
-      extension
+- [x] **Stage 3a: the smaller shell scripts and repository files** --
+      `tools/docs`, `gradle-lock`, `swift-lock`, Rust's `compile-fail`,
+      `central-bundle`, the formatter's `verify`, `.editorconfig`,
+      `.gitignore`; 427 lines removed. Reasons to ARCHITECTURE 16, "Scripts
+      and repository files". `no-comments` now also takes a `clean_files`
+      list, since scripts have no extension to match. Checked: the only
+      changed code line is one trailing comment; shellcheck's findings are
+      identical before and after; every heredoc and quoted line is
+      byte-identical (536 in `tools/docs`, the site's prose). The
+      formatter's `verify` header said alignment was "not yet wired" --
+      stale, it is `tb-aligned`; `.gitignore` listed two patterns twice
+      - [x] `justfile` needs no change: the comment above each recipe is
+            its description in `just --list`, read by a tool, so it is
+            exempt (ARCHITECTURE 15) and `no-comments` allows a comment
+            directly above a recipe line
+      - [x] **A bug in `no-comments`, found before it shipped.** It looked
+            for a heredoc marker after stripping quoted text, so
+            `prose <<'MD'` lost its `'MD'`, the heredoc went unrecognised,
+            and every markdown heading `tools/docs` writes read as a comment.
+            Found by emulating the checker over every file in scope before
+            enabling it, which is now part of each stage's method; it now
+            detects the marker on the raw line
+- [ ] Stage 3b: the four `verify` scripts (root, Rust, Kotlin, Swift) --
+      ~1,270 lines, the longest rationale in the tree; much of it is already
+      history in this file and is deleted rather than moved. Same method:
+      lexer-classified strip, shellcheck and heredoc identity, checker
+      emulation, then add them to `clean_files`
 - [ ] Stage 4: Rust -- tests, examples, benches, the conformance crate and
       the library. `reference_timer.rs` is "the macro's specification": its
       header keeps that, and the part-by-part narrative inside it becomes

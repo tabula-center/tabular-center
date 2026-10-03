@@ -1,3 +1,6 @@
+# Editor settings for every file, and the one exemption the matrix files
+# need: ktlint must not realign or wrap a `*.tb.kt` matrix, whose columns are
+# the point (spec/matrix-files.md; ARCHITECTURE.md 16).
 root = true
 
 [*]
@@ -13,19 +16,7 @@ indent_size = 4
 [*.{nix,json,yml,yaml,toml,md}]
 indent_size = 2
 
-# The matrix declarations are column-aligned on purpose: a hole in the table
-# should be visible to a human reviewer before the compiler ever runs.
-# Alignment rules must not reformat them.
-#
-# Scoped to `*.tb.kt` and nothing else. This used to disable the same rules for
-# every `.kt` file in the project, which protected the few holding matrices by
-# giving up formatting on all the ordinary code -- a wide exemption for a
-# narrow problem. See spec/matrix-files.md.
 [*.tb.kt]
-# A matrix is as wide as it is. Wrapping one is the only way to break it, and
-# the columns are the point: `kotlin-matrix-stable` runs the formatter over
-# these files and compares the rows, so a rule that reflows them would fail
-# there rather than quietly ruining the grid.
 max_line_length = off
 ktlint_standard_no-multi-spaces = disabled
 ktlint_standard_annotation = disabled

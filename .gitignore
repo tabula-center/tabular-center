@@ -1,87 +1,38 @@
-# Rust
+# Build output, caches and editor files for all three languages, the
+# formatter, Nix and the Pages site. Why the less obvious patterns are as
+# they are (unanchored .gradle/, which Package.resolved is kept): see
+# ARCHITECTURE.md 16, "Scripts and repository files".
 /tabular-center-rust/target/
 **/*.rs.bk
-# Kotlin / Gradle
-#
-# Unanchored, because Gradle writes a `.gradle/` beside every build file and
-# this repository now has four: tabular-center-kotlin/ksp, tabular-center-kotlin/ksp/compile-fail,
-# tabular-center-kotlin/examples/06-generated, and whatever comes next. The anchored patterns
-# below reached only the first level, so `tabular-center-kotlin/ksp/.gradle/executionHistory`
-# was committed -- caches, locks and machine-specific paths in git history.
-#
-# Already-tracked copies are not removed by a pattern. That takes
-#
-#   git rm -r --cached tabular-center-kotlin/ksp/.gradle tabular-center-kotlin/ksp/compile-fail/.gradle
-#
-# once, and then they stay out.
 .gradle/
 /tabular-center-kotlin/**/build/
-
 /tabular-center-kotlin/.gradle/
 /tabular-center-kotlin/build/
 /tabular-center-kotlin/codegen/emitted/
 /tabular-center-kotlin/*/build/
 /tabular-center-kotlin/.gradle-home/
-# The dev shells anchor GRADLE_USER_HOME at tabular-center-kotlin/.gradle-home.
-# Kept unanchored as well, for a shell entered before that change, which put
-# it wherever `nix develop` was typed.
 .gradle-home/
-# Kotlin
-#
-# The module builds with `kotlinc` directly for now, which writes wherever it
-# is told rather than into a build directory a build system would already
-# ignore. 59 class files and a 4.7 MB jar reached a commit before this existed.
 /tabular-center-kotlin/out/
 /tabular-center-kotlin/testout/
 /tabular-center-kotlin/testout.jar
-/tabular-center-kotlin/build/
-/tabular-center-kotlin/codegen/emitted/
-
-# Swift
 /tabular-center-swift/.build/
 /tabular-center-swift/Package.resolved
 /tabular-center-swift/*.xcodeproj
-# The macro package is a SEPARATE SwiftPM package, so the anchored patterns
-# above do not reach it.
 /tabular-center-swift/macros/.build/
-
-# `tabular-center-swift/macros/Package.resolved` is deliberately NOT ignored, unlike the one
-# above it. The main package has no dependencies, so its resolved file pins
-# nothing and committing it would be noise. This one pins swift-syntax to a
-# revision, and `tabular-center-swift/tools/swift-lock` reads that revision to build the offline
-# artifact set -- so it is the input to a lock rather than a build artifact.
-# Nix
 .direnv/
 result
 result-*
-# Editors
 .idea/
 .vscode/
 *.swp
 .DS_Store
-
-# Examples build output
-#
-# Not just 07-compose: the anchored Kotlin patterns above stop at /kotlin/, so
-# every Gradle example writes a build/ nothing was ignoring -- 06-generated
-# included, which had simply never been built in a working tree before.
 /tabular-center-kotlin/examples/*/build/
 /tabular-center-rust/examples/target/
 /tabular-center-fmt/target/
 /tabular-center-rust/examples/05-iced/target/
 /tabular-center-swift/examples/.build/
 /tabular-center-swift/examples/Package.resolved
-
-# The Pages site: build output of tools/docs, rendered and deployed by
-# .github/workflows/pages.yml, never committed. Covers a local Jekyll preview
-# under doc/_site/ too.
 /doc/
 .jekyll-cache/
-
-# An older location of the same output; ignored so a leftover local copy
-# stays out of commits.
 /docs/
-
-# Kotlin 2.x keeps per-project compiler session data here, wherever a
-# Gradle build runs (07-compose made one under `nix run .#release`).
 .kotlin/

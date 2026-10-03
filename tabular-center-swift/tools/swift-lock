@@ -1,44 +1,14 @@
 #!/usr/bin/env bash
-# Record tabular-center-swift/macros' SwiftPM dependencies, with URLs and hashes.
+# Record the macro package's SwiftPM dependencies (swift-syntax), with URLs
+# and sha256, in nix/swift-lock.json, so the macro package builds offline.
 #
-#   nix run .#swift-lock            regenerate nix/swift-lock.json
-#   nix run .#swift-lock -- --check verify the committed lock is current
+#   nix run .#swift-lock              regenerate the lock
+#   nix run .#swift-lock -- --check   verify the committed lock is current
 #
-# NEEDS NETWORK, and is the second of exactly two commands in the repository
-# that do. The first is `tools/gradle-lock`; this is the same idea against a
-# different package manager, and deliberately the same shape so that reading
-# one teaches you the other.
-#
-# Why the macro package needs this at all: `tabular-center-swift/macros` is the only thing
-# here that links swift-syntax, which is a remote SwiftPM package. Every other
-# Swift target builds offline, which is exactly why the macro lives in its own
-# package (PLAN, "TabularCenterMacros -- decided: a separate package").
-#
-# ## Why not let SwiftPM fetch inside the build
-#
-# Same answer as Maven, arrived at the same way. A fixed-output derivation that
-# runs SwiftPM in a sandbox asks a program with its own network stack, its own
-# TLS trust, and its own cache layout to be reproducible, and reports every one
-# of those failing as a resolution error. `Package.resolved` already pins a
-# revision; from a revision the artifact is one URL, and from one URL nix's own
-# fetcher does the rest with a hash it can verify.
-#
-# ## How the URL is recovered
-#
-# GitHub serves any revision as a tarball at
-# `<repo>/archive/<revision>.tar.gz`, so the pin in `Package.resolved` IS the
-# URL once the `.git` suffix is dropped. No cache archaeology, unlike the
-# Gradle side -- SwiftPM writes the pin down as a matter of course.
-#
-# The sha256 is taken from the bytes that arrive. A wrong URL cannot record a
-# right hash, which is what makes this checkable rather than merely plausible.
-#
-# It is the hash of the TARBALL, not of the unpacked tree, which constrains the
-# other side: `nix/swift-deps.nix` must use `fetchurl` and untar itself.
-# `fetchzip` would be the obvious choice and hashes the extracted NAR instead,
-# so it reports a mismatch between two hashes that are both correct. The
-# tarball hash is the one to record here, because `sha256sum` is available on
-# any machine and `nix hash` is not.
+# Needs network: the second of the two commands in the repository that reach
+# it, and the same shape as tools/gradle-lock. The URL is the GitHub archive of
+# the revision Package.resolved pins; the hash is of the tarball as
+# downloaded. ARCHITECTURE.md 16, "Scripts".
 set -uo pipefail
 
 cd "$(dirname "$0")/../.." || exit 1
@@ -56,16 +26,6 @@ for tool in swift swiftc curl sha256sum jq; do
     }
 done
 
-# Name the compiler for SwiftPM rather than letting it search.
-#
-# SwiftPM finds `swiftc` by its own toolchain discovery, not simply the first
-# one on PATH, and `nix develop` ADDS to the host's PATH rather than replacing
-# it. GitHub's Ubuntu image ships a Swift of its own. On CI, SwiftPM got an
-# empty answer from `swiftc -print-target-info` while ours, asked directly,
-# answered correctly -- and the same shell passed on a machine with no second
-# Swift. A foreign swiftc running under this shell's LD_LIBRARY_PATH (nix's
-# Swift 5.10 runtime) is the likeliest way to print nothing. SWIFT_EXEC is
-# SwiftPM's own override for exactly this choice.
 SWIFT_EXEC="$(command -v swiftc)"
 export SWIFT_EXEC
 echo "swiftc $SWIFT_EXEC"
@@ -73,9 +33,6 @@ echo "swiftc $SWIFT_EXEC"
 echo "== resolving (this reaches the network) =="
 if ! (cd "$PKG" && swift package resolve); then
     echo
-    # SwiftPM swallows the compiler's stderr when target-info comes back empty
-    # and reports "malformed json" instead. Ask directly, so a broken
-    # toolchain environment shows its own error rather than SwiftPM's.
     echo "every swiftc on PATH (SwiftPM was told $SWIFT_EXEC):"
     type -a swiftc 2>/dev/null | sed 's/^/  /'
     echo "swiftc -print-target-info, asked directly:"
@@ -93,9 +50,6 @@ resolved="$PKG/Package.resolved"
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 
-# `pins` in v2, `object.pins` in v1. Both spellings, because the file's
-# version follows the toolchain and a lock generator that only understands the
-# toolchain it was written on is a lock generator that breaks on upgrade.
 pins="$(jq -c '(.pins // .object.pins)[]' "$resolved" 2>/dev/null)"
 [ -n "$pins" ] || { echo "swift-lock: could not read pins from $resolved"; exit 1; }
 

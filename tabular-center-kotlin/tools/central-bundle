@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
-# Builds the Maven Central bundle for every Kotlin artifact.
+# Build the Maven Central bundle for every Kotlin artifact: the root build's
+# four and the KSP processor, in one Maven-layout directory, zipped.
 #
 #   tabular-center-kotlin/tools/central-bundle STAGING_DIR BUNDLE_ZIP
 #
-# Publishes the root build's four artifacts and the KSP processor's build into
-# one Maven-layout directory, then zips it: the bundle the Central Portal's
-# publisher API takes. Signed when SIGNING_KEY is set (gradle/publication.gradle.kts);
-# offline when TABULAR_CENTER_MAVEN_REPO points at nix's pinned artifact set.
-#
-# Used by `nix run .#publish` to upload, and by the kotlin-publication check
-# to prove, on every push, that the bundle would pass Central's rules.
+# Signed when SIGNING_KEY is set (gradle/publication.gradle.kts); offline when
+# TABULAR_CENTER_MAVEN_REPO points at Nix's pinned artifacts. Used by
+# `nix run .#publish` and by the kotlin-publication check.
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 staging="$1"
@@ -27,15 +24,12 @@ gradle_run() {
 
 rm -rf "$staging" "$bundle"
 mkdir -p "$staging" "$(dirname "$bundle")"
-# Absolute: zip runs from inside the staging directory.
 bundle="$(cd "$(dirname "$bundle")" && pwd)/$(basename "$bundle")"
 export TABULAR_CENTER_STAGING="$staging"
 
 (cd "$here" && gradle_run --no-daemon --console=plain publishAllPublicationsToStagingRepository)
 (cd "$here/ksp" && gradle_run --no-daemon --console=plain publishAllPublicationsToStagingRepository)
 
-# maven-metadata*.xml belong to a repository, not to a release; Central
-# builds its own.
 find "$staging" -name 'maven-metadata*' -delete
 (cd "$staging" && zip -qr "$bundle" .)
 echo "bundle: $bundle ($(cd "$staging" && find . -type f | wc -l | tr -d ' ') files)"

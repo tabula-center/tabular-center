@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Compile-fail harness. Every diagnostic in spec/diagnostics.md gets a fixture
-# under tabular-center-rust/tabular-center/tests/compile_fail/, and each fixture must fail to compile
-# with the message named in its `//~ EXPECT:` line.
+# Compile-fail harness for the Rust crate. Each fixture under
+# tabular-center/tests/compile_fail/ must be REFUSED by rustc, with the message
+# its `//~ EXPECT:` line names.
 #
-# Deliberately not `trybuild`: it would be the crate's only dev-dependency, and
-# the zero-dependency rule is worth more than the convenience.
+#   tabular-center-rust/tools/compile-fail      (or: tools/verify compile-fail)
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
@@ -12,20 +11,6 @@ FIXTURES="tabular-center/tests/compile_fail"
 OUT="$(mktemp -d)"
 trap 'rm -rf "$OUT"' EXIT
 
-# The uplifted rlib, at a stable hash-free path.
-#
-# This used to be `ls -t deps/libtabular_center-*.rlib | head -1`, which picks by mtime
-# out of however many builds are lying around -- different feature sets,
-# different RUSTFLAGS, stale artifacts. It failed once in a sequence that would
-# not reproduce, which is exactly what a heuristic like that produces.
-#
-# Parsing `--message-format=json` was the next attempt and is worse: cargo only
-# emits `filenames` when it actually rebuilds, so it returns nothing on a no-op
-# build -- correct on a clean tree and silently empty on every subsequent run.
-#
-# cargo copies the library to target/debug/libtabular_center.rlib regardless. No mtime
-# race, no JSON, no jq. The glob stays as a fallback for toolchains that do not
-# uplift.
 cargo build --quiet --all-features || { echo "build failed"; exit 1; }
 
 DEPS="target/debug/deps"
@@ -49,11 +34,6 @@ for f in "$FIXTURES"/*.rs; do
         fail=$((fail + 1)); continue
     fi
 
-    # The exit status, not an empty stderr. A fixture that compiles but emits
-    # a warning has non-empty output, so it used to fall through to the
-    # message match below -- and a warning containing the EXPECT string would
-    # have reported a fixture that compiled cleanly as ok. The question here
-    # is whether rustc refused the file, so ask rustc.
     err="$(rustc --edition 2021 --crate-type bin --emit metadata \
         --extern tabular_center="$RLIB" -L "$DEPS" \
         -o "$OUT/$name.meta" "$f" 2>&1)"

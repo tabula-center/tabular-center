@@ -1,73 +1,22 @@
 #!/usr/bin/env bash
-# Record every Maven artifact the KSP example needs, with its URL and hash.
+# Record every Maven artifact the Kotlin Gradle builds need, with its URL and
+# sha256, in nix/gradle-lock.json, so `nix flake check` resolves nothing.
 #
-#   ./tabular-center-kotlin/tools/gradle-lock            regenerate nix/gradle-lock.json
-#   ./tabular-center-kotlin/tools/gradle-lock --check    verify the committed lock is complete
+#   nix run .#gradle-lock              regenerate the lock
+#   nix run .#gradle-lock -- --check   verify the committed lock is current
 #
-# NEEDS NETWORK. That is the point: this is the one command in the repository
-# that reaches Maven, it is run by a person or by CI, and its output is
-# committed. Afterwards `nix flake check` resolves nothing -- every artifact is
-# an ordinary `fetchurl` with a pinned hash, fetched by nix's own downloader.
-#
-# ## Why not a fixed-output derivation
-#
-# `nix/gradle-deps.nix` was one, and it was the wrong shape twice over.
-#
-# It asked the JVM to do the fetching inside a nix sandbox, which is a
-# networking question with three indistinguishable failure modes -- no route,
-# no DNS, no CA bundle the JVM will read -- all of which Gradle reports as
-# `could not resolve plugin artifact ... Searched in the following
-# repositories`. Five patches were spent on that one summary line.
-#
-# And a Gradle cache does not hash reproducibly. `caches/modules-2` carries
-# `.lock` files, `gc.properties`, and binary descriptors keyed by absolute
-# paths, so the `outputHash` a first build reports is not necessarily the one
-# the second produces. Deleting the locks narrows that; it does not close it.
-#
-# One artifact, one `fetchurl`, one hash is the shape nix already knows how to
-# make reproducible. It is what gradle2nix does, and the core of it is small
-# enough to own rather than depend on.
-#
-# ## How the URLs are recovered
-#
-# gradle2nix runs a Gradle plugin to ask the resolution engine where each
-# artifact came from. This does the same job from the outside, and the cache
-# layout is what makes it possible:
-#
-#   caches/modules-2/files-2.1/<group>/<name>/<version>/<sha1>/<file>
-#
-# Those four components are exactly a Maven coordinate, and a Maven coordinate
-# is exactly a path under a repository root. So: walk the cache, rebuild the
-# path, and try each known repository root until one serves a file whose
-# sha256 matches the one on disk.
-#
-# The hash comparison is not belt-and-braces -- it is the whole proof. A
-# reconstructed URL that is wrong cannot pass it, so this cannot silently
-# record a plausible URL for the wrong bytes. It costs a second download per
-# artifact, which is the right trade for a command run once per dependency
-# change.
+# Needs network: one of the two commands in the repository that reach it.
+# Resolves every build under examples/ in a fresh Gradle home, recovers each
+# artifact's URL from the cache layout, and proves it by downloading the bytes
+# and matching their hash. ARCHITECTURE.md 16, "Scripts".
 set -uo pipefail
 
-# Byte order, whoever runs this. The output is committed and `--check`
-# regenerates it and diffs, so every `sort` here must order the same way on
-# every machine -- and `sort` follows the locale: en_US.UTF-8 ignores
-# punctuation, C compares bytes. A lock written on a desktop put
-# `annotation/1.9.1/` before `annotation-jvm/`; CI, in C, put it after, and
-# called an up-to-date lock stale.
 export LC_ALL=C
 
-# Repo root: the builds it resolves are under examples/, the lock is ours.
 cd "$(dirname "$0")/../.." || exit 1
 
 LOCK="tabular-center-kotlin/nix/gradle-lock.json"
 
-# Every Gradle build under tabular-center-kotlin/examples, discovered rather than listed.
-#
-# This was one hardcoded path, and adding the Compose example did not change
-# the lock: `nix run .#gradle-lock` resolved 06-generated, recorded exactly
-# what it already had, and reported success. The build that needed locking was
-# never asked. A directory with a settings.gradle.kts is a build; finding them
-# is the same enumerate-rather-than-name rule the checks follow.
 EXAMPLES=()
 while IFS= read -r settings; do
     EXAMPLES+=("$(dirname "$settings")")
@@ -78,19 +27,10 @@ if [ "${#EXAMPLES[@]}" -eq 0 ]; then
     exit 1
 fi
 
-# Every repository the builds declare, in the order Gradle would try them.
-# Adding a repository to a build file means adding it here; the check below
-# fails loudly rather than quietly recording nothing, because an artifact whose
-# URL cannot be found is reported by name.
 REPOS=(
     "https://repo1.maven.org/maven2"
     "https://plugins.gradle.org/m2"
-    # Google's, for the androidx artifacts Compose Desktop depends on
-    # (lifecycle, annotation), which are published nowhere else.
     "https://dl.google.com/dl/android/maven2"
-    # Compose Multiplatform. Released versions are on Maven Central, but the
-    # JetBrains repository is what the build declares as well, and a URL that
-    # cannot be recovered fails this script by name.
     "https://maven.pkg.jetbrains.space/public/p/compose/dev"
 )
 
@@ -109,36 +49,12 @@ trap 'rm -rf "$scratch"' EXIT
 guh="$scratch/gradle-home"
 mkdir -p "$guh"
 
-# Recorded in the lock, because the artifact set is a function of it.
-#
-# Two Gradle versions can want two different sets for the same build file --
-# different plugin marker resolution, different metadata variants -- so a lock
-# is only meaningful alongside the version that produced it. Without this the
-# replay failure is `Could not find <some artifact>` against a directory that
-# looks complete, with nothing pointing at the cause.
 gradle_version="$(gradle --version 2>/dev/null | awk '/^Gradle /{print $2; exit}')"
 [ -n "$gradle_version" ] || gradle_version="unknown"
 echo "gradle $gradle_version"
 
-# A FRESH GRADLE_USER_HOME, every time.
-#
-# Against a warm cache this records whatever happens to be sitting there,
-# including artifacts a previous branch needed and this one does not -- and,
-# worse, misses nothing, so the lock looks complete while being a superset
-# nobody can reproduce. An empty home makes the download set the dependency
-# set.
-# Every build, into ONE cache: the lock is their union, because the offline
-# repository has to satisfy all of them.
-# The platforms nix checks on: ci.yml runs Linux x86-64 and macOS on Apple
-# silicon, and the other two are where people develop. Keys of
-# `desktopTargets` in 07-compose/build.gradle.kts.
 DESKTOP_TARGETS=(linux-x64 linux-arm64 macos-x64 macos-arm64)
 
-# Which JVM Gradle may use. `nix run .#gradle-lock` sets
-# TABULAR_CENTER_JDK_HOME to the flake's JDK, and then that JDK is the only
-# one Gradle sees -- for its own daemon and for `jvmToolchain(21)` -- exactly
-# as in the checks, which write the same three settings into their
-# GRADLE_USER_HOME. Run bare, without it, Gradle chooses as it always did.
 jvm_flags=(-Dorg.gradle.java.installations.auto-download=false)
 if [ -n "${TABULAR_CENTER_JDK_HOME:-}" ]; then
     jvm_flags+=(
@@ -162,13 +78,6 @@ for example in "${EXAMPLES[@]}"; do
         exit 1
     fi
 
-    # Per-platform artifacts. `build` above resolved THIS machine's -- Compose
-    # Desktop's natives are chosen by OS and CPU -- and a lock holding one
-    # platform's fails every other: the macOS CI job went looking for
-    # desktop-jvm-macos-arm64 in a lock made on Linux. A build that declares
-    # `resolveForLock` takes `-PdesktopTarget` and downloads that platform's
-    # runtime classpath without building against it; each platform nix
-    # checks on goes into the same cache, so the lock is their union.
     if grep -q 'resolveForLock' "$example/build.gradle.kts"; then
         for target in "${DESKTOP_TARGETS[@]}"; do
             echo "== resolving $example for $target (this reaches the network) =="
@@ -193,18 +102,14 @@ missing=""
 count=0
 
 while IFS= read -r f; do
-    # .../files-2.1/<group>/<name>/<version>/<sha1>/<file>
     local_sha="$(sha256sum "$f" | cut -d' ' -f1)"
     file="$(basename "$f")"
-    rest="$(dirname "$(dirname "$f")")"      # strip <sha1>/
+    rest="$(dirname "$(dirname "$f")")"
     version="$(basename "$rest")"
     rest="$(dirname "$rest")"
     name="$(basename "$rest")"
     group="$(basename "$(dirname "$rest")")"
 
-    # Maven layout: the group's dots become directory separators. Everything
-    # else is already in the right shape, which is why no coordinate parsing
-    # happens on the nix side -- the path in the lock IS the path in the repo.
     path="${group//.//}/$name/$version/$file"
 
     found=""
@@ -215,9 +120,6 @@ while IFS= read -r f; do
                 found="$url"
                 break
             fi
-            # Same path, different bytes. A repository that mirrors a
-            # coordinate it does not own will do this, and recording it would
-            # pin the wrong artifact under a name that looks right.
             echo "note: $base serves $path with different content; trying the next"
         fi
     done
@@ -243,9 +145,6 @@ if [ -n "$missing" ]; then
     exit 1
 fi
 
-# Sorted, and the trailing comma removed, so the file is a stable diff. An
-# artifact set that reorders between runs makes every regeneration look like a
-# dependency change.
 generated="$scratch/lock.json"
 {
     echo '{'

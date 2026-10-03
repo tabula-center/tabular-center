@@ -1207,6 +1207,8 @@ not prose for a person:
 - the version annotation on an action pinned to a commit
   (`uses: owner/action@<40 hex> # v1.2.3`), which Dependabot reads to update
   the pin;
+- in a `justfile`, the comment line directly above a recipe, which
+  `just --list` shows as the recipe's description;
 - the column-header line above a matrix in a `.tb.*` file
   (`//    Start    Tick    Cancel`): the table's labels, data rather than
   commentary, and aligned with the rows by `tabular-center-fmt`.
@@ -1566,3 +1568,107 @@ are here. Grouped by file, so a reader of one finds its reasons in one place.
   validation the release is Central's to finish, so `PUBLISHING` ends the
   wait as `PUBLISHED` does, and `FAILED` prints Central's reasons. Swift has
   no registry: the pushed tag triggers the mirror workflow.
+
+### Scripts and repository files
+
+- **`tools/docs` includes, never pastes.** Every sample is cut from the tree
+  at generation time by file and regex range (awk EREs passed through the
+  environment, because `-v` runs escape processing and would turn `\{` into
+  `{`); a range that stops matching fails the generator and `tools/verify
+  docs`, so a page cannot show a machine that no longer builds. Pages are
+  written from quoted heredocs only, since markdown's backticks would run as
+  commands in an unquoted one. Heading anchors are injected as `<a id>`
+  rather than derived, because Jekyll and GitHub derive them differently and
+  across versions, and these anchors sit inside error messages; codes without
+  a section of their own get an anchor in an index at the end, only where one
+  is missing (duplicate ids are invalid and the first would win).
+  `DOCS_BASE` is the one place the site's URL lives, because every
+  implementation's messages link under it. Generation starts from an empty
+  `doc/`, so a page the generator stopped writing cannot linger. The
+  `doc/` history -- a workflow that Pages ignored, then committed output
+  served from the branch, then a workflow again with its one setting
+  documented and a deploy that fails rather than falling back -- is in PLAN.
+- **Every script that sorts sets `LC_ALL=C`.** Output that is committed or
+  compared must order the same on every machine, and `sort` follows the
+  locale: `en_US.UTF-8` ignores punctuation, `C` compares bytes. A lock
+  written on a desktop put `annotation/1.9.1/` before `annotation-jvm/`; CI
+  called it stale.
+- **The lock generators share one shape.** `gradle-lock` and `swift-lock`
+  are the only commands that reach the network; each writes a committed lock
+  of one URL and one hash per artifact, which a derivation fetches with
+  Nix's own downloader. Neither is a fixed-output derivation running the
+  package manager in the sandbox: that asks a program with its own network
+  stack, TLS trust and cache layout to be reproducible, and reports every
+  failure as one resolution error (five patches went to Gradle's one
+  sentence), and a Gradle cache does not hash reproducibly anyway. The
+  hash is taken from the bytes downloaded, so a wrong URL cannot record a
+  right hash: that is what makes a lock checkable rather than plausible.
+  - `gradle-lock` resolves every Gradle build under `examples/` --
+    discovered, not listed, since a hardcoded path once left the Compose
+    example out while reporting success -- in a fresh `GRADLE_USER_HOME`
+    (a warm cache records a superset nobody can reproduce), into one cache
+    whose union is the lock. URLs are recovered from the cache layout,
+    `files-2.1/<group>/<name>/<version>/<sha1>/<file>`, which is a Maven
+    coordinate and so a repository path, tried against each declared
+    repository in Gradle's order until one serves matching bytes (a mirror
+    serving different bytes under the same path is rejected). Per-platform
+    Compose natives are resolved for every platform the checks run on
+    (`resolveForLock`, `-PdesktopTarget`), because a lock holding one
+    platform's fails the others. The Gradle version is recorded in the lock,
+    since two versions can want different artifact sets; output is sorted
+    for a stable diff; Gradle sees only the pinned JDK, as in the checks.
+  - `swift-lock` needs no cache archaeology: `Package.resolved` pins a
+    revision, and GitHub serves any revision as
+    `<repo>/archive/<revision>.tar.gz`. It records the tarball's hash
+    (computable anywhere with `sha256sum`), which is why `swift-deps.nix`
+    uses `fetchurl`. It names the compiler for SwiftPM (`SWIFT_EXEC`)
+    because SwiftPM discovers toolchains itself and `nix develop` only adds
+    to the host's `PATH` -- on GitHub's image it found the image's own Swift
+    and got an empty target-info answer -- and asks `swiftc` directly first,
+    since SwiftPM reports a broken environment as "malformed json". It reads
+    both `Package.resolved` layouts (`pins` in v2, `object.pins` in v1),
+    whose version follows the toolchain.
+- **`compile-fail` (Rust)** is a harness of its own rather than `trybuild`,
+  which would be the crate's only dev-dependency. It links fixtures against
+  the uplifted `target/debug/libtabular_center.rlib`, not the newest
+  `deps/libtabular_center-*.rlib` by mtime (which picked stale builds
+  irreproducibly) nor cargo's JSON `filenames` (emitted only on a rebuild,
+  so empty on every no-op run). A fixture passes only if rustc's *exit
+  status* says it refused the file: a fixture that compiled with a warning
+  containing the expected text once read as ok.
+- **The `verify` scripts share four mechanisms** (the formatter's is the
+  smallest copy). *The ledger:* every step's output is teed into one file
+  and every `skip` is reprinted before the verdict, because a skip is not an
+  error, scrolls past a green run, and hid the whole Kotlin suite and the
+  KSP example for months; `PIPESTATUS` keeps the step's status through the
+  pipe, and the run still streams. A script called by the root leaves the
+  ledger to the root, which has already seen every line. *The verdict* names
+  the failed steps again, because `FAILED: <step>` scrolls away. *A missing
+  directory* is reported as what it almost always is: `nix flake check` on a
+  dirty tree includes modified tracked files and excludes untracked ones, so
+  a patch applied with `git apply` and not yet added shows its edited scripts
+  and none of its new directories. *Portability:* POSIX classes rather than
+  `\s`, since BSD grep and sed ignore `\s` and the ledger would silently
+  match nothing on macOS without Nix; `${a[@]+...}` for arrays, since an
+  empty array under `set -u` is an error in macOS's bash 3.2.
+- **`central-bundle`** stages the root build's four artifacts and the KSP
+  processor into one Maven-layout directory and zips it, the bundle the
+  Central Portal takes; `maven-metadata*.xml` is dropped, because it belongs
+  to a repository and Central builds its own. The same script serves
+  `nix run .#publish` and the `kotlin-publication` check, which proves the
+  bundle would pass Central's rules on every push.
+- **`.editorconfig`** exempts only `*.tb.kt` from ktlint's alignment and
+  wrapping rules: a matrix is as wide as it is, its columns are the point,
+  and `kotlin-matrix-stable` would fail on a rule that reflowed them. It
+  once exempted every `.kt` file -- a wide exemption for a narrow problem
+  (spec/matrix-files.md).
+- **`.gitignore`**: Gradle's `.gradle/` patterns are unanchored, because
+  Gradle writes one beside every build file and anchored patterns once let
+  `ksp/.gradle/executionHistory` into a commit (a pattern does not untrack
+  what is already tracked; that took `git rm -r --cached` once). The main
+  Swift package's `Package.resolved` is ignored and the macro package's is
+  not: the first pins nothing, the second pins swift-syntax and is
+  `swift-lock`'s input. `.kotlin/` is Kotlin 2's per-project session data.
+- **`justfile`** recipes are thin aliases for `tools/verify` and the apps;
+  the comment above each recipe is its description in `just --list`, which
+  is why those lines are exempt from §15.
