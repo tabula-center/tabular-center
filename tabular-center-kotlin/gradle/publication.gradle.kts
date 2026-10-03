@@ -68,12 +68,11 @@ configure<PublishingExtension> {
                         distribution.set("repo")
                     }
                 }
-                // The project's organisation, until a person is named here.
                 developers {
                     developer {
-                        id.set("tabula-center")
-                        name.set("tabula-center")
-                        url.set("https://github.com/tabula-center")
+                        id.set("hadilq")
+                        name.set("hadilq")
+                        url.set("https://github.com/hadilq")
                     }
                 }
                 scm {
@@ -95,13 +94,24 @@ configure<PublishingExtension> {
     }
 }
 
-// An ASCII-armoured signing subkey, from the environment (RELEASING.md): CI's
+// An ASCII-armoured signing SUBKEY, from the environment (RELEASING.md): CI's
 // maven-central environment holds the real one, the kotlin-publication check
-// a throwaway one.
+// a throwaway one shaped the same way.
+//
+// By ID. The export holds only the subkey's secret -- the primary, kept
+// offline, is a stub -- and the two-argument useInMemoryPgpKeys picks the
+// FIRST key, the primary, whose secret is not there: BouncyCastle then fails
+// on a null private key. SIGNING_KEY_ID names the subkey that signs.
 val signingKey: String? = System.getenv("SIGNING_KEY")?.takeIf { it.isNotBlank() }
 if (signingKey != null) {
+    val signingKeyId = System.getenv("SIGNING_KEY_ID")?.takeIf { it.isNotBlank() }
+        ?: error(
+            "SIGNING_KEY is set but SIGNING_KEY_ID is not: name the signing subkey by its " +
+                "short ID (the 8 hex digits after ssb ed25519/ in " +
+                "`gpg --list-secret-keys --keyid-format short`)"
+        )
     configure<SigningExtension> {
-        useInMemoryPgpKeys(signingKey, System.getenv("SIGNING_KEY_PASSWORD") ?: "")
+        useInMemoryPgpKeys(signingKeyId, signingKey, System.getenv("SIGNING_KEY_PASSWORD") ?: "")
         sign(the<PublishingExtension>().publications)
     }
 }

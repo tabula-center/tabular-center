@@ -1100,16 +1100,18 @@ step_kotlin_render() {
 # The Maven Central bundle, built as a release would build it and checked
 # against Central's rules, so the first upload holds no surprises.
 #
-# tools/central-bundle stages all five artifacts, signed with a THROWAWAY key
-# (tools/publication-check-key.asc -- not a secret, trusted by no one). Then,
-# for each: jar, sources, javadoc, POM and Gradle module, each with a .asc
-# that gpgv verifies and .md5/.sha1 checksums; the POM elements Central
-# rejects a release without; testing's dependency on core at compile scope;
-# and no maven-metadata in the bundle. gpgv and --dearmor need no gpg agent,
-# whose socket path a long sandbox directory can overflow.
+# tools/central-bundle stages all five artifacts, signed with a key made for
+# this run and destroyed after it -- nothing secret is committed. The key is
+# shaped like the release key (RELEASING.md): a certify-only primary and an
+# ed25519 signing subkey, exported subkey-only, so the primary is a stub and
+# signing must name the subkey by ID, exactly as CI does -- the path the first
+# real release failed on. Then, for each artifact: jar, sources, javadoc, POM
+# and Gradle module, each with a .asc that gpgv verifies and .md5/.sha1
+# checksums; the POM elements Central rejects a release without; testing's
+# dependency on core at compile scope; and no maven-metadata in the bundle.
 step_kotlin_publication() {
     local t
-    for t in gradle gpg gpgv zip unzip; do
+    for t in gradle gpg gpgv gpgconf zip unzip; do
         if ! command -v "$t" >/dev/null 2>&1; then
             echo "skip kotlin-publication (\$$t not found)"
             return 0
@@ -1119,19 +1121,41 @@ step_kotlin_publication() {
     scratch="$(mktemp -d)"
     version="$(tr -d '[:space:]' < VERSION)"
 
-    SIGNING_KEY="$(sed -n '/-----BEGIN PGP PRIVATE KEY BLOCK-----/,$p' tabular-center-kotlin/tools/publication-check-key.asc)"
+    # A home for this run's key, kept SHORT: gpg-agent and keyboxd put their
+    # sockets in it, and a socket path past ~104 bytes -- easy in a sandbox's
+    # build directory -- is refused. /tmp when it is usable, $TMPDIR if not.
+    local gh
+    gh="$(mktemp -d /tmp/tcg.XXXXXX 2>/dev/null || mktemp -d)"
+    chmod 700 "$gh"
+    local G=(gpg --homedir "$gh" --batch --pinentry-mode loopback --passphrase '')
+    "${G[@]}" --quick-gen-key 'tabular-center publication check <check@tabula.center>' \
+        ed25519 cert never 2>/dev/null
+    local fpr subid
+    fpr="$("${G[@]}" --with-colons --list-keys check@tabula.center | awk -F: '/^fpr/{print $10; exit}')"
+    "${G[@]}" --quick-add-key "$fpr" ed25519 sign never 2>/dev/null
+    subid="$("${G[@]}" --with-colons --list-secret-keys check@tabula.center | awk -F: '/^ssb/{print substr($5,9); exit}')"
+    # Subkey-only, as the release key is exported: the primary becomes a stub.
+    SIGNING_KEY="$("${G[@]}" --armor --export-secret-subkeys "$subid!")"
     SIGNING_KEY_PASSWORD=""
-    export SIGNING_KEY SIGNING_KEY_PASSWORD
+    SIGNING_KEY_ID="$subid"
+    "${G[@]}" --export check@tabula.center > "$scratch/check.gpg"
+    # Its daemons stop here, and the key goes with $gh: it never outlives
+    # this check.
+    gpgconf --homedir "$gh" --kill all 2>/dev/null || true
+    rm -rf "$gh"
+    if [ -z "$subid" ] || [ -z "$SIGNING_KEY" ]; then
+        echo "FAIL could not make this run's signing key"
+        rm -rf "$scratch"
+        return 1
+    fi
+
+    export SIGNING_KEY SIGNING_KEY_PASSWORD SIGNING_KEY_ID
     if ! tabular-center-kotlin/tools/central-bundle "$scratch/staging" "$scratch/bundle.zip" 2>&1 | tail -15; then
         echo "FAIL the bundle did not build"
         rm -rf "$scratch"
         return 1
     fi
-    unset SIGNING_KEY SIGNING_KEY_PASSWORD
-
-    mkdir -m 700 "$scratch/gnupg"
-    GNUPGHOME="$scratch/gnupg" gpg --batch --dearmor \
-        < tabular-center-kotlin/tools/publication-check-key.pub.asc > "$scratch/check.gpg"
+    unset SIGNING_KEY SIGNING_KEY_PASSWORD SIGNING_KEY_ID
 
     local a base f ext tag
     for a in core annotations codegen ksp testing; do

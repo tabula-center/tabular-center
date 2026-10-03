@@ -167,7 +167,7 @@ in
       # it; gradle/publication.gradle.kts holds the POM and the signing.
       bundle_dir="$(mktemp -d)"
       if [ "$execute" -eq 1 ]; then
-        for v in MAVEN_CENTRAL_USERNAME MAVEN_CENTRAL_PASSWORD SIGNING_KEY; do
+        for v in MAVEN_CENTRAL_USERNAME MAVEN_CENTRAL_PASSWORD SIGNING_KEY SIGNING_KEY_ID; do
           if [ -z "''${!v:-}" ]; then
             echo "publish: $v is not set (the maven-central environment holds it in CI)"
             exit 1

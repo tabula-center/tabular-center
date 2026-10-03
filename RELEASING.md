@@ -203,7 +203,11 @@ they live only in the `maven-central` environment:
 4. **Signing key.** Keep the primary key offline, used only to certify; give CI
    a **signing subkey** with an expiry, passphrase-protected:
    `gpg --armor --export-secret-subkeys <SUBKEY-ID>!` -> secret `SIGNING_KEY`,
-   its passphrase -> `SIGNING_KEY_PASSWORD`. Publish the public key to
+   its passphrase -> `SIGNING_KEY_PASSWORD`, and the subkey's short ID -> the
+   environment **variable** `SIGNING_KEY_ID` (it is not secret): the 8 hex
+   digits after `ssb ed25519/` in `gpg --list-secret-keys --keyid-format short`.
+   The ID is required -- that export holds only the subkey's secret, and
+   signing by the first key in it would reach for the offline primary's. Publish the public key to
    `keys.openpgp.org` and `keyserver.ubuntu.com`, where Central looks; keep a
    revocation certificate offline. A leaked subkey is revoked and replaced
    without touching the identity the primary key carries.
@@ -221,10 +225,9 @@ Gradle's own plugins only, so the pinned artifact set does not change.
 `publish --execute --only kotlin` uploads the bundle to the Central Portal's
 publisher API and waits until Central has validated it. The
 `kotlin-publication` check builds the same bundle on every push, signed with a
-throwaway key (`tools/publication-check-key.asc`, not a secret), and checks
-what Central would: every file signed and checksummed, every POM complete.
-The POM's `<developers>` names the organisation, `tabula-center`; a person can
-be named there instead (`gradle/publication.gradle.kts`).
+key it generates for that run and destroys after -- shaped like the release
+key, signing by subkey ID -- and checks what Central would: every file signed and checksummed, every POM complete.
+The POM's `<developers>` is `hadilq` (`gradle/publication.gradle.kts`).
 
 ### Swift: tags only
 

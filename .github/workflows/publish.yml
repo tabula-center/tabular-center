@@ -116,6 +116,9 @@ jobs:
           # A Central Portal USER TOKEN pair, not the portal login.
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          # An ASCII-armoured signing SUBKEY, its primary key kept offline.
+          # An ASCII-armoured signing SUBKEY, its primary key kept offline...
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          # ...and which key in it signs: the subkey's short ID. Not a secret,
+          # so an environment VARIABLE (Settings -> Environments -> maven-central).
+          SIGNING_KEY_ID: ${{ vars.SIGNING_KEY_ID }}

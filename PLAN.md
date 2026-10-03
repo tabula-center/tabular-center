@@ -1165,10 +1165,17 @@ green in CI for all three languages.
       to `center.tabula.codegen`: a top-level `codegen` on Maven Central
       would claim a name any library might use. Checked on every push by
       `kotlin-publication` -- the real bundle, offline, signed with a
-      throwaway key, verified with gpgv (no agent, whose socket path a long
+      key made for the run, verified with gpgv (no agent, whose socket path a long
       sandbox directory overflows), every file signed and checksummed, every
-      POM complete. `<developers>` names the organisation until a person is
-      given
+      POM complete. `<developers>` is `hadilq`. Signing is by subkey ID
+      (`SIGNING_KEY_ID`): the release key is exported subkey-only, its primary
+      a stub, and the first CI run failed signing by the first key; the check
+      key is shaped the same way, so the check would have caught it.
+      That key is generated per run and destroyed after it -- never committed:
+      a short GNUPGHOME under /tmp keeps the agent's socket path legal, and
+      `gpgconf --kill all` stops gpg-agent and keyboxd. (An earlier version
+      committed a throwaway private key to avoid that; it granted nothing,
+      but committing private keys is the habit to never teach)
 - [ ] License files. Every manifest declares `MIT OR Apache-2.0`, but the tree
       has no `LICENSE-MIT` or `LICENSE-APACHE`. This box was ticked with the
       two above; the September 2026 re-audit found nothing behind it. Needs
