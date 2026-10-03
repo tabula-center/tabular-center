@@ -415,6 +415,125 @@ decision, which was reversed twice and left a sentence behind each time.
 
 ---
 
+## Upstream dependencies: a daily check, update PRs, and compatibility tables
+
+Requested October 2026: a scheduled job that checks upstream versions every
+day, opens a PR with the update and runs the checks on it; and tables, per
+release of this library, of the dependency versions it was built and
+verified with, so a user can match their project to a release.
+
+**What there is to track today**, and where each version lives:
+
+| Dependency | Pinned at | Reaches users? |
+|---|---|---|
+| Kotlin compiler `2.1.20` | six `build.gradle.kts` + `kotlinVersion` in `tabular-center-kotlin/nix/context.nix` | yes: the published jars are compiled with it |
+| KSP `2.1.20-1.0.32` | four `build.gradle.kts` (plugin and `symbol-processing-api`) | yes: the processor artifact is built against it, and KSP 1 versions pair with one Kotlin |
+| JVM target `21` | `jvmToolchain(21)` in two builds, `pkgs.jdk21` | yes: the jars are Java 21 bytecode, so a consumer needs JVM 21+ |
+| Gradle `8.14.4` | `nix/gradle-lock.json` (from nixpkgs) | no: build only |
+| Compose Multiplatform `1.8.0` | `examples/07-compose` | no: an example's |
+| swift-syntax `509.1.1` | `macros/Package.swift` (`from: "509.0.0"`), `nix/swift-lock.json` | not yet: the macro package is not published |
+| Swift tools `5.9` (examples `5.7`) | `Package.swift` | yes: the minimum toolchain |
+| Rust MSRV `1.75`, edition 2021 | workspace `Cargo.toml`, `rust-toolchain.toml`, the nix pin | yes: policy, not a dependency |
+| iced `0.13` | `examples/05-iced` | no: an example's |
+| nixpkgs, rust-overlay, nixpkgs-swift | the five `flake.lock`s | no: build only, but they move rustc stable, Swift, ktlint, the JDK patch level |
+| GitHub Actions, by commit | the workflows (`# vX` annotations) | no |
+
+The library itself has no dependencies in Rust and only the standard library
+in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
+
+**Decisions proposed (owner to confirm):**
+
+- [ ] U1. A single source of truth, `dependencies.toml` at the root: every
+      tracked version once, each marked `user-facing` or `build`, and with
+      an update policy -- `auto` (the job may propose it), `manual` (the job
+      reports a newer version but proposes nothing: the Rust MSRV, the JVM
+      target, the Swift tools version, which are promises to users, changed
+      on purpose and announced), or `hold = "X"` (skip one version a
+      maintainer rejected, so a closed PR is not reopened the next morning).
+      Couplings are declared, not discovered: `ksp.follows = "kotlin"` (only
+      a KSP whose prefix is the new Kotlin), `swift-syntax` major follows the
+      Swift toolchain (509 is Swift 5.9). A root check `deps-consistent`
+      requires every place a version is written to agree with the file --
+      the same idea as `version` against `VERSION`, and the end of the Kotlin
+      version being typed seven times
+- [ ] U2. One PR per group, updated in place: `nix-inputs`, `kotlin`
+      (compiler, KSP, Compose together, since they couple), `gradle`, `swift`,
+      `rust-examples`. A group's failure does not block the others, and a
+      group's PR is force-pushed rather than duplicated. Never auto-merged
+- [ ] U3. The PR's checks must be the normal ones. A PR opened with the
+      workflow's `GITHUB_TOKEN` does **not** trigger other workflows -- GitHub's
+      rule against recursive runs -- so `ci.yml` would never run on it, and
+      the PR would sit with no checks at all. Recommended: a GitHub App
+      installed on this repository only (`contents` and `pull-requests`
+      write), its key in an `upstream` environment, a token minted per run
+      by `actions/create-github-app-token`; then `ci.yml` runs on the PR on
+      Linux and macOS exactly as on any other, and stays the one definition
+      of green. Alternative: a fine-grained PAT (simpler, tied to a person)
+- [ ] U4. Actions are Dependabot's, everything else is ours. Dependabot
+      already understands commit-pinned actions with `# vX` annotations (why
+      ARCHITECTURE 15 exempts them); it cannot regenerate `gradle-lock.json`
+      or `swift-lock.json` with the flake's toolchain, update flake inputs, or
+      honour the couplings above, so those are the custom job's
+- [ ] U5. Where the compatibility tables live: data in
+      `compatibility.toml` (one entry per released version, appended by
+      `nix run .#release` from `dependencies.toml` as it tags), rendered by
+      `tools/docs` into a site page, `https://tabula.center/compatibility`,
+      linked from every README. Rendered, not committed as markdown: generated
+      output is not committed (`no-generated`)
+
+**Tasks, after U1-U5:**
+
+- [ ] `dependencies.toml` with today's versions and policies;
+      `tools/deps sync` writes them into every manifest (as `release` writes
+      `VERSION`), and root `deps-consistent` checks nothing drifted. Moves the
+      seven Kotlin pins and four KSP pins to one line each
+- [ ] `tools/upstream` (an app, `nix run .#upstream [-- --group G]
+      [--update]`): asks each upstream its newest version -- Maven Central's
+      `maven-metadata.xml` for Kotlin, KSP and Compose, Gradle's
+      `services.gradle.org/versions/current`, crates.io's API for iced,
+      GitHub's tags for swift-syntax, `nix flake update` for the inputs --
+      applies the policy and couplings, and with `--update` edits
+      `dependencies.toml`, runs `tools/deps sync` and regenerates every lock
+      the change stales (`gradle-lock`, `swift-lock`, the iced `Cargo.lock`,
+      all five `flake.lock`s together, as ARCHITECTURE 13 requires). The
+      third command allowed to reach the network; ARCHITECTURE 16 and the two
+      lock generators' headers say "two" and change with it
+- [ ] `.github/workflows/upstream.yml`: `schedule` daily at an off-the-hour
+      minute (top-of-hour cron is delayed or dropped under load), plus
+      `workflow_dispatch`; a matrix over the groups; each runs
+      `nix run .#upstream -- --group G --update`, and if the tree changed,
+      commits to `upstream/G` and opens or updates its PR with the App token.
+      The PR body: each version old -> new with its release-notes link,
+      whether it is user-facing, and what a user-facing change means for the
+      compatibility table. Every action pinned by commit, credentials only in
+      the `upstream` environment, as in `publish.yml`
+- [ ] Reports without PRs: a `manual` dependency with a newer version, a
+      Kotlin held back because no KSP pairs with it yet, a `hold` that has
+      been passed -- one issue, updated in place, labelled `upstream`
+- [ ] `.github/dependabot.yml` for `github-actions`, daily, grouped into one PR
+- [ ] Expected red, recorded so it is not mistaken for a broken job: a
+      kotlinc upgrade can reword the four messages the guarantee fixtures
+      assert (spec/diagnostics.md forbids normalising them), and an iced
+      minor is a breaking change pre-1.0. The PR stays red until a person
+      moves the fixture or the example -- which is the point of running the
+      checks on it
+- [ ] `compatibility.toml`, backfilled for every release so far from the
+      tags (each tag's manifests are the record), and appended by `release`.
+      Two tables per language on the page: **what your project needs** --
+      Rust: MSRV, edition, `no_std` (and that `export`/`lint` need `alloc`);
+      Kotlin: the compiler the jars were built with, JVM 21+, the KSP version
+      the processor pairs with; Swift: tools version, platforms -- and **what
+      it was verified with**: rustc stable, kotlinc, Gradle, JDK, Swift,
+      the nixpkgs revision, so a release can be reproduced. A check that the
+      newest entry matches `dependencies.toml` whenever `VERSION` is a
+      released version
+- [ ] The Gradle module metadata already carries `org.gradle.jvm.version=21`,
+      so a Gradle consumer on an older JVM is refused at resolution with a
+      clear message; the page says so, and that Maven consumers get no such
+      guard
+
+---
+
 ## Step as a box: Functor, Applicative, Monad
 
 Requested October 2026: the minimal functional toolkit -- `map`, `flatMap`,
