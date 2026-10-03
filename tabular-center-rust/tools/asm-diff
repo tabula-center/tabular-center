@@ -1,4 +1,17 @@
 #!/usr/bin/env bash
+# Is the matrix dispatcher the same machine code as the hand-written one?
+#
+# Compiles benches/dispatch.rs to assembly and compares the dispatch code
+# behind two exported wrappers, tabular_center_asm_matrix (the Timer through
+# transition_matrix!) and tabular_center_asm_reference (tests/reference_timer.rs).
+# Identical code comes out one of two ways: LLVM merges the two functions
+# (rustc's default merge-functions pass) and one wrapper becomes an alias or
+# a jump to the other -- the compiler's own proof -- or both survive and their
+# bodies diff clean after normalising labels, hashes and module names.
+#
+#   tools/asm-diff        exit 0 identical, 1 different, 2 could not tell
+#
+# Run by the asm-identical step and `nix run .#bench-asm`; PLAN.md, Phase 10.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -30,21 +43,69 @@ function_body() {
     ' "$asm"
 }
 
-dispatch_body() {
-    local wrapper="$1" mangled_module="$2" side="$3" body step_symbol
-    body="$(function_body "$wrapper")"
-    if [ -z "$body" ]; then
-        echo "asm-diff: no function \`$wrapper\` in the assembly" >&2
+alias_target() {
+    SYM="$1" awk '
+        BEGIN { wanted = ENVIRON["SYM"]; sub(/^_+/, "", wanted) }
+        {
+            line = $0
+            sub(/^[[:space:]]+/, "", line)
+            if (line ~ /^\.set[[:space:]]/) {
+                sub(/^\.set[[:space:]]+/, "", line)
+                split(line, parts, /[[:space:]]*,[[:space:]]*/)
+            } else if (line ~ /^[A-Za-z_.$][A-Za-z0-9_.$]*[[:space:]]*=[[:space:]]*[A-Za-z_.$]/) {
+                split(line, parts, /[[:space:]]*=[[:space:]]*/)
+            } else next
+            name = parts[1]; sub(/^_+/, "", name)
+            if (name == wanted) { print parts[2]; exit }
+        }
+    ' "$asm"
+}
+
+bare() {
+    local symbol="$1"
+    while [ "${symbol#_}" != "$symbol" ]; do symbol="${symbol#_}"; done
+    printf '%s' "$symbol"
+}
+
+defined_symbol() {
+    local symbol="$1" hops=0 target
+    while [ -z "$(function_body "$symbol")" ]; do
+        target="$(alias_target "$symbol")"
+        if [ -z "$target" ] || [ "$hops" -ge 8 ]; then
+            return 1
+        fi
+        echo "    $(bare "$symbol") is an alias of $(bare "$target")" >&2
+        symbol="$target"
+        hops=$((hops + 1))
+    done
+    bare "$symbol"
+}
+
+dispatch_symbol() {
+    local wrapper="$1" side="$2" symbol body other step_symbol
+    echo "  $side:" >&2
+    if ! symbol="$(defined_symbol "$wrapper")"; then
+        echo "asm-diff: no function or alias \`$wrapper\` in the assembly" >&2
         return 1
     fi
-    step_symbol="$(grep -oE "_ZN8dispatch${mangled_module}4step17h[0-9a-f]{16}E" <<<"$body" | head -1 || true)"
-    if [ -n "$step_symbol" ]; then
-        echo "  $side: step is a separate function, called from the wrapper" >&2
-        function_body "$step_symbol"
-    else
-        echo "  $side: step is inlined into the wrapper" >&2
-        printf '%s\n' "$body"
+    body="$(function_body "$symbol")"
+    other="$(grep -oE 'tabular_center_asm_(matrix|reference)' <<<"$body" | grep -vx "$symbol" | head -1 || true)"
+    if [ -n "$other" ]; then
+        echo "    $symbol jumps to $other" >&2
+        symbol="$(defined_symbol "$other")" || return 1
+        body="$(function_body "$symbol")"
     fi
+    step_symbol="$(grep -oE '_ZN8dispatch(6matrix|9reference)4step17h[0-9a-f]{16}E' <<<"$body" | head -1 || true)"
+    if [ -n "$step_symbol" ]; then
+        echo "    step is a separate function, called from the wrapper" >&2
+        symbol="$(defined_symbol "$step_symbol")" || {
+            echo "asm-diff: \`$step_symbol\` is called but neither defined nor aliased" >&2
+            return 1
+        }
+    else
+        echo "    step is inlined into the wrapper" >&2
+    fi
+    printf '%s' "$symbol"
 }
 
 without_incidental_differences() {
@@ -67,9 +128,19 @@ without_incidental_differences() {
         -e '/^$/d'
 }
 
-echo "dispatch bodies:" >&2
-matrix="$(dispatch_body tabular_center_asm_matrix 6matrix matrix)" || exit 2
-reference="$(dispatch_body tabular_center_asm_reference 9reference reference)" || exit 2
+echo "dispatch code:" >&2
+matrix_symbol="$(dispatch_symbol tabular_center_asm_matrix matrix)" || exit 2
+reference_symbol="$(dispatch_symbol tabular_center_asm_reference reference)" || exit 2
+
+if [ "$matrix_symbol" = "$reference_symbol" ]; then
+    echo
+    echo "IDENTICAL: LLVM merged the two dispatchers into one function, $matrix_symbol."
+    echo "The compiler found them equal instruction for instruction, so there is nothing left to diff."
+    exit 0
+fi
+
+matrix="$(function_body "$matrix_symbol")"
+reference="$(function_body "$reference_symbol")"
 
 without_incidental_differences <<<"$matrix" >"$out/matrix.s"
 without_incidental_differences <<<"$reference" >"$out/reference.s"

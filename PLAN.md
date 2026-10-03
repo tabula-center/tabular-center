@@ -2126,6 +2126,17 @@ a warning refuses nothing and every other fixture here proves a refusal.
             hashes; and the module segment (`matrix` / `reference`) that
             differs by design. A body the tool cannot find, or an empty one,
             is exit 2 -- never "identical"
+      - [x] **Its first `nix flake check` failed, and the failure was the
+            proof.** With the two `Ctx` types identical, the two dispatchers
+            compiled to one function, and LLVM's function merging (rustc's
+            default, `MergeFunctions::Aliases`) kept one body and emitted the
+            other wrapper as `.set tabular_center_asm_reference,
+            tabular_center_asm_matrix` -- no label, so `asm-diff` reported "no
+            function". It now follows aliases (`.set a, b` and `a = b`), a
+            wrapper that only jumps to the other, and a `step` merged into its
+            twin; two sides that resolve to one symbol are IDENTICAL by the
+            compiler's own comparison, and only two surviving bodies are
+            diffed
 - [ ] `Step`'s cost. A nanosecond a step over a plain `match`, from the
       outcome-plus-effects-array return value. Worth measuring what the
       default effect capacity `K` contributes before changing anything --
