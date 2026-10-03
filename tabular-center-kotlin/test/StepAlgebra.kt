@@ -78,3 +78,29 @@ fun stepAlgebra() {
         "zip drops the right effects when the left does not move",
     )
 }
+
+enum class Door { Open, Ajar }
+
+enum class Signal { Chime, Buzz }
+
+fun enter(door: Door): Step<Door, Signal> =
+    if (door == Door.Open) Step.go(Door.Open, Signal.Chime) else Step.go(door)
+
+fun unlock(codeOk: Boolean): Step<Door, Signal> {
+    val decided: Step<Door, Signal> = if (codeOk) Step.go(Door.Open) else Step.stay(Signal.Buzz)
+    return decided.flatMap(::enter)
+}
+
+fun openBoth(leftOk: Boolean, rightOk: Boolean): Step<Pair<Door, Door>, Signal> =
+    unlock(leftOk).zip(unlock(rightOk))
+
+fun composingACell() {
+    Assert.eq(unlock(true), Step.Go(Door.Open, listOf(Signal.Chime)), "unlocking opens and chimes")
+    Assert.eq(unlock(false), Step.Stay(listOf(Signal.Buzz)), "a wrong code stays and buzzes")
+    Assert.eq(
+        openBoth(true, true),
+        Step.Go(Door.Open to Door.Open, listOf(Signal.Chime, Signal.Chime)),
+        "two doors open together",
+    )
+    Assert.eq(openBoth(false, true), Step.Stay(listOf(Signal.Buzz)), "one refusal stays")
+}

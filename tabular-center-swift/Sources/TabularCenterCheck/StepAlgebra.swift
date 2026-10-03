@@ -69,3 +69,31 @@ func stepAlgebra() {
     Assert.ok(!dropped.isTransition && !dropped.isIgnored, "zip stays when the left stays")
     Assert.eq(dropped.effects, ["a"], "zip drops the right effects when the left does not move")
 }
+
+enum Door: Equatable { case open, ajar }
+
+enum Signal: Equatable { case chime, buzz }
+
+func enter(_ door: Door) -> Step<Door, Signal> {
+    door == .open ? .go(.open, effects: [.chime]) : .go(door, effects: [])
+}
+
+func unlock(codeOk: Bool) -> Step<Door, Signal> {
+    let decided: Step<Door, Signal> = codeOk ? .go(.open, effects: []) : .stay(effects: [.buzz])
+    return decided.flatMap(enter)
+}
+
+func openBoth(left: Bool, right: Bool) -> Step<(Door, Door), Signal> {
+    unlock(codeOk: left).zip(unlock(codeOk: right))
+}
+
+func composingACell() {
+    Assert.eq(unlock(codeOk: true), .go(.open, effects: [.chime]), "unlocking opens and chimes")
+    Assert.eq(unlock(codeOk: false), .stay(effects: [.buzz]), "a wrong code stays and buzzes")
+    let both = openBoth(left: true, right: true)
+    Assert.ok(both.target.map { $0 == (.open, .open) } ?? false, "two doors open together")
+    Assert.eq(both.effects, [.chime, .chime], "and both chime")
+    let half = openBoth(left: false, right: true)
+    Assert.ok(!half.isTransition && !half.isIgnored, "one refusal stays")
+    Assert.eq(half.effects, [.buzz], "and only the refusal buzzes")
+}

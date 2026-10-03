@@ -279,6 +279,26 @@ the child's, and one type implements both:
 MD
 code $R/examples/04-login/src/session.tb.rs rust 'transition_matrix! \{' '^\}'
 prose <<'MD'
+## Composing steps
+
+A `Step` is a value, so a `HANDLE` cell can be written from small decisions
+rather than assembled in one expression: `map` relabels a target, `and_then`
+chains a decision onto a transition (its effects follow the first step's), and
+`zip` combines two.
+
+MD
+code $R/tabular-center/tests/step_algebra.rs rust '^fn enter' '^\}'
+code $R/tabular-center/tests/step_algebra.rs rust '^fn unlock' '^\}'
+code $R/tabular-center/tests/step_algebra.rs rust '^fn open_both' '^\}'
+prose <<'MD'
+`Stay` and `Ignored` short-circuit: `unlock(false)` stays and buzzes without
+calling `enter`, and `zip` drops the right side's effects when the left does
+not move. An `Ignored` anywhere absorbs, and the whole step emits nothing.
+Effects concatenate into the step's capacity `K`; `try_and_then` returns the
+overflow instead of panicking. The rules and the laws they obey are in
+[Cells](cells), section 6, and all three implementations replay the same
+cases.
+
 ## Colors
 
 `prototype async fn handle;` after `context` makes the machine async: `step`
@@ -387,6 +407,24 @@ Make the prototype `suspend fun handle(...)` and `step`, `perform` and every
 member suspend; `SuspendDriver` runs it with no coroutine library, from
 `tabular-center-core` alone. A suspending child under a plain parent does not compile.
 
+## Composing steps
+
+A `Step` is a value, so a cell can be written from small decisions rather than
+assembled in one expression: `map` relabels a target, `flatMap` chains a
+decision onto a transition (its effects follow the first step's), and `zip`
+combines two.
+
+MD
+code $K/test/StepAlgebra.kt kotlin '^fun enter' 'else Step\.go\(door\)$'
+code $K/test/StepAlgebra.kt kotlin '^fun unlock' '^\}'
+code $K/test/StepAlgebra.kt kotlin '^fun openBoth' '^    unlock\(leftOk\)'
+prose <<'MD'
+`Stay` and `Ignored` short-circuit: `unlock(false)` stays and buzzes without
+calling `enter`, and `zip` drops the right side's effects when the left does
+not move. An `Ignored` anywhere absorbs, and the whole step emits nothing. The
+rules and the laws are in [Cells](cells), section 6, and all three
+implementations replay the same cases.
+
 ## Rendering
 
 A second prototype, `render`, turns a state into whatever a UI needs, and the
@@ -482,6 +520,25 @@ prose <<'MD'
 swiftc's own conformance error, required by a fixture on every run. The
 dispatcher has no `default:`, and neither does your code, which is where one
 would otherwise creep in.
+
+## Composing steps
+
+A `Step` is a value, so a cell can be written from small decisions rather than
+assembled in one expression: `map(_:)` relabels a target, `flatMap(_:)` chains a
+decision onto a transition (its effects follow the first step's), and
+`zip(_:)` / `zip(_:with:)` combine two. Every closure may throw; the
+operations rethrow.
+
+MD
+code $S/Sources/TabularCenterCheck/StepAlgebra.swift swift '^func enter' '^\}'
+code $S/Sources/TabularCenterCheck/StepAlgebra.swift swift '^func unlock' '^\}'
+code $S/Sources/TabularCenterCheck/StepAlgebra.swift swift '^func openBoth' '^\}'
+prose <<'MD'
+`.stay` and `.ignored` short-circuit: `unlock(codeOk: false)` stays and buzzes
+without calling `enter`, and `zip` drops the right side's effects when the
+left does not move. An `.ignored` anywhere absorbs, and the whole step emits
+nothing. The rules and the laws are in [Cells](cells), section 6, and all
+three implementations replay the same cases.
 
 ## Colors, SwiftUI, and pinning a matrix
 

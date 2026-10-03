@@ -358,6 +358,7 @@ fun main() {
     exportRenderers()
     drivers()
     stepAlgebra()
+    composingACell()
     val failures = Assert.report("kotlin reference")
     if (failures > 0) kotlin.system.exitProcess(1)
 }

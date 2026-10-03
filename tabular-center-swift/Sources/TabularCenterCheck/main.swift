@@ -480,6 +480,7 @@ lintRules()
 drivers()
 stores()
 stepAlgebra()
+composingACell()
 await asyncStores()
 await observableStores()
 

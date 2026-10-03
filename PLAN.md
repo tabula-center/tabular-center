@@ -648,8 +648,12 @@ cases. Half of the toolkit already exists and is lawful:
 
 - [x] `spec/cells.md` 6: the combinators' definitions, effect order, D4's
       absorption, capacity, and the laws
-- [ ] `spec/happy-paths.md`: the three uses above (with the docs task, since
-      its samples are included from compiled code)
+- [x] ~~`spec/happy-paths.md`: the three uses above~~ -- **a mistake in this
+      plan, caught before it was made:** "happy paths" is a named feature of
+      this library (a machine's success spine, declared in the matrix), not a
+      file of use cases, and composition examples there would have mixed two
+      unrelated designs. The uses are on each language page instead, from
+      compiled and asserted code
 - [x] Shared cases, `spec/conformance/step-algebra.cases` (29 cases, every
       outcome combination for each operation, effects in every position; its
       format in `spec/conformance/README.md`): every combination
@@ -697,10 +701,15 @@ cases. Half of the toolkit already exists and is lawful:
       fails on a missing outcome combination itself, rather than through
       `fixtures-complete`, which knows only `.tbl` fixtures. Same parse,
       build, render-as-text and completeness logic in all three
-- [ ] Docs: each language page gains a "Composing steps" section (samples
-      included from compiled code, as every sample is); README's API table;
-      ARCHITECTURE 2 a paragraph on why `Step` is the box and why the empty
-      cases short-circuit
+- [x] Docs: each language page gains "Composing steps", its samples included
+      by regex from a small demo -- a door that unlocks, chiming on entry,
+      and two doors opened with `zip` -- that each language's test suite also
+      asserts (`composing_a_cell`, `composingACell()`), so the page cannot
+      show code that does not compile or does not do what it says; README
+      gains a paragraph and the per-language names table (the "API table"
+      this item named does not exist; the README has no API table to extend);
+      ARCHITECTURE 2 says why `Step` is the box, why the empty cases
+      short-circuit, and why `Ignored` absorbs
 - [ ] Not in scope, recorded so it is not mistaken for an omission: async
       combinators (`AsyncHandle` cells await before returning a `Step`, so a
       `Step` is already a value), traversals over effects, and a monad over

@@ -191,3 +191,51 @@ fn try_and_then_past_capacity_returns_the_rejected_effect() {
         Ok(_) => panic!("three effects fit in a capacity of two"),
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Door {
+    Open,
+    Ajar,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Signal {
+    Chime,
+    Buzz,
+}
+
+fn enter(door: Door) -> Step<Door, Signal> {
+    match door {
+        Door::Open => Step::go(Door::Open).emit(Signal::Chime),
+        other => Step::go(other),
+    }
+}
+
+fn unlock(code_ok: bool) -> Step<Door, Signal> {
+    let decided = if code_ok {
+        Step::go(Door::Open)
+    } else {
+        Step::stay().emit(Signal::Buzz)
+    };
+    decided.and_then(enter)
+}
+
+fn open_both(left_ok: bool, right_ok: bool) -> Step<(Door, Door), Signal> {
+    unlock(left_ok).zip(unlock(right_ok))
+}
+
+#[test]
+fn composing_a_cell() {
+    let opened = unlock(true);
+    assert_eq!(opened.outcome, Outcome::Go(Door::Open));
+    assert!(opened.effects.iter().eq([Signal::Chime].iter()));
+    let refused = unlock(false);
+    assert_eq!(refused.outcome, Outcome::Stay);
+    assert!(refused.effects.iter().eq([Signal::Buzz].iter()));
+    let both = open_both(true, true);
+    assert_eq!(both.outcome, Outcome::Go((Door::Open, Door::Open)));
+    assert_eq!(both.effects.len(), 2);
+    let half = open_both(false, true);
+    assert!(half.effects.iter().eq([Signal::Buzz].iter()));
+    let _ = Door::Ajar;
+}

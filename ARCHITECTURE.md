@@ -101,6 +101,18 @@ says *if this fires, the surrounding system has a bug.* The generator counts
 `UNREACHABLE` cells and surfaces the count in build output, because a machine
 with many of them is usually a machine that wants splitting.
 
+**`Step` is a value, and composes.** A cell's result -- outcome plus ordered
+effects -- is a Writer around an Option with two empty cases, so it has a
+lawful `map`, monadic chain and applicative `zip` (spec/cells.md 6). The empty
+cases short-circuit because there is no target inside them to pass on, and
+because a cell that stayed or ignored has decided; they stay distinct through
+composition, for the reasons above. `Ignored` absorbs -- a composed decision
+that is "not applicable" anywhere is not applicable as a whole -- because an
+ignored step has no effects, and the alternative would build one that does.
+The applicative is derived from the chain, so the two cannot disagree. This is
+the one place the library offers combinators, and it is deliberately the
+smallest set that lets a `HANDLE` cell be written from parts.
+
 ---
 
 ## 3. The matrix

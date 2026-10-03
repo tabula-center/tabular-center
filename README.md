@@ -67,6 +67,17 @@ a compile-fail fixture proving it (`child_hole_breaks_parent`), and it holds
 through colors: a plain child composes into an `async` parent, while an `async`
 child under a plain parent does not compile.
 
+The values cells return compose too. A `Step` -- a transition, a stay or an
+ignore, with its effects -- has `map`, a monadic chain and an applicative
+`zip`, each under its language's own name, with the same behaviour checked in
+all three against one shared set of cases:
+
+| | Rust | Kotlin | Swift |
+|---|---|---|---|
+| relabel a target | `map` | `map` | `map(_:)` |
+| chain a decision | `and_then` | `flatMap` | `flatMap(_:)` |
+| combine two | `zip`, `zip_with` | `zip(other)`, `zip(other, transform)` | `zip(_:)`, `zip(_:with:)` |
+
 ## Status
 
 | Phase | Content | State |
