@@ -415,6 +415,107 @@ decision, which was reversed twice and left a sentence behind each time.
 
 ---
 
+## Step as a box: Functor, Applicative, Monad
+
+Requested October 2026: the minimal functional toolkit -- `map`, `flatMap`,
+an applicative `zip` -- on the values a machine produces, so a cell can be
+written by composing small steps rather than by hand-assembling one.
+
+**The box is `Step<S, F>`**, in all three languages: an outcome, `Go(S) |
+Stay | Ignored`, and the ordered effects the cell emitted. Read as a type,
+that is a Writer (the effects are the log) around an Option with two empty
+cases. Half of the toolkit already exists and is lawful:
+
+| | Rust | Kotlin | Swift |
+|---|---|---|---|
+| functor over the state | `map_state` | `mapState` | `mapState` |
+| functor over the effects | `map_effect` | `mapEffects` | `mapEffects` |
+| pure | `Step::go(s)` | `Step.go(s)` | `.go(s, effects: [])` |
+| **monad** (`flatMap`) | -- | -- | -- |
+| **applicative** (`zip`) | -- | -- | -- |
+
+**Semantics, proposed** (normative once accepted, in `spec/cells.md`):
+
+- `flatMap(f)`: on `Go(s)`, run `f(s)` and return its outcome, with this
+  step's effects followed by `f`'s. On `Stay` or `Ignored`, return the step
+  unchanged and never call `f` -- there is no state inside them to pass, and
+  a cell that stayed or ignored has decided. The two empty cases stay
+  distinct, as everywhere else (ARCHITECTURE 2).
+- Laws, with effects compared in order: left identity
+  `go(a).flatMap(f) == f(a)`; right identity `m.flatMap(go) == m`;
+  associativity. All three hold under the rule above, because effect
+  concatenation is associative and the short-circuit is the same at every
+  level.
+- `zip(other)` / `zipWith(other, g)`, the applicative, defined as the
+  monad's derivation so the two can never disagree:
+  `a.flatMap { x -> b.mapState { y -> g(x, y) } }`. Both `Go`: `Go(g(x,
+  y))`, effects `a` then `b`. `a` not `Go`: `a`, and `b`'s effects are
+  **dropped** -- `b` is a value already computed, but its result is never
+  reached. `a` is `Go` and `b` is not: `b`'s outcome, effects `a` then `b`.
+  The dropped effects are the cost of agreeing with `flatMap`; the
+  alternative (keep both logs on a short-circuit) is a different, non-monadic
+  applicative and is D2 below.
+- What it is for, to be written as a happy path (`spec/happy-paths.md`): an
+  entry action chained onto a transition (`go(Validating).flatMap(::enter)`),
+  a guard that either moves or stays, and two orthogonal sub-decisions
+  combined with `zipWith`.
+
+**Decisions for the owner before code:**
+
+- [ ] D1, names. Recommended: the state functor is `map` in all three
+      (`Option::map` / `Result::map` map the success value, and so does this),
+      `map_state` / `mapState` kept as deprecated aliases until 1.0 under the
+      versioning policy, since Maven Central already has 0.1.0. The monad is
+      `and_then` in Rust (`Option`/`Result`'s name) and `flatMap` in Kotlin
+      and Swift; the applicative `zip_with` / `zipWith`, plus `zip` returning
+      a pair
+- [ ] D2, the applicative on a short-circuit: drop the right-hand effects
+      (lawful, agrees with `flatMap`; recommended) or keep both (a second
+      applicative, surprising next to `flatMap`)
+- [ ] D3, Rust's `Ignored` with effects. `spec/cells.md` says an ignored
+      step has no effects, and Kotlin's `Ignored` and Swift's `.ignored`
+      cannot hold any, but Rust's `Step::ignored().emit(e)` builds one --
+      nothing in the tree does, and nothing stops it. It must be settled
+      first, because `flatMap`'s right identity is stated over steps the spec
+      allows. Recommended: `emit` on an ignored step panics, like a capacity
+      overflow (a programming error the type cannot rule out without
+      splitting `Step`), with `try_emit` returning it as an error
+
+**Tasks, in order, after D1-D3:**
+
+- [ ] `spec/cells.md`: the combinators' definitions, effect order and the
+      laws; `spec/happy-paths.md`: the three uses above
+- [ ] Shared cases, `spec/conformance/step-algebra.cases`: every combination
+      of `Go`/`Stay`/`Ignored` with zero, one and two effects on each side,
+      for `map`, `and_then`/`flatMap` and `zip_with`, with the expected step
+      -- read by all three harnesses, so the definition is one file and three
+      implementations cannot drift. Cross-language parity is the repository's
+      first rule; laws only checked per language would not catch two
+      languages lawful in different ways
+- [ ] Rust: `map`, `and_then`, `try_and_then`, `zip_with`, `zip` on `Step`
+      and the corresponding `Outcome` methods; `no_std`, no allocation. The
+      effects concatenate into the same capacity `K` -- const-generic
+      arithmetic (`K1 + K2`) is not stable -- so overflow panics as `push`
+      does, and `try_and_then` returns `CapacityError` instead. Law tests by
+      exhaustive enumeration over small domains (no `proptest`: the library
+      and its tests have no dependencies, ARCHITECTURE 16)
+- [ ] Kotlin: `map`, `flatMap`, `zipWith`, `zip` as `inline` extensions on
+      `Step`, keeping `Step`'s variance; law tests in the core's test suite
+- [ ] Swift: the same as methods on `Step`, `rethrows` where the closure
+      may throw; law tests
+- [ ] The three conformance harnesses replay `step-algebra.cases`; a case
+      file whose combinations are incomplete fails `fixtures-complete`
+- [ ] Docs: each language page gains a "Composing steps" section (samples
+      included from compiled code, as every sample is); README's API table;
+      ARCHITECTURE 2 a paragraph on why `Step` is the box and why the empty
+      cases short-circuit
+- [ ] Not in scope, recorded so it is not mistaken for an omission: async
+      combinators (`AsyncHandle` cells await before returning a `Step`, so a
+      `Step` is already a value), traversals over effects, and a monad over
+      `Ctx` -- shared state threaded by the machine, not by values
+
+---
+
 ## Cleanness: comments out of source
 
 Decided October 2026 (ARCHITECTURE 15): source and configuration read
