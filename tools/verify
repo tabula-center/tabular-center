@@ -1,45 +1,30 @@
 #!/usr/bin/env bash
-# The single source of truth for what "green" means.
+# The definition of green. `nix flake check` runs each step in its own
+# sandboxed derivation by calling this script, CI runs the flake, and a
+# developer runs it directly -- so all three execute the same commands.
 #
-# `nix flake check` runs each step below in its own sandboxed derivation, by
-# calling this script. CI runs `nix flake check`. A developer without nix runs
-# `./tools/verify`. All three therefore execute the *same commands* -- which is
-# the point: three lint escapes reached CI because the local loop and the flake
-# checked different things.
+# This script owns the steps that read more than one implementation; every
+# other step belongs to the language that runs it and is handed over by name
+# to tabular-center-{rust,kotlin,swift}/tools/verify or
+# tabular-center-fmt/tools/verify.
 #
-# Four files, one definition. This script owns the steps that read more than
-# one implementation. Every other step belongs to the language that runs it,
-# in tabular-center-{rust,kotlin,swift}/tools/verify, and is handed over from
-# here by name -- so `./tools/verify test` still runs the Rust tests, and a
-# bare `./tools/verify` still runs everything. Each language script declares
-# its own steps (`--list`); nothing here repeats that list.
-#
-# Usage:  tools/verify [step ...]      (default: all, every language)
+# Usage:  tools/verify [step ...]      (default: every step, every language)
 #         tools/verify --list          (every step, with its owner)
 # Steps:  version docs matrix-covered diagnostics-coverage fixtures-complete
 #         no-bless no-generated diagnostics-tested renderings-agree tb-aligned
-#         licenses no-comments
-#         + every step listed by tabular-center-*/tools/verify --list
+#         licenses no-comments, + every step the language scripts list
+#
+# Steps are declared once, in the arrays below; `--list` prints them for the
+# root. Each step's output is teed into one ledger, every skip is reprinted
+# before the verdict, and failed steps are named again at the end. Why each
+# step is built as it is: ARCHITECTURE.md 16, "The checks, step by step".
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
 
 fail=0
-# The steps that failed, by name, for the verdict. A failure prints
-# `FAILED: <step>` where it happens, and in a long run that line scrolls away
-# -- the verdict names them again, as the ledger does for skips.
 failed_steps=()
 
-# A missing directory here is almost never a missing directory.
-#
-# `nix flake check` builds from the git tree, and on a DIRTY tree nix includes
-# tracked files that were modified but EXCLUDES files that are untracked. So a
-# patch applied with `git apply` rather than `git am` shows up as: the modified
-# scripts are there, and every newly added directory is not.
-#
-# That produces `cd: examples/swift: No such file or directory` from inside a
-# nix build while the directory sits plainly in the working tree, which is a
-# confusing enough five minutes to be worth six lines.
 require_dir() {
     [ -d "$1" ] && return 0
     echo "missing directory: $1"
@@ -51,21 +36,7 @@ require_dir() {
     return 1
 }
 
-# The same trap as require_dir, one level down.
-#
-# require_dir catches a whole new directory going missing. It does not catch a
-# new *file* landing in a directory that already exists -- which is what a new
-# golden is. That cost a nix-build round trip: the harness reported "no golden
-# cov, run with --bless" for all four fixtures while the four files sat in the
-# working tree, untracked, and therefore absent from the source nix copied in.
-#
-# "run --bless" is the wrong advice in that situation and blessing would have
-# regenerated files that already existed. Check the set up front instead, and
-# say the thing that is actually true.
-#
-# It earns its keep twice: it also catches adding a .tbl fixture and forgetting
-# to bless it, which produces the same misleading message.
-RENDERINGS="grid mmd lint cov"   # produced at check time, never committed
+RENDERINGS="grid mmd lint cov"
 
 require_fixtures() {
     local missing="" tbl name
@@ -91,41 +62,14 @@ require_fixtures() {
     return 1
 }
 
-# Whether this run has network access.
-#
-# Set by the flakes' mkCheck (nix/context.nix at the root and in each
-# tabular-center-*/), and by nothing else. The sandbox cannot
-# reach Maven, so the one step that needs it must report `skip` with its reason
-# -- ARCHITECTURE section 13 and PLAN 0a both say so, and until now the guard
-# for it was `command -v gradle`, which is present IN the sandbox because
-# kotlinInputs ships it. The guard tested for the wrong thing and the step
-# would have failed on a missing network while claiming a missing tool.
-#
-# Declared rather than probed. nix knows; the script would be guessing, and the
-# same reasoning already governs swiftLibraryPath and NIX_CC.
 offline() { [ -n "${TABULAR_CENTER_OFFLINE:-}" ]; }
 
-# Every skip, collected.
-#
-# A skip is the most dangerous line this script prints. It is not an error, so
-# nothing counts it; it scrolls past in a green run; and the summary at the end
-# says "all green" either way. Two separate things were skipped for months
-# behind that -- the whole Kotlin suite, and the KSP example -- and in both
-# cases the output looked correct.
-#
-# So every step's output goes through `tee` into one file, and the end of the
-# run reprints whatever said `skip`. Nothing is required of the step functions,
-# which is the point: a ledger that only sees the sites someone remembered to
-# instrument is a ledger that lies by omission.
 TALLY="$(mktemp)"
 trap 'rm -f "$TALLY"' EXIT
 
 run() {
     local name="$1"; shift
     printf '\n\033[1m== %s ==\033[0m\n' "$name"
-    # Piped, so the ledger sees the output, and PIPESTATUS because with a pipe
-    # `$?` belongs to tee. Streaming is preserved -- a five-minute cargo build
-    # still prints as it goes, which capture-then-print would have cost.
     "$@" 2>&1 | tee -a "$TALLY"
     local rc="${PIPESTATUS[0]}"
     [ "$rc" -eq 0 ] && return 0
@@ -134,23 +78,6 @@ run() {
     fail=1
 }
 
-# VERSION is the single source of truth and every manifest is derived from it.
-#
-# Runs first, and checks EVERY derived copy, because the derived copies fail in
-# unhelpful ways. A stale lockfile reports
-#
-#   error: the lock file ... needs to be updated but --locked was passed
-#
-# which names the lockfile and says nothing about the version bump that staled
-# it. Worse, `tabular-center-rust/examples/Cargo.lock` records tabular-center's version too, so a bump
-# that refreshes only the main workspace leaves exactly one step failing --
-# which reads like a problem with the examples rather than with the release.
-# doc/ is generated from spec/ and the code: build output, deployed by
-# .github/workflows/pages.yml, never committed. What is checked is that it CAN
-# be generated faithfully -- every included sample resolves and every
-# diagnostic code has an anchor -- because the pages are what diagnostic
-# messages link to, and a broken anchor drops a developer who followed a link
-# from an error at the top of a long page.
 step_docs() { ./tools/docs --check; }
 
 step_licenses() {
@@ -189,11 +116,6 @@ step_version() {
         bad=1
     fi
 
-    # Every lockfile records tabular-center's version: the workspace's own, the
-    # examples', and the GUI example's -- its own package and lock, outside the
-    # examples workspace -- because they depend on it by path. The third was
-    # once missed: a bump would have left it behind, and rust-gui's --locked
-    # build would have failed on the next release.
     local lock
     for lock in tabular-center-rust/Cargo.lock tabular-center-rust/examples/Cargo.lock \
         tabular-center-rust/examples/05-iced/Cargo.lock; do
@@ -217,32 +139,11 @@ step_version() {
     echo "version $want, consistent across VERSION and all three Cargo.lock files"
 }
 
-# The renderings the three implementations must agree on.
-#
-# `.tbl` and `.trace` are the contract, authored by hand. The renderings of a
-# fixture -- `.grid`, `.mmd`, `.lint`, `.cov` -- are OUTPUT, and were committed
-# until September 2026: Rust blessed them and the other two compared against
-# them. That made one implementation's output the expectation for the other
-# two and had to be re-blessed whenever any renderer changed a character.
-#
-# So each implementation renders into its own directory here, and the
-# directories are diffed. Nothing is committed and nothing is blessed; what is
-# asserted is exactly the property the goldens were standing in for, that three
-# implementations produce the same bytes.
-#
-# It needs at least two of them: one implementation agreeing with itself is not
-# a comparison, so a run that finds only one FAILS rather than passing. That is
-# also why this is one step rather than three -- no single-toolchain check can
-# make this assertion at all.
 step_renderings_agree() {
     require_fixtures || return 1
     local scratch present=() bad=0
     scratch="$(mktemp -d)"
 
-    # Each implementation renders through its own tools/verify, into its own
-    # directory. Which toolchains exist is each script's business; a script
-    # with no toolchain prints `skip` and writes nothing, and the count below
-    # is what turns "too few" into a failure.
     local lang sc
     for lang in rust kotlin swift; do
         sc="tabular-center-$lang/tools/verify"
@@ -269,8 +170,6 @@ step_renderings_agree() {
         return 1
     fi
 
-    # Pairwise against the first present implementation: agreement is
-    # transitive, and naming a reference makes the diff readable.
     local ref="${present[0]}" other f n=0
     for other in "${present[@]:1}"; do
         for f in "$scratch/$ref"/*; do
@@ -285,9 +184,6 @@ step_renderings_agree() {
         done
     done
 
-    # The fixtures table in spec/diagnostics-coverage.md, checked against the
-    # lints that were just rendered. It lived in `diagnostics-coverage`, which
-    # read the committed `.lint` goldens; that step is text-only and stays so.
     local code langs fixtures actual
     while read -r code langs; do
         [ -n "$code" ] || continue
@@ -307,22 +203,6 @@ step_renderings_agree() {
     return "$bad"
 }
 
-# This script never blesses.
-#
-# It is the single definition of green, and a definition of green that can
-# rewrite what it compares against is not one: a step run with a bless flag
-# passes by construction. The one golden set left -- spec/conformance/, the
-# cross-language contract -- is authored by hand: `.tbl` and `.trace` are
-# written by a person, and the renderings of them are produced by every
-# implementation at check time and diffed (`renderings-agree`). Nothing in
-# this repository is blessed any more; see also step_no_generated.
-#
-# Not hypothetical: swift-codegen briefly took a TABULA_BLESS variable. So
-# this fails on any COMMAND in tools/verify or nix/ that mentions a bless flag
-# or variable. Comments and printed advice ("run with --bless") are allowed;
-# that is how the other steps tell a person what to do.
-#
-# The patterns are split so this function does not match itself.
 step_no_bless() {
     local flag='--bl''ess' var='BL''ESS' hits
     hits="$(grep -nE -- "$flag|$var" tools/verify nix/*.nix \
@@ -338,25 +218,6 @@ step_no_bless() {
     echo "ok   no check blesses; every golden is compared, never written"
 }
 
-# Every diagnostic is tested, and tested in the right shape.
-#
-# The habit in CONTRIBUTING says each one gets a fixture. A habit is a promise
-# nothing keeps: `unsupported-color` was documented and fixtured in the same
-# patch because the author happened to remember, and nothing would have said so
-# otherwise.
-#
-# Two kinds, from spec/diagnostics-coverage.md:
-#
-#   - A RUNTIME LINT is reported by a renderer, so it is tested by a
-#     conformance fixture that trips it. Those are listed in the `fixtures`
-#     block, and `renderings-agree` checks the list against the rendered lints;
-#     here we check the fixtures named there exist at all.
-#   - Every other code is a DECLARATION diagnostic: a generator refuses
-#     something, so it is tested by a compile-fail fixture whose `//~ EXPECT:`
-#     names the code.
-#
-# A code emitted by nobody (`-`) is exempt, and required to stay that way: if
-# a fixture ever expects it, the `-` is a lie and this says so.
 step_diagnostics_tested() {
     local dirs="tabular-center-rust/tabular-center/tests/compile_fail tabular-center-kotlin/ksp/compile-fail/fixtures"
     dirs="$dirs tabular-center-kotlin/codegen/compile_fail tabular-center-kotlin/compile_fail tabular-center-swift/macros/fixtures"
@@ -405,21 +266,6 @@ step_diagnostics_tested() {
     return "$bad"
 }
 
-# Generated code is not committed.
-#
-# Not as source, and not as a golden. A committed golden of emitted source is
-# a second copy of the generator's output that has to be re-blessed on every
-# emitter change, and it proves only that the characters did not move. What
-# the emitted source must satisfy is checked from source instead: it compiles
-# (kotlin-codegen, swift-codegen), a complete implementation satisfies it, an
-# incomplete one is refused, emission is deterministic, and KSP's extraction
-# matches hand-stated twins (kotlin-ksp).
-#
-# spec/conformance/ is deliberately outside this: `.grid`, `.mmd`, `.lint`
-# and `.cov` are the cross-language contract, rendered data every
-# implementation is held to, not code any build consumes.
-#
-# Build and dependency directories are skipped; nix never copies them in.
 step_no_generated() {
     local hits
     hits="$(find . \( -name .git -o -name build -o -name .build -o -name target \
@@ -435,12 +281,6 @@ step_no_generated() {
     echo "ok   no generated code in the tree"
 }
 
-# Every fixture is complete: a table and a trace.
-#
-# It used to ask for the four renderings too, when those were committed. They
-# are produced at check time now (`renderings-agree`), so what is left to
-# check here is the pair a human authors -- and a fixture with no trace is
-# still a fixture that checks a table and no behaviour.
 step_fixtures_complete() {
     local d=spec/conformance
     require_dir "$d" || return 1
@@ -452,7 +292,6 @@ step_fixtures_complete() {
         n=$((n + 1))
         missing=""
         [ -f "$d/traces/$name.trace" ] || missing="$missing trace"
-        # A rendering that IS committed is a golden nobody asked for.
         for ext in $RENDERINGS; do
             [ -f "$d/$name.$ext" ] && missing="$missing (committed $ext)"
         done
@@ -476,29 +315,12 @@ step_fixtures_complete() {
     return "$bad"
 }
 
-# Every diagnostic code, in every implementation, matches what is written down.
-#
-# Nothing compared the three until this existed, and the thing nothing compared
-# had already diverged: Rust emits twelve of the sixteen codes; Kotlin and
-# Swift emit all sixteen. The four it omits are the language doing the work --
-# `GO!(Typo)` is a path that does not resolve, and rustc's message about the
-# user's own token beats a `compile_error!` about the same thing -- so the gap
-# is right. It had just never been stated, and an unstated gap is one a
-# refactor closes or widens without anybody deciding to.
-#
-# `spec/diagnostics-coverage.md` states it. This check holds the source to it
-# in both directions: a code emitted but not listed, and a code listed but not
-# emitted, are both failures. One-directional would have missed the case that
-# matters most -- an implementation quietly losing a diagnostic.
 step_diagnostics_coverage() {
     local doc="spec/diagnostics-coverage.md"
     [ -f "$doc" ] || { echo "FAILED: $doc is missing"; return 1; }
 
     local bad=0 code langs lang actual expected n=0
 
-    # Quoted matches only. An unquoted `tabular_center::lint::report` is a module path,
-    # not a diagnostic, and counting it would report three codes Rust does not
-    # have.
     emitted() { grep -rhoE "\"tabular-center::[a-z-]+" "$1/" 2>/dev/null | tr -d '"' | sort -u; }
 
     local rust_codes kotlin_codes swift_codes
@@ -539,9 +361,6 @@ step_diagnostics_coverage() {
         bad=1
     fi
 
-    # And the table must cover spec/diagnostics.md exactly: a code documented
-    # for readers but absent from the table would slip past the loop above,
-    # since the loop only walks rows that exist.
     local documented
     documented="$(grep -oE 'tabular-center::[a-z-]+' spec/diagnostics.md | sort -u)"
     for code in $documented; do
@@ -551,36 +370,10 @@ step_diagnostics_coverage() {
         fi
     done
 
-    # And the fixture table: which runtime lints a `.lint` golden trips.
-    #
-    # Recorded rather than required: when this was written five of seven were
-    # `-`, and a check that fails on a known gap is a check people learn to
-    # ignore. None are `-` now, and the check is kept for what it catches. What
-    # it catches is movement in either direction: a fixture that stops tripping
-    # a lint it used to, and a lint that gains coverage without the table
-    # noticing. Closing a gap is then a diff here, which is the point.
-    # The fixtures block of that file is checked by `renderings-agree`, which
-    # has the rendered lints in hand. This step stays text-only: it needs no
-    # toolchain, and a check that needs one cannot run everywhere this does.
-
     [ "$bad" -eq 0 ] && echo "ok   $n diagnostic codes agree across three implementations"
     return "$bad"
 }
 
-# Every `.tb.` file is covered by one of the matrix checks.
-#
-# The check above the other two, and the one they cannot make about
-# themselves. `kotlin-matrix-stable` and `rust-matrix-stable` each scan roots
-# they name, so a matrix in a directory neither names is outside both -- and
-# silently so, because each scan finds what it finds and reports on that.
-#
-# That is not hypothetical. `kotlin-matrix-stable` scanned `tabular-center-kotlin/` alone for
-# as long as it existed, and
-# tabular-center-kotlin/examples/06-generated/src/Machine.tb.kt sat outside it the whole time
-# while both checks were green.
-#
-# So this enumerates the `.tb.` files that exist and asks which scan reaches
-# each one, rather than asking each scan what it found.
 step_matrix_covered() {
     local f bad=0 total=0 covered=0
     local uncovered=""
@@ -588,24 +381,15 @@ step_matrix_covered() {
     while IFS= read -r f; do
         total=$((total + 1))
         case "$f" in
-            # Roots that `kotlin-matrix-stable` copies and ktlints.
             ./tabular-center-kotlin/*.tb.kt)
                 covered=$((covered + 1))
                 echo "ok   $f (kotlin-matrix-stable)"
                 ;;
-            # Roots that `rust-matrix-stable` copies and cargo-fmts.
             ./tabular-center-rust/*.tb.rs)
                 covered=$((covered + 1))
                 echo "ok   $f (rust-matrix-stable)"
                 ;;
             *.tb.swift)
-                # Covered twice, as of swift-format arriving from the same
-                # nixpkgs pin as swift itself: `swift-matrix-stable` runs the
-                # formatter over each of these and requires the file back
-                # unchanged, and `swift-format-config` requires the
-                # `// swift-format-ignore-file` that makes that true -- the
-                # whole of swift-format's exemption mechanism. The second
-                # holds where no toolchain exists and the first skips.
                 covered=$((covered + 1))
                 ;;
             *)
@@ -637,13 +421,6 @@ step_matrix_covered() {
     return "$bad"
 }
 
-# Every `.tb.` matrix is aligned: exactly what `tabular-center-fmt` would leave.
-#
-# A root step, like renderings-agree, because it reads every language's
-# matrices. It compares and never writes (--check), and a file the formatter
-# refuses to read fails it too: a file the tool cannot read is a file nobody
-# is checking (spec/tabular-center-fmt.md). The fix for a failure is
-# `nix run .#tb-fmt`, then commit what it changed.
 step_tb_aligned() {
     if ! command -v cargo >/dev/null 2>&1; then
         echo "skip tb-aligned (\$cargo not found)"
@@ -654,14 +431,11 @@ step_tb_aligned() {
         --manifest-path tabular-center-fmt/Cargo.toml -- --check .
 }
 
-# The three implementations, and the `.tb.` formatter: every component with a
-# tools/verify of its own, by directory suffix.
 LANGS=(rust kotlin swift fmt)
 ROOT_STEPS=(version docs matrix-covered diagnostics-coverage fixtures-complete no-bless no-generated diagnostics-tested renderings-agree tb-aligned licenses no-comments)
 
 lang_script() { echo "tabular-center-$1/tools/verify"; }
 
-# The language script that owns a step, or nothing.
 owner_of() {
     local l sc
     for l in "${LANGS[@]}"; do
@@ -675,9 +449,6 @@ owner_of() {
     return 1
 }
 
-# One step, run by the script that owns it. Its output goes through the same
-# tee as every local step, so the ledger below sees its `skip` lines; it runs
-# nested, so it prints no ledger or verdict of its own.
 delegate() {
     local sc="$1" s="$2"
     TABULAR_CENTER_NESTED=1 "$sc" "$s" 2>&1 | tee -a "$TALLY"
@@ -699,9 +470,6 @@ if [ ${#steps[@]} -eq 0 ]; then
     steps=("${ROOT_STEPS[@]}")
     for l in "${LANGS[@]}"; do
         sc="$(lang_script "$l")"
-        # A language directory without its script is a broken tree, not a
-        # language that is absent: all four are always here. Failing loudly
-        # is the only honest answer; see require_dir for the usual cause.
         if [ ! -x "$sc" ]; then
             require_dir "tabular-center-$l/tools" | tee -a "$TALLY"
             echo "FAILED: $sc is missing or not executable"
@@ -739,13 +507,6 @@ done
 
 echo
 
-# The ledger, before the verdict, because "all green" read on its own is what
-# made two missing suites invisible. Anything listed here did not run, and a
-# run with no list is the only one that means what it says.
-# POSIX classes, not \s. BSD grep and sed do not understand \s, and
-# this script runs without nix too, and on macOS that means BSD tools -- where
-# the ledger would have silently matched nothing, which is the exact failure
-# it exists to stop.
 if grep -q '^[[:space:]]*skip ' "$TALLY"; then
     echo "verify: skipped ---------------------------------------------"
     grep '^[[:space:]]*skip ' "$TALLY" | sed 's/^[[:space:]]*/  /'

@@ -1,41 +1,27 @@
 #!/usr/bin/env bash
-# The Kotlin steps of what "green" means.
+# The Kotlin steps of what "green" means, run directly, by the root
+# tools/verify, or by this directory's flake. Runs from the repository root.
+# kotlinc compiles the library, examples and fixtures; Gradle runs only the KSP,
+# Compose and publication steps, against the offline Maven repository.
 #
-# One third of the definition of green. The root `tools/verify` runs the
-# steps that read more than one implementation and hands every other step to
-# the script that owns it -- this one, for the steps below. `nix flake check`
-# on this directory's flake runs the same steps in its sandbox, and the root
-# flake composes that flake, so there is still one definition of green: it is
-# just no longer one file.
-#
-# Runs from the repository root, like the root script: the steps name paths
-# repo-relative, and `spec/` and `examples/` are shared by all three.
-#
-# Usage:  tabular-center-*/tools/verify [step ...]   (default: this language's steps)
-#         tabular-center-*/tools/verify --list
+# Usage:  tabular-center-kotlin/tools/verify [step ...]   (default: every step)
+#         tabular-center-kotlin/tools/verify --list
 # Steps:  kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen
 #         kotlin-examples kotlin-ksp kotlin-ksp-compile-fail
-#         kotlin-ksp-incremental kotlin-matrix-stable kotlin-compose (+ kotlin-render)
+#         kotlin-ksp-incremental kotlin-matrix-stable kotlin-compose
+#         kotlin-publication (+ kotlin-render)
+#
+# Steps are declared once, in the arrays below; `--list` prints them for the
+# root. Each step's output is teed into one ledger, every skip is reprinted
+# before the verdict, and failed steps are named again at the end. Why each
+# step is built as it is: ARCHITECTURE.md 16, "The checks, step by step".
 set -uo pipefail
 
 cd "$(dirname "$0")/../.." || exit 1
 
 fail=0
-# The steps that failed, by name, for the verdict. A failure prints
-# `FAILED: <step>` where it happens, and in a long run that line scrolls away
-# -- the verdict names them again, as the ledger does for skips.
 failed_steps=()
 
-# A missing directory here is almost never a missing directory.
-#
-# `nix flake check` builds from the git tree, and on a DIRTY tree nix includes
-# tracked files that were modified but EXCLUDES files that are untracked. So a
-# patch applied with `git apply` rather than `git am` shows up as: the modified
-# scripts are there, and every newly added directory is not.
-#
-# That produces `cd: examples/swift: No such file or directory` from inside a
-# nix build while the directory sits plainly in the working tree, which is a
-# confusing enough five minutes to be worth six lines.
 require_dir() {
     [ -d "$1" ] && return 0
     echo "missing directory: $1"
@@ -47,21 +33,7 @@ require_dir() {
     return 1
 }
 
-# The same trap as require_dir, one level down.
-#
-# require_dir catches a whole new directory going missing. It does not catch a
-# new *file* landing in a directory that already exists -- which is what a new
-# golden is. That cost a nix-build round trip: the harness reported "no golden
-# cov, run with --bless" for all four fixtures while the four files sat in the
-# working tree, untracked, and therefore absent from the source nix copied in.
-#
-# "run --bless" is the wrong advice in that situation and blessing would have
-# regenerated files that already existed. Check the set up front instead, and
-# say the thing that is actually true.
-#
-# It earns its keep twice: it also catches adding a .tbl fixture and forgetting
-# to bless it, which produces the same misleading message.
-RENDERINGS="grid mmd lint cov"   # produced at check time, never committed
+RENDERINGS="grid mmd lint cov"
 
 require_fixtures() {
     local missing="" tbl name
@@ -87,41 +59,14 @@ require_fixtures() {
     return 1
 }
 
-# Whether this run has network access.
-#
-# Set by the flakes' mkCheck (nix/context.nix at the root and in each
-# tabular-center-*/), and by nothing else. The sandbox cannot
-# reach Maven, so the one step that needs it must report `skip` with its reason
-# -- ARCHITECTURE section 13 and PLAN 0a both say so, and until now the guard
-# for it was `command -v gradle`, which is present IN the sandbox because
-# kotlinInputs ships it. The guard tested for the wrong thing and the step
-# would have failed on a missing network while claiming a missing tool.
-#
-# Declared rather than probed. nix knows; the script would be guessing, and the
-# same reasoning already governs swiftLibraryPath and NIX_CC.
 offline() { [ -n "${TABULAR_CENTER_OFFLINE:-}" ]; }
 
-# Every skip, collected.
-#
-# A skip is the most dangerous line this script prints. It is not an error, so
-# nothing counts it; it scrolls past in a green run; and the summary at the end
-# says "all green" either way. Two separate things were skipped for months
-# behind that -- the whole Kotlin suite, and the KSP example -- and in both
-# cases the output looked correct.
-#
-# So every step's output goes through `tee` into one file, and the end of the
-# run reprints whatever said `skip`. Nothing is required of the step functions,
-# which is the point: a ledger that only sees the sites someone remembered to
-# instrument is a ledger that lies by omission.
 TALLY="$(mktemp)"
 trap 'rm -f "$TALLY"' EXIT
 
 run() {
     local name="$1"; shift
     printf '\n\033[1m== %s ==\033[0m\n' "$name"
-    # Piped, so the ledger sees the output, and PIPESTATUS because with a pipe
-    # `$?` belongs to tee. Streaming is preserved -- a five-minute cargo build
-    # still prints as it goes, which capture-then-print would have cost.
     "$@" 2>&1 | tee -a "$TALLY"
     local rc="${PIPESTATUS[0]}"
     [ "$rc" -eq 0 ] && return 0
@@ -130,25 +75,10 @@ run() {
     fail=1
 }
 
-# Kotlin builds with `kotlinc` directly -- no Gradle, no Maven.
-#
-# Not a preference. Gradle needs Maven Central for the stdlib, which this
-# environment cannot reach, and shipping an unrunnable build file would repeat
-# the mistake of shipping unverified code. kotlinc alone is enough to prove the
-# thing that matters (required-member enforcement), so that is what runs.
 KOTLINC="${KOTLINC:-kotlinc}"
 
 kotlin_available() { command -v "$KOTLINC" >/dev/null 2>&1; }
 
-# Say so when kotlinc is not the version the rest of the tree is written for.
-#
-# The compile-fail steps match kotlinc's OWN message text, which a compiler
-# release is free to reword. The flake pins kotlinc to the version the Gradle
-# builds name (nix/context.nix, `kotlinVersion`), so under nix this is silent;
-# a developer with a different kotlinc on PATH gets told why a fixture that
-# matched in CI does not match for them, instead of reading a FAIL that looks
-# like a regression. A note, not a failure: the same call `kotlin-ksp` makes
-# for a Gradle that differs from the one the lock was produced with.
 kotlin_version_note() {
     local want have
     want="$(sed -n 's|.*kotlin("jvm") version "\([^"]*\)".*|\1|p' \
@@ -163,19 +93,6 @@ kotlin_version_note() {
     fi
 }
 
-# Compile each published artifact against ONLY its declared dependencies.
-#
-# This is the boundary check, not just a build. `tabular-center-core` compiled with an
-# empty classpath proves it needs nothing -- no annotations, no codegen, no
-# coroutines -- which is the zero-runtime-dependency rule enforced by
-# construction rather than by a dependency report. `tabular-center-annotations` is
-# compile-time only and must not reach for the runtime. `tabular-center-testing` may
-# use core and nothing else.
-#
-# Run from the `tabular-center-kotlin/` directory.
-# The classpath the artifacts compile to. Derived rather than exported,
-# because `kotlin_artifacts` is sometimes called inside a subshell and a
-# variable set there does not survive.
 kotlin_cp() { echo "$1/core:$1/annotations:$1/testing"; }
 
 kotlin_artifacts() {
@@ -190,10 +107,6 @@ kotlin_artifacts() {
         | grep -v "^info:" || true
     [ -d "$out/testing" ] || { echo "tabular-center-testing failed to compile"; return 1; }
 
-    # A classpath, not a merged directory. Each module writes its own
-    # META-INF/main.kotlin_module, so copying them into one place silently
-    # clobbers the metadata that top-level functions live in -- `report` then
-    # resolves at compile time and vanishes at use.
     return 0
 }
 
@@ -233,8 +146,6 @@ step_kotlin_conformance() {
         kotlin_artifacts "$out" || exit 1
         KCP="$(kotlin_cp "$out")"
         [ -d "$out/core" ] || { echo "core failed to compile"; exit 1; }
-        # The fixture machines live in test/Composition.kt: they are KSP's
-        # specification first and conformance fixtures second.
         "$KOTLINC" -cp "$KCP" test/Composition.kt -d "$out/comp" 2>&1 \
             | grep -v "^info:" || true
         [ -d "$out/comp" ] || { echo "composition failed to compile"; exit 1; }
@@ -263,30 +174,14 @@ step_kotlin_examples() {
         [ -d "$out/core" ] || { echo "core failed to compile"; exit 1; }
         cd examples || exit 1
 
-        # The harness once, shared by every example's tests.
         "$KOTLINC" harness/Check.kt -d "$out/harness" 2>&1 | grep -v "^info:" || true
         [ -d "$out/harness" ] || { echo "the example harness failed to compile"; exit 1; }
 
-        # Each example is compiled on its own, and its tests are compiled
-        # afterwards against its output rather than alongside it. That is what
-        # `tests/` buys in cargo and what a `mod tests` at the bottom of a file
-        # gives away: a test that compiles in the same unit can reach anything,
-        # so it never demonstrates that the example's public surface is usable.
-        #
-        # The fourth column is the classpath, and it is the configuration axis.
-        # 01 is built against `core` ALONE -- no annotations, no testing module
-        # -- because the minimum a machine needs is a claim worth checking, and
-        # a shared classpath checks it for nobody. The Rust half of this
-        # restructure found a real bug the same way.
         ex() {
             local dir="$1" main="$2" label="$3" cp="$4"
             "$KOTLINC" -cp "$cp" "$dir"/src/*.kt -d "$out/$dir" 2>&1 \
                 | grep -v "^info:" || true
             [ -d "$out/$dir" ] || { echo "$label failed to compile"; return 1; }
-            # The test unit is a jar with `-include-runtime`, which is where
-            # the Kotlin stdlib comes from. There is no KOTLIN_HOME to point
-            # `java` at here, and the previous single-jar build got the stdlib
-            # the same way without it being obvious.
             "$KOTLINC" -cp "$cp:$out/$dir:$out/harness" "$dir"/test/*.kt \
                 -include-runtime -d "$out/$dir-test.jar" 2>&1 | grep -v "^info:" || true
             [ -f "$out/$dir-test.jar" ] || { echo "$label tests failed to compile"; return 1; }
@@ -297,39 +192,14 @@ step_kotlin_examples() {
         ex 02-timer         TimerTestKt        "timer"         "$KCP"       || exit 1
         ex 03-retry         RetryTestKt        "retry"         "$KCP"       || exit 1
         ex 04-login         LoginTestKt        "login"         "$KCP"       || exit 1
-        # The suspending driver, built against `core` alone -- which is the
-        # zero-dependency claim demonstrated rather than asserted. If
-        # SuspendDriver needed kotlinx.coroutines, this line would fail.
         ex 05-suspend       SuspendTestKt      "suspend"       "$out/core"  || exit 1
 
-        # 06-generated is not built here. It is the only Kotlin example that
-        # needs Gradle and an artifact set, so it has its own step --
-        # `kotlin-ksp` below -- and a failure there reads as the processor
-        # being broken rather than as an example being broken.
     )
     local rc=$?
     rm -rf "$out"
     return "$rc"
 }
 
-# A change to `S` reprocesses the machines that depend on it.
-#
-# PLAN's last open KSP item, and the one that cannot be checked by building
-# once. KSP caches per-round and tracks which sources a processor read; if
-# `TabularCenterProcessor` does not declare the sealed hierarchy as a dependency of
-# what it writes, a second build after editing `Types.kt` reuses the first
-# build's output. The dispatcher then describes a machine that no longer
-# exists, and nothing says so -- the build is green and the generated file is
-# stale.
-#
-# The edit is made to `Types.kt` and NOT to the annotated file, which is the
-# whole point: editing the matrix obviously reprocesses it. `Locked` gains a
-# payload, so `PAYLOADS` in the generated output must change from `emptyList()`
-# to naming the field. A processor with correct dependency tracking emits the
-# new line; one without emits the old file.
-#
-# In a scratch copy, because it deliberately breaks the example and the example
-# has to stay buildable for `kotlin-ksp`.
 step_kotlin_ksp_incremental() {
     if ! command -v gradle >/dev/null 2>&1; then
         echo "skip kotlin-ksp-incremental (\$gradle not found)"
@@ -344,36 +214,12 @@ step_kotlin_ksp_incremental() {
 
     local scratch rc bad=0 gen
     scratch="$(mktemp -d)"
-    # The whole `tabular-center-kotlin/` tree, examples included, not a subset.
-    #
-    # Naming a subset means knowing every path the example and the processor
-    # reach through, and those are relative paths spread across three build
-    # files: `../harness` for the shared assertion helper (copying only
-    # `06-generated` once left `:compileTestKotlin` failing on it), and
-    # `../../core`, `../../annotations`, `../../ksp` for the library. A
-    # relative path out of the directory being copied is invisible until the
-    # copy is built, and this check exists precisely to build a copy. The
-    # examples used to live outside this tree and were copied separately, at a
-    # matching depth; inside it, one copy carries every relative path intact.
     cp -r tabular-center-kotlin "$scratch/tabular-center-kotlin"
-    # And VERSION beside it, as in the repository: every Kotlin build reads it
-    # (gradle/publication.gradle.kts, applied by ksp/, which the example
-    # includes), walking up from the build -- so a copy without it fails
-    # before the experiment starts.
     cp VERSION "$scratch/VERSION"
     chmod -R u+w "$scratch"
 
     local ex="$scratch/tabular-center-kotlin/examples/06-generated"
 
-    # Output kept, not discarded.
-    #
-    # The first version sent both builds to /dev/null, reasoning that
-    # `kotlin-ksp` already covers whether the example builds. It does -- in the
-    # SOURCE TREE. Here the example is a copy at a different depth, and
-    # `settings.gradle.kts` reaches its processor through
-    # `includeBuild("../../../tabular-center-kotlin/ksp")`, so anything the layout gets wrong
-    # shows up only here. Reporting "the first build failed" with no log left
-    # this check unable to explain its own failure.
     local first
     first="$( (cd "$ex" && gradle_run --no-daemon --console=plain build 2>&1) )"
     if [ $? -ne 0 ]; then
@@ -381,14 +227,6 @@ step_kotlin_ksp_incremental() {
         echo "     If kotlin-ksp passed, this is about the scratch copy's"
         echo "     layout. If kotlin-ksp failed too, it is the example, and"
         echo "     that check has the better message -- read it first."
-        # `e:` lines first, and separately.
-        #
-        # Kotlin writes its diagnostics as `e: file:line:col: message` and
-        # Gradle writes a summary that says only "Compilation error. See log
-        # for more details". A grep for "error" matches the summary, which is
-        # nearer the end, so `head` kept the useless half and dropped the
-        # useful one -- this check reported a failure whose cause was in the
-        # output it discarded.
         printf '%s\n' "$first" | grep -E "^\s*(e|w): " | head -15 | sed 's/^/       /'
         printf '%s\n' "$first" | grep -iE "what went wrong" -A4 | head -8 | sed 's/^/       /'
         rm -rf "$scratch"
@@ -402,7 +240,6 @@ step_kotlin_ksp_incremental() {
         return 1
     fi
 
-    # The edit. `Types.kt` only.
     sed -i 's|    data object Locked : S|    data class Locked(val since: Long) : S|' \
         "$ex/src/Types.kt"
 
@@ -433,40 +270,12 @@ step_kotlin_ksp_incremental() {
     return "$bad"
 }
 
-# The annotation processor's diagnostics, as a user meets them.
-#
-# `codegen/Tests.kt` already drives `buildDesc` directly and asserts on every
-# code. What nothing exercised is the step after: the processor catching a
-# `TabularCenterError` and turning it into a `KSPLogger.error` that fails a real
-# compilation. Those are different pieces of code and only one had a test.
-#
-# The Rust half of this has existed since the beginning -- `tools/compile-fail`
-# with `//~ EXPECT:` lines -- and this is deliberately the same shape, down to
-# the comment syntax, so a contributor who has read one has read both.
-#
-# No new dependency. KSP compile-testing as a library would mean an embedded
-# Kotlin compiler in nix/gradle-lock.json and a re-lock; this reuses the two
-# plugins the example already resolves, so the lock covers it unchanged.
-# Where a diagnostic points, for a fixture that says.
-#
-# `//~ AT: <text>` asserts that the line KSP underlined contains that text --
-# the `@Row` the error came from, rather than the annotated interface. Optional
-# because most diagnostics are declaration-level and have no row to name; where
-# a fixture does say, the position is checked rather than assumed, which is the
-# difference between a message that helps and one that merely exists.
 check_position() {
     local dir="$1" src="$2" expect="$3" out="$4"
     local at lineno line
     at="$(sed -n 's|^//~ AT: ||p' "$dir"/*.kt 2>/dev/null | head -1)"
     [ -n "$at" ] || return 0
 
-    # KSP prints `e: [ksp] <file>.kt:<line>: <message>` -- a line with no
-    # column, unlike kotlinc's own `<file>.kt:<line>:<col>:`. Both are
-    # accepted; the column is optional in the pattern.
-    #
-    # The first line that YIELDS a position, not the first that mentions the
-    # message: gradle repeats a failing task's message in a summary with no
-    # file or line at all.
     lineno="$(printf '%s\n' "$out" | grep -F -- "$expect" \
         | sed -n 's|.*\.kt:\([0-9]\{1,\}\):.*|\1|p' | head -1)"
     if [ -z "$lineno" ]; then
@@ -507,16 +316,7 @@ step_kotlin_ksp_compile_fail() {
         name="$(basename "$dir")"
         n=$((n + 1))
 
-        # Across every file in the fixture, and exactly one.
-        #
-        # `head -1` would have worked here and been wrong tomorrow: a fixture
-        # is more than one file -- the matrix lives in a `.tb.kt` and the types
-        # beside it -- so which EXPECT wins would have depended on filename
-        # order. Two EXPECT lines is a fixture asserting two things and
-        # checking one.
         local expects count
-        # The file carrying the EXPECT line is the one the diagnostic should
-        # point at, so it is remembered rather than rediscovered.
         src="$(grep -l '^//~ EXPECT: ' "$dir"/*.kt 2>/dev/null | head -1)"
         expects="$(sed -n 's|^//~ EXPECT: ||p' "$dir"/*.kt 2>/dev/null)"
         count="$(printf '%s\n' "$expects" | grep -c .)"
@@ -535,12 +335,6 @@ step_kotlin_ksp_compile_fail() {
             -PtabulaFixture="$name" build 2>&1) )"
         local rc=$?
 
-        # `//~ BUILDS` marks a WARNING fixture: the build must succeed, and
-        # print the diagnostic, positioned. Every other fixture proves a
-        # refusal; a warning refuses nothing, so without this mode its code
-        # could only be counted as tested by a fixture that never passed. The
-        # marker is explicit on purpose: the comment below is why a build that
-        # merely warns must never be read as an error fixture passing.
         if grep -q '^//~ BUILDS' "$dir"/*.kt 2>/dev/null; then
             if [ "$rc" -ne 0 ]; then
                 echo "FAIL $name -- a warning fixture, but the build failed"
@@ -557,9 +351,6 @@ step_kotlin_ksp_compile_fail() {
             continue
         fi
 
-        # The exit status first, for the reason tools/compile-fail records: a
-        # fixture that COMPILES but warns has non-empty output, and a warning
-        # containing the expected text would report a passing build as ok.
         if [ "$rc" -eq 0 ]; then
             echo "FAIL $name -- compiled, but was expected to fail"
             bad=1
@@ -570,18 +361,6 @@ step_kotlin_ksp_compile_fail() {
         elif ! check_position "$dir" "$src" "$expect" "$out"; then
             bad=1
         elif ! grep -qF -- "$(basename "$src")" <<<"$out"; then
-            # The position, not just the message.
-            #
-            # PLAN asks for diagnostics "via KSPLogger.error with node
-            # positions", and the message alone cannot tell the two apart:
-            # `logger.error(msg, decl)` and `logger.error(msg)` print the same
-            # text, and only the first prefixes the file and line. A user
-            # reading `tabular-center::row-arity` with no location has to find the
-            # matrix themselves, which for a generated dispatcher means
-            # guessing which of several machines it came from.
-            #
-            # Checking for the fixture's own filename is the cheap proof that a
-            # node was attached at all.
             echo "FAIL $name -- reported \`$expect\` with no source position"
             echo "       expected the message to name $(basename "$src");"
             echo "       KSPLogger.error was probably called without its node."
@@ -599,33 +378,6 @@ step_kotlin_ksp_compile_fail() {
     return "$bad"
 }
 
-# The annotation processor, running.
-#
-# 06-generated is the only example whose dispatcher nobody wrote: its matrix is
-# declared in annotations and KSP turns them into the dispatcher, the `Cells`
-# interface and the effect-handler surface, into build/generated/ksp/. Nothing
-# generated is committed, which is why this cannot fall back to kotlinc the way
-# every other example does -- without the processor there is no `Cells` for
-# src/Impl.kt to implement.
-#
-# Three ways to run, and the first is the one that made this stop being a skip:
-#
-#   TABULAR_CENTER_MAVEN_REPO set -> resolve offline from that directory. nix builds it
-#     from tabular-center-kotlin/nix/gradle-lock.json and nix/checks.nix points here at it.
-#   unset, online        -> the real repositories: a developer with network
-#     and no nix.
-#   unset, offline       -> skip, with the reason.
-# The Compose Desktop example, in bitkey's architecture.
-#
-# Gradle, like the KSP example, and for the same reason: plugins. What is new
-# is the dependency weight -- Compose Multiplatform is several hundred
-# artifacts -- so this is the first step whose offline run depends on a lock
-# that someone regenerated with a network.
-#
-# A lock without those artifacts SKIPS with the command that fixes it, rather
-# than failing with a resolution error from the middle of a Gradle build. The
-# skip is visible in the ledger, which is the difference between a gap that is
-# known and one that is quiet.
 step_kotlin_compose() {
     if ! command -v gradle >/dev/null 2>&1; then
         echo "skip kotlin-compose (no gradle; see tabular-center-kotlin/examples/07-compose/README.md)"
@@ -636,8 +388,6 @@ step_kotlin_compose() {
     local args=(--no-daemon --console=plain)
 
     if [ -n "${TABULAR_CENTER_MAVEN_REPO:-}" ]; then
-        # `compose.runtime` resolves to org.jetbrains.compose.runtime. If the
-        # lock predates this example, it is not in the offline repository.
         if [ ! -d "$TABULAR_CENTER_MAVEN_REPO/org/jetbrains/compose" ]; then
             echo "skip kotlin-compose (the locked artifact set has no Compose)"
             echo "     re-lock on a machine with network, and commit it:"
@@ -654,9 +404,6 @@ step_kotlin_compose() {
         echo "note: resolving from the network"
     fi
 
-    # `check` compiles the UI and RUNS the headless machine checks: see the
-    # runChecks task in build.gradle.kts. `build` alone would compile them and
-    # run nothing, which this repository has been caught by once already.
     (cd tabular-center-kotlin/examples/07-compose && gradle_run "${args[@]}" check) || return 1
     echo "ok   compose (bitkey-shaped, machine checked headlessly; UI compiled only)"
 }
@@ -671,12 +418,6 @@ step_kotlin_ksp() {
     local args=(--no-daemon --console=plain)
 
     if [ -n "${TABULAR_CENTER_MAVEN_REPO:-}" ]; then
-        # The lock records the Gradle that produced it. A different one can
-        # legitimately want a different artifact set, and when it does the
-        # failure is `Could not find <artifact>` against a directory that looks
-        # complete -- a resolution error with no hint that the cause is a
-        # version skew. Warn rather than fail: the sets usually overlap, and a
-        # build that works should not be blocked by a metadata mismatch.
         if [ -f tabular-center-kotlin/nix/gradle-lock.json ] && command -v jq >/dev/null 2>&1; then
             local locked_with here
             locked_with="$(jq -r '.gradle // "unknown"' tabular-center-kotlin/nix/gradle-lock.json)"
@@ -688,21 +429,6 @@ step_kotlin_ksp() {
             fi
         fi
 
-        # No --offline, deliberately.
-        #
-        # It reads like the right flag and it is the wrong one: Gradle's
-        # offline mode does not mean "do not use the network", it means
-        # "resolve from the dependency cache and nothing else". Every external
-        # repository is wrapped so it refuses, and a `maven { url = file:// }`
-        # repository is an external repository -- so the flag that looks like
-        # it enforces this setup is the one that breaks it, with
-        # `No cached version of ... available for offline mode` against a
-        # directory sitting right there holding the artifact.
-        #
-        # Nothing is needed in its place. The repository list has been replaced
-        # by one local directory, so there is no remote left to try, and every
-        # version is pinned so nothing goes looking for metadata. The sandbox
-        # has no route either way, and refuses immediately rather than hanging.
         echo "note: resolving offline from $TABULAR_CENTER_MAVEN_REPO"
     elif offline; then
         echo "skip kotlin-ksp (no locked artifact set: run 'nix run .#gradle-lock'"
@@ -715,30 +441,8 @@ step_kotlin_ksp() {
     (cd tabular-center-kotlin/examples/06-generated && gradle_run "${args[@]}" build) || return 1
     echo "ok   generated (ksp)"
 
-    # Extraction, checked against hand-stated twins rather than committed
-    # output.
-    #
-    # The build succeeding proves `Cells` has members `Impl.kt` can override
-    # and that `step` type-checks. It proves nothing about the table: rows read
-    # in the wrong order, an effect dropped from a GO cell, `initial` resolved
-    # to the wrong state -- all compile, and `TABLE` and `PAYLOADS` are inert
-    # data the example never reads.
-    #
-    # So `tabular-center-kotlin/codegen/Main.kt` states, by hand, what each example machine
-    # should extract to (`kspTwins`), and this emits those and diffs them
-    # against what KSP just generated. Both sides are produced here; nothing
-    # generated is committed. That replaced `tabular-center-kotlin/ksp/golden/`, which held
-    # the expected side as committed generator output.
-    #
-    # Both directions are enumerated, not named: a KSP output with no twin is
-    # extraction nobody checks, and a twin KSP never produced is a machine the
-    # example stopped declaring. Either is a failure, never a skip.
     local twins gen name twin bad=0 n=0
     twins="$(mktemp -d)"
-    # Built exactly as kotlin-codegen builds it: against tabular-center-core. The
-    # codegen check's tests reach `center.tabula` by qualified name with no
-    # import, so a build without the classpath fails there -- which is how
-    # this step first failed. From `tabular-center-kotlin/`, because the helpers are.
     local built
     built="$( (
         cd tabular-center-kotlin || exit 1
@@ -755,9 +459,6 @@ step_kotlin_ksp() {
         return 1
     }
 
-    # Located by name rather than by path: KSP's output directory has moved
-    # between versions, and a hardcoded path that stops matching would make
-    # this silently check nothing.
     while IFS= read -r gen; do
         [ -n "$gen" ] || continue
         name="$(basename "$gen" .kt)"
@@ -801,15 +502,6 @@ step_kotlin_ksp() {
 
 KTLINT="${KTLINT:-ktlint}"
 
-# Every Gradle run in this script goes through here.
-#
-# With TABULAR_CENTER_JDK_HOME set -- the flake's apps set it -- that JDK is the
-# only JVM Gradle may use, for its daemon and for `jvmToolchain(21)`: the same
-# three settings the checks write into their GRADLE_USER_HOME. An app runs on
-# the host and inherits the host's JAVA_HOME, and a JDK 17 there once ran a KSP
-# processor a 21 had compiled. Without the variable, Gradle chooses as it always
-# did. Not a function called `gradle`: `command -v gradle` decides whether the
-# Gradle steps skip, and a function of that name would always answer yes.
 gradle_run() {
     if [ -n "${TABULAR_CENTER_JDK_HOME:-}" ]; then
         gradle -Dorg.gradle.java.home="$TABULAR_CENTER_JDK_HOME" \
@@ -820,17 +512,6 @@ gradle_run() {
     fi
 }
 
-# Does the language formatter destroy the matrix alignment?
-#
-# Measured rather than assumed: run ktlint's formatter over a COPY and compare
-# only the matrix rows. It reformats plenty of ordinary Kotlin around them --
-# that is ktlint's business and not ours -- but the rows themselves must come
-# back byte-identical, because a matrix is only readable while its columns line
-# up.
-#
-# Narrow on purpose. Adopting ktlint as a style gate would mean making the whole
-# tree ktlint-clean, which is a separate decision; this guards the one property
-# the library actually depends on.
 step_kotlin_matrix_stable() {
     if ! command -v "$KTLINT" >/dev/null 2>&1; then
         echo "skip kotlin-matrix-stable (\$KTLINT not found; nixpkgs provides it)"
@@ -838,18 +519,6 @@ step_kotlin_matrix_stable() {
     fi
     require_dir tabular-center-kotlin || return 1
 
-    # BOTH trees, not just the library's.
-    #
-    # This scanned `tabular-center-kotlin/` alone, which reached exactly one file --
-    # tabular-center-kotlin/test/TimerSpec.tb.kt -- and missed
-    # tabular-center-kotlin/examples/06-generated/src/Machine.tb.kt entirely. The example is
-    # the matrix a user copies, so it was the more important of the two and the
-    # one nothing checked. `.editorconfig`'s `[*.tb.kt]` already covered it;
-    # only the scan did not.
-    #
-    # One root now: the examples moved inside `tabular-center-kotlin/`, and
-    # listing them as a second root copied them into themselves
-    # (`examples/examples`) and counted each of their matrices twice.
     local roots=(tabular-center-kotlin)
 
     local scratch bad=0 found=0 f root
@@ -859,36 +528,17 @@ step_kotlin_matrix_stable() {
         cp -r "$root" "$scratch/$root"
     done
 
-    # The .editorconfig comes too, and it is the point of the test.
-    #
-    # Without it ktlint applies `no-multi-spaces` and collapses
-    #
-    #   @Row(S.Idle::class,    [CellSpec(Kind.HANDLE),  CellSpec(Kind.IGNORE), ...
-    #
-    # to single spaces, destroying the alignment outright. The exemptions in
-    # .editorconfig are load-bearing, and this check exists to prove they still
-    # are rather than to assume it.
     cp .editorconfig "$scratch/.editorconfig"
 
-    # ktlint exits non-zero for rules it cannot auto-correct (line length,
-    # wildcard imports). Those are style opinions we have not adopted; the
-    # formatting pass still runs, which is all this needs.
     for root in "${roots[@]}"; do
         (cd "$scratch" && "$KTLINT" --format "$root/**/*.kt" >/dev/null 2>&1) || true
     done
 
-    # Every `.tb.kt`, not only files carrying `@Row` / `@Machine`. The
-    # hand-written examples' matrices are `Table(...)` literals, whose rows are
-    # `Cell.` lines; matrix-covered counts every `.tb.kt` under these roots as
-    # covered HERE, so a `.tb.kt` this scan skipped would have been reported
-    # covered and checked by nothing.
     local pat='@Row(\|@Machine(\|CellSpec(\|Cell\.'
     for root in "${roots[@]}"; do
         for f in $( (cd "$root" && { grep -rl "@Row(\|@Machine(" . 2>/dev/null
             find . -name '*.tb.kt' -type f; } | sort -u) ); do
             found=$((found + 1))
-            # A `.tb.kt` with no matrix lines would compare empty to empty and
-            # pass. It is a file claiming the exemption for nothing.
             if [ "${f%.tb.kt}" != "$f" ] && ! grep -q "$pat" "$root/$f"; then
                 echo "FAIL $root/$f is a .tb.kt with no matrix rows in it"
                 bad=1
@@ -908,10 +558,6 @@ step_kotlin_matrix_stable() {
         done
     done
 
-    # A scan that matches nothing passes silently, which is how this check
-    # would have reported success after a rename moved every matrix out from
-    # under it -- and it nearly did: TimerSpec.tb.kt only exists because the
-    # gate that hid this whole check got fixed first.
     if [ "$found" -eq 0 ]; then
         echo "FAIL no @Machine/@Row declarations found under: ${roots[*]}"
         echo "     Either the matrices moved or the scan looks in the wrong"
@@ -923,12 +569,6 @@ step_kotlin_matrix_stable() {
     return "$bad"
 }
 
-# Proves the generator emits valid Kotlin that still enforces the guarantee.
-#
-# Four stages, and the last two are the point. A golden diff only proves the
-# emitter is deterministic; compiling its output, then compiling a complete
-# implementation and an incomplete one against that output, proves the emitted
-# code still does what the design promises.
 step_kotlin_codegen() {
     if ! kotlin_available; then
         echo "skip kotlin-codegen (\$KOTLINC not found)"
@@ -949,18 +589,8 @@ step_kotlin_codegen() {
             | grep -v "^info:" || true
         [ -f "$out/cg.jar" ] || { echo "emitter failed to compile"; exit 1; }
 
-        # 1. validate, check determinism, and emit -- into scratch, never the
-        #    tree. Generated code is not committed, so there is no golden to
-        #    diff; stages 2-4 are what prove the output is right.
         java -cp "$out/cg.jar:$KCP" center.tabula.codegen.MainKt "--emit=$gen" || exit 1
 
-        # 2. the emitted source must compile
-        # StopwatchTypes.kt carries its own implementation: that machine is
-        # `internal`, so it has to be implemented in the same compilation.
-        # The composition machines -- retry, its suspend twin, and the job
-        # parent in both colors -- were emitted by Emit.kt from the start and
-        # never compiled until these types existed. `refused/` is not in the
-        # glob: those machines must NOT compile, and step 4 proves it.
         "$KOTLINC" -cp "$KCP" codegen/support/TimerTypes.kt codegen/support/ToggleTypes.kt \
             codegen/support/StopwatchTypes.kt codegen/support/TimerRenderTypes.kt \
             codegen/support/ConnectTypes.kt \
@@ -970,7 +600,6 @@ step_kotlin_codegen() {
         [ -d "$out/gen" ] || { echo "emitted source does not compile"; exit 1; }
         echo "ok   emitted source compiles"
 
-        # 3. a complete implementation must satisfy it
         "$KOTLINC" -cp "$KCP:$out/gen" codegen/support/Complete.kt \
             codegen/support/CompleteJob.kt codegen/support/CompleteJobSuspend.kt \
             codegen/support/CompleteRender.kt codegen/support/CompleteConnect.kt \
@@ -978,10 +607,6 @@ step_kotlin_codegen() {
         [ -d "$out/cmp" ] || { echo "a complete implementation does not compile"; exit 1; }
         echo "ok   complete implementations compile, composition in both parent colors and the rendering surface included"
 
-        # 4. an incomplete one must not -- the guarantee, after generation.
-        #    A fixture named `<machine>_*.kt` for a machine the check marks
-        #    refused also gets that machine's emitted source, whose own
-        #    generated code is what must be refused.
         local f m extra exp err bad=0
         for f in codegen/compile_fail/*.kt; do
             m="$(basename "$f" .kt)"
@@ -989,10 +614,6 @@ step_kotlin_codegen() {
             extra=""
             [ -f "$gen/refused/$m.kt" ] && extra="$gen/refused/$m.kt"
             exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
-            # Status of kotlinc, not of the grep that filters its notes -- a
-            # pipeline reports the last command, and `grep -v` exits 1 when it
-            # filters everything away. `$extra` unquoted: empty means no file,
-            # and a mktemp path has no spaces.
             # shellcheck disable=SC2086
             raw="$("$KOTLINC" -cp "$KCP:$out/gen" "$f" $extra -d "$out/x" 2>&1)"; rc=$?
             err="$(printf '%s\n' "$raw" | grep -v "^info:" || true)"
@@ -1027,16 +648,11 @@ step_kotlin_compile_fail() {
 
     (cd tabular-center-kotlin && kotlin_artifacts "$out") || return 1
     KCP="$(kotlin_cp "$out")"
-    # TimerSpec.tb.kt carries the matrix; see spec/matrix-files.md. Listed
-    # explicitly rather than globbed so this step keeps compiling exactly the
-    # two machines the fixtures need and not the harness around them.
     (cd tabular-center-kotlin && "$KOTLINC" -cp "$KCP" test/ReferenceTimer.kt test/TimerSpec.tb.kt \
         test/Composition.kt -d "$out/ref" 2>&1 | grep -v "^info:") || true
 
     for f in tabular-center-kotlin/compile_fail/*.kt; do
         exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
-        # See the note above step_compile_fail: kotlinc's status, not the
-        # filtering grep's.
         raw="$("$KOTLINC" -cp "$KCP:$out/ref" "$f" -d "$out/x" 2>&1)"; rc=$?
         err="$(printf '%s\n' "$raw" | grep -v "^info:" || true)"
         if [ "$rc" -eq 0 ]; then
@@ -1056,17 +672,6 @@ step_kotlin_compile_fail() {
     return "$bad"
 }
 
-# Render every conformance fixture into $TABULAR_CENTER_RENDER_DIR.
-#
-# Not a check on its own and not in the default list: the root's
-# `renderings-agree` calls it once per implementation, into one directory
-# each, and diffs the directories. It lives here because rendering needs this
-# language's toolchain and helpers, and the root flake should not have to know
-# how any one implementation is built -- only that it can render.
-#
-# Contract with the root: exit 0 having written files (rendered), exit 0
-# having written nothing and printed a `skip` line (no toolchain), anything
-# else is a failure to render.
 step_kotlin_render() {
     [ -n "${TABULAR_CENTER_RENDER_DIR:-}" ] || {
         echo "kotlin-render: TABULAR_CENTER_RENDER_DIR is not set; the root's renderings-agree sets it"
@@ -1097,18 +702,6 @@ step_kotlin_render() {
     echo "skip renderings-agree (kotlin: \$KOTLINC not found)"
 }
 
-# The Maven Central bundle, built as a release would build it and checked
-# against Central's rules, so the first upload holds no surprises.
-#
-# tools/central-bundle stages all five artifacts, signed with a key made for
-# this run and destroyed after it -- nothing secret is committed. The key is
-# shaped like the release key (RELEASING.md): a certify-only primary and an
-# ed25519 signing subkey, exported subkey-only, so the primary is a stub and
-# signing must name the subkey by ID, exactly as CI does -- the path the first
-# real release failed on. Then, for each artifact: jar, sources, javadoc, POM
-# and Gradle module, each with a .asc that gpgv verifies and .md5/.sha1
-# checksums; the POM elements Central rejects a release without; testing's
-# dependency on core at compile scope; and no maven-metadata in the bundle.
 step_kotlin_publication() {
     local t
     for t in gradle gpg gpgv gpgconf zip unzip; do
@@ -1121,9 +714,6 @@ step_kotlin_publication() {
     scratch="$(mktemp -d)"
     version="$(tr -d '[:space:]' < VERSION)"
 
-    # A home for this run's key, kept SHORT: gpg-agent and keyboxd put their
-    # sockets in it, and a socket path past ~104 bytes -- easy in a sandbox's
-    # build directory -- is refused. /tmp when it is usable, $TMPDIR if not.
     local gh
     gh="$(mktemp -d /tmp/tcg.XXXXXX 2>/dev/null || mktemp -d)"
     chmod 700 "$gh"
@@ -1138,8 +728,6 @@ step_kotlin_publication() {
     SIGNING_KEY_PASSWORD=""
     SIGNING_KEY_ID="$subid"
     "${G[@]}" --export check@tabula.center > "$scratch/check.gpg"
-    # Its daemons stop here, and the key goes with $gh: it never outlives
-    # this check.
     gpgconf --homedir "$gh" --kill all 2>/dev/null || true
     rm -rf "$gh"
     if [ -z "$subid" ] || [ -z "$SIGNING_KEY" ]; then
@@ -1197,8 +785,6 @@ step_kotlin_publication() {
 STEPS_DEFAULT=(kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen kotlin-examples kotlin-ksp kotlin-ksp-compile-fail kotlin-ksp-incremental kotlin-matrix-stable kotlin-compose kotlin-publication)
 STEPS_EXTRA=(kotlin-render)
 
-# `--list` is how the root finds out which steps are this script's, so a step
-# is declared in exactly one place: the arrays above.
 case "${1:-}" in
     --list) printf '%s\n' "${STEPS_DEFAULT[@]}"; exit 0 ;;
     --list-all) printf '%s\n' "${STEPS_DEFAULT[@]}" "${STEPS_EXTRA[@]}"; exit 0 ;;
@@ -1227,18 +813,8 @@ done
 
 echo
 
-# Called by the root tools/verify, which keeps one ledger for the whole run:
-# its tee already saw every `skip` line printed above, and a second ledger
-# here would list each of them twice.
 [ -n "${TABULAR_CENTER_NESTED:-}" ] && exit "$fail"
 
-# The ledger, before the verdict, because "all green" read on its own is what
-# made two missing suites invisible. Anything listed here did not run, and a
-# run with no list is the only one that means what it says.
-# POSIX classes, not \s. BSD grep and sed do not understand \s, and
-# this script runs without nix too, and on macOS that means BSD tools -- where
-# the ledger would have silently matched nothing, which is the exact failure
-# it exists to stop.
 if grep -q '^[[:space:]]*skip ' "$TALLY"; then
     echo "verify: skipped ---------------------------------------------"
     grep '^[[:space:]]*skip ' "$TALLY" | sed 's/^[[:space:]]*/  /'

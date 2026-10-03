@@ -27,12 +27,16 @@ clean_files=(
     justfile
     tools/docs
     tools/no-comments
+    tools/verify
     tabular-center-fmt/tools/verify
     tabular-center-kotlin/tools/central-bundle
     tabular-center-kotlin/tools/gradle-lock
+    tabular-center-kotlin/tools/verify
     tabular-center-rust/tools/asm-diff
     tabular-center-rust/tools/compile-fail
+    tabular-center-rust/tools/verify
     tabular-center-swift/tools/swift-lock
+    tabular-center-swift/tools/verify
 )
 
 skipped_directories=(.git target .build build .gradle .gradle-home .kotlin doc result node_modules)

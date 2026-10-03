@@ -720,11 +720,29 @@ ARCHITECTURE 15's exemptions and `is_directive` if it is not already.
             Found by emulating the checker over every file in scope before
             enabling it, which is now part of each stage's method; it now
             detects the marker on the raw line
-- [ ] Stage 3b: the four `verify` scripts (root, Rust, Kotlin, Swift) --
-      ~1,270 lines, the longest rationale in the tree; much of it is already
-      history in this file and is deleted rather than moved. Same method:
-      lexer-classified strip, shellcheck and heredoc identity, checker
-      emulation, then add them to `clean_files`
+- [x] **Stage 3b: the four `verify` scripts** (root, Rust, Kotlin, Swift) --
+      1,248 lines removed, the longest rationale in the tree. Each opens
+      with a header of usage and steps; the reasons are ARCHITECTURE 16,
+      "The checks, step by step", one entry per step, with the four shared
+      mechanisms (ledger, verdict, missing directory, portability) stated
+      once in "Scripts" rather than four times. Much was history already
+      told in this file and is deleted, not moved. One stale claim dropped:
+      "Kotlin builds with kotlinc directly -- no Gradle", which predates the
+      offline Maven repository. Checked as before: the only changed code
+      lines are four identical trailing comments; shellcheck's findings and
+      every quoted and heredoc line are identical; no step parses its own
+      script's comments; the checker emulation is clean over all 61 files in
+      scope
+      - [x] **The classifying lexer was wrong, and stage 3a was re-verified.**
+            It did not model a command substitution inside double quotes
+            (`"$(sed -n 's|...|')"`), where bash starts a fresh quoting
+            context, so it lost sync and labelled ~170 Kotlin and Swift
+            comments as string content. Its failure mode was to leave
+            comments in place, never to remove code, but a lexer that is
+            wrong is wrong: it now keeps a context stack for `$(...)`, every
+            comment classifies as code (counts match the raw totals), and
+            stage 3a's heredoc and quoted lines were re-checked identical
+            with it
 - [ ] Stage 4: Rust -- tests, examples, benches, the conformance crate and
       the library. `reference_timer.rs` is "the macro's specification": its
       header keeps that, and the part-by-part narrative inside it becomes

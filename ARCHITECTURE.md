@@ -1672,3 +1672,152 @@ are here. Grouped by file, so a reader of one finds its reasons in one place.
 - **`justfile`** recipes are thin aliases for `tools/verify` and the apps;
   the comment above each recipe is its description in `just --list`, which
   is why those lines are exempt from §15.
+
+### The checks, step by step
+
+The four `verify` scripts are the definition of green (§13): the root owns
+the steps that read more than one implementation and hands every other step,
+by name, to the language script that declares it in `--list`. Each runs from
+the repository root. What each step guards, and the reason it is built the
+way it is when that is not obvious:
+
+**Root.**
+- `version`: `VERSION` is the single source of truth, and every derived copy
+  is checked -- including all three `Cargo.lock`s, which record the crate's
+  version through path dependencies (the GUI example's was once missed),
+  because a stale lock fails as a `--locked` error naming the lock, not the
+  bump. `docs`: `doc/` can be generated faithfully (§16, Scripts).
+- `renderings-agree`: `.tbl` and `.trace` are the contract, authored by
+  hand; `.grid`, `.mmd`, `.lint`, `.cov` are output. They were committed until
+  September 2026, Rust's blessed and the others compared against them, which
+  made one implementation the expectation for the others. Now each renders
+  into its own directory (`<lang>-render`: exit 0 with files, or exit 0 with
+  a `skip` line and none) and the directories are diffed pairwise against
+  the first present. Fewer than two implementations is a failure: one agreeing
+  with itself is not a comparison. It also checks the fixtures table of
+  `spec/diagnostics-coverage.md` against the lints just rendered.
+- `no-bless`: no command in a `verify` script or `nix/` mentions a bless flag
+  or variable -- a definition of green that can rewrite what it compares
+  against passes by construction. Not hypothetical: `swift-codegen` once took
+  one. `no-generated`: no emitted source and no rendering is committed; what
+  emitted code must satisfy is checked from source instead (it compiles, a
+  complete implementation satisfies it, an incomplete one is refused,
+  emission is deterministic, KSP extracts what its hand-stated twins say).
+  `fixtures-complete`: every fixture has a table and a trace.
+- `diagnostics-coverage`: every code each implementation emits matches
+  `spec/diagnostics-coverage.md` in both directions -- emitted but unlisted,
+  and listed but not emitted, since an implementation quietly *losing* a
+  diagnostic is the case that matters. Quoted matches only (an unquoted
+  `tabular_center::lint::report` is a module path). The table must cover
+  `spec/diagnostics.md` exactly. Text only, so it runs where no toolchain
+  does. `diagnostics-tested`: every runtime lint is tripped by a listed
+  conformance fixture and every declaration code is named by a compile-fail
+  fixture's `//~ EXPECT:`; a code emitted by nobody (`-`) must stay unfixtured.
+- `matrix-covered`: each formatter-stability check scans roots it names, so a
+  matrix outside all of them is unchecked *silently* -- `06-generated`'s sat
+  outside `kotlin-matrix-stable` while both checks were green. So this
+  enumerates every `.tb.` file and asks which scan reaches it. `tb-aligned`:
+  every matrix is exactly what `tabular-center-fmt --check` would leave, and
+  a file the formatter cannot read fails too; the fix is `nix run .#tb-fmt`.
+- `licenses`, `no-comments`: §15 and Phase 0 of PLAN.
+
+**Rust.**
+- `fmt` and `clippy` cover both cargo workspaces (the examples sit outside
+  the main one, and trailing whitespace once reached a patch `cargo fmt
+  --check` had passed). Where clippy is not installable, rustc's own lints run
+  over `--all-targets` (an unused import in a test passes `cargo build`) and
+  the run says loudly that clippy-only lints were not checked
+  (`module_inception` once escaped that way).
+- `no-std` builds the library without features for a bare-metal target, and
+  falls back only when that target is genuinely missing (it once fell back on
+  any failure, reporting a stale lock as "target unavailable"). It cannot
+  check what the macro *emits*, so `examples` builds `01-traffic-light` alone
+  with no features -- the macro once emitted a path gated on `alloc` for every
+  machine, and only a consumer could notice. The examples are a separate
+  cargo invocation, as a user's crate would be; `01` is built alone because
+  cargo unifies features across a workspace; `03-retry` is run.
+- `compile-fail`, `conformance` (with a smoke run of `table-diff`, whose
+  argument handling nothing else executes), `rust-gui` (the GUI example on its
+  own toolchain), `package` (the crate from its crates.io archive, offline,
+  `--allow-dirty` because the sandbox has no git), `asm-identical` (§11.1).
+- `rust-matrix-stable`: rustfmt leaves matrices alone because it bails on a
+  macro body that is not a Rust expression. That is an implementation detail
+  the tree depends on in every `.tb.rs`; a rustfmt that formatted macro
+  bodies would collapse every matrix and `fmt` would then demand the collapsed
+  form. So it is asserted: format a copy of both workspaces, compare the rows.
+  `tests/compile_fail/` is excluded, since no cargo target contains those
+  files and comparing them would pass because nothing happened.
+
+**Kotlin.**
+- `kotlin` compiles each published artifact against only its declared
+  dependencies -- `core` with an empty classpath, which is the
+  zero-runtime-dependency rule enforced by construction; a classpath rather
+  than a merged directory, since each module's `META-INF/main.kotlin_module`
+  would clobber the others'. `kotlin-examples` compiles each example alone and
+  its tests against its output, and `01` against `core` alone, so the minimum
+  a machine needs is checked; the suspending driver builds against `core`
+  alone, which proves it needs no kotlinx.coroutines. A note, not a failure, when the
+  kotlinc on PATH is not the pinned one, because the guarantee fixtures match
+  kotlinc's own wording.
+- `kotlin-ksp` runs the processor (06-generated cannot fall back to kotlinc:
+  without KSP there is no `Cells` to implement) against the offline
+  repository, warns when the Gradle in use differs from the lock's, and checks
+  extraction against hand-stated twins, since a table read wrongly still
+  compiles. Never `--offline`: Gradle's offline mode means "dependency cache
+  only" and refuses a `file://` repository as external. Generated output is
+  found by name, since KSP's directory has moved between versions.
+  `kotlin-ksp-incremental` edits `Types.kt` -- not the annotated file -- in a copy of
+  the whole Kotlin tree (relative paths reach `../harness` and `../../core`),
+  and requires the regenerated `PAYLOADS` to change; output is kept, and `e:`
+  lines shown first, because Gradle's summary hides the cause.
+- `kotlin-ksp-compile-fail` turns `TabularCenterError` into a failed
+  compilation through `KSPLogger.error`, the step `codegen/Tests.kt` cannot
+  reach. Exactly one `//~ EXPECT:` per fixture, across its files; `//~ AT:`
+  asserts the underlined line (a message without a node prints no position);
+  `//~ BUILDS` marks a warning fixture that must succeed and still print its
+  diagnostic, positioned; KSP's position has no column, and the first line
+  that yields one wins over Gradle's summary.
+- `kotlin-codegen` emits into scratch, then requires the output to compile, a
+  complete implementation to satisfy it and an incomplete one to be refused;
+  the status checked is kotlinc's, not the filtering grep's. `kotlin-compose`
+  runs the headless machine checks, not just `build`. `kotlin-publication`
+  builds the Central bundle signed with a key made for the run and shaped
+  like the release key (certify-only primary, ed25519 signing subkey,
+  subkey-only export), in a short-pathed home because gpg-agent's socket path
+  is limited to about 104 bytes. Every Gradle run goes through one wrapper
+  that confines Gradle to the pinned JDK.
+- `kotlin-matrix-stable` runs ktlint's formatter over a copy with the
+  `.editorconfig` -- the exemption is what is being tested -- and compares the
+  matrix rows only; ktlint's opinions about the rest are not adopted. Every
+  `.tb.kt` counts, a file with no matrix lines fails, and a scan that matches
+  nothing fails.
+
+**Swift.**
+- `swift` builds and runs the checks with `swift run` (nixpkgs ships no
+  XCTest), in release (debug info failed on the toolchain's glibc warning;
+  macOS signs debug executables with `/usr/bin/codesign`, absent from a Nix
+  build's PATH), with a writable `HOME` and SwiftPM's per-user directories
+  pointed somewhere writable. It reports the swiftc in use, its version, and
+  whether the runtime library is reachable before running anything, and names
+  a triple mismatch as such.
+- `swift-compile-fail` typechecks fixtures against the built module, outside
+  any target. `swift-codegen` validates, emits to scratch, then compiles every
+  machine in one module with complete implementations and requires incomplete
+  or miscolored ones to be refused. `swift-examples` runs each example
+  separately and names the failures again last, with their final lines,
+  because a failed check shows only the last 25 lines.
+- `swift-macro-support` probes with a four-line package whether this SwiftPM
+  can declare a `.macro` target, distinguishing a missing feature, a broken
+  augmented derivation, swiftc built without macros, and a probe that failed
+  for an unrelated reason. `swift-macros` builds against the offline
+  checkouts and runs `TabularCenterMacroSyntaxCheck` (building is not
+  checking), matching our own compile errors before network patterns, because
+  SwiftPM's cache probe prints `fatal: unable to access` on every run;
+  reaching the network with a locked set is a failure.
+- `swift-matrix-stable` runs swift-format over a copy of each `.tb.swift`,
+  after a liveness probe proving the formatter rewrites something, and
+  requires each file back unchanged. `swift-format-config` holds with no
+  toolchain: every `.tb.swift` carries `// swift-format-ignore-file` (the
+  whole of swift-format's exemption mechanism), and any config names
+  `.tb.swift`. `swift-standalone` builds this directory alone, as the mirror
+  holds it.

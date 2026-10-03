@@ -1,41 +1,25 @@
 #!/usr/bin/env bash
-# The Swift steps of what "green" means.
+# The Swift steps of what "green" means, run directly, by the root
+# tools/verify, or by this directory's flake. Runs from the repository root;
+# every step skips, saying so, where there is no Swift toolchain.
 #
-# One third of the definition of green. The root `tools/verify` runs the
-# steps that read more than one implementation and hands every other step to
-# the script that owns it -- this one, for the steps below. `nix flake check`
-# on this directory's flake runs the same steps in its sandbox, and the root
-# flake composes that flake, so there is still one definition of green: it is
-# just no longer one file.
-#
-# Runs from the repository root, like the root script: the steps name paths
-# repo-relative, and `spec/` and `examples/` are shared by all three.
-#
-# Usage:  tabular-center-*/tools/verify [step ...]   (default: this language's steps)
-#         tabular-center-*/tools/verify --list
+# Usage:  tabular-center-swift/tools/verify [step ...]   (default: every step)
+#         tabular-center-swift/tools/verify --list
 # Steps:  swift-format-config swift-macro-support swift-matrix-stable swift
 #         swift-compile-fail swift-conformance swift-examples swift-codegen
-#         swift-macros (+ swift-render)
+#         swift-macros swift-standalone (+ swift-render)
+#
+# Steps are declared once, in the arrays below; `--list` prints them for the
+# root. Each step's output is teed into one ledger, every skip is reprinted
+# before the verdict, and failed steps are named again at the end. Why each
+# step is built as it is: ARCHITECTURE.md 16, "The checks, step by step".
 set -uo pipefail
 
 cd "$(dirname "$0")/../.." || exit 1
 
 fail=0
-# The steps that failed, by name, for the verdict. A failure prints
-# `FAILED: <step>` where it happens, and in a long run that line scrolls away
-# -- the verdict names them again, as the ledger does for skips.
 failed_steps=()
 
-# A missing directory here is almost never a missing directory.
-#
-# `nix flake check` builds from the git tree, and on a DIRTY tree nix includes
-# tracked files that were modified but EXCLUDES files that are untracked. So a
-# patch applied with `git apply` rather than `git am` shows up as: the modified
-# scripts are there, and every newly added directory is not.
-#
-# That produces `cd: examples/swift: No such file or directory` from inside a
-# nix build while the directory sits plainly in the working tree, which is a
-# confusing enough five minutes to be worth six lines.
 require_dir() {
     [ -d "$1" ] && return 0
     echo "missing directory: $1"
@@ -47,21 +31,7 @@ require_dir() {
     return 1
 }
 
-# The same trap as require_dir, one level down.
-#
-# require_dir catches a whole new directory going missing. It does not catch a
-# new *file* landing in a directory that already exists -- which is what a new
-# golden is. That cost a nix-build round trip: the harness reported "no golden
-# cov, run with --bless" for all four fixtures while the four files sat in the
-# working tree, untracked, and therefore absent from the source nix copied in.
-#
-# "run --bless" is the wrong advice in that situation and blessing would have
-# regenerated files that already existed. Check the set up front instead, and
-# say the thing that is actually true.
-#
-# It earns its keep twice: it also catches adding a .tbl fixture and forgetting
-# to bless it, which produces the same misleading message.
-RENDERINGS="grid mmd lint cov"   # produced at check time, never committed
+RENDERINGS="grid mmd lint cov"
 
 require_fixtures() {
     local missing="" tbl name
@@ -87,41 +57,14 @@ require_fixtures() {
     return 1
 }
 
-# Whether this run has network access.
-#
-# Set by the flakes' mkCheck (nix/context.nix at the root and in each
-# tabular-center-*/), and by nothing else. The sandbox cannot
-# reach Maven, so the one step that needs it must report `skip` with its reason
-# -- ARCHITECTURE section 13 and PLAN 0a both say so, and until now the guard
-# for it was `command -v gradle`, which is present IN the sandbox because
-# kotlinInputs ships it. The guard tested for the wrong thing and the step
-# would have failed on a missing network while claiming a missing tool.
-#
-# Declared rather than probed. nix knows; the script would be guessing, and the
-# same reasoning already governs swiftLibraryPath and NIX_CC.
 offline() { [ -n "${TABULAR_CENTER_OFFLINE:-}" ]; }
 
-# Every skip, collected.
-#
-# A skip is the most dangerous line this script prints. It is not an error, so
-# nothing counts it; it scrolls past in a green run; and the summary at the end
-# says "all green" either way. Two separate things were skipped for months
-# behind that -- the whole Kotlin suite, and the KSP example -- and in both
-# cases the output looked correct.
-#
-# So every step's output goes through `tee` into one file, and the end of the
-# run reprints whatever said `skip`. Nothing is required of the step functions,
-# which is the point: a ledger that only sees the sites someone remembered to
-# instrument is a ledger that lies by omission.
 TALLY="$(mktemp)"
 trap 'rm -f "$TALLY"' EXIT
 
 run() {
     local name="$1"; shift
     printf '\n\033[1m== %s ==\033[0m\n' "$name"
-    # Piped, so the ledger sees the output, and PIPESTATUS because with a pipe
-    # `$?` belongs to tee. Streaming is preserved -- a five-minute cargo build
-    # still prints as it goes, which capture-then-print would have cost.
     "$@" 2>&1 | tee -a "$TALLY"
     local rc="${PIPESTATUS[0]}"
     [ "$rc" -eq 0 ] && return 0
@@ -130,19 +73,11 @@ run() {
     fail=1
 }
 
-# Swift builds with SwiftPM. Unlike Kotlin there is no build-system problem
-# here -- nixpkgs ships a Swift toolchain for Linux, so `nix develop .#swift`
-# is enough.
 SWIFT="${SWIFT:-swift}"
 SWIFTC="${SWIFTC:-swiftc}"
 
 swift_available() { command -v "$SWIFT" >/dev/null 2>&1; }
 
-# SwiftPM wants a writable HOME for its caches and fails outright without one
-# in a sandbox. Shared by both swift steps: `swift-compile-fail` originally had
-# its own setup, lacked this, and reported the resulting silent build failure
-# as "could not locate the built TabularCenter module" -- a message about the symptom
-# two steps downstream of the cause.
 swift_home() {
     local scratch="$1"
     export HOME="${HOME:-$scratch/home}"
@@ -150,34 +85,12 @@ swift_home() {
     mkdir -p "$HOME"
 }
 
-# SwiftPM's per-user directories, which it locates from the *passwd* entry
-# rather than $HOME -- in a nix sandbox that is /var/empty, and it warns twice
-# per invocation about not being able to write there. These flags point it
-# somewhere writable instead. Two warnings in every log is how warnings stop
-# being read.
 swift_paths() {
     local scratch="$1"
     printf '%s' "--scratch-path $scratch/build --cache-path $scratch/cache \
 --config-path $scratch/config --security-path $scratch/security"
 }
 
-# Does this SwiftPM ship `CompilerPluginSupport`?
-#
-# The single fact that decides how much of the macro package can exist. With
-# it, `Package.swift` declares a `.macro` target, `pending/Machine.swift` goes
-# back, and `swift-macro-testing` becomes available -- which is the only way to
-# check that a diagnostic reaches the user attached to a source position, the
-# one property Swift's fixtures cannot reach today.
-#
-# A four-line probe package rather than looking for a file in the store,
-# because the store path is a nixpkgs implementation detail and the question is
-# "will a manifest importing this compile". Ask the toolchain, not the
-# filesystem.
-#
-# Reported, never failed. The answer is a property of the toolchain and no
-# commit can change it, so a red check here would be permanent noise on the
-# platforms that have Swift at all -- the same reasoning as `swift-unavailable`
-# in nix/checks.nix.
 step_swift_macro_support() {
     if ! command -v "$SWIFT" >/dev/null 2>&1; then
         echo "skip swift-macro-support (\$SWIFT not found)"
@@ -204,14 +117,6 @@ PROBE
     local rc=$?
     rm -rf "$probe"
 
-    # WHICH ManifestAPI, before anything else.
-    #
-    # `swiftPkgs` carries the augmented SwiftPM, which puts its `bin` on PATH
-    # and does not change where `swift build` looks for the manifest API. The
-    # loader names that directory on every failure, so it is worth naming on
-    # success too -- the alternative is reading `ok` and assuming, which is
-    # what happened: this check reported green against the ORIGINAL SwiftPM for
-    # two rounds, because a skip passes.
     local api
     api="$(printf '%s' "$out" | sed -n 's|.*"-I", "\([^"]*ManifestAPI\)".*|\1|p' | head -1)"
     [ -n "$api" ] && echo "note: manifest API: $api"
@@ -225,15 +130,6 @@ PROBE
 
     case "$out" in
         *"macros are not supported in this compiler"*)
-            # A deeper blocker than the manifest one, and a different layer.
-            # `CompilerPluginSupport` was SwiftPM: it decides whether a
-            # `.macro` TARGET can be declared. This is swiftc itself, built
-            # without macro support, so `macro Machine() = #externalMacro(...)`
-            # cannot be declared at all -- no manifest change reaches it.
-            #
-            # Everything up to here now works: the manifest loads, the `.macro`
-            # target resolves, `MachineMacro.swift` compiles and `TabularCenterMacros`
-            # links. The declaration is the only thing that cannot.
             echo "skip swift-macros (this swiftc is built without macro support:"
             echo "     'macros are not supported in this compiler'. SwiftPM can"
             echo "     now declare a .macro target -- see"
@@ -244,9 +140,6 @@ PROBE
         *"no such module 'CompilerPluginSupport'"*)
             case "$api" in
                 *plugin-support*)
-                    # The augmented SwiftPM is in use and the module is STILL
-                    # missing. A broken derivation, not a toolchain without the
-                    # feature, and the two must not report alike.
                     echo "FAIL the augmented SwiftPM is in use and the module is"
                     echo "     still missing: $api"
                     echo "     nix build .#swiftpm-plugin-support, then check"
@@ -261,8 +154,6 @@ PROBE
             ;;
     esac
 
-    # Anything else is the probe itself being wrong, which is worth knowing:
-    # a probe that fails for an unrelated reason would answer "no" forever.
     echo "FAIL swift-macro-support -- the probe failed for an unexpected reason"
     printf '%s\n' "$out" | head -5 | sed 's/^/       /'
     return 1
@@ -274,36 +165,14 @@ step_swift() {
         return 0
     fi
     require_dir tabular-center-swift || return 1
-    # Report the version. nixpkgs pins an older Swift than swift.org ships, and
-    # a tools-version above the toolchain is a hard refusal -- worth seeing in
-    # the log before reading a wall of compiler errors.
-    # Which swiftc, not just which version. `swift-unwrapped` shadowing
-    # `swift-wrapper` on PATH cost a round, and the two are indistinguishable
-    # from the version string alone.
     echo "note: $(command -v "$SWIFTC")"
     "$SWIFT" --version 2>&1 | head -1 | sed 's/^/note: /'
 
-    # SwiftPM wants a writable HOME for its caches and warns twice per run
-    # without one. The sandbox has none; give it a scratch directory rather
-    # than letting two warnings sit in every log until they are ignored.
     local scratch
     scratch="$(mktemp -d)"
     swift_home "$scratch"
 
     local out rc
-    # The built binary links against libdispatch and friends, and nothing puts
-    # the Swift runtime where the loader will find it:
-    #
-    #   error while loading shared libraries: libdispatch.so
-    #
-    # nix supplies LD_LIBRARY_PATH -- it knows where every package in the
-    # toolchain is, and the script would be guessing. `swiftc
-    # -print-target-info` is appended as a fallback for a non-nix toolchain,
-    # but it reports MODULE search paths and on nixpkgs does not contain
-    # libdispatch at all, which is why it was not enough on its own.
-    # ALL of the paths print-target-info reports, not just the first. The
-    # runtime is spread across several directories and libdispatch is not
-    # necessarily in the one that happens to come first.
     local info extra
     info="$("$SWIFTC" -print-target-info 2>/dev/null || true)"
     extra="$(printf '%s' "$info" | jq -r '
@@ -316,18 +185,12 @@ step_swift() {
             export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$d"
     done <<< "$extra"
 
-    # Say up front whether the runtime is actually reachable. A missing shared
-    # library is otherwise reported by the loader, after a successful build,
-    # in a message that looks like the build failed.
     local found=""
     local dir
     IFS=':' read -ra __dirs <<< "${LD_LIBRARY_PATH:-}"
     for dir in "${__dirs[@]}"; do
         [ -n "$dir" ] && [ -e "$dir/libdispatch.so" ] && { found="$dir"; break; }
     done
-    # Last resort: the corelibs are somewhere under the toolchain's resource
-    # path even when no advertised directory lists them. Searching beats
-    # failing with a message that only says what is missing.
     if [ -z "$found" ]; then
         local resource hit
         resource="$(printf '%s' "$info" | jq -r '.paths.runtimeResourcePath // empty' 2>/dev/null || true)"
@@ -351,26 +214,12 @@ step_swift() {
         echo "      see swiftCorelibs in tabular-center-swift/nix/context.nix."
     fi
 
-    # `swift run`, not `swift test`: nixpkgs' Swift does not ship XCTest, so
-    # the checks are a plain executable with their own assertion harness.
-    #
-    # Release, not debug: emitting debug info failed with
-    # `emit-module command failed` on the same missing-glibc warning that has
-    # dogged this toolchain, and release skips the AST-wrapping step that
-    # needs it. The checks do not care about debug info.
-    # SwiftPM's own flags go BEFORE the executable name. Everything after it is
-    # passed to the program, so `swift run tabular-center-check --scratch-path X` hands
-    # `--scratch-path` to tabular-center-check and leaves swiftpm using its defaults --
-    # which is why the /var/empty warnings survived being "fixed".
-    #
     # shellcheck disable=SC2046  # word splitting is what swift_paths is for
     out="$( (cd tabular-center-swift && "$SWIFT" run -c release $(swift_paths "$scratch") tabular-center-check) 2>&1 )"
     rc=$?
     printf '%s\n' "$out"
     rm -rf "$scratch"
 
-    # A triple mismatch reads like a missing module. Say what it actually is,
-    # because the message sends you looking for the wrong thing.
     if grep -q "could not find module .* for target" <<<"$out"; then
         echo
         echo "  This is a target-triple mismatch, not a missing module."
@@ -387,27 +236,6 @@ step_swift() {
     return "$rc"
 }
 
-# Every diagnostic and every guarantee gets a fixture that must FAIL to
-# compile. Swift's counterpart of tools/compile-fail and the Kotlin step.
-#
-# `swiftc -typecheck` against the built module rather than `swift build`: the
-# fixtures must not be part of a target, or the package itself would stop
-# building.
-# The macro package, which is expected not to build almost everywhere.
-#
-# It exists as a step so its absence is *reported* rather than discovered. The
-# alternative is what happened before this: someone runs `swift build` in
-# tabular-center-swift/macros and gets a screenful of swiftc invocation ending in `no such
-# module 'CompilerPluginSupport'`, which is accurate and explains nothing.
-#
-# Three outcomes, and telling them apart is the whole value:
-#
-#   - CompilerPluginSupport missing -> skip. This SwiftPM cannot declare a
-#     macro target at all. Vendoring swift-syntax would not change it; it needs
-#     a different SwiftPM, which in practice means Darwin.
-#   - network unreachable -> skip. swift-syntax is a remote package and this is
-#     the obstacle that was expected first.
-#   - anything else -> fail, because then the package is genuinely wrong.
 step_swift_macros() {
     if ! swift_available; then
         echo "skip swift-macros (\$SWIFT not found)"
@@ -415,21 +243,7 @@ step_swift_macros() {
     fi
     require_dir tabular-center-swift/macros || return 1
 
-    # The offline checkout set, when nix has built one from tabular-center-swift/nix/swift-lock.json.
-    #
-    # SwiftPM believes it has already resolved when it finds two things: the
-    # unpacked sources under .build/checkouts, and a workspace-state.json
-    # naming their revisions. Given both, --disable-automatic-resolution never
-    # contacts a remote. Given only the first it re-resolves and fails, which
-    # reads like the checkouts were ignored rather than like the state file was
-    # missing -- worth knowing before debugging it.
     local args=(build)
-    # macOS signs every DEBUG executable with a get-task-allow entitlement, so
-    # a debugger can attach, by running Apple's /usr/bin/codesign -- which is
-    # not on a nix build's PATH, and the link then fails with "unable to spawn
-    # process 'codesign'". This is the one debug build here: every other Swift
-    # step builds `-c release`, where SwiftPM applies no entitlement, which is
-    # why only this step hit it. Nothing here attaches a debugger.
     if [ "$(uname -s)" = Darwin ]; then
         args+=(--disable-get-task-allow-entitlement)
     fi
@@ -446,45 +260,18 @@ step_swift_macros() {
     local out
     out="$( (cd tabular-center-swift/macros && "$SWIFT" "${args[@]}" 2>&1) )"
     if [ $? -eq 0 ]; then
-        # SwiftPM probes its shared repository cache before using the
-        # checkouts, and in a sandbox that probe cannot resolve a certificate:
-        #
-        #   warning: 'swift-syntax': skipping cache due to an error:
-        #     fatal: unable to access '...': SSL certificate ... (20)
-        #
-        # It then builds from tabular-center-swift/nix/swift-lock.json exactly as intended, which is
-        # why this is noise rather than a failure -- the cache is an
-        # optimisation and its absence costs nothing here. Dropped on SUCCESS
-        # only: the same lines on a failing build are evidence and are printed
-        # in full below.
         printf '%s\n' "$out" | grep -v "skipping cache due to an error" \
             | grep -v "Cloning into bare repository" \
             | grep -v "unable to access 'https://github.com" \
             | grep -v "^tabular-center-check.*Fetching https://" \
             | grep -v "is not accessible or not writable, disabling user-level cache"
         echo "ok   swift macros"
-        # Building is not checking. The package compiled for a long time
-        # before anything ran, and `TabularCenterMacroSyntaxCheck` is where the
-        # traversal gets held to SURFACE.md -- so a build that succeeds and a
-        # check that never runs would be the same silence this repository has
-        # now removed three times.
-        # From tabular-center-swift/macros, because the checks read SURFACE.md by relative
-        # path -- the surface is documented in one place and executed from it.
         (cd tabular-center-swift/macros && "$SWIFT" run "${args[@]:1}" TabularCenterMacroSyntaxCheck) || return 1
         return 0
     fi
 
     case "$out" in
         *"no such module 'CompilerPluginSupport'"*)
-            # The manifest imports it on purpose now, so this means the SwiftPM
-            # in use is not the augmented one. Almost always a stale shell: the
-            # augmented SwiftPM is a new store path, and a `nix develop` opened
-            # before it was built still has the original on PATH.
-            #
-            # The previous message here said "reintroduced
-            # CompilerPluginSupport", which was true while the `.macro` target
-            # was out of the manifest and became actively misleading the moment
-            # it came back -- it blamed the source for an environment.
             printf '%s\n' "$out"
             echo "FAILED: this SwiftPM does not ship CompilerPluginSupport."
             echo "        The manifest needs it for its .macro target."
@@ -496,33 +283,13 @@ step_swift_macros() {
             return 1
             ;;
         *".swift:"*"error:"*)
-            # A compile error in our own source, matched BEFORE the network
-            # patterns. SwiftPM's shared-cache probe puts
-            # `fatal: unable to access 'https://...'` into the output of every
-            # run, so the network case matches whatever the real failure was --
-            # it has now reported "reached the network despite a locked
-            # checkout set" for a compiler that cannot declare macros and for a
-            # type error in MachineSyntax.swift.
-            #
-            # Ordering is the fix rather than a cleverer pattern: a line naming
-            # a `.swift` file and an `error:` is a compile failure whatever else
-            # is in the log.
             printf '%s\n' "$out" | grep -E "\.swift:[0-9]+:[0-9]+: error:" -A2 \
                 | head -20
             echo "FAILED: swift-macros -- compile error, see above"
             return 1
             ;;
         *"Network is unreachable"*|*"Could not resolve"*|*"failed to resolve"*|*"fatal: unable to access"*)
-            # Matched LAST on purpose. SwiftPM's shared-cache probe puts
-            # `fatal: unable to access 'https://...'` into the output of every
-            # run, so this pattern matches whatever the real failure was -- it
-            # reported "reached the network despite a locked checkout set" for
-            # a compiler that cannot declare macros.
             if [ -n "${TABULAR_CENTER_SWIFT_DEPS:-}" ]; then
-                # A locked set was supplied and SwiftPM went to the network
-                # anyway. That is a failure, not an environment: the state file
-                # was rejected, or a dependency appeared that the lock does not
-                # cover.
                 printf '%s\n' "$out"
                 echo "FAILED: swift-macros reached the network despite a locked"
                 echo "        checkout set. Re-lock: nix run .#swift-lock"
@@ -552,9 +319,6 @@ step_swift_examples() {
     scratch="$(mktemp -d)"
     swift_home "$scratch"
 
-    # One executable per example now, each its own target with its own
-    # dependency line. Run separately so a failure names the example rather
-    # than the package.
     local out rc=0 one ex failed=() replay=""
     for ex in traffic-light timer retry login observable-counter spec-check; do
         # shellcheck disable=SC2046
@@ -566,21 +330,12 @@ step_swift_examples() {
             rc=1
             failed+=("$ex (exit $one)")
             echo "FAIL swift example $ex exited $one"
-            # Its own last lines, kept for the end: see below.
             replay+="--- $ex, last lines ---"$'\n'"$(printf '%s\n' "$out" | tail -n 12)"$'\n'
 
         fi
     done
     rm -rf "$scratch"
 
-    # Named again LAST. Each example prints its whole build and run, so the
-    # line saying which one failed ends up far above the end -- and nix shows
-    # only the last 25 lines of a failed check. A macOS run once reported
-    # "FAILED: swift-examples" under a passing spec-check and nothing else.
-    #
-    # And the failing examples' own last lines with it. The name alone was
-    # the next round's problem: it said observable-counter failed and still
-    # not which assertion, because that was above the window too.
     if [ "$rc" -ne 0 ]; then
         printf '%s' "$replay"
         echo "swift-examples: ${#failed[@]} failed: ${failed[*]}"
@@ -600,12 +355,6 @@ step_swift_codegen() {
     swift_home "$scratch"
     gen="$scratch/emitted"
 
-    # Never blesses (see step_no_bless), and has nothing to bless: the emitted
-    # source is compiled, not compared to committed output (step_no_generated).
-
-    # 1. validation, the additive test, and determinism -- and write the
-    #    emitted source to scratch for the stages below. Generated code is
-    #    not committed, so there is no golden; stages 2 and 3 prove the output.
     # shellcheck disable=SC2046
     out="$( (cd tabular-center-swift && "$SWIFT" run -c release $(swift_paths "$scratch") \
         tabular-center-codegen-check "--emit=$gen") 2>&1 )"
@@ -613,8 +362,6 @@ step_swift_codegen() {
     printf '%s\n' "$out"
     if [ "$rc" -ne 0 ]; then rm -rf "$scratch"; return "$rc"; fi
 
-    # The emitted source imports `TabularCenter`, which `swift run` of the check
-    # does not build. Same module lookup as swift-compile-fail.
     local build bin modules
     # shellcheck disable=SC2046
     build="$( (cd tabular-center-swift && "$SWIFT" build -c release $(swift_paths "$scratch")) 2>&1 )" || {
@@ -629,13 +376,6 @@ step_swift_codegen() {
     modules="$bin/Modules"
     [ -d "$modules" ] || modules="$bin"
 
-    # 2. The emitted source must compile, with complete implementations.
-    #    A golden proves the emitter is deterministic; this proves its output
-    #    is Swift. Every machine in ONE module, on purpose: the emitter
-    #    namespaces what it generates, and machines that could not share a
-    #    module would be a generator bug that separate compiles would hide.
-    #    Emitted files are `<m>.emitted.swift` because swiftc rejects two
-    #    inputs with one base name -- `complete/<m>.swift` is the other.
     local sup=tabular-center-swift/codegen-support m f exp err bad=0
     local emitted=( "$gen"/*.emitted.swift )
     if [ ! -e "${emitted[0]}" ]; then
@@ -652,10 +392,6 @@ step_swift_codegen() {
         bad=1
     fi
 
-    # 3. An incomplete or miscolored program must NOT compile -- the
-    #    guarantee, after generation. Refused, and for the expected reason.
-    #    A fixture for a machine the check marks refused also gets that
-    #    machine, whose own generated code is what must be refused.
     local extra
     for f in "$sup"/compile_fail/*.swift; do
         m="$(basename "$f" .swift)"
@@ -663,8 +399,6 @@ step_swift_codegen() {
         extra=()
         [ -f "$gen/refused/$m.emitted.swift" ] && extra=("$gen/refused/$m.emitted.swift")
         exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
-        # `${extra[@]+...}`: an empty array is "unbound" under `set -u` in the
-        # bash versions macOS still ships.
         err="$("$SWIFTC" -typecheck -I "$modules" "$sup/Types.swift" "${emitted[@]}" \
             ${extra[@]+"${extra[@]}"} "$f" 2>&1)"; rc=$?
         if [ "$rc" -eq 0 ]; then
@@ -696,7 +430,6 @@ step_swift_conformance() {
 
     local out rc
     # shellcheck disable=SC2046
-    # Flags before the executable name; arguments after it. See step_swift.
     out="$( (cd tabular-center-swift && "$SWIFT" run -c release $(swift_paths "$scratch") \
         tabular-center-conformance ../spec/conformance) 2>&1 )"
     rc=$?
@@ -715,9 +448,6 @@ step_swift_compile_fail() {
     scratch="$(mktemp -d)"
     swift_home "$scratch"
 
-    # Build, and show the output if it fails. Discarding it meant a build
-    # failure surfaced as a missing module, which is the wrong problem two
-    # steps later.
     local build
     # shellcheck disable=SC2046
     build="$( (cd tabular-center-swift && "$SWIFT" build -c release $(swift_paths "$scratch")) 2>&1 )" || {
@@ -727,9 +457,6 @@ step_swift_compile_fail() {
         return 1
     }
 
-    # `--show-bin-path` rather than searching for a .swiftmodule: SwiftPM knows
-    # where it put things, and the layout under the scratch path differs
-    # between versions.
     local bin modules
     # shellcheck disable=SC2046
     bin="$( (cd tabular-center-swift && "$SWIFT" build -c release $(swift_paths "$scratch") \
@@ -745,8 +472,6 @@ step_swift_compile_fail() {
     local bad=0 f exp err rc
     for f in tabular-center-swift/compile_fail/*.swift; do
         exp="$(sed -n 's|^//~ EXPECT: ||p' "$f" | head -1)"
-        # No `|| true`: it discarded the one status that decides this. See the
-        # note above step_compile_fail.
         err="$("$SWIFTC" -typecheck -I "$modules" "$f" 2>&1)"; rc=$?
         if [ "$rc" -eq 0 ]; then
             echo "FAIL $(basename "$f") -- compiled, but was expected to fail"
@@ -765,21 +490,6 @@ step_swift_compile_fail() {
     return "$bad"
 }
 
-# Matrix rows must survive `swift-format`, the same claim rust-matrix-stable
-# and kotlin-matrix-stable make for their formatters.
-#
-# Swift's exemption is `// swift-format-ignore-file`, the whole of what
-# swift-format offers -- it has no per-glob rule configuration. So this runs
-# the formatter over a copy of each `.tb.swift` and requires the file to come
-# back byte for byte: with the directive there is nothing for the formatter to
-# change, matrix or otherwise.
-#
-# The liveness probe is the part worth keeping honest. A check that runs a
-# formatter which silently does nothing -- wrong subcommand, wrong arguments,
-# a binary that exits zero on unknown flags -- passes every file and proves
-# nothing. So it first formats a deliberately misformatted file and requires
-# THAT to change. If it does not, the check says it cannot tell whether the
-# formatter ran, rather than reporting seventeen passes.
 step_swift_matrix_stable() {
     if ! command -v swift-format >/dev/null 2>&1; then
         echo "skip swift-matrix-stable (swift-format not found)"
@@ -789,7 +499,6 @@ step_swift_matrix_stable() {
     local scratch f n=0 bad=0
     scratch="$(mktemp -d)"
 
-    # 1. Liveness: does the formatter actually rewrite anything?
     printf 'let probe   =    1\n' > "$scratch/probe.swift"
     swift-format format --in-place "$scratch/probe.swift" 2>/dev/null
     if [ "$(cat "$scratch/probe.swift")" = "let probe   =    1" ]; then
@@ -800,7 +509,6 @@ step_swift_matrix_stable() {
         return 1
     fi
 
-    # 2. Every matrix file, unchanged.
     while IFS= read -r f; do
         [ -n "$f" ] || continue
         n=$((n + 1))
@@ -832,23 +540,10 @@ step_swift_matrix_stable() {
     return "$bad"
 }
 
-# The two things a config could do wrong, neither needing a toolchain.
-#
-# `swift-matrix-stable` above runs swift-format and is the real guard, but it
-# skips where swift-format is absent. This one holds with nothing installed:
-# every `.tb.swift` must carry `// swift-format-ignore-file` -- the whole of
-# swift-format's exemption mechanism, since it has no per-glob rule
-# configuration -- and any config that appears must name `.tb.swift` too, for
-# whoever runs the formatter outside this script.
 step_swift_format_config() {
     local cfg found=0 bad=0
     while IFS= read -r cfg; do
         found=$((found + 1))
-        # swift-format reads `.swift-format` as JSON; it has no per-glob rule
-        # exemptions the way .editorconfig does, so the only way to keep it off
-        # a file is to keep the file out of its input. Either mechanism is
-        # fine; naming the extension somewhere in the config is the evidence
-        # that someone thought about it.
         if grep -q "tb.swift" "$cfg"; then
             echo "ok   $cfg mentions .tb.swift"
         else
@@ -867,16 +562,6 @@ step_swift_format_config() {
         echo "ok   no swift-format config; nothing formats Swift here yet"
     fi
 
-    # The exemption itself, which is in the files rather than in a config.
-    #
-    # swift-format has no per-glob rule exemptions -- the whole mechanism is
-    # `// swift-format-ignore-file` in the leading comment of the file. So the
-    # directive is the only thing standing between a matrix and the first
-    # person to run swift-format over this tree, whether or not a config ever
-    # appears, and whether or not `swift-matrix-stable` exists yet.
-    #
-    # Checkable with no toolchain at all, which is the point: it holds the day
-    # before swift-format arrives, not the day after it collapses a grid.
     local f n=0
     while IFS= read -r f; do
         [ -n "$f" ] || continue
@@ -899,17 +584,6 @@ step_swift_format_config() {
     return "$bad"
 }
 
-# Render every conformance fixture into $TABULAR_CENTER_RENDER_DIR.
-#
-# Not a check on its own and not in the default list: the root's
-# `renderings-agree` calls it once per implementation, into one directory
-# each, and diffs the directories. It lives here because rendering needs this
-# language's toolchain and helpers, and the root flake should not have to know
-# how any one implementation is built -- only that it can render.
-#
-# Contract with the root: exit 0 having written files (rendered), exit 0
-# having written nothing and printed a `skip` line (no toolchain), anything
-# else is a failure to render.
 step_swift_render() {
     [ -n "${TABULAR_CENTER_RENDER_DIR:-}" ] || {
         echo "swift-render: TABULAR_CENTER_RENDER_DIR is not set; the root's renderings-agree sets it"
@@ -932,15 +606,6 @@ step_swift_render() {
     echo "skip renderings-agree (swift: \$SWIFT not found)"
 }
 
-# The package as the mirror publishes it: this directory, alone.
-#
-# SwiftPM resolves a dependency from a git repository with `Package.swift` at
-# its root, so Swift is published through a mirror,
-# `tabula-center/tabular-center-swift`, made by `git subtree split` of this
-# directory on each release (RELEASING.md). A mirror clone holds this
-# directory and nothing beside it: no spec/, no root files, no other
-# language. Copy it somewhere with nothing around it and build every target
-# there; anything that reached outside fails here, before a release is cut.
 step_swift_standalone() {
     if ! swift_available; then
         echo "skip swift-standalone (\$SWIFT not found; nix develop .#swift provides it)"
@@ -956,10 +621,6 @@ step_swift_standalone() {
     cp -R tabular-center-swift "$alone"
     rm -rf "$alone/.build"
 
-    # `-c release`, as every Swift step here but one: macOS signs DEBUG
-    # executables for a debugger with /usr/bin/codesign, which a nix build's
-    # PATH lacks (see the swift-examples step), and this package has
-    # executable targets.
     # shellcheck disable=SC2046
     out="$( (cd "$alone" && "$SWIFT" build -c release $(swift_paths "$scratch")) 2>&1 )"
     rc=$?
@@ -976,8 +637,6 @@ step_swift_standalone() {
 STEPS_DEFAULT=(swift-format-config swift-macro-support swift-matrix-stable swift swift-compile-fail swift-conformance swift-examples swift-codegen swift-macros swift-standalone)
 STEPS_EXTRA=(swift-render)
 
-# `--list` is how the root finds out which steps are this script's, so a step
-# is declared in exactly one place: the arrays above.
 case "${1:-}" in
     --list) printf '%s\n' "${STEPS_DEFAULT[@]}"; exit 0 ;;
     --list-all) printf '%s\n' "${STEPS_DEFAULT[@]}" "${STEPS_EXTRA[@]}"; exit 0 ;;
@@ -1005,18 +664,8 @@ done
 
 echo
 
-# Called by the root tools/verify, which keeps one ledger for the whole run:
-# its tee already saw every `skip` line printed above, and a second ledger
-# here would list each of them twice.
 [ -n "${TABULAR_CENTER_NESTED:-}" ] && exit "$fail"
 
-# The ledger, before the verdict, because "all green" read on its own is what
-# made two missing suites invisible. Anything listed here did not run, and a
-# run with no list is the only one that means what it says.
-# POSIX classes, not \s. BSD grep and sed do not understand \s, and
-# this script runs without nix too, and on macOS that means BSD tools -- where
-# the ledger would have silently matched nothing, which is the exact failure
-# it exists to stop.
 if grep -q '^[[:space:]]*skip ' "$TALLY"; then
     echo "verify: skipped ---------------------------------------------"
     grep '^[[:space:]]*skip ' "$TALLY" | sed 's/^[[:space:]]*/  /'

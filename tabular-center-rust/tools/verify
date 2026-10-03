@@ -1,40 +1,24 @@
 #!/usr/bin/env bash
-# The Rust steps of what "green" means.
+# The Rust steps of what "green" means, run directly, by the root
+# tools/verify, or by this directory's flake. Runs from the repository root.
 #
-# One third of the definition of green. The root `tools/verify` runs the
-# steps that read more than one implementation and hands every other step to
-# the script that owns it -- this one, for the steps below. `nix flake check`
-# on this directory's flake runs the same steps in its sandbox, and the root
-# flake composes that flake, so there is still one definition of green: it is
-# just no longer one file.
+# Usage:  tabular-center-rust/tools/verify [step ...]   (default: every step)
+#         tabular-center-rust/tools/verify --list
+# Steps:  fmt clippy test no-std compile-fail conformance examples
+#         rust-matrix-stable rust-gui package asm-identical (+ rust-render)
 #
-# Runs from the repository root, like the root script: the steps name paths
-# repo-relative, and `spec/` and `examples/` are shared by all three.
-#
-# Usage:  tabular-center-*/tools/verify [step ...]   (default: this language's steps)
-#         tabular-center-*/tools/verify --list
-# Steps:  fmt clippy test no-std compile-fail conformance examples rust-matrix-stable rust-gui (+ rust-render)
+# Steps are declared once, in the arrays below; `--list` prints them for the
+# root. Each step's output is teed into one ledger, every skip is reprinted
+# before the verdict, and failed steps are named again at the end. Why each
+# step is built as it is: ARCHITECTURE.md 16, "The checks, step by step".
 set -uo pipefail
 
 cd "$(dirname "$0")/../.." || exit 1
 
 CARGO_FLAGS="--offline --locked"
 fail=0
-# The steps that failed, by name, for the verdict. A failure prints
-# `FAILED: <step>` where it happens, and in a long run that line scrolls away
-# -- the verdict names them again, as the ledger does for skips.
 failed_steps=()
 
-# A missing directory here is almost never a missing directory.
-#
-# `nix flake check` builds from the git tree, and on a DIRTY tree nix includes
-# tracked files that were modified but EXCLUDES files that are untracked. So a
-# patch applied with `git apply` rather than `git am` shows up as: the modified
-# scripts are there, and every newly added directory is not.
-#
-# That produces `cd: examples/swift: No such file or directory` from inside a
-# nix build while the directory sits plainly in the working tree, which is a
-# confusing enough five minutes to be worth six lines.
 require_dir() {
     [ -d "$1" ] && return 0
     echo "missing directory: $1"
@@ -46,21 +30,7 @@ require_dir() {
     return 1
 }
 
-# The same trap as require_dir, one level down.
-#
-# require_dir catches a whole new directory going missing. It does not catch a
-# new *file* landing in a directory that already exists -- which is what a new
-# golden is. That cost a nix-build round trip: the harness reported "no golden
-# cov, run with --bless" for all four fixtures while the four files sat in the
-# working tree, untracked, and therefore absent from the source nix copied in.
-#
-# "run --bless" is the wrong advice in that situation and blessing would have
-# regenerated files that already existed. Check the set up front instead, and
-# say the thing that is actually true.
-#
-# It earns its keep twice: it also catches adding a .tbl fixture and forgetting
-# to bless it, which produces the same misleading message.
-RENDERINGS="grid mmd lint cov"   # produced at check time, never committed
+RENDERINGS="grid mmd lint cov"
 
 require_fixtures() {
     local missing="" tbl name
@@ -86,41 +56,14 @@ require_fixtures() {
     return 1
 }
 
-# Whether this run has network access.
-#
-# Set by the flakes' mkCheck (nix/context.nix at the root and in each
-# tabular-center-*/), and by nothing else. The sandbox cannot
-# reach Maven, so the one step that needs it must report `skip` with its reason
-# -- ARCHITECTURE section 13 and PLAN 0a both say so, and until now the guard
-# for it was `command -v gradle`, which is present IN the sandbox because
-# kotlinInputs ships it. The guard tested for the wrong thing and the step
-# would have failed on a missing network while claiming a missing tool.
-#
-# Declared rather than probed. nix knows; the script would be guessing, and the
-# same reasoning already governs swiftLibraryPath and NIX_CC.
 offline() { [ -n "${TABULAR_CENTER_OFFLINE:-}" ]; }
 
-# Every skip, collected.
-#
-# A skip is the most dangerous line this script prints. It is not an error, so
-# nothing counts it; it scrolls past in a green run; and the summary at the end
-# says "all green" either way. Two separate things were skipped for months
-# behind that -- the whole Kotlin suite, and the KSP example -- and in both
-# cases the output looked correct.
-#
-# So every step's output goes through `tee` into one file, and the end of the
-# run reprints whatever said `skip`. Nothing is required of the step functions,
-# which is the point: a ledger that only sees the sites someone remembered to
-# instrument is a ledger that lies by omission.
 TALLY="$(mktemp)"
 trap 'rm -f "$TALLY"' EXIT
 
 run() {
     local name="$1"; shift
     printf '\n\033[1m== %s ==\033[0m\n' "$name"
-    # Piped, so the ledger sees the output, and PIPESTATUS because with a pipe
-    # `$?` belongs to tee. Streaming is preserved -- a five-minute cargo build
-    # still prints as it goes, which capture-then-print would have cost.
     "$@" 2>&1 | tee -a "$TALLY"
     local rc="${PIPESTATUS[0]}"
     [ "$rc" -eq 0 ] && return 0
@@ -129,9 +72,6 @@ run() {
     fail=1
 }
 
-# Both cargo workspaces. The examples sit outside the main one on purpose, and
-# for a while that meant neither fmt nor clippy saw them -- which is how a line
-# of trailing whitespace reached a patch that `cargo fmt --check` had passed.
 step_fmt() {
     local ok=0
     (cd tabular-center-rust && cargo fmt --all -- --check) || ok=1
@@ -140,26 +80,11 @@ step_fmt() {
 }
 
 step_clippy() {
-    # clippy is not always installable (it is absent from Ubuntu's archive, for
-    # one), and its absence must not silently mean "no lint pass". Fall back to
-    # rustc's own lints over the same targets and say so out loud.
-    #
-    # --all-targets matters more than it looks: `cargo build` does not compile
-    # test targets, so an unused import in a test file passes a plain build and
-    # then fails clippy in CI. That exact gap escaped three times.
-    #
-    # Both cargo workspaces, not just the main one. The examples deliberately
-    # sit outside the workspace, so `cd tabular-center-rust && cargo clippy` never saw them --
-    # and five warnings sat there until someone ran `cargo check` by hand.
     local ok=0
     if (cd tabular-center-rust && cargo clippy --version >/dev/null 2>&1); then
         (cd tabular-center-rust && cargo clippy --all-targets --all-features $CARGO_FLAGS -- -D warnings) || ok=1
         (cd tabular-center-rust/examples && cargo clippy --all-targets $CARGO_FLAGS -- -D warnings) || ok=1
     else
-        # The fallback covers rustc's own lints (unused imports, dead code)
-        # but NOT clippy-only ones. `module_inception` reached CI this way.
-        # Say so loudly rather than reporting a green that means less than it
-        # looks: a check whose coverage is invisible is how gaps survive.
         echo "WARNING: clippy is unavailable."
         echo "  Falling back to rustc lints over the same targets."
         echo "  clippy-only lints (module_inception, needless_range_loop, ...)"
@@ -173,20 +98,6 @@ step_clippy() {
 step_test() { (cd tabular-center-rust && cargo test --all-features $CARGO_FLAGS); }
 
 step_no_std() {
-    # Phase 1 exit criterion: the core must build without std.
-    #
-    # Scope worth knowing: this builds the *library* without features. It says
-    # nothing about what `transition_matrix!` emits, because no machine is
-    # compiled here -- and the macro emitted `$crate::lint::Payloads` for every
-    # machine while `lint` is gated on `alloc`, so no machine built without
-    # features for as long as PAYLOADS has existed. `step_examples` builds
-    # `tabular-center-rust/examples/01-traffic-light` alone for exactly that reason; a
-    # consumer of the macro is the only thing that can check the macro.
-    #
-    # The fallback is only for a genuinely missing cross target. An earlier
-    # version swallowed stderr and fell back on ANY failure, which reported a
-    # stale-lockfile error as "target unavailable" and sent a real bug looking
-    # in the wrong place for an afternoon.
     local out rc
     out="$( (cd tabular-center-rust && cargo build -p tabular-center --no-default-features $CARGO_FLAGS \
         --target thumbv7em-none-eabihf) 2>&1 )"
@@ -203,26 +114,11 @@ step_no_std() {
     return "$rc"
 }
 
-# A compile-fail fixture passes only if the compiler REFUSED it.
-#
-# Every one of these loops used to infer that from empty stderr, which is not
-# the same thing. A fixture that compiles but emits a warning has non-empty
-# stderr, so it fell through to the message match -- and if the warning
-# happened to contain the EXPECT string, a fixture that compiled cleanly was
-# reported ok. Kotlin warns about unused parameters by default and the EXPECT
-# lines name members, so the two are not far apart.
-#
-# The exit status is the question being asked, so ask it.
 step_compile_fail() { ./tabular-center-rust/tools/compile-fail; }
 
 step_conformance() {
     require_fixtures || return 1
     (cd tabular-center-rust && cargo run -q -p tabular-center-conformance $CARGO_FLAGS) || return 1
-    # Smoke-run table-diff. It is a documented tool with a `just` recipe and a
-    # `nix run` app, and until now nothing ever executed it -- `cargo clippy
-    # --all-targets` compiled it and stopped there. Its rendering is unit
-    # tested; this covers the argument handling and the exit codes, which are
-    # the rest of it.
     (cd tabular-center-rust && cargo run -q -p tabular-center-conformance --bin table-diff $CARGO_FLAGS -- timer) \
         >/dev/null || { echo "table-diff failed on a fixture that exists"; return 1; }
     if (cd tabular-center-rust && cargo run -q -p tabular-center-conformance --bin table-diff $CARGO_FLAGS \
@@ -232,12 +128,6 @@ step_conformance() {
     fi
 }
 
-# The GUI example, which is its own package on its own toolchain.
-#
-# Not part of tabular-center-rust/examples's workspace: iced needs edition 2024 and tabular-center's
-# MSRV is 1.75, so the four examples that hold the library's promise stay
-# there and this one stands apart. `--locked` still: its lock is committed and
-# vendored like any other.
 step_rust_gui() {
     if ! command -v cargo >/dev/null 2>&1; then
         echo "skip rust-gui (\$cargo not found)"
@@ -254,42 +144,13 @@ step_rust_gui() {
     echo "ok   iced example (machine checked; the window is compiled, not opened)"
 }
 
-# The examples depend on tabular-center the way a user would -- by path, from outside
-# the workspace -- so they are a separate cargo invocation, not another
-# workspace member. That separation is the point: it is the only place the
-# public API is exercised from outside.
 step_examples() {
     require_dir tabular-center-rust/examples || return 1
-    # A workspace of four member crates now, not one crate of four modules.
-    # `cargo test` covers every member, including the tests/ directories the
-    # split moved them into.
     (cd tabular-center-rust/examples && cargo test $CARGO_FLAGS) || return 1
-    # 01-traffic-light takes tabular-center with no features at all. Building it under
-    # the workspace does not prove that: cargo unifies features across members,
-    # so 02's `alloc` would be enabled for everyone. Built alone, it is the
-    # only place `--no-default-features` is checked through the macro rather
-    # than through the library's own surface.
     (cd tabular-center-rust/examples && cargo test -p traffic-light $CARGO_FLAGS) || return 1
-    # And run the one example that has something to show. A driver is a loop;
-    # a loop nobody has watched is a loop nobody has watched.
     (cd tabular-center-rust/examples && cargo run -q -p retry $CARGO_FLAGS) >/dev/null || return 1
 }
 
-# Matrix rows must survive `cargo fmt`, the same claim kotlin-matrix-stable
-# makes about ktlint.
-#
-# The reasoning behind the Rust answer is different from the Kotlin one, and
-# that difference is the thing worth checking. Kotlin needs an `.editorconfig`
-# exemption because ktlint formats Kotlin it understands. rustfmt needs no
-# exemption because `transition_matrix!` is a macro invocation whose body is
-# not a Rust expression, so rustfmt bails on the whole invocation and leaves
-# the alignment alone.
-#
-# "Bails on the whole invocation" is an implementation detail of rustfmt, not a
-# promise, and the repository depends on it in 28 files. A rustfmt release that
-# got better at formatting macro bodies would silently collapse every matrix in
-# the tree, and `cargo fmt --check` in step_fmt would then demand the collapsed
-# form forever after. So it is asserted rather than assumed.
 step_rust_matrix_stable() {
     if ! command -v cargo >/dev/null 2>&1; then
         echo "skip rust-matrix-stable (\$cargo not found)"
@@ -297,11 +158,6 @@ step_rust_matrix_stable() {
     fi
     require_dir tabular-center-rust || return 1
 
-    # One tree to copy and scan -- the examples live inside it -- but two cargo
-    # workspaces to format in it: `cargo fmt` formats its own workspace's
-    # members and never descends into a nested one. Listing the examples as a
-    # second root instead would copy them into themselves and count each of
-    # their matrices twice.
     local roots=(tabular-center-rust)
     local fmt_dirs=(tabular-center-rust)
     [ -d tabular-center-rust/examples ] && fmt_dirs+=(tabular-center-rust/examples)
@@ -321,11 +177,6 @@ step_rust_matrix_stable() {
     done
 
     for root in "${roots[@]}"; do
-        # `tests/compile_fail/` is excluded on purpose. Those fixtures belong
-        # to no cargo target -- trybuild feeds them to rustc directly -- so
-        # `cargo fmt` never visits them, and comparing them would report `ok`
-        # for files the formatter cannot reach. A check that passes because
-        # nothing happened is the failure mode this repository keeps finding.
         for f in $(cd "$root" && grep -rl "transition_matrix!" . 2>/dev/null \
             | grep -v "/compile_fail/"); do
             grep -q "=> \[" "$root/$f" || continue
@@ -355,17 +206,6 @@ step_rust_matrix_stable() {
     return "$bad"
 }
 
-# Render every conformance fixture into $TABULAR_CENTER_RENDER_DIR.
-#
-# Not a check on its own and not in the default list: the root's
-# `renderings-agree` calls it once per implementation, into one directory
-# each, and diffs the directories. It lives here because rendering needs this
-# language's toolchain and helpers, and the root flake should not have to know
-# how any one implementation is built -- only that it can render.
-#
-# Contract with the root: exit 0 having written files (rendered), exit 0
-# having written nothing and printed a `skip` line (no toolchain), anything
-# else is a failure to render.
 step_rust_render() {
     [ -n "${TABULAR_CENTER_RENDER_DIR:-}" ] || {
         echo "rust-render: TABULAR_CENTER_RENDER_DIR is not set; the root's renderings-agree sets it"
@@ -381,16 +221,6 @@ step_rust_render() {
         "--emit=$TABULAR_CENTER_RENDER_DIR" ../spec/conformance) >/dev/null
 }
 
-# The crate, exactly as crates.io would receive it, built from that archive
-# alone.
-#
-# `cargo package` writes the `.crate` -- the crate directory and nothing
-# above it, with the workspace's inherited fields written in -- unpacks it
-# under target/package/, and compiles it there. A source file that reached
-# outside the crate, or a field the workspace supplied that did not survive
-# packaging, fails here rather than on publish day. No dependencies, so it
-# runs offline. `--allow-dirty` because a working tree with changes is still a
-# tree worth checking, and the nix sandbox has no git at all.
 step_package() {
     if ! command -v cargo >/dev/null 2>&1; then
         echo "skip package (\$cargo not found)"
@@ -422,8 +252,6 @@ step_asm_identical() {
 STEPS_DEFAULT=(fmt clippy test no-std compile-fail conformance examples rust-matrix-stable rust-gui package asm-identical)
 STEPS_EXTRA=(rust-render)
 
-# `--list` is how the root finds out which steps are this script's, so a step
-# is declared in exactly one place: the arrays above.
 case "${1:-}" in
     --list) printf '%s\n' "${STEPS_DEFAULT[@]}"; exit 0 ;;
     --list-all) printf '%s\n' "${STEPS_DEFAULT[@]}" "${STEPS_EXTRA[@]}"; exit 0 ;;
@@ -453,18 +281,8 @@ done
 
 echo
 
-# Called by the root tools/verify, which keeps one ledger for the whole run:
-# its tee already saw every `skip` line printed above, and a second ledger
-# here would list each of them twice.
 [ -n "${TABULAR_CENTER_NESTED:-}" ] && exit "$fail"
 
-# The ledger, before the verdict, because "all green" read on its own is what
-# made two missing suites invisible. Anything listed here did not run, and a
-# run with no list is the only one that means what it says.
-# POSIX classes, not \s. BSD grep and sed do not understand \s, and
-# this script runs without nix too, and on macOS that means BSD tools -- where
-# the ledger would have silently matched nothing, which is the exact failure
-# it exists to stop.
 if grep -q '^[[:space:]]*skip ' "$TALLY"; then
     echo "verify: skipped ---------------------------------------------"
     grep '^[[:space:]]*skip ' "$TALLY" | sed 's/^[[:space:]]*/  /'
