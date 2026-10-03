@@ -34,21 +34,25 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 1 Rust core, no macro | **done** |
 | 2 `transition_matrix!` | **done** |
 | 3 The spec | **done** |
-| 4 Kotlin core + KSP | **done**; KSP adapter now runs — `examples/kotlin/06-generated` builds green |
+| 4 Kotlin core + KSP | **done**; KSP adapter now runs — `tabular-center-kotlin/examples/06-generated` builds green |
 | 5 Swift | core, reference, compile-fail, testing, conformance, examples, **codegen**, `MachineSyntax`; macro expansion to come |
 | 6 Composition | **done (all three)** |
 | 7 Effects surface | **done (all three)** |
 | 8 Introspection & tooling | **done (all three)** |
-| 9a Driver and mailbox | **done (all three)**; 9b (rendering surface) not started |
+| 9a Driver and mailbox | **done (all three)** |
+| 9b Rendering surface | **done** (Kotlin and Swift emitters, KSP, `composable-transition`) |
+| 10 Release | in progress: README, migration guide, versioning policy, benchmark done; publication, license files and the assembly comparison open |
 
 One exception to the table, found by the audit below: Rust had no prototype
 colors. It has one now, `async`, composing in both directions the rule
 allows (see the audit's Rust-colors items).
 
-106 Rust tests; 56 compile-fail fixtures (17 Rust, 4 Kotlin, 3 Kotlin-codegen,
-12 Kotlin-KSP, 4 Swift, 11 Swift macro-syntax, 5 Swift-codegen); 11
-conformance fixtures (96
-trace steps), every one with an adapter in all three languages. No golden
+133 Rust tests; 65 compile-fail fixtures (18 Rust, 4 Kotlin, 5 Kotlin-codegen,
+14 Kotlin-KSP, 4 Swift, 12 Swift macro-syntax, 8 Swift-codegen); 11
+conformance fixtures (96 trace steps), every one with an adapter in all three
+languages. Recounted in the October 2026 audit; the previous figures were a
+release behind, and the first command below named a directory the rename had
+moved. No golden
 `.grid`, `.mmd`, `.lint` or `.cov` is committed any more: each harness renders
 its own at check time and `renderings-agree` diffs them (see the audit below).
 Every runtime lint is tripped by at least one fixture.
@@ -57,11 +61,13 @@ These counts are checked against the tree, not remembered. Regenerate with:
 
 ```
 grep -rho '#\[test\]' tabular-center-rust/ | wc -l
-ls tabular-center-rust/tabula/tests/compile_fail/*.rs | grep -vc _prelude
+ls tabular-center-rust/tabular-center/tests/compile_fail/*.rs | grep -vc _prelude
 ls -d tabular-center-kotlin/ksp/compile-fail/fixtures/*/ | wc -l
 ls -d tabular-center-swift/macros/fixtures/*/ | wc -l
-ls tabular-center-kotlin/compile_fail/*.kt tabular-center-kotlin/codegen/compile_fail/*.kt | wc -l
-ls tabular-center-swift/compile_fail/*.swift tabular-center-swift/codegen-support/compile_fail/*.swift | wc -l
+ls tabular-center-kotlin/compile_fail/*.kt | wc -l
+ls tabular-center-kotlin/codegen/compile_fail/*.kt | wc -l
+ls tabular-center-swift/compile_fail/*.swift | wc -l
+ls tabular-center-swift/codegen-support/compile_fail/*.swift | wc -l
 grep -h '=>' spec/conformance/traces/*.trace | wc -l
 ls spec/conformance/*.tbl | wc -l
 ```
@@ -342,6 +348,49 @@ paths and nothing else.
 - [x] Phase 0 ticked a license and a `continue-on-error` Swift job. The job is
       gone for a good reason and the box now says so; the license files were
       never there, and that box is reopened
+
+## Audit, October 2026: third pass
+
+Re-read this file, `ARCHITECTURE.md`, the READMEs and the comments that make
+claims about the tree, against the tree. Docs and comments only; no behaviour
+changed. The drift had two sources: counts nobody re-ran, and the `doc/`
+decision, which was reversed twice and left a sentence behind each time.
+
+- [x] Status counts: 133 Rust tests (not 106) and 65 compile-fail fixtures
+      (not 56). The first regeneration command named
+      `tabular-center-rust/tabula/`, which the rename moved, so it could not
+      have been re-run; it and the two other present-tense pointers to that
+      path (Phase 1's deliverable, the Top-risks table) now name
+      `tabular-center-rust/tabular-center/`
+- [x] The status table said 9b was not started; every 9b box is ticked and
+      the code is in the tree. 9b and 10 now have rows, here and in README
+- [x] Phase 5's "Conformance harness green" was open with eleven Swift
+      adapters registered. Ticked
+- [x] `doc/` is build output, deployed by `pages.yml` and ignored by
+      `.gitignore`. Six places still said it is committed and diffed for
+      staleness: `.gitignore`'s own comments, `spec/diagnostics.md`,
+      `tools/verify`, `nix/checks.nix`, ARCHITECTURE 12, and README's links
+      into `doc/*.md`, which 404 on GitHub. The links now go to the site
+- [x] ARCHITECTURE: 12 marked the formatter "tool not written" and omitted
+      `hop.rs`; 13 counted four flakes where there are five; 10 described
+      committed golden snapshots; 11.1 called Rust colors design-only; 11.2
+      and 11.3 showed superseded surfaces with no note saying so
+- [x] Swift READMEs said the macro is unwritten and blocked on swift-syntax:
+      `MachineSyntax` exists, swift-syntax is vendored by `swift-lock`, and
+      the blocker is `CompilerPluginSupport`. "All 13 diagnostics" is now
+      fourteen, and is no longer written as a number that drifts
+- [x] The Kotlin README described the emitted-source golden and Rust-written
+      `.grid` goldens, both removed
+- [x] Phase 0's outcome described the `hashFiles` gate that was removed for
+      making `ci.yml` invalid; a paragraph belonging to the license box sat
+      inside Phase 1; the formatter backlog still argued against writing the
+      formatter. Annotated or moved, history kept
+- [x] Three Phase 10 boxes were standing rules, not tasks, and could never be
+      closed. Moved to a "Standing rules" list, so `grep '\- \[ \]'` lists
+      only work
+- [x] `benches/dispatch.rs` ended by printing that `plain` is within noise of
+      the other two. The recorded run says it is twice as fast, for the reason
+      Phase 10 gives
 
 ---
 
@@ -1180,13 +1229,19 @@ green in CI for all three languages.
       has no `LICENSE-MIT` or `LICENSE-APACHE`. This box was ticked with the
       two above; the September 2026 re-audit found nothing behind it. Needs
       the copyright holder's name, which is not something to guess at, and
-      must land before any Phase 10 publication
+      must land before any Phase 10 publication.
+      *The Swift mirror adds a requirement:* a `git subtree split` of
+      `tabular-center-swift/` carries nothing from the root, so the license
+      files need copies inside that directory too (and inside the Rust crate,
+      whose archive likewise holds only its own directory)
 
 **Risk:** Swift toolchain on Linux via nixpkgs is the known-flaky piece. Do not
 let it block Phase 0 — pin it, mark it best-effort, move on.
 
-**Outcome:** done. Swift jobs in CI are gated on `hashFiles('tabular-center-swift/Package.swift')`
-so they no-op until Phase 5 rather than sitting red.
+**Outcome:** done. *(Superseded: Swift jobs were once gated on
+`hashFiles('tabular-center-swift/Package.swift')`; that gate made `ci.yml`
+invalid and was removed -- see "CI" under the rename. Swift is now an ordinary
+check on both platforms.)*
 
 ---
 
@@ -1197,10 +1252,7 @@ so they no-op until Phase 5 rather than sitting red.
 
 This phase deliberately produces the code the macro will later generate. It
 defines the target.
-      *The Swift mirror adds a requirement:* a `git subtree split` of
-      `tabular-center-swift/` carries nothing from the root, so the license
-      files need copies inside that directory too (and inside the Rust crate,
-      whose archive likewise holds only its own directory)
+
 - [x] `Step<S, F>`: `go`, `stay`, `ignored`; `Debug`, `PartialEq`
 - [x] `Cell` enum (six kinds) as inert data
 - [x] Effect collection shape: `[Option<F>; K]` const-generic, `no_std`-clean
@@ -1209,7 +1261,7 @@ defines the target.
 - [x] Tests: every cell, plus a trace-replay harness
 
 **Deliverable that matters:** the hand-written dispatcher is the macro's
-specification. It lives at `tabular-center-rust/tabula/tests/reference_timer.rs` — a test
+specification. It lives at `tabular-center-rust/tabular-center/tests/reference_timer.rs` — a test
 rather than an example, so `cargo test` keeps it honest — and must keep
 building forever.
 
@@ -1578,7 +1630,8 @@ end of 4b — do not carry both.
 ## Phase 5 — Swift core + macro
 
 **Exit criterion:** parity with Kotlin on the conformance suite. **Met** — all
-four fixtures pass, with the same golden `.grid` and `.lint` files.
+four fixtures passed then, with the same golden `.grid` and `.lint` files; all
+eleven pass now, and the goldens have been replaced by `renderings-agree`.
 
 - [x] `Step`, `Cell`, `Table`, `Export`, `Lint`, `Driver`, testing harness
 - [x] Reference machine and compile-fail suite, the counterparts of
@@ -1621,7 +1674,9 @@ four fixtures pass, with the same golden `.grid` and `.lint` files.
       `codegen-support/`
 - [x] Emit exhaustive `switch (state, action)` with payload binding, **no
       `default:`** -- same. Delegation is the remaining gap; see the audit
-- [ ] Conformance harness green
+- [x] Conformance harness green -- `TabularCenterConformance` registers an
+      adapter for all eleven fixtures (October 2026 audit: the box had been
+      left open after the work landed)
 
 **Risk:** macro diagnostics at accurate source locations inside a dictionary
 literal are fiddly. Accept row-level rather than cell-level positions in v1 if
@@ -1958,7 +2013,6 @@ a warning refuses nothing and every other fixture here proves a refusal.
       things — most recently an unused import in a *test* file, which
       `cargo build` never compiles, so it passed locally and failed clippy in
       CI. `--all-targets` is load-bearing.
-- [ ] Any behavioural change lands in `spec/conformance` before any implementation
 - [x] Every diagnostic gets a UI test (`trybuild` / KSP compile-testing /
       swift-macro-testing) -- and `diagnostics-tested` now enforces it rather
       than trusting the habit. From `spec/diagnostics-coverage.md`: a runtime
@@ -1966,8 +2020,13 @@ a warning refuses nothing and every other fixture here proves a refusal.
       must have a compile-fail fixture whose `//~ EXPECT:` names it, and a
       code emitted by nobody must have no fixture expecting it -- so the `-`
       beside `color-mismatch` cannot quietly become false either
-- [ ] Docs updated in the same PR
-- [ ] All three implementations green before merge to `main`
+
+**Standing rules**, not tasks -- they were written as boxes and so could never
+be closed (moved out of the list by the October 2026 audit):
+
+- Any behavioural change lands in `spec/conformance` before any implementation.
+- Docs are updated in the same PR.
+- All three implementations are green before merge to `main`.
 
 ---
 
@@ -2000,7 +2059,7 @@ comparatively cheap; everything after it assumes M2 held.
 | KSP incremental processing misses sealed-hierarchy changes | 4c | Explicit dependency tracking + a regression test that edits `S` |
 | Swift macro diagnostics land on wrong source lines | 5 | Accept row-level positions in v1, document in spec |
 | Three implementations drift | 3+ | Conformance suite gates merges. Phase 2 proved this must compare **behaviour**, not generated source: Rust names cells by trait bound, Kotlin and Swift by identifier. |
-| ~~N×M cell count makes real machines unpleasant~~ | any | **Measured** on a genuine 8×12 order machine: 96 cells, 78% `IGNORE`, **9 members to write**. Two costs found and recorded — a raised `recursion_limit` past ~7×10, and `ignore-heavy` firing on a machine that arguably is two machines. See `tabular-center-rust/tabula/tests/scale.rs`. |
+| ~~N×M cell count makes real machines unpleasant~~ | any | **Measured** on a genuine 8×12 order machine: 96 cells, 78% `IGNORE`, **9 members to write**. Two costs found and recorded — a raised `recursion_limit` past ~7×10, and `ignore-heavy` firing on a machine that arguably is two machines. See `tabular-center-rust/tabular-center/tests/scale.rs`. |
 
 ---
 
@@ -2311,11 +2370,17 @@ line-length rule failing a build. It is per-path configurable in
 `.editorconfig`, which is an argument **for** the `.tb.*` naming — scoping
 config by filename — and **against** writing a whole formatter.
 
-**Swift: not yet measurable.** There is no matrix *declaration* syntax in Swift
+**Swift: not yet measurable** *(superseded: `swift-matrix-stable` runs the
+pinned swift-format over every `.tb.swift`; see "Every matrix survives every
+formatter")*. There is no matrix *declaration* syntax in Swift
 until `TabulaMacros` lands — the reference machine writes its dispatcher by
 hand, and the `Table(...)` literals are one row per line but not column-aligned.
 A `swift-matrix-stable` check today would guard nothing. It becomes the right
 thing to add in the same patch as the macro, and not before.
+
+*Superseded: the formatter was written (see the boxes above) and `tb-aligned`
+runs it over every matrix. The analysis below is what argued against writing
+it, kept for the record.*
 
 **So the first task is still not the formatter.** The evidence so far says the
 danger is real but that per-path configuration handles it. Write `tabula-fmt`

@@ -266,10 +266,12 @@ is the piece that needs Maven.
                                # source compiled against codegen-support/
 ```
 
-**`TabularCenterMacros` is not written yet**, and swift-syntax has to be solved first:
-either vendored for the sandbox, or the macro target excluded from
-`nix flake check`. Worth deciding deliberately rather than discovering when the
-checks go red — see `PLAN.md`.
+**`TabularCenterMacros` is half written.** The traversal, `MachineSyntax`
+(SwiftSyntax to `RawMachine`), lives in the separate `macros/` package and is
+checked offline by `swift-macros`: swift-syntax is vendored by
+`tools/swift-lock`. Expansion waits on a SwiftPM that ships
+`CompilerPluginSupport`, which nixpkgs' does not — see `macros/README.md` and
+`PLAN.md`, 0e.
 
 ## Two drivers, one per color
 

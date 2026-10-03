@@ -54,31 +54,36 @@ should not be conflated.
 
 ## What that costs, stated plainly
 
-The macro is **not** covered by `nix flake check`. It is built in the dev shell
-with network access, and the check step reports `skip` otherwise rather than
-passing silently. That is the same call the Swift checks already make off
-Darwin and the Kotlin `06-generated` example makes without Gradle: a check that
-quietly passes where a thing is absent claims the thing works.
+*Updated in the October 2026 audit.* The network half is solved: option 1 was
+adopted as `tools/swift-lock` and `nix/swift-deps.nix`, which pin swift-syntax
+509.1.1 and lay it out as SwiftPM's checkout set, so `swift-macros` builds this
+package and runs `TabularCenterMacroSyntaxCheck` offline under
+`nix flake check`.
 
-Option 1 in the backlog — vendoring swift-syntax with `swiftpm2nix` or a fixed
-output derivation — remains the correct end state and is strictly more work. It
-can be adopted later without moving any code: only `nix/` changes.
+What is still not covered is macro *expansion*: there is no `.macro` target to
+build until a SwiftPM with `CompilerPluginSupport` is available.
+`swift-macro-support` reports how far `nix/swiftpm-plugin-support.nix` has got,
+and says `skip` with its reason rather than passing quietly.
 
 ## What is here, and what is not
 
-- `Sources/TabularCenterMacroDecl` — the `@Machine` declaration users import.
-- `Sources/TabularCenterMacros` — the implementation. Its job is exactly one
-  transformation: **SwiftSyntax nodes to a `RawMachine`.**
+- `Sources/TabularCenterMacroSyntax` — `MachineSyntax`: **SwiftSyntax nodes
+  to a `RawMachine`**, the macro's whole job, as a plain library so it builds
+  without plugin support.
+- `Sources/TabularCenterMacroSyntaxCheck` — runs it over `SURFACE.md`'s
+  declaration and the rejection fixtures in `fixtures/`.
+- `pending/` — the `@Machine` declaration (`Machine.swift`) and the expansion
+  glue (`TabularCenterMacros/`), waiting for a `.macro` target.
 
-Everything after that already exists and is tested. `TabularCenterCodegen` takes a
-`RawMachine`, validates it into a `MachineDesc` with all 13 diagnostics, and
+Everything after `RawMachine` already exists and is tested. `TabularCenterCodegen`
+validates it into a `MachineDesc` with every declaration diagnostic, and
 emits source. That split is why this package is small and why the Kotlin side
 survived KSP being unrunnable — the generator's logic never depended on the
 thing that parses syntax.
 
-**The implementation is not written yet.** This package is the decision and the
-shape; the SwiftSyntax parsing is the next piece of work, and it is the only
-piece, because nothing downstream of `RawMachine` needs anything from here.
+**The traversal is written** (`MachineSyntax`); expansion is what waits, and it
+is the part with no decisions in it. *(This paragraph said the implementation
+was unwritten until the October 2026 audit.)*
 
 `SURFACE.md` pins the input half: what a user writes, and which part of it
 becomes which field of `RawMachine`. It is written before the traversal on

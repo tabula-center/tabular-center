@@ -90,20 +90,20 @@ ship an unrunnable processor, the generator is split:
 Worth keeping now that KSP runs: a code generator whose logic can only be
 exercised through a compiler plugin is a generator nobody refactors.
 
-`./tools/verify kotlin-codegen` does four things, and the last two are the
+`./tools/verify kotlin-codegen` does four things, and the last three are the
 point:
 
 ```
-ok   timer                              # emitted source matches the golden
-ok   toggle
+ok   timer emits deterministically      # two emissions, byte-identical
 ok   emitted source compiles            # it is valid Kotlin
-ok   complete implementation compiles   # every member it demands is satisfiable
+ok   complete implementations compile   # every member it demands is satisfiable
 ok   hole_in_generated.kt               # and an incomplete one still fails
 ```
 
-A golden diff alone would only prove the emitter is deterministic. Compiling
-its output, then compiling both a complete and an incomplete implementation
-against that output, proves the emitted code **still enforces the guarantee**.
+Nothing generated is committed, so there is no golden to diff (one used to
+exist, and proved only that the characters did not move). Compiling the
+output, then compiling both a complete and an incomplete implementation
+against it, proves the emitted code **still enforces the guarantee**.
 
 ## Layout
 
@@ -130,10 +130,13 @@ Interfaces are Kotlin's trait bounds, which is also why the cell surface is an
 interface rather than abstract members on a class: a class extends one parent,
 and that would have capped composition at a single child.
 
-`conformance/` is what keeps the two implementations from drifting. It parses
-the same `.tbl` and `.trace` files the Rust harness reads, and compares the
-rendered grid **byte for byte** against the golden `.grid` file Rust writes.
-Verified to catch both table drift and behavioural drift.
+`conformance/` is what keeps the three implementations from drifting. It
+parses the same `.tbl` and `.trace` files the Rust and Swift harnesses read,
+replays every trace, compares the generated `TABLE` cell by cell, and writes
+its renderings (`.grid`, `.mmd`, `.lint`, `.cov`) with `--emit=<dir>`;
+`renderings-agree` diffs them **byte for byte** against the other two
+implementations'. Nothing rendered is committed. Verified to catch both table
+drift and behavioural drift.
 
 `test/ReferenceTimer.kt` is the artifact to read first. It is marked with a
 `GENERATED` line: everything below is what KSP must emit, everything around it

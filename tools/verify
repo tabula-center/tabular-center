@@ -144,10 +144,12 @@ run() {
 # it. Worse, `tabular-center-rust/examples/Cargo.lock` records tabular-center's version too, so a bump
 # that refreshes only the main workspace leaves exactly one step failing --
 # which reads like a problem with the examples rather than with the release.
-# doc/ is generated from spec/ and the code, committed, and served by GitHub
-# Pages from the branch. Checked rather than trusted: the pages are what
-# diagnostic messages link to, so a stale page means a developer following a
-# link from an error reads a description of a different error.
+# doc/ is generated from spec/ and the code: build output, deployed by
+# .github/workflows/pages.yml, never committed. What is checked is that it CAN
+# be generated faithfully -- every included sample resolves and every
+# diagnostic code has an anchor -- because the pages are what diagnostic
+# messages link to, and a broken anchor drops a developer who followed a link
+# from an error at the top of a long page.
 step_docs() { ./tools/docs --check; }
 
 step_version() {

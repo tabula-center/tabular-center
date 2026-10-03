@@ -6,7 +6,8 @@ this wrong costs a rewrite of the traversal, and no toolchain available here
 can compile the traversal to tell us.
 
 The output half is already fixed: `RawMachine` in `TabularCenterCodegen`, which
-validates into a `MachineDesc` with all 13 diagnostics and emits the source.
+validates into a `MachineDesc` with every declaration diagnostic and emits
+the source.
 **The macro's entire job is syntax to `RawMachine`.** Nothing below describes
 generated code, because none of it is the macro's decision.
 

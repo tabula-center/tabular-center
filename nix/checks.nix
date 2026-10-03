@@ -16,9 +16,9 @@ in
 {
   version = verify "version";
 
-  # doc/ is generated from spec/ and the code, and committed. Checked because
-  # the pages are what diagnostic messages link to: a stale page means someone
-  # following a link from an error reads about a different error.
+  # doc/ is generated from spec/ and the code; build output, deployed by
+  # pages.yml. Checked that every sample resolves and every diagnostic code has
+  # an anchor, because the pages are what diagnostic messages link to.
   docs = verify "docs";
 
   # The check above the three matrix-stable checks. Each of those scans roots

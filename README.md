@@ -5,8 +5,9 @@
 State machines whose declaration *is* the transition matrix.
 
 **Documentation: <https://tabula.center/>** -- a
-page per language ([Rust](doc/rust.md), [Kotlin](doc/kotlin.md),
-[Swift](doc/swift.md)), with the same
+page per language ([Rust](https://tabula.center/rust),
+[Kotlin](https://tabula.center/kotlin), [Swift](https://tabula.center/swift)),
+with the same
 machine in each, the code you write around it, and what the compiler says when
 a cell is missing.
 
@@ -80,6 +81,8 @@ child under a plain parent does not compile.
 | 7 | Effects surface | done (all three) |
 | 8 | Introspection, lints, renderings | done (all three); renderings produced by each and diffed (`renderings-agree`) |
 | 9a | Driver and mailbox | done (all three) |
+| 9b | Rendering surface | done (Kotlin and Swift; `@Composable` and `@ViewBuilder` renderers) |
+| 10 | Release | in progress: publication, license files and the assembly comparison open |
 
 See `ARCHITECTURE.md` for the design, `PLAN.md` for the task breakdown, and
 `tabular-center-<lang>/examples/` for the worked machines — the same four core examples in every

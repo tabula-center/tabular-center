@@ -562,9 +562,10 @@ Because the matrix exists as inert data (`TABLE`), these come free:
 - **Coverage report** — counts by cell kind. A machine that is 90% `IGNORE`
   probably wants splitting; a machine with many `UNREACHABLE` cells probably has
   a modelling error. Surfaced in build output.
-- **Golden matrix snapshot** — `TABLE` serialized to the conformance format
-  (§12), diffable in review. A PR that changes machine behaviour shows the table
-  diff, not just the code diff.
+- **Matrix rendering** — `TABLE` rendered as an aligned grid, the
+  conformance format's view of a machine (§12). Not committed as a golden:
+  each implementation renders its own at check time and `renderings-agree`
+  diffs them, and `table-diff` renders any machine's grid for review.
 
 ### Payload-free fast path
 
@@ -664,9 +665,13 @@ wrong row arity; and the expansion contains no wildcard arm, so a missing *row*
 is caught by `rustc`'s own exhaustiveness checker rather than by our macro. The
 second is free and more trustworthy than anything we could write.
 
-Color is a `$($color:tt)*` capture splatted onto each generated `fn`, with
-`$(.await)?` at call sites gated on the same capture. *Design, not yet
-implementation: see §5's Rust status note.*
+Color was designed as a `$($color:tt)*` capture splatted onto each generated
+`fn`. *As built it is not splatted* -- the cell surface is the library trait
+`Handle`, with no generated declaration for a color to land on -- so
+`prototype async fn handle;` selects `AsyncHandle` / `AsyncPerform` and gates
+the `.await` at each call into a cell. See §5's Rust status note. Likewise the
+`pub trait TimerCells` in the expansion above is the design's shape; the
+built surface is one `Handle` bound per cell (§11.0).
 
 AFIT is not `dyn`-compatible; irrelevant, since we monomorphize. A boxed variant
 sits behind a `dyn` feature flag.
@@ -736,7 +741,10 @@ interface Timer {
 }
 ```
 
-Generated:
+Generated (the design's shape; *as built*, the surface is `interface Cells`
+with `step`, `TABLE` and `PAYLOADS` at top level, because a class can extend
+one parent and that would cap composition at one child -- §8, and PLAN 4c-old.
+Context parameters are not read yet, §5):
 
 ```kotlin
 abstract class TimerMachine {
@@ -782,7 +790,8 @@ Costs, honestly: KSP is a build dependency (not a runtime one; the generated
 code and `tabular-center-core` have zero runtime deps). Incremental builds slow.
 IDE resolution of generated symbols is flaky until first build. Nested
 annotation matrices are wordy, and ktlint will fight the column alignment —
-ship an `.editorconfig` disabling the relevant rules for annotated declarations.
+ship an `.editorconfig` disabling the relevant rules for matrix files
+(`[*.tb.kt]`, `spec/matrix-files.md`).
 
 Multiplatform: `tabular-center-core` is a KMP module (`commonMain` only). The KSP
 processor is JVM.
@@ -815,6 +824,14 @@ enum Timer {
     ]
 }
 ```
+
+> **Status.** The declaration above is the original design. The settled
+> surface is `tabular-center-swift/macros/SURFACE.md` -- one `@Row` per state
+> holding an aligned array literal, not a dictionary -- and it is executed:
+> `MachineSyntax` parses it on every run. The `@Machine` macro itself waits on
+> a SwiftPM that ships `CompilerPluginSupport` (§13); until then
+> `TabularCenterCodegen` emits the protocol and `switch` below from a
+> `MachineDesc`, and `swift-codegen` compiles the result.
 
 The macro synthesizes a payload-free `Tag` enum for table indexing, validates
 the literal's shape at expansion time, and emits:
@@ -860,7 +877,7 @@ tabular-center/
 │   ├── diagnostics-coverage.md  # which implementation emits which code; checked
 │   ├── happy-paths.md           # `@Path` spines: design + status
 │   ├── matrix-files.md          # the `*.tb.*` convention
-│   ├── tabular-center-fmt.md    # the formatter's contract (tool not written)
+│   ├── tabular-center-fmt.md    # the formatter's contract (tool: tabular-center-fmt/)
 │   └── conformance/
 │       ├── README.md            # the .tbl and .trace formats
 │       ├── <name>.tbl           # ── 11 shared fixtures: timer, toggle, retry,
@@ -881,7 +898,7 @@ tabular-center/
 │   ├── tools/compile-fail       # diagnostic fixtures; bash, not trybuild
 │   ├── Cargo.toml               # workspace
 │   ├── tabular-center/          # core + macro_rules! (single crate, no deps)
-│   │   ├── src/{lib,step,cell,table,matrix,machine,delegate,driver}.rs
+│   │   ├── src/{lib,step,cell,table,matrix,machine,delegate,driver,hop}.rs
 │   │   ├── src/{export,lint}.rs     # alloc-gated
 │   │   └── tests/
 │   │       ├── reference_timer.rs   # hand-written; the macro's specification
@@ -945,8 +962,9 @@ tabular-center/
     ├── verify                   # the single definition of green: runs the
     │                             #   cross-language steps, hands the rest to
     │                             #   tabular-center-*/tools/verify by name
-    └── docs                     # writes doc/, the Pages site: generated, committed,
-                                  #   and checked for staleness by `tools/verify docs`
+    └── docs                     # writes doc/, the Pages site: build output, deployed
+                                  #   by .github/workflows/pages.yml; `tools/verify
+                                  #   docs` checks every sample and anchor resolves
 ```
 
 Three things about this layout are decisions rather than accidents.
@@ -1005,8 +1023,9 @@ should produce recognizably the same message in all three.
 
 ## 13. `flake.nix`
 
-Four flakes: one per implementation, each pinning its own toolchain, and the
-root, which composes them. The root provides the per-language dev shells (the
+Five flakes: one per implementation, each pinning its own toolchain, one for
+the `.tb.` formatter (`tabular-center-fmt/`), and the root, which composes
+them. The root provides the per-language dev shells (the
 language flakes' own, re-exported) and a combined one, and its `nix flake check`
 runs every implementation's suite plus the cross-language checks.
 
@@ -1025,7 +1044,7 @@ they share with it -- `nixpkgs`, `flake-utils`, `rust-overlay`,
 `nixpkgs-swift` -- `follows` the root's, so the composed flake has one of each
 and one `flake.lock` pins them. Each language flake also has a `flake.lock` of
 its own, for being checked alone; it holds the same revisions as the root's,
-and a bump is made in all four together.
+and a bump is made in all five together.
 
 **Swift is checked on Linux, not merely available there.** That was not always
 true and the reasons it was not are worth keeping: the then-pinned nixpkgs 25.05

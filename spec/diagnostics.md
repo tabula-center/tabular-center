@@ -22,15 +22,23 @@ Jekyll and GitHub generate heading anchors by rules that differ from each other
 and change between versions, and this is a link a developer follows *from an
 error they are already stuck on* — the one place a rotted link costs most.
 
-`doc/` is generated from this file by `tools/docs` and committed, because
-GitHub Pages serves it from the branch. It is never edited by hand, and
-`tools/verify docs` fails when it is not exactly what `tools/docs` renders --
-a second copy of normative text is only safe if something checks it.
+`doc/` is generated from this file by `tools/docs`. It is build output, never
+committed and never edited by hand: `.github/workflows/pages.yml` renders and
+deploys it, and `tools/verify docs` fails if a code here has no anchor in the
+rendered page -- a link from an error message is only safe if something
+checks it resolves.
 
-Every code below has a fixture under the implementation's compile-fail suite:
-`tabular-center-rust/tabular-center/tests/compile_fail/`, `tabular-center-kotlin/compile_fail/`,
-`tabular-center-kotlin/codegen/compile_fail/`, and `tabular-center-swift/compile_fail/`. A diagnostic without
-a fixture is not shipped.
+Every declaration code below has a compile-fail fixture whose `//~ EXPECT:`
+names it, and every runtime lint is tripped by a conformance fixture listed in
+`spec/diagnostics-coverage.md`; `diagnostics-tested` enforces both. The
+fixtures live in seven suites: `tabular-center-rust/tabular-center/tests/compile_fail/`,
+`tabular-center-kotlin/ksp/compile-fail/fixtures/`,
+`tabular-center-kotlin/codegen/compile_fail/`, `tabular-center-kotlin/compile_fail/`,
+`tabular-center-swift/macros/fixtures/`, `tabular-center-swift/compile_fail/` and
+`tabular-center-swift/codegen-support/compile_fail/`. The check asks for at
+least one fixture per code, not one per implementation; which implementation
+emits which code is the coverage table's question. A diagnostic without a
+fixture is not shipped.
 
 All three suites are driven by `tools/verify`, reading a `//~ EXPECT:` line
 from each fixture — not by `trybuild`, KSP compile-testing, or

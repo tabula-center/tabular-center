@@ -261,7 +261,10 @@ fn main() {
         println!("  {name:<10} {:>8.2} {median:>8.2}", times[0]);
     }
     println!();
-    println!("The claim is that `matrix` and `reference` are the same code after");
-    println!("monomorphization, and that `plain` is within noise of both. Read the");
+    println!("`matrix` and `reference` should be indistinguishable: the claim is that");
+    println!("they are the same code after monomorphization, which timing cannot");
+    println!("settle. `plain` is expected to be faster: it returns");
+    println!("`(State, Option<Effect>)` where the");
+    println!("other two return a `Step` with an inline effects array. Read the");
     println!("minimums: they are the least disturbed by everything else on the machine.");
 }
