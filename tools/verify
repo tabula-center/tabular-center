@@ -18,7 +18,7 @@
 #         tools/verify --list          (every step, with its owner)
 # Steps:  version docs matrix-covered diagnostics-coverage fixtures-complete
 #         no-bless no-generated diagnostics-tested renderings-agree tb-aligned
-#         licenses
+#         licenses no-comments
 #         + every step listed by tabular-center-*/tools/verify --list
 set -uo pipefail
 
@@ -657,7 +657,7 @@ step_tb_aligned() {
 # The three implementations, and the `.tb.` formatter: every component with a
 # tools/verify of its own, by directory suffix.
 LANGS=(rust kotlin swift fmt)
-ROOT_STEPS=(version docs matrix-covered diagnostics-coverage fixtures-complete no-bless no-generated diagnostics-tested renderings-agree tb-aligned licenses)
+ROOT_STEPS=(version docs matrix-covered diagnostics-coverage fixtures-complete no-bless no-generated diagnostics-tested renderings-agree tb-aligned licenses no-comments)
 
 lang_script() { echo "tabular-center-$1/tools/verify"; }
 
@@ -725,6 +725,7 @@ for s in "${steps[@]}"; do
         renderings-agree)     run renderings-agree     step_renderings_agree ;;
         tb-aligned)           run tb-aligned           step_tb_aligned ;;
         licenses)             run licenses             step_licenses ;;
+        no-comments)          run no-comments          ./tools/no-comments ;;
         *)
             if sc="$(owner_of "$s")"; then
                 delegate "$sc" "$s"

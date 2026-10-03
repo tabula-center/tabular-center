@@ -1,8 +1,2 @@
 edition = "2021"
 max_width = 100
-
-# No `ignore` here for `*.tb.rs`. It is a nightly-only option, and on stable
-# rustfmt prints `unstable features are only available in nightly channel` once
-# per file and carries on -- twenty lines of warning for a setting that does
-# nothing. See spec/matrix-files.md: on stable the exemption is
-# `#[rustfmt::skip]` on the matrix item, which is precise and silent.

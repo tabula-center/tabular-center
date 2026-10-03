@@ -406,6 +406,66 @@ decision, which was reversed twice and left a sentence behind each time.
 
 ---
 
+## Cleanness: comments out of source
+
+Decided October 2026 (ARCHITECTURE 15): source and configuration read
+without comments; why a file is the way it is lives in `ARCHITECTURE.md` and
+here. About 10,500 comment lines across some 340 files when decided, so
+staged like the rename -- one file type per patch, each green on its own --
+with `tools/no-comments` enforcing exactly the types already migrated
+(`clean_patterns`), so nothing migrated can regress while the rest waits.
+
+Per stage: read every comment; move what a reader needs (design and
+constraints to ARCHITECTURE, the section it belongs to or 16 for build
+configuration; history and findings here; normative behaviour to `spec/`);
+rename where a name can say what the comment said; delete the rest; add the
+type to `clean_patterns`. Two hazards to check each time: `tools/docs`
+includes samples by regex anchors, and an anchor that matches a comment line
+must move with it; and a comment some tool reads must stay, and be listed in
+ARCHITECTURE 15's exemptions and `is_directive` if it is not already.
+
+- [x] The rule, its exemptions, and `tools/no-comments` (root step and check
+      `no-comments`): both comment syntaxes, string literals, Kotlin/Swift
+      triple-quoted strings and shell heredocs skipped, so generated text and
+      markdown headings written by a script are not comments. Comment-free
+      itself, as is everything written since the decision (`tools/asm-diff`,
+      the `licenses` step, the signing key-ID fix)
+- [x] **Stage 1: `*.toml`, `*.yml`, `*.yaml`** -- 18 files, 186 lines removed. The
+      rationale is ARCHITECTURE 16, "Cargo manifests and toolchains" and
+      "GitHub workflows". Every file parses to the same data as before
+      (checked by loading both versions); only the pinned actions' `# vX`
+      annotations remain, which Dependabot reads
+- [ ] Stage 2: `*.nix` -- 28 files, ~1,000 lines. To ARCHITECTURE 13 and a
+      "Nix" part of 16. Comments inside `''` strings are the embedded
+      scripts' comments and go too
+- [ ] Stage 3: shell -- `tools/*`, `tabular-center-*/tools/*`, plus
+      `justfile`, `.editorconfig`, `.gitignore`. ~1,750 lines, most of them
+      in the four `verify` scripts, which carry the longest rationale in the
+      tree; much of it is already history in this file and is deleted rather
+      than moved. `no-comments` needs to select these by name and shebang, not
+      extension
+- [ ] Stage 4: Rust tests, examples, benches and the conformance crate.
+      `reference_timer.rs` is "the macro's specification" and its narrative
+      becomes ARCHITECTURE 11.1's
+- [ ] Stage 5: Kotlin, `*.kt` and `*.kts` -- ~2,900 lines. `ReferenceTimer.kt`'s
+      `GENERATED` marker: check whether anything reads it before removing
+- [ ] Stage 6: Swift -- ~2,300 lines. `// swift-format-ignore-file` and
+      `swift-tools-version` stay (exempt)
+- [ ] Stage 7: the published libraries' public doc comments, last on purpose.
+      Removing `///` / KDoc empties docs.rs and IDE hover text; ARCHITECTURE
+      15 says the API is documented on the site and in the READMEs instead.
+      Confirm with the owner before this stage lands
+- [ ] Done: `clean_patterns` covers every type in ARCHITECTURE 15's scope,
+      and the staging list goes
+
+Found while doing stage 1, not fixed here: `ci.yml` uses actions by moving
+tag (`actions/checkout@v4`, the Determinate Systems actions `@main`) where
+`publish.yml` and `pages.yml` pin every action to a commit. CI holds no
+credentials, so it is not the release's risk, but a moved tag still changes
+what runs on every push.
+
+---
+
 ## Rename to `tabular-center`
 
 The project becomes **tabular-center**, and each implementation directory is

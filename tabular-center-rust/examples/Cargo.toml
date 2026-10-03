@@ -1,18 +1,3 @@
-# A workspace of complete example projects, one per machine, ordered by what
-# each adds. Each member has its own manifest, its own dependency line on
-# tabular-center, and its tests in `tests/` rather than beside the implementation --
-# because an example is read as a template for a real project, and a real
-# project does not put its tests in a `mod tests` at the bottom of `lib.rs`.
-#
-# One workspace rather than four detached packages, for one reason: a single
-# `Cargo.lock`. `tools/verify version` checks that lock against VERSION, and
-# four lockfiles would be four chances to forget. Splitting further later costs
-# nothing but that check.
-#
-# Deliberately outside the main workspace: an example should depend on tabular-center
-# the way a user would, by path, not by sharing its build graph. That is how
-# the driver's borrow bug was found -- every unit test passed because none of
-# them needed two closures to touch the same state.
 [workspace]
 resolver = "2"
 members = [
@@ -21,15 +6,3 @@ members = [
     "03-retry",
     "04-login",
 ]
-
-# `05-iced` is deliberately NOT a member.
-#
-# tabular-center's MSRV is 1.75, and these four hold it: they depend on the library by
-# path and on nothing else, so they are part of that promise. iced's dependency
-# tree needs edition 2024, which 1.75's cargo cannot even parse -- the first
-# attempt failed on a vendored `getrandom` manifest. A GUI application is not
-# the place to spend the library's MSRV, and raising it for one example would
-# have made the promise quieter rather than truer.
-#
-# So the GUI example is its own package, with its own lock and its own check on
-# a current toolchain. The rule it keeps: nothing in `tabular-center-rust/` moved.

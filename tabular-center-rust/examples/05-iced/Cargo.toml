@@ -1,8 +1,3 @@
-# Its own package, outside `tabular-center-rust/examples`'s workspace, and its own lock.
-#
-# iced needs a current toolchain; tabular-center needs 1.75. Both are true, and keeping
-# them in one workspace would have meant giving one of them up. `rust-version`
-# below is this application's, not the library's.
 [workspace]
 
 [package]
@@ -14,9 +9,6 @@ rust-version = "1.85"
 license = "MIT"
 publish = false
 
-# The first example with a third-party dependency, which is why
-# `tabular-center-rust/nix/context.nix` vendors this package's own `Cargo.lock` -- the offline
-# check cannot fetch iced's several hundred transitive crates.
 [dependencies]
 tabular-center = { path = "../../tabular-center" }
 iced = "0.13"

@@ -22,6 +22,7 @@ in
   docs = verify "docs";
 
   licenses = verify "licenses";
+  no-comments = verify "no-comments";
 
   # The check above the three matrix-stable checks. Each of those scans roots
   # it names, so a matrix in a directory none names is outside all of them and

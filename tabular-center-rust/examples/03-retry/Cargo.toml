@@ -7,8 +7,5 @@ rust-version = "1.75"
 license = "MIT"
 publish = false
 
-# The only example with a binary. A driver is a loop that runs, and a loop that
-# is only ever unit-tested is a loop nobody has watched. `cargo run -p retry`
-# prints a trace.
 [dependencies]
 tabular-center = { path = "../../tabular-center" }

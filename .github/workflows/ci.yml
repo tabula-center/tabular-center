@@ -4,17 +4,6 @@ on:
   push: { branches: [main] }
   pull_request:
 
-# CI runs `nix flake check` and nothing else.
-#
-# It used to duplicate the command list from flake.nix, which meant three
-# different definitions of "green": the workflow, the flake, and whatever a
-# developer typed locally. Three lints escaped through those gaps. Now the
-# flake's checks call `tools/verify <step>`, and CI calls the flake, so all
-# three run the same commands by construction.
-#
-# The trade is that CI needs a Nix installation (~20s) and gets less granular
-# step names in the UI. Worth it: a check that can disagree with local is a
-# check people learn to distrust.
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -27,42 +16,12 @@ jobs:
       - name: nix flake check
         run: nix flake check --print-build-logs --keep-going
 
-      # Lock freshness. tabular-center-kotlin/nix/gradle-lock.json records what
-      # THE FLAKE'S gradle resolves, so only the flake's gradle can say whether
-      # it is current: a Gradle installed any other way may want a different
-      # artifact set for the same build, and a --check against it would go red
-      # on a version skew rather than on a stale lock.
-      #
-      # `nix run` is not sandboxed: it executes on the host, with network, from
-      # the flake's pinned toolchain. So this is the only place both halves are
-      # available at once, which makes it the only place the question can
-      # actually be asked.
-      #
-      # Not part of `nix flake check`, because a check that reaches the network
-      # is not a check. Same split as apps-versus-checks in nix/apps.nix.
       - name: gradle lock is current
         run: nix run .#gradle-lock -- --check
 
-      # The same question for SwiftPM, and it belongs in the same job for the
-      # same reason: `nix flake check` consumes tabular-center-swift/nix/swift-lock.json and cannot
-      # tell whether it is current, because being unable to reach the network
-      # is the whole reason the file exists. `nix run` is not sandboxed, so
-      # this job has both the flake's toolchain and a network.
-      #
-      # It runs on Linux. Resolving needs a toolchain and a network, and this
-      # job has both; the Swift checks themselves run here too now that
-      # `swiftChecked` is `swiftAvailable` (ARCHITECTURE 13).
       - name: swift lock is current
         run: nix run .#swift-lock -- --check
 
-  # Swift is primary on Darwin: macro plugins are toolchain-version sensitive,
-  # so the Darwin toolchain is checked as well as the Linux one the `check`
-  # job already runs.
-  #
-  # Ungated. It had `if: hashFiles('...Package.swift') != ''`, a leftover from
-  # before Phase 5 that always held -- and GitHub rejects `hashFiles` in a
-  # job-level `if` outright, so the whole workflow file was invalid and no job
-  # in it ran.
   check-darwin:
     runs-on: macos-14
     steps:

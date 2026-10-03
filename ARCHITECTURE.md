@@ -966,6 +966,7 @@ tabular-center/
     ├── verify                   # the single definition of green: runs the
     │                             #   cross-language steps, hands the rest to
     │                             #   tabular-center-*/tools/verify by name
+    ├── no-comments              # the Cleanness rule (§15), over the file types migrated
     └── docs                     # writes doc/, the Pages site: build output, deployed
                                   #   by .github/workflows/pages.yml; `tools/verify
                                   #   docs` checks every sample and anchor resolves
@@ -1143,3 +1144,183 @@ at build time, it is not in this library.
 **We do not claim purity.** Cells may do whatever the color permits. The
 introspection features degrade accordingly (replay is only exact for machines
 that happen to be pure), and the docs say so rather than pretending otherwise.
+
+---
+
+## 15. Cleanness
+
+> **Source and configuration read without comments.** A `.rs`, `.kt`,
+> `.kts`, `.swift`, `.nix`, `.yml`, `.toml` file, a shell script, an
+> `.editorconfig` or a `justfile` says what it does through its names, its
+> structure and its messages. Why it is that way lives here and in `PLAN.md`.
+
+A comment is a second description of the code, maintained by hand, checked by
+nothing, and read by fewer people than the code it describes. This repository
+has found that kind of drift every time it looked (`PLAN.md`'s audits are a
+list of them), and comments are where it hides best. So the explanation moves
+to the two documents that are already read, reviewed and audited:
+
+| What the comment said | Where it goes |
+|---|---|
+| why the design is this shape; a constraint a reader must know | `ARCHITECTURE.md` -- the section it belongs to, or §16 for build and release configuration |
+| what was tried, what failed, what was found, what is still open | `PLAN.md` -- the phase or audit it belongs to |
+| normative behaviour another implementation must match | `spec/` |
+| what the next line does | nowhere: rename the thing until the line says it |
+
+A comment that restates its code is deleted, not moved. The test for moving
+is whether a reader of the document needs it to understand a decision.
+
+**What replaces a comment, in the file itself:** a name that says what a
+function or value is *for*; a function extracted so its name can carry the
+step; an error or log message that tells the reader what went wrong and what
+to do -- those are strings, read at exactly the moment they matter, and stay.
+
+**Doc comments are comments.** `///`, `//!`, KDoc and Swift `///` are not
+exempt: the API is documented on the site (`tools/docs`, generated from
+`spec/` and this file) and in each library's README, not inline.
+
+**Exempt: comments a tool reads.** These are syntax for a program, not prose
+for a person, and `tools/no-comments` allows exactly these:
+
+- a shebang, on line 1;
+- compile-fail markers `//~ EXPECT:`, `//~ AT:`, `//~ BUILDS`, which the
+  compile-fail steps parse;
+- `// swift-format-ignore-file`, which `swift-format-config` requires on every
+  `.tb.swift`, and `// swift-tools-version:` on line 1 of a `Package.swift`;
+- `# shellcheck disable=` / `# shellcheck source=`;
+- the version annotation on an action pinned to a commit
+  (`uses: owner/action@<40 hex> # v1.2.3`), which Dependabot reads to update
+  the pin;
+- the column-header line above a matrix in a `.tb.*` file
+  (`//    Start    Tick    Cancel`): the table's labels, data rather than
+  commentary, and aligned with the rows by `tabular-center-fmt`.
+
+Markdown is not in scope (it is where the explanation lives), nor are the
+conformance fixtures under `spec/conformance/`, which are the contract's data.
+
+**Enforced, by stage.** `tools/no-comments` (root step and check
+`no-comments`) fails on any comment outside the exemptions, in the file types
+it lists in `clean_patterns`. A file type is added to that list in the same
+patch that migrates it, so the check is green at every stage and a migrated
+type cannot regress. The stages and their state are in `PLAN.md`, "Cleanness".
+
+---
+
+## 16. Configuration, explained
+
+What the build and release configuration does is in the files; why each is
+shaped the way it is, is here. Grouped by file, so a reader of one finds its
+reasons in one place.
+
+### Cargo manifests and toolchains
+
+- **The library has no dependencies -- none, not few.** The matrix macro is
+  `macro_rules!`, part of the language: no proc-macro crate, no build-graph
+  cost (§11.1). `tabular-center-conformance` has none either, not because it
+  must but because a JSON crate there would be the repository's first
+  dependency and the `.tbl` parser is sixty lines. `tabular-center-fmt` has
+  none for the reason a formatter should not: every dependency is something
+  else that can break the tool people run on source they care about.
+- **The crate's README is its own.** crates.io receives the crate directory
+  and nothing above it, so `readme` names `tabular-center/README.md`, not the
+  monorepo's.
+- **The benchmark is `harness = false`, `test = false`.** It has its own
+  `main` and times with std alone, so it needs no harness and no
+  dev-dependency; `test = false` keeps timing out of `cargo test` while
+  `clippy --all-targets` still compiles it, and `asm-identical` builds it.
+- **`tabular-center-conformance` sets `default-run`** to its own binary, which
+  takes the package's name, beside `table-diff`.
+- **The examples are a workspace of complete projects**, one per machine,
+  each with its own manifest, dependency line and `tests/` -- an example is
+  read as a template, and a real project does not keep its tests in a
+  `mod tests` at the bottom of `lib.rs`. One workspace rather than four
+  packages, for one `Cargo.lock` that `tools/verify version` checks against
+  `VERSION`. Outside the library's workspace, so they depend on it by path as
+  a user would; that is how the driver's borrow bug was found.
+- **Each example covers a configuration corner.** `01-traffic-light` takes
+  the library with `default-features = false` and is `#![no_std]`: `export`
+  and `lint` need `alloc`, running a machine must not, and if the macro ever
+  allocates this fails here rather than on someone's firmware. `02-timer`
+  takes the defaults because it renders and lints its `TABLE`. `03-retry` is
+  the only one with a binary, because a driver is a loop and a loop only ever
+  unit-tested is a loop nobody has watched (`cargo run -p retry` prints a
+  trace).
+- **`05-iced` is not a workspace member, and has its own toolchain file.**
+  The library's MSRV is 1.75 and the four members hold it: they depend on the
+  library and nothing else. iced's tree needs edition 2024, which 1.75's
+  cargo cannot parse (the first attempt failed on a vendored `getrandom`
+  manifest), so the GUI example is its own package with its own lock, its
+  own `rust-version` (1.85, the application's) and a
+  `rust-toolchain.toml` saying `stable`. rustup takes the *nearest* toolchain
+  file walking up, and `tabular-center-rust/rust-toolchain.toml` pins 1.75,
+  so without its own the example would build on the MSRV under rustup. Nix
+  names current stable itself (`rustStable`) and never reads that file. It is
+  also the first example with a third-party dependency, which is why the Rust
+  flake vendors its `Cargo.lock`.
+- **`rustfmt.toml` has no `ignore` for `*.tb.rs`.** `ignore` is nightly-only;
+  on stable rustfmt prints a warning per file and formats regardless. The
+  stable, silent, per-item exemption is `#[rustfmt::skip]` on the matrix
+  (`spec/matrix-files.md`).
+- **`tabular-center-fmt` is its own workspace at the root**: it belongs to
+  the `.tb.` format rather than to a language, and ships on its own cadence,
+  so a formatting change never forces a library version bump. Its contract is
+  `spec/tabular-center-fmt.md`.
+
+### GitHub workflows
+
+- **`ci.yml` runs `nix flake check` and nothing else.** It used to duplicate
+  the flake's command list, which made three definitions of green -- the
+  workflow, the flake, and what a developer typed -- and three lints escaped
+  through the gaps. The flake's checks call `tools/verify <step>` and CI calls
+  the flake, so all three run the same commands by construction, at the cost
+  of a Nix install and coarser step names in the UI.
+- **The lock-freshness steps are `nix run`, in the `check` job.**
+  `gradle-lock.json` and `swift-lock.json` record what the *flake's*
+  toolchain resolves, so only that toolchain can say whether they are
+  current (another Gradle may want a different artifact set and go red on
+  version skew, not staleness). `nix run` is not sandboxed: it has the
+  flake's toolchain and a network, the only place both exist, which is also
+  why the question is not a `nix flake check` (a check that reaches the
+  network is not a check).
+- **`check-darwin` runs the whole flake on macOS** because macro plugins and
+  SwiftPM are toolchain-version sensitive and the Darwin toolchain is the
+  primary Swift one. It is ungated: an earlier `if: hashFiles(...)` was
+  rejected by GitHub in a job-level `if` and invalidated the whole file.
+- **`publish.yml`: one registry per job, each holding only its own
+  credentials** -- what `nix run .#publish -- --execute` does by hand, after
+  `nix run .#release` and `git push --follow-tags`. In the order it matters:
+  crates.io uses trusted publishing (GitHub's OIDC identity, `id-token:
+  write`, exchanged for a token revoked when the job ends; crates.io's entry
+  names this repository, workflow file and the `crates-io` environment, and
+  refuses a run differing in any); Maven Central has no OIDC, so its user
+  token and signing subkey live only in the `maven-central` environment,
+  which should require a reviewer and allow only `v*` tags; every action is
+  pinned to a commit, so a moved tag cannot change code holding credentials;
+  checkout never keeps its token in `.git/config`; no shared Nix cache, since
+  a poisoned cache is a way into a release; and `verify` reruns the checks on
+  the tagged commit, holding nothing, because a tag can be pushed on a commit
+  CI never saw. The Central credentials are a *user token* pair, not the
+  portal login; `SIGNING_KEY_ID` is not secret, so it is an environment
+  variable rather than a secret (RELEASING.md, step 4). A manual run resolves
+  a tag first -- the dispatched tag, or the one `VERSION` names, which must
+  exist -- so it publishes a release, never a branch's current state.
+- **`swift-mirror.yml` publishes Swift through a mirror**,
+  `tabula-center/tabular-center-swift`, because SwiftPM resolves a repository
+  with `Package.swift` at its root. On a release tag it `git subtree split`s
+  `tabular-center-swift/` with its history and pushes it, tagged with the
+  bare version SwiftPM wants (`0.1.0`, not `v0.1.0`); the split is
+  deterministic, so each release fast-forwards the mirror's `main`.
+  `swift-standalone` checks on every push that the directory builds alone.
+  The one secret, `SWIFT_MIRROR_TOKEN`, is a fine-grained token with
+  `contents: write` on the mirror only, in the `swift-mirror` environment so
+  its protection rules gate the push. Checkout runs with
+  `persist-credentials: false` because git would otherwise send the
+  workflow's own token for every github.com URL, ahead of the mirror token,
+  and the push would be refused as `github-actions[bot]`'s.
+- **`pages.yml` deploys the site** that `tools/docs` generates, rendered by
+  GitHub's Jekyll action (`jekyll-theme-primer`, per `doc/_config.yml`).
+  `doc/` is build output and the site, so `doc/index.md` is the front page.
+  It needs one setting, once -- Settings -> Pages -> Source: GitHub Actions --
+  and `deploy-pages` fails loudly if it is wrong rather than letting Pages
+  render README.md, which is how an earlier `pages.yml` failed. The custom
+  domain is set on the same page.

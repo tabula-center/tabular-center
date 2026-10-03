@@ -1,24 +1,8 @@
-# Publishes the Swift package to its mirror, tabula-center/tabular-center-swift.
-#
-# SwiftPM resolves a dependency from a git repository with Package.swift at
-# its root, and ours is in tabular-center-swift/. On a release tag (`v0.1.0`,
-# made by `nix run .#release`), this splits that directory out of the tag with
-# its history and pushes it to the mirror, tagged `0.1.0` -- SwiftPM wants bare
-# semver. The split is deterministic, so each release fast-forwards the
-# mirror's `main`. That the directory builds alone is checked on every push:
-# `swift-standalone` in tabular-center-swift/tools/verify.
-#
-# Needs one secret, SWIFT_MIRROR_TOKEN, in the swift-mirror environment: a
-# fine-grained token with `contents: write` on the mirror repository and
-# nothing else. This workflow's own token stays read-only. See RELEASING.md.
 name: swift-mirror
 
 on:
   push:
     tags: ["v*"]
-  # By hand, from the Actions tab. From a tag, that tag is mirrored; from a
-  # branch, the tag VERSION names -- which must exist. Either way the mirror
-  # gets the released content, never a branch's current state.
   workflow_dispatch:
 
 permissions:
@@ -27,16 +11,11 @@ permissions:
 jobs:
   mirror:
     runs-on: ubuntu-latest
-    # The secret lives in this environment, so any protection rules on it
-    # (required reviewers, say) gate the push to the mirror.
     environment: swift-mirror
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          # Not this workflow's token in .git/config: git sends it for every
-          # github.com URL, ahead of the mirror token in the push URL, and the
-          # push becomes github-actions[bot]'s -- a 403 on the mirror.
           persist-credentials: false
 
       - name: Resolve the release tag

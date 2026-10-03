@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+clean_patterns=(
+    '*.toml'
+    '*.yml'
+    '*.yaml'
+)
+
+skipped_directories=(.git target .build build .gradle .gradle-home .kotlin doc result node_modules)
+
+prune_expression=(-false)
+for d in "${skipped_directories[@]}"; do
+    prune_expression+=(-o -name "$d")
+done
+
+name_expression=(-false)
+for p in "${clean_patterns[@]}"; do
+    name_expression+=(-o -name "$p")
+done
+
+files=()
+while IFS= read -r f; do
+    files+=("$f")
+done < <(find . \( "${prune_expression[@]}" \) -prune -o -type f \( "${name_expression[@]}" \) -print | sed 's|^\./||' | LC_ALL=C sort)
+
+if [ "${#files[@]}" -eq 0 ]; then
+    echo "FAIL no-comments found no files matching ${clean_patterns[*]}; it checked nothing"
+    exit 1
+fi
+
+comment_style() {
+    case "$1" in
+        *.rs | *.kt | *.kts | *.swift) echo slash ;;
+        *) echo hash ;;
+    esac
+}
+
+find_comments() {
+    STYLE="$1" FILE="$2" awk '
+        function without_strings(s) {
+            gsub(/"([^"\\]|\\.)*"/, "\"\"", s)
+            if (ENVIRON["STYLE"] == "hash") gsub(/'"'"'[^'"'"']*'"'"'/, "", s)
+            return s
+        }
+        function is_directive(line) {
+            if (FNR == 1 && line ~ /^#!/) return 1
+            if (line ~ /^[[:space:]]*\/\/~ (EXPECT|AT|BUILDS)/) return 1
+            if (line ~ /^[[:space:]]*\/\/ swift-format-ignore-file[[:space:]]*$/) return 1
+            if (FNR == 1 && line ~ /^\/\/ swift-tools-version:/) return 1
+            if (line ~ /^[[:space:]]*# shellcheck (disable|source)=/) return 1
+            if (line ~ /@[0-9a-f]{40}[[:space:]]+# v[0-9][0-9A-Za-z.\-]*[[:space:]]*$/) return 1
+            if (ENVIRON["FILE"] ~ /\.tb\./ && line ~ /^[[:space:]]*\/\/([[:space:]]+[A-Za-z_][A-Za-z0-9_.]*){2,}[[:space:]]*$/) return 1
+            return 0
+        }
+        function report(line) { printf "%s:%d: %s\n", ENVIRON["FILE"], FNR, line }
+
+        heredoc_end != "" {
+            check = $0
+            sub(/^[[:space:]]+/, "", check)
+            sub(/[[:space:]]+$/, "", check)
+            if (check == heredoc_end) heredoc_end = ""
+            next
+        }
+        in_triple_quotes {
+            if (gsub(/"""/, "&") % 2 == 1) in_triple_quotes = 0
+            next
+        }
+        in_block_comment {
+            report($0)
+            if ($0 ~ /\*\//) in_block_comment = 0
+            next
+        }
+        {
+            if (is_directive($0)) next
+            code = without_strings($0)
+
+            if (ENVIRON["STYLE"] == "slash") {
+                if (gsub(/"""/, "&", code) % 2 == 1) { in_triple_quotes = 1 }
+                if (code ~ /\/\// || code ~ /\/\*/) report($0)
+                if (code ~ /\/\*/ && code !~ /\*\//) in_block_comment = 1
+                next
+            }
+
+            if (code ~ /(^|[[:space:]])#/) report($0)
+            if (match(code, /<<-?[[:space:]]*["'"'"']?[A-Za-z_][A-Za-z0-9_]*["'"'"']?/)) {
+                marker = substr(code, RSTART, RLENGTH)
+                gsub(/^<<-?[[:space:]]*["'"'"']?|["'"'"']$/, "", marker)
+                heredoc_end = marker
+            }
+        }
+    ' "$2"
+}
+
+findings="$(for f in "${files[@]}"; do find_comments "$(comment_style "$f")" "$f"; done)"
+
+if [ -n "$findings" ]; then
+    count="$(wc -l <<<"$findings" | tr -d ' ')"
+    echo "FAIL $count comment line(s) in files that must read without comments (ARCHITECTURE 15):"
+    head -40 <<<"$findings" | sed 's/^/  /'
+    [ "$count" -gt 40 ] && echo "  ... and $((count - 40)) more"
+    echo "  Move what a reader needs to ARCHITECTURE.md or PLAN.md, then delete the comment."
+    exit 1
+fi
+
+echo "ok   no comments in ${#files[@]} files (${clean_patterns[*]})"
