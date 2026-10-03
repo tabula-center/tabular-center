@@ -19,6 +19,7 @@ in
   # The crate as crates.io would receive it, built from the archive alone.
   rust-package = verify "rust-package" "package" rustInputs;
   rust-compile-fail = verify "rust-compile-fail" "compile-fail" rustInputs;
+  rust-asm-identical = verify "rust-asm-identical" "asm-identical" rustInputs;
 
   # The counterpart to kotlin-matrix-stable, and the reason it is separate from
   # rust-fmt: `cargo fmt --check` asserts the tree matches rustfmt's opinion,

@@ -82,7 +82,7 @@ child under a plain parent does not compile.
 | 8 | Introspection, lints, renderings | done (all three); renderings produced by each and diffed (`renderings-agree`) |
 | 9a | Driver and mailbox | done (all three) |
 | 9b | Rendering surface | done (Kotlin and Swift; `@Composable` and `@ViewBuilder` renderers) |
-| 10 | Release | in progress: publication open; the assembly comparison has its tool and awaits a run |
+| 10 | Release | in progress: publication open |
 
 See `ARCHITECTURE.md` for the design, `PLAN.md` for the task breakdown, and
 `tabular-center-<lang>/examples/` for the worked machines — the same four core examples in every
@@ -102,7 +102,7 @@ nix flake check        # the same steps, sandboxed, as CI runs them
 nix flake check ./tabular-center-kotlin   # one language on its own
 nix run .#conformance
 nix run .#bench        # matrix dispatch vs hand-written, timed
-nix run .#bench-asm    # ... and compared as assembly: identical or not
+nix run .#bench-asm    # ... and compared as assembly (checked: rust-asm-identical)
 nix run .#tb-fmt       # align every .tb. matrix (-- --check to report only)
 nix run .#table-diff
 

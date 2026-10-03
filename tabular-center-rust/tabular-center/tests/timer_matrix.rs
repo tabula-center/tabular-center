@@ -11,6 +11,7 @@ use tabular_center::{transition_matrix, Handle, Outcome, Step};
 pub struct Ctx {
     pub limit: u32,
     pub ticks_seen: u32,
+    pub last_stop_reason: Option<u32>,
 }
 
 transition_matrix! {
@@ -62,6 +63,7 @@ fn ctx(limit: u32) -> Ctx {
     Ctx {
         limit,
         ticks_seen: 0,
+        last_stop_reason: None,
     }
 }
 

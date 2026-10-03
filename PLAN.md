@@ -41,7 +41,7 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 8 Introspection & tooling | **done (all three)** |
 | 9a Driver and mailbox | **done (all three)** |
 | 9b Rendering surface | **done** (Kotlin and Swift emitters, KSP, `composable-transition`) |
-| 10 Release | in progress: README, migration guide, versioning policy, benchmark done; publication open; the assembly comparison has its tool and awaits a run |
+| 10 Release | in progress: README, migration guide, versioning policy, benchmark done; publication open |
 
 One exception to the table, found by the audit below: Rust had no prototype
 colors. It has one now, `async`, composing in both directions the rule
@@ -2007,7 +2007,7 @@ a warning refuses nothing and every other fixture here proves a refusal.
       `(State, Option<Effect>)`. About a nanosecond per step, paid by the
       macro and the hand-written reference alike: "zero-cost" holds against
       hand-written code of the same shape, not against the smallest `match`
-- [ ] "Identical after monomorphization", settled properly: compare the
+- [x] "Identical after monomorphization", settled properly: compare the
       optimised assembly of `matrix` and `reference` (`cargo asm`, or
       `--emit asm` on the bench), not their timings. If they differ, the
       difference is a bug in the macro
@@ -2030,10 +2030,30 @@ a warning refuses nothing and every other fixture here proves a refusal.
             The two `Ctx` types still differ (the reference's carries
             `last_stop_reason` for its perform test); if that moves a field
             offset, the diff shows offsets alone and the tool says so
-      - [ ] Run it, record the answer here, and if it is IDENTICAL make it a
-            check: deterministic under a pinned toolchain, and then a
-            regression in the macro's expansion fails CI instead of waiting
-            for someone to look
+      - [x] Run it, record the answer here, and if it is IDENTICAL make it a
+            check. **First run (x86-64): identical but for two field
+            offsets.** Both sides kept `step` as a separate function, 48
+            normalised lines each, every instruction, register and immediate
+            the same; the only lines that differed were `incl 4(%rsi)` /
+            `incl 12(%rsi)` and `cmpl (%rsi)` / `cmpl 8(%rsi)` -- `ticks_seen`
+            and `limit`. rustc had laid the reference's `Ctx` out with its
+            extra `Option<u32>` first, moving the two shared fields from 0/4 to
+            8/12. The test's struct, not the macro's code. So the two `Ctx`
+            types are now the same struct, field for field (the matrix's gains
+            `last_stop_reason`), which makes the claim exact rather than
+            "identical modulo layout"
+      - [x] `asm-identical`, a Rust step and the check `rust-asm-identical`:
+            `tools/asm-diff` must say IDENTICAL. Deterministic under the pinned
+            toolchain, so a change to the macro's expansion that alters the
+            generated code now fails CI instead of waiting for someone to run
+            the app. `nix run .#bench-asm` stays for reading the diff.
+            *Expected green, not yet observed under `nix flake check`.*
+            Normalised before the diff, and only these, since each differs by
+            construction: directives with no code in them and comments; local
+            label numbers, which count functions in emission order; mangling
+            hashes; and the module segment (`matrix` / `reference`) that
+            differs by design. A body the tool cannot find, or an empty one,
+            is exit 2 -- never "identical"
 - [ ] `Step`'s cost. A nanosecond a step over a plain `match`, from the
       outcome-plus-effects-array return value. Worth measuring what the
       default effect capacity `K` contributes before changing anything --

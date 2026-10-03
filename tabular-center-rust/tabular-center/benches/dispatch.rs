@@ -191,7 +191,7 @@ fn run_matrix(cycles: u32) -> (Vec<u8>, usize) {
     let mut cells = matrix::TimerImpl;
     let mut ctx = matrix::Ctx {
         limit: LIMIT,
-        ticks_seen: 0,
+        ..Default::default()
     };
     let mut state = matrix::State::Idle(matrix::Idle);
     let mut visited = Vec::new();

@@ -701,6 +701,10 @@ useful diagnostic has to be emitted *earlier* than the incidental one.
 generic `K`. Alloc-free, ROM-resident.
 
 Escape hatch: the macro expands to exactly what a competent human would write.
+That is checked, not asserted: `rust-asm-identical` compiles the Timer both
+ways -- `transition_matrix!` and the hand-written `tests/reference_timer.rs` --
+and requires their optimised dispatch code to be identical instruction for
+instruction (`tools/asm-diff`; PLAN, Phase 10).
 `cargo expand` is a supported auditing path, and `Step`, `Cell`, and the trait
 are all usable directly without the macro.
 

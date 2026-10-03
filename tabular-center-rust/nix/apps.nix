@@ -53,12 +53,6 @@ let
     '';
   };
 
-  # "Identical after monomorphization", asked of the code rather than the
-  # clock: the matrix's and the hand-written dispatcher's optimised assembly,
-  # normalised and diffed (tools/asm-diff says what is normalised and why).
-  # Exits 0 identical, 1 different. An app until its first answer has been
-  # read; the GNU tools are pinned so a macOS host's BSD sed and diff cannot
-  # change what is compared.
   benchAsm = pkgs.writeShellApplication {
     name = "tabular-center-bench-asm";
     runtimeInputs = commonInputs ++ rustInputs ++ [
