@@ -89,21 +89,22 @@ configure<PublishingExtension> {
     }
 }
 
-// An ASCII-armoured signing SUBKEY, from the environment (RELEASING.md): CI's
-// maven-central environment holds the real one, the kotlin-publication check
-// a throwaway one shaped the same way.
-//
-// By ID. The export holds only the subkey's secret -- the primary, kept
-// offline, is a stub -- and the two-argument useInMemoryPgpKeys picks the
-// FIRST key, the primary, whose secret is not there: BouncyCastle then fails
-// on a null private key. SIGNING_KEY_ID names the subkey that signs.
+fun gradleKeyId(given: String): String {
+    val hex = given.trim().removePrefix("0x").removePrefix("0X").replace(" ", "")
+    require(hex.length in setOf(8, 16, 40) && hex.all { it.isDigit() || it.uppercaseChar() in 'A'..'F' }) {
+        "SIGNING_KEY_ID must be the signing subkey's ID or fingerprint in hex: 8, 16 or 40 " +
+            "digits, 0x optional (given: '$given'). See `gpg --list-secret-keys --keyid-format long`, " +
+            "the ssb line marked [S]."
+    }
+    return hex.takeLast(8).uppercase()
+}
+
 val signingKey: String? = System.getenv("SIGNING_KEY")?.takeIf { it.isNotBlank() }
 if (signingKey != null) {
-    val signingKeyId = System.getenv("SIGNING_KEY_ID")?.takeIf { it.isNotBlank() }
+    val signingKeyId = System.getenv("SIGNING_KEY_ID")?.takeIf { it.isNotBlank() }?.let { gradleKeyId(it) }
         ?: error(
-            "SIGNING_KEY is set but SIGNING_KEY_ID is not: name the signing subkey by its " +
-                "short ID (the 8 hex digits after ssb ed25519/ in " +
-                "`gpg --list-secret-keys --keyid-format short`)"
+            "SIGNING_KEY is set but SIGNING_KEY_ID is not: name the signing subkey, the ssb line " +
+                "marked [S] in `gpg --list-secret-keys --keyid-format long`"
         )
     configure<SigningExtension> {
         useInMemoryPgpKeys(signingKeyId, signingKey, System.getenv("SIGNING_KEY_PASSWORD") ?: "")

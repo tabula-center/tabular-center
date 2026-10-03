@@ -388,6 +388,18 @@ decision, which was reversed twice and left a sentence behind each time.
 - [x] Three Phase 10 boxes were standing rules, not tasks, and could never be
       closed. Moved to a "Standing rules" list, so `grep '\- \[ \]'` lists
       only work
+- [x] **Found by the first real release: `SIGNING_KEY_ID` in gpg's long form
+      fails as `Could not read PGP secret key`.** Gradle's `PgpKeyId` accepts
+      exactly `XXXXXXXX` or `0xXXXXXXXX` and matches on the low 32 bits;
+      `0x` + 16 digits, which `gpg --keyid-format long` prints, throws inside
+      the in-memory provider, which reports every exception as that one
+      message. `kotlin-publication` passed because it always handed Gradle the
+      8-digit form -- the one spelling that works -- so it tested the build
+      and not the instructions. Now `publication.gradle.kts` accepts 8, 16 or
+      40 hex digits, `0x` optional, reduces to the last 8, and names the
+      `[S]` subkey when it refuses; the check passes the `0x` + 16 form a
+      person copies from gpg; RELEASING.md says any spelling works and that
+      it must be the subkey's ID, never the primary's
 - [x] `benches/dispatch.rs` ended by printing that `plain` is within noise of
       the other two. The recorded run says it is twice as fast, for the reason
       Phase 10 gives

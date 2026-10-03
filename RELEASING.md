@@ -203,11 +203,15 @@ they live only in the `maven-central` environment:
 4. **Signing key.** Keep the primary key offline, used only to certify; give CI
    a **signing subkey** with an expiry, passphrase-protected:
    `gpg --armor --export-secret-subkeys <SUBKEY-ID>!` -> secret `SIGNING_KEY`,
-   its passphrase -> `SIGNING_KEY_PASSWORD`, and the subkey's short ID -> the
-   environment **variable** `SIGNING_KEY_ID` (it is not secret): the 8 hex
-   digits after `ssb ed25519/` in `gpg --list-secret-keys --keyid-format short`.
-   The ID is required -- that export holds only the subkey's secret, and
-   signing by the first key in it would reach for the offline primary's. Publish the public key to
+   its passphrase -> `SIGNING_KEY_PASSWORD`, and the **signing subkey's** ID ->
+   the environment **variable** `SIGNING_KEY_ID` (it is not secret): the `ssb`
+   line marked `[S]` in `gpg --list-secret-keys --keyid-format long`, not the
+   `sec` line. Any spelling works -- `0x` + 16 digits as gpg prints it, the 8
+   digit short ID, or the 40 digit fingerprint -- because the build reduces it
+   to the last 8 digits, the only form Gradle's `useInMemoryPgpKeys` accepts
+   (anything longer fails as `Could not read PGP secret key`). The ID is
+   required, and must be the subkey's: that export holds only the subkey's
+   secret, and the primary in it is a stub with nothing to sign with. Publish the public key to
    `keys.openpgp.org` and `keyserver.ubuntu.com`, where Central looks; keep a
    revocation certificate offline. A leaked subkey is revoked and replaced
    without touching the identity the primary key carries.
