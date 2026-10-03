@@ -310,3 +310,45 @@ The kind names used in diagnostics and coverage output are lowercase:
   conformance property.
 - **Whether the table is a true compile-time constant.** Rust emits a `const`;
   the other two emit a value. Both satisfy every consumer of `TABLE`.
+
+## 6. Composing steps
+
+A `Step` is a value, and four operations compose them, so a cell can be
+written from small decisions rather than assembled by hand. Each language
+names them in its own idiom (Rust `map` / `and_then` / `zip_with` / `zip`,
+Kotlin `map` / `flatMap` / `zip`, Swift `map` / `flatMap` / `zip(_:with:)`);
+the behaviour below is the same in all three, and
+`conformance/step-algebra.cases` holds every combination of outcomes for
+every operation, replayed by each harness.
+
+Write a step as its outcome and its effects in order: `go(s)[e1, e2]`,
+`stay[e1]`, `ignored`. An ignored step has no effects (§2.1), in every
+language: Rust's `emit` panics on one and `try_emit` returns an error.
+
+- **`map(f)`** applies `f` to the target of a `go` and leaves the effects
+  alone. `stay` and `ignored` are returned unchanged.
+- **`flatMap(f)`** (Rust `and_then`) runs `f` on the target of a `go`, and
+  returns `f`'s outcome with this step's effects followed by `f`'s. On `stay`
+  or `ignored` it returns the step unchanged and never calls `f`: there is no
+  target to pass, and a cell that stayed or ignored has decided.
+- **`ignored` absorbs.** When `f` returns `ignored`, the result is `ignored`
+  with no effects, even though the step before it emitted: a decision that is
+  "not applicable" anywhere is not applicable as a whole, and an ignored step
+  emits nothing.
+- **`zip(other)` / `zipWith(other, g)`** is defined as
+  `self.flatMap { x -> other.map { y -> g(x, y) } }`, so it can never disagree
+  with `flatMap`: both `go` gives `go(g(x, y))` with this step's effects then
+  `other`'s; this step not `go` gives this step, and `other`'s effects are
+  **dropped**; this step `go` and `other` not gives `other`'s outcome, with
+  both steps' effects -- unless `other` is `ignored`, which absorbs.
+
+**Laws**, with effects compared in order, over steps this file allows:
+left identity, `go(a).flatMap(f) == f(a)`; right identity,
+`m.flatMap(go) == m`; associativity,
+`m.flatMap(f).flatMap(g) == m.flatMap { x -> f(x).flatMap(g) }`. Each
+implementation tests all three by exhaustive enumeration over a small domain.
+
+**Capacity (Rust).** `Step<S, F, K>` holds at most `K` effects, and a
+composition concatenates into the same `K`: `and_then` and `zip_with` panic
+on overflow, as `emit` does, and `try_and_then` returns the `CapacityError`.
+Kotlin and Swift steps are unbounded.

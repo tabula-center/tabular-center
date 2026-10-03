@@ -80,6 +80,37 @@ impl<F> fmt::Display for CapacityError<F> {
     }
 }
 
+/// Why [`Step::try_emit`] refused an effect, handing it back: the step is
+/// ignored, and an ignored step emits nothing (spec/cells.md 2.1), or the
+/// effects are at capacity.
+pub enum EmitError<F> {
+    /// The step is `Ignored`.
+    Ignored(F),
+    /// The step already holds `K` effects.
+    Capacity(CapacityError<F>),
+}
+
+impl<F> fmt::Debug for EmitError<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EmitError::Ignored(_) => write!(f, "EmitError::Ignored"),
+            EmitError::Capacity(e) => write!(f, "EmitError::Capacity({e:?})"),
+        }
+    }
+}
+
+const IGNORED_EMITS_NOTHING: &str =
+    "tabular-center: an ignored step emits nothing (spec/cells.md 2.1); emit on Step::stay()";
+
+impl<F> fmt::Display for EmitError<F> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EmitError::Ignored(_) => f.write_str(IGNORED_EMITS_NOTHING),
+            EmitError::Capacity(e) => write!(f, "{e}"),
+        }
+    }
+}
+
 /// A bounded, allocation-free collection of effects.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Effects<F, const K: usize = DEFAULT_EFFECT_CAPACITY> {
@@ -179,7 +210,40 @@ impl<F, const K: usize> IntoIterator for Effects<F, K> {
     }
 }
 
-/// The result of dispatching one `(state, action)` pair.
+/// The result of dispatching one `(state, action)` pair: an [`Outcome`] and
+/// the effects the cell emitted, in order.
+///
+/// A step is a value, and it composes (spec/cells.md 6):
+///
+/// - `map(f)` applies `f` to a `Go` target; `Stay` and `Ignored` pass through.
+/// - `and_then(f)` runs `f` on a `Go` target and returns `f`'s outcome, with
+///   this step's effects followed by `f`'s. `Stay` and `Ignored` short-circuit
+///   without calling `f`. An `Ignored` from `f` absorbs: the result is
+///   `Ignored` with no effects.
+/// - `zip_with(other, g)` is `and_then(|x| other.map(|y| g(x, y)))`, and
+///   `zip(other)` pairs the targets. When this step is not `Go`, `other`'s
+///   effects are dropped.
+///
+/// ```
+/// # use tabular_center::{Outcome, Step};
+/// # #[derive(Debug, PartialEq)] enum S { Validating, Ready }
+/// # #[derive(Debug, PartialEq)] enum F { Log, Fetch }
+/// fn enter(s: S) -> Step<S, F> {
+///     match s {
+///         S::Validating => Step::go(S::Validating).emit(F::Fetch),
+///         other => Step::go(other),
+///     }
+/// }
+/// let step: Step<S, F> = Step::go(S::Validating).emit(F::Log).and_then(enter);
+/// assert_eq!(step.outcome, Outcome::Go(S::Validating));
+/// assert_eq!(step.effects.iter().collect::<Vec<_>>(), [&F::Log, &F::Fetch]);
+/// # let _ = S::Ready;
+/// ```
+///
+/// Effects concatenate into the same capacity `K`, so `emit`, `and_then` and
+/// `zip_with` panic past it, as [`Effects::push`] does; `try_emit` and
+/// `try_and_then` return the error instead. `emit` on an `Ignored` step
+/// panics too: an ignored step emits nothing.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Step<S, F, const K: usize = DEFAULT_EFFECT_CAPACITY> {
     /// What the cell decided.
@@ -224,8 +288,17 @@ impl<S, F, const K: usize> Step<S, F, K> {
     /// assert_eq!(step.effects.len(), 1);
     /// ```
     pub fn emit(mut self, effect: F) -> Self {
-        self.effects.push(effect);
+        if let Err(e) = self.try_emit(effect) {
+            panic!("{e}");
+        }
         self
+    }
+
+    pub fn try_emit(&mut self, effect: F) -> Result<(), EmitError<F>> {
+        if let Outcome::Ignored = self.outcome {
+            return Err(EmitError::Ignored(effect));
+        }
+        self.effects.try_push(effect).map_err(EmitError::Capacity)
     }
 
     /// Whether the cell declared the action inapplicable.
@@ -238,12 +311,56 @@ impl<S, F, const K: usize> Step<S, F, K> {
         matches!(self.outcome, Outcome::Go(_))
     }
 
-    /// Relabel the target state, keeping effects. Composition primitive.
-    pub fn map_state<T, G: FnOnce(S) -> T>(self, g: G) -> Step<T, F, K> {
+    pub fn map<T, G: FnOnce(S) -> T>(self, g: G) -> Step<T, F, K> {
         Step {
             outcome: self.outcome.map(g),
             effects: self.effects,
         }
+    }
+
+    #[deprecated(note = "use `Step::map`")]
+    pub fn map_state<T, G: FnOnce(S) -> T>(self, g: G) -> Step<T, F, K> {
+        self.map(g)
+    }
+
+    pub fn and_then<T, G: FnOnce(S) -> Step<T, F, K>>(self, g: G) -> Step<T, F, K> {
+        match self.try_and_then(g) {
+            Ok(step) => step,
+            Err(e) => panic!("{e}"),
+        }
+    }
+
+    pub fn try_and_then<T, G: FnOnce(S) -> Step<T, F, K>>(
+        self,
+        g: G,
+    ) -> Result<Step<T, F, K>, CapacityError<F>> {
+        let outcome = self.outcome;
+        let mut effects = self.effects;
+        let target = match outcome {
+            Outcome::Go(target) => target,
+            Outcome::Stay => return Ok(Step::from_parts(Outcome::Stay, effects)),
+            Outcome::Ignored => return Ok(Step::ignored()),
+        };
+        let next = g(target);
+        if let Outcome::Ignored = next.outcome {
+            return Ok(Step::ignored());
+        }
+        for effect in next.effects {
+            effects.try_push(effect)?;
+        }
+        Ok(Step::from_parts(next.outcome, effects))
+    }
+
+    fn from_parts(outcome: Outcome<S>, effects: Effects<F, K>) -> Self {
+        Self { outcome, effects }
+    }
+
+    pub fn zip_with<T, U, H: FnOnce(S, T) -> U>(self, other: Step<T, F, K>, h: H) -> Step<U, F, K> {
+        self.and_then(|x| other.map(|y| h(x, y)))
+    }
+
+    pub fn zip<T>(self, other: Step<T, F, K>) -> Step<(S, T), F, K> {
+        self.zip_with(other, |x, y| (x, y))
     }
 
     /// Relabel the effects, keeping the outcome. Composition primitive: a
@@ -343,9 +460,9 @@ mod tests {
     }
 
     #[test]
-    fn map_state_relabels_only_the_target() {
+    fn map_relabels_only_the_target() {
         let s: Step<S, F> = Step::go(S::A).emit(F::X);
-        let t: Step<u8, F> = s.map_state(|_| 7u8);
+        let t: Step<u8, F> = s.map(|_| 7u8);
         assert_eq!(t.outcome, Outcome::Go(7));
         assert_eq!(t.effects.len(), 1);
     }

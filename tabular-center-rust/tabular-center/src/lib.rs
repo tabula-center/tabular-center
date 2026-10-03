@@ -34,7 +34,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(unsafe_code)]
-#![warn(missing_docs)]
 
 pub mod cell;
 pub mod delegate;
@@ -56,5 +55,5 @@ pub use delegate::{Delegate, Lens};
 pub use driver::{Driver, DriverError, Progress};
 pub use hop::Hop;
 pub use machine::{AsyncHandle, AsyncPerform, Handle, Machine, Perform};
-pub use step::{CapacityError, Effects, Outcome, Step, DEFAULT_EFFECT_CAPACITY};
+pub use step::{CapacityError, Effects, EmitError, Outcome, Step, DEFAULT_EFFECT_CAPACITY};
 pub use table::{Coverage, Payloads, Table};

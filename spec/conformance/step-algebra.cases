@@ -1,0 +1,31 @@
+map       go(1)                          => go(11)
+map       go(1)[a,b]                     => go(11)[a,b]
+map       stay[a]                        => stay[a]
+map       stay                           => stay
+map       ignored                        => ignored
+
+and_then  go(1)[a]     then go(s+1)[b]   => go(2)[a,b]
+and_then  go(1)        then go(s+1)      => go(2)
+and_then  go(3)[a,b]   then go(7)[c]     => go(7)[a,b,c]
+and_then  go(1)[a,b]   then stay[c]      => stay[a,b,c]
+and_then  go(1)[a]     then stay         => stay[a]
+and_then  go(1)[a]     then ignored      => ignored
+and_then  go(1)        then ignored      => ignored
+and_then  stay[a]      then go(s+1)[b]   => stay[a]
+and_then  stay         then stay[b]      => stay
+and_then  stay[a,b]    then ignored      => stay[a,b]
+and_then  ignored      then go(s+1)[b]   => ignored
+and_then  ignored      then stay[b]      => ignored
+and_then  ignored      then ignored      => ignored
+
+zip       go(1)[a]     go(2)[b]          => go(1,2)[a,b]
+zip       go(1)        go(2)[b,c]        => go(1,2)[b,c]
+zip       go(1)[a]     stay[b]           => stay[a,b]
+zip       go(1)[a]     stay              => stay[a]
+zip       go(1)[a]     ignored           => ignored
+zip       stay[a]      go(2)[b]          => stay[a]
+zip       stay[a]      stay[b]           => stay[a]
+zip       stay         ignored           => stay
+zip       ignored      go(2)[b]          => ignored
+zip       ignored      stay[b]           => ignored
+zip       ignored      ignored           => ignored

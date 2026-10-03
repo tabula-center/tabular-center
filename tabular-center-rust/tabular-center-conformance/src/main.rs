@@ -123,6 +123,23 @@ fn main() -> ExitCode {
         }
     }
 
+    match tabular_center_conformance::step_algebra::replay(&root) {
+        Ok((cases, failures)) if failures.is_empty() => {
+            println!("ok   step-algebra ({cases} cases)");
+        }
+        Ok((_, failures)) => {
+            println!("FAIL step-algebra");
+            for f in &failures {
+                println!("       {f}");
+            }
+            failed += 1;
+        }
+        Err(e) => {
+            println!("FAIL step-algebra: {e}");
+            failed += 1;
+        }
+    }
+
     println!();
     println!("conformance (rust): {tables} tables, {steps} trace steps, {failed} failed");
 

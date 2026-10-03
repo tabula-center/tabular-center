@@ -441,9 +441,9 @@ verified with, so a user can match their project to a release.
 The library itself has no dependencies in Rust and only the standard library
 in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
 
-**Decisions proposed (owner to confirm):**
+**Decisions** (U1, U2, U5 accepted as proposed; U3 and U4 decided otherwise):
 
-- [ ] U1. A single source of truth, `dependencies.toml` at the root: every
+- [x] U1. A single source of truth, `dependencies.toml` at the root: every
       tracked version once, each marked `user-facing` or `build`, and with
       an update policy -- `auto` (the job may propose it), `manual` (the job
       reports a newer version but proposes nothing: the Rust MSRV, the JVM
@@ -456,11 +456,19 @@ in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
       requires every place a version is written to agree with the file --
       the same idea as `version` against `VERSION`, and the end of the Kotlin
       version being typed seven times
-- [ ] U2. One PR per group, updated in place: `nix-inputs`, `kotlin`
+- [x] U2. One PR per group, updated in place: `nix-inputs`, `kotlin`
       (compiler, KSP, Compose together, since they couple), `gradle`, `swift`,
-      `rust-examples`. A group's failure does not block the others, and a
+      `rust-examples`, `actions`. A group's failure does not block the others, and a
       group's PR is force-pushed rather than duplicated. Never auto-merged
-- [ ] U3. The PR's checks must be the normal ones. A PR opened with the
+- [x] U3. **Decided: a fine-grained personal access token**, scoped to this
+      repository only, with Contents, Pull requests and **Workflows** write
+      (GitHub refuses a push that changes `.github/workflows/` without the
+      last, and U4 makes the job edit the pinned actions there), the shortest
+      expiry offered, stored as `UPSTREAM_TOKEN` in the `upstream`
+      environment, which allows only the default branch. Its expiry is a
+      known failure: the job reports an authentication error by name, and
+      RELEASING.md gains the renewal step. The reasoning that led here: the
+      PR's checks must be the normal ones, and a PR opened with the
       workflow's `GITHUB_TOKEN` does **not** trigger other workflows -- GitHub's
       rule against recursive runs -- so `ci.yml` would never run on it, and
       the PR would sit with no checks at all. Recommended: a GitHub App
@@ -469,12 +477,13 @@ in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
       by `actions/create-github-app-token`; then `ci.yml` runs on the PR on
       Linux and macOS exactly as on any other, and stays the one definition
       of green. Alternative: a fine-grained PAT (simpler, tied to a person)
-- [ ] U4. Actions are Dependabot's, everything else is ours. Dependabot
-      already understands commit-pinned actions with `# vX` annotations (why
-      ARCHITECTURE 15 exempts them); it cannot regenerate `gradle-lock.json`
-      or `swift-lock.json` with the flake's toolchain, update flake inputs, or
-      honour the couplings above, so those are the custom job's
-- [ ] U5. Where the compatibility tables live: data in
+- [x] U4. **Decided: no bot.** Everything is the custom job's, the pinned
+      actions included: for each `uses: owner/action@<sha> # vX`, it asks
+      GitHub for the action's newest release tag, resolves the tag to its
+      commit, and rewrites both the SHA and the annotation -- a new `actions`
+      group with its own PR. The annotation stays exempt from ARCHITECTURE 15
+      because the job reads it, not because Dependabot would
+- [x] U5. Where the compatibility tables live: data in
       `compatibility.toml` (one entry per released version, appended by
       `nix run .#release` from `dependencies.toml` as it tags), rendered by
       `tools/docs` into a site page, `https://tabula.center/compatibility`,
@@ -510,7 +519,10 @@ in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
 - [ ] Reports without PRs: a `manual` dependency with a newer version, a
       Kotlin held back because no KSP pairs with it yet, a `hold` that has
       been passed -- one issue, updated in place, labelled `upstream`
-- [ ] `.github/dependabot.yml` for `github-actions`, daily, grouped into one PR
+- [ ] The `actions` group in `tools/upstream`: newest release tag per pinned
+      action through the GitHub API, tag resolved to a commit (annotated tags
+      dereferenced to the commit they point at), SHA and `# vX` rewritten
+      together; the same group covers every workflow file
 - [ ] Expected red, recorded so it is not mistaken for a broken job: a
       kotlinc upgrade can reword the four messages the guarantee fixtures
       assert (spec/diagnostics.md forbids normalising them), and an iced
@@ -579,19 +591,33 @@ cases. Half of the toolkit already exists and is lawful:
   a guard that either moves or stays, and two orthogonal sub-decisions
   combined with `zipWith`.
 
-**Decisions for the owner before code:**
+**Decisions** (all three made, October 2026):
 
-- [ ] D1, names. Recommended: the state functor is `map` in all three
+- [x] D1, names: **language-specific**, each language's own idiom for
+      these operations, decided as:
+
+      | | Rust | Kotlin | Swift |
+      |---|---|---|---|
+      | functor (state) | `map` | `map` | `map` |
+      | monad | `and_then` | `flatMap` | `flatMap` |
+      | applicative | `zip_with`, `zip` | `zip(other, transform)`, `zip(other)` | `zip(_:with:)`, `zip(_:)` |
+      | fallible monad (Rust's capacity) | `try_and_then` | -- | -- |
+
+      Rust follows `Option`/`Result` (`map`, `and_then`) and `Iterator`
+      (`zip`); Kotlin follows its standard library, where `zip` takes an
+      optional transform; Swift follows `Optional` (`map`, `flatMap`) and
+      its argument-label convention. `map_state` / `mapState` stay as
+      deprecated aliases until 1.0. What was recommended: the state functor is `map` in all three
       (`Option::map` / `Result::map` map the success value, and so does this),
       `map_state` / `mapState` kept as deprecated aliases until 1.0 under the
       versioning policy, since Maven Central already has 0.1.0. The monad is
       `and_then` in Rust (`Option`/`Result`'s name) and `flatMap` in Kotlin
       and Swift; the applicative `zip_with` / `zipWith`, plus `zip` returning
       a pair
-- [ ] D2, the applicative on a short-circuit: drop the right-hand effects
+- [x] D2 (accepted: drop the right-hand effects), the applicative on a short-circuit: drop the right-hand effects
       (lawful, agrees with `flatMap`; recommended) or keep both (a second
       applicative, surprising next to `flatMap`)
-- [ ] D3, Rust's `Ignored` with effects. `spec/cells.md` says an ignored
+- [x] D3 (accepted: `emit` on an ignored step panics, `try_emit` returns it), Rust's `Ignored` with effects. `spec/cells.md` says an ignored
       step has no effects, and Kotlin's `Ignored` and Swift's `.ignored`
       cannot hold any, but Rust's `Step::ignored().emit(e)` builds one --
       nothing in the tree does, and nothing stops it. It must be settled
@@ -600,18 +626,52 @@ cases. Half of the toolkit already exists and is lawful:
       overflow (a programming error the type cannot rule out without
       splitting `Step`), with `try_emit` returning it as an error
 
+- [ ] **D4, found while writing the cases: what `and_then` returns when the
+      continuation ignores.** `go(1)[a].and_then(|_| ignored)` would, read
+      literally ("`f`'s outcome, with this step's effects followed by `f`'s"),
+      be `Ignored` carrying `[a]` -- a step the spec forbids and D3 now
+      refuses to build. **Implemented: `Ignored` absorbs** -- the result is
+      `ignored` with no effects: a decision "not applicable" anywhere is not
+      applicable as a whole. It is the only rule consistent with spec/cells.md
+      and the laws (both identities and associativity checked over every
+      outcome combination, by hand and by `tests/step_algebra.rs`), and it
+      makes `zip` with an ignored right side ignored. The alternative is to
+      panic on such a composition. Owner to confirm
+- [ ] **The release that ships this is 0.2.0, not 0.1.6.** D3 changes
+      behaviour -- `Step::ignored().emit(e)` used to run and now panics --
+      and RELEASING.md's test ("does an unchanged implementation still
+      behave the same?") says that is breaking; one `VERSION` for all three
+      languages means 0.2.0 everywhere. The combinators themselves are
+      additive
+
 **Tasks, in order, after D1-D3:**
 
-- [ ] `spec/cells.md`: the combinators' definitions, effect order and the
-      laws; `spec/happy-paths.md`: the three uses above
-- [ ] Shared cases, `spec/conformance/step-algebra.cases`: every combination
+- [x] `spec/cells.md` 6: the combinators' definitions, effect order, D4's
+      absorption, capacity, and the laws
+- [ ] `spec/happy-paths.md`: the three uses above (with the docs task, since
+      its samples are included from compiled code)
+- [x] Shared cases, `spec/conformance/step-algebra.cases` (29 cases, every
+      outcome combination for each operation, effects in every position; its
+      format in `spec/conformance/README.md`): every combination
       of `Go`/`Stay`/`Ignored` with zero, one and two effects on each side,
       for `map`, `and_then`/`flatMap` and `zip_with`, with the expected step
       -- read by all three harnesses, so the definition is one file and three
       implementations cannot drift. Cross-language parity is the repository's
       first rule; laws only checked per language would not catch two
       languages lawful in different ways
-- [ ] Rust: `map`, `and_then`, `try_and_then`, `zip_with`, `zip` on `Step`
+- [x] **Rust** (expected green, not yet observed under `nix flake check`):
+      D3 (`emit` panics on an ignored step, `try_emit` returns
+      `EmitError::Ignored`/`Capacity`), `map`, `map_state` deprecated,
+      `and_then`, `try_and_then`, `zip_with`, `zip`; usage in `Step`'s type
+      comment (with a doctest), none on the functions, per ARCHITECTURE 15;
+      `tests/step_algebra.rs` enumerates every step over a small domain
+      against six continuations for the functor, monad and applicative laws,
+      absorption, D3 and capacity; the conformance harness replays the cases
+      and enforces their completeness. The macro is unchanged: its delegation
+      arm re-emits a child's effects, an empty loop for an ignored child under
+      the spec, and rewriting it with `map_effect` would force the child and
+      parent onto one capacity `K`. Originally planned:
+      `map`, `and_then`, `try_and_then`, `zip_with`, `zip` on `Step`
       and the corresponding `Outcome` methods; `no_std`, no allocation. The
       effects concatenate into the same capacity `K` -- const-generic
       arithmetic (`K1 + K2`) is not stable -- so overflow panics as `push`
@@ -743,6 +803,18 @@ ARCHITECTURE 15's exemptions and `is_directive` if it is not already.
             comment classifies as code (counts match the raw totals), and
             stage 3a's heredoc and quoted lines were re-checked identical
             with it
+- [x] **`#![warn(missing_docs)]` removed from the Rust library.** The first
+      new functions written to the rule (`Step`'s combinators, 0017) failed
+      `clippy -D warnings` with "missing documentation for a method": the
+      lint requires a doc comment on every public item, and ARCHITECTURE 15
+      says functions have none. rustc has no lint that separates types from
+      functions, so the rule and the lint could not both stand, and stage 4
+      would have met the same wall on the first doc comment it removed.
+      ARCHITECTURE 15 says so, so nobody restores it
+- [ ] What `missing_docs` enforced that the rule keeps: every public type,
+      trait and macro carries a comment, and every module a header. A small
+      text check in `no-comments`' style for `.rs`, `.kt` and `.swift`, once
+      their stages land (stage 4 for Rust)
 - [ ] Stage 4: Rust -- tests, examples, benches, the conformance crate and
       the library. `reference_timer.rs` is "the macro's specification": its
       header keeps that, and the part-by-part narrative inside it becomes

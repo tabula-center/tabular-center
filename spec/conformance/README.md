@@ -183,3 +183,22 @@ cell, so an implementation that drops the gate announces `Open` as unreachable
 3. A fixture with no adapter in some language is reported as **skipped**, not
    passed. Phase 4 and 5 will start with everything skipped, and that must be
    visible rather than silently green.
+
+## `step-algebra.cases`
+
+The composition operations of `spec/cells.md` §6, as cases every harness
+replays against its own `Step`. One case per line; blank lines separate
+groups:
+
+    map       <step>                    => <step>     f(n) = n + 10
+    and_then  <step>  then <step'>      => <step>     f(n) = step', where its
+                                                      target may be s or s+N
+    zip       <step>  <step>            => <step>     a pair target: go(1,2)
+
+A step is `go(N)`, `go(N,M)`, `stay` or `ignored`, followed for `go` and
+`stay` by its effects in brackets, `[a,b]`, or nothing for none. An
+`ignored` with effects is not a step this format can express, because it is
+not one the spec allows. Expected and actual are compared as text in exactly
+this spelling. Each harness also requires every outcome combination to be
+present -- three for `map`, nine each for `and_then` and `zip` -- so a case
+file that loses one fails rather than passing on less.

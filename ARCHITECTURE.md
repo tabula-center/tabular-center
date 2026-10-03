@@ -1187,7 +1187,11 @@ to do -- those are strings, read at exactly the moment they matter, and stay.
 trait, class, protocol, ...) they are the type's comment and stay; on a
 function, method or field they go, and the type's comment or the file header
 carries any usage the reader needs. Module docs (Rust `//!`) are the file's
-header.
+header. So the Rust library does **not** set `#![warn(missing_docs)]`: rustc
+offers no lint that requires docs on types but not on functions, and that one
+lint, under `clippy -D warnings`, demanded exactly the comments this section
+removes. Requiring a comment on every public type is a check of its own
+(PLAN, "Cleanness").
 
 **The scope.** `.rs`, `.kt`, `.kts`, `.swift`, `.nix`, `.yml`, `.toml`, shell
 scripts, `.editorconfig`, `justfile`, `.gitignore`. Languages without types

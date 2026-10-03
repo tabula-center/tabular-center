@@ -12,6 +12,7 @@ use std::path::Path;
 use tabular_center::{Cell, Table};
 
 pub mod machines;
+pub mod step_algebra;
 
 // ---------------------------------------------------------------------------
 // Model
