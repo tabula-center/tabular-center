@@ -1,3 +1,14 @@
+// Runs the shared `spec/conformance` fixtures against the Kotlin
+// implementation.
+//
+// Three things are compared, and the third is the one that only exists because
+// there are now two implementations:
+//
+// 1. **Table** — the generated matrix, cell by cell.
+// 2. **Traces** — outcomes and effects, step by step.
+// 3. **Golden grid** — byte for byte against the same `.grid` file the Rust
+//    harness writes. Two renderers that disagree by a space would otherwise
+//    drift silently until someone diffed a snapshot by hand.
 package conformance
 
 import center.tabula.Export
@@ -5,19 +16,6 @@ import center.tabula.testing.*
 import center.tabula.report
 import java.io.File
 
-/**
- * Runs the shared `spec/conformance` fixtures against the Kotlin
- * implementation.
- *
- * Three things are compared, and the third is the one that only exists because
- * there are now two implementations:
- *
- * 1. **Table** — the generated matrix, cell by cell.
- * 2. **Traces** — outcomes and effects, step by step.
- * 3. **Golden grid** — byte for byte against the same `.grid` file the Rust
- *    harness writes. Two renderers that disagree by a space would otherwise
- *    drift silently until someone diffed a snapshot by hand.
- */
 fun main(args: Array<String>) {
     val root = File(args.firstOrNull { !it.startsWith("--") } ?: "../spec/conformance")
     val emitDir = args.firstOrNull { it.startsWith("--emit=") }
@@ -46,13 +44,8 @@ fun main(args: Array<String>) {
 
         errs += checkTable(adapter.table, spec)
         emit(emitDir, name, "grid", Export.toGrid(adapter.table))
-        // The lints carry the most per-language logic there is -- thresholds,
-        // the dead-row/no-static-exit subsumption, the fully-static gate on
-        // reachability -- and nothing compared them across languages until now.
         emit(emitDir, name, "mmd", Export.toMermaid(adapter.table))
         emit(emitDir, name, "lint", report(adapter.table, adapter.payloads))
-        // The diagram. Two renderers agreeing on edge ORDER, not just on the
-        // edge set -- which is the thing that had already drifted.
         emit(emitDir, name, "cov", Export.toCoverageReport(adapter.table))
 
         for (t in traces) {
@@ -78,7 +71,6 @@ fun main(args: Array<String>) {
 
         if (errs.isEmpty()) {
             println("ok   $name  (${spec.states.size} states x ${spec.actions.size} actions, ${traces.size} traces)")
-            // Lints are advisory and indented, never counted as failures.
             report(adapter.table, adapter.payloads).lines()
                 .filter { it.isNotBlank() }
                 .forEach { println("       $it") }
@@ -101,12 +93,6 @@ fun main(args: Array<String>) {
     println()
     println("conformance (kotlin): ${adapters.size} tables, $steps trace steps, $failed failed")
 
-    // A fixture with no adapter is skipped, not passed -- and each one is NAMED, on
-    // its own line starting with `skip `, because that prefix is what `tools/verify`
-    // collects into the ledger it prints before the verdict. A count said how many
-    // were missing without saying which, and a count is invisible to the ledger, so
-    // the one place skips are supposed to be visible was the one place these never
-    // appeared.
     val declared = root.listFiles { f -> f.name.endsWith(".tbl") }
         ?.map { it.name.removeSuffix(".tbl") }?.sorted() ?: emptyList()
     val covered = adapters.map { it.name }.toSet()
@@ -117,14 +103,6 @@ fun main(args: Array<String>) {
     if (failed > 0) kotlin.system.exitProcess(1)
 }
 
-/**
- * Write one rendering out, when asked with `--emit=<dir>`.
- *
- * Nothing is compared here, and nothing is committed: `.tbl` and `.trace` are
- * the contract, and the renderings of it are produced by all three
- * implementations at check time and diffed against each other by
- * `tools/verify renderings-agree`.
- */
 private fun emit(dir: File?, name: String, ext: String, got: String) {
     if (dir != null) File(dir, "$name.$ext").writeText(got)
 }

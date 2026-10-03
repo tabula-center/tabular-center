@@ -37,7 +37,6 @@ data class SessionModel(
     val status: String,
     val connection: ConnectionModel?,
     val buttons: List<Button>,
-    /** The PARENT's matrix. The child's comes with the nested model. */
     val grid: String,
 ) {
     data class Button(val label: String, val onClick: () -> Unit)
@@ -71,16 +70,14 @@ class SessionCells(
     override fun bootingBoot(ctx: Ctx, state: S.Booting, action: A.Boot): Step<S, F> =
         Step.Go(S.Running(child = ChildS.Idle))
 
-    // The prism: one parent action, narrowed by the child's state.
     override fun runningTapToChild(ctx: Ctx, state: S.Running, action: A.Tap): ChildA? =
         when (state.child) {
             is ChildS.Idle -> ChildA.Start
             is ChildS.Live -> ChildA.Drop
             is ChildS.Failed -> ChildA.Retry
-            is ChildS.Connecting -> null // nothing to do while it dials
+            is ChildS.Connecting -> null
         }
 
-    // The lens: once per child, however many cells delegate.
     override fun connectionChildState(state: S): ChildS =
         (state as? S.Running)?.child ?: ChildS.Idle
 
@@ -113,8 +110,6 @@ class SessionStateMachine(private val log: (String) -> Unit = {}) :
 
         val state = machine.state
         val child = if (state is S.Running) {
-            // bitkey's nesting: the child's model, produced inside the
-            // parent's. Its send goes back through the parent's matrix.
             screen.model(ConnectionScreenProps(state.child) { machine.send(A.Tap) })
         } else {
             null

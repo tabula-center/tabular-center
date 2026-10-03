@@ -17,9 +17,6 @@ repositories {
     if (tabulaRepo != null) maven { url = uri(tabulaRepo) } else mavenCentral()
 }
 
-// The fixture under test, and nothing else. `fixtures/` as a whole is never a
-// source set: every file in it is expected to fail, so compiling them together
-// would be one build failing for eight reasons.
 val fixture: String = (findProperty("tabulaFixture") as String?)
     ?: error(
         "tabular-center: no fixture selected. This build compiles ONE compile-fail " +

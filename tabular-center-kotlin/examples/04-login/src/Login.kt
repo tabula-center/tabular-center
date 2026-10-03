@@ -76,7 +76,6 @@ object session {
     class Ctx(val auth: examples.login.auth.Ctx)
 
     interface Cells : examples.login.auth.Cells {
-        // One per DELEGATE cell: the action prism.
         fun loggedOutCredentialsToChild(
             ctx: Ctx,
             state: S.LoggedOut,
@@ -89,7 +88,6 @@ object session {
             action: A.StartOver,
         ): examples.login.auth.A?
 
-        // Once per child: the lens, the effect relabelling, the context.
         fun authChildState(state: S.LoggedOut): examples.login.auth.S
         fun authEmbed(state: S.LoggedOut, child: examples.login.auth.S): S
         fun authLift(effect: examples.login.auth.F): F
@@ -120,8 +118,6 @@ object session {
         state: S.LoggedOut,
         childAction: examples.login.auth.A?,
     ): Step<S, F> {
-        // A null child action reports Ignored, not Stay: a parent action the
-        // child's alphabet does not contain was not handled.
         if (childAction == null) return Step.Ignored
         val childStep = examples.login.auth.step(
             cells,
@@ -168,7 +164,6 @@ class Impl : session.Cells {
 
     override fun authChildState(state: session.S.LoggedOut) = state.auth
 
-    /** A child transition can be a parent transition. */
     override fun authEmbed(state: session.S.LoggedOut, child: auth.S): session.S = when (child) {
         is auth.S.Authenticated -> session.S.Active
         is auth.S.LockedOut -> session.S.Banned

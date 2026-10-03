@@ -22,8 +22,6 @@ class ChildHole : job.Cells {
     override fun readyAttempt(ctx: retry.Ctx, state: retry.S.Ready, action: retry.A.Attempt) =
         Step.Go(retry.S.Waiting(1), listOf(retry.F.Sleep))
 
-    // waitingElapsed is missing -- a CHILD cell.
-
     override fun retryingRunToChild(ctx: job.Ctx, state: job.S.Retrying, action: job.A.Run) =
         retry.A.Attempt
     override fun retryingTickToChild(ctx: job.Ctx, state: job.S.Retrying, action: job.A.Tick) =

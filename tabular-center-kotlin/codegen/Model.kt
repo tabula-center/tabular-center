@@ -32,44 +32,11 @@ data class MachineDesc(
     val actions: List<Variant>,
     val effects: List<Variant>,
     val rows: List<List<CellDesc>>,
-    /** Copied verbatim onto every generated cell member. See ARCHITECTURE §5. */
     val prototypeModifiers: List<String> = emptyList(),
-    /** Child machines reached by `DELEGATE`, in first-appearance order. */
     val children: List<ChildDesc> = emptyList(),
-    /**
-     * The prototype's extension receiver, as a type, or empty for none.
-     *
-     * Part of the color, like [prototypeModifiers]: `fun Clock.handle(...)`
-     * makes every cell member, every effect handler, `step` and `perform`
-     * extensions on `Clock`, so a cell body can call the receiver's members
-     * and a caller must have one in scope to dispatch at all. See
-     * ARCHITECTURE §5.
-     */
     val prototypeReceiver: String = "",
-    /**
-     * Visibility of every generated top-level declaration: empty for public,
-     * or `internal`.
-     *
-     * Read from the annotated declaration, not the prototype. The generated
-     * surface names the machine's own types, so it can be no more visible than
-     * they are -- a public `Cells` over internal `S` is `exposes its internal
-     * parameter type`, a compile error in generated code the user never wrote.
-     */
     val visibility: String = "",
-    /**
-     * The rendering prototype, or null for a machine without one. See
-     * [RenderDesc] and ARCHITECTURE §9.
-     *
-     * Null is the default and emits nothing, so every machine declared before
-     * the rendering surface existed generates exactly what it did.
-     */
     val render: RenderDesc? = null,
-    /**
-     * The forward hops of every declared path, deduplicated by
-     * `(from, action)`: two paths through one hop share one narrowed member.
-     * Empty for a machine without paths, which then emits exactly what it did
-     * before the narrowed surface existed. See [HopDesc].
-     */
     val hops: List<HopDesc> = emptyList(),
 ) {
     init {
@@ -108,9 +75,7 @@ data class MachineDesc(
  * than generated wrong.
  */
 data class RenderDesc(
-    /** Copied verbatim onto every render member and onto `render`. */
     val modifiers: List<String> = emptyList(),
-    /** What a render member returns: `Unit` for a composable, a view type otherwise. */
     val returnType: String = "Unit",
 )
 
@@ -171,11 +136,4 @@ sealed interface CellDesc {
     data class Delegate(val child: String) : CellDesc
 }
 
-/**
- * An effect reference without its arguments: `StopClock(reason = X)` names the
- * effect `StopClock`.
- *
- * Which effect a cell emits is what validation and `TABLE` are about; with
- * what is the dispatcher's business, and it emits the reference verbatim.
- */
 fun effectName(ref: String): String = ref.substringBefore('(')

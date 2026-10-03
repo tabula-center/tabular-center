@@ -36,18 +36,6 @@ pluginManagement {
 
 rootProject.name = "tabular-center-example-generated"
 
-// The processor, as an included build substituted for its coordinate.
-//
-// This was `include(":processor")` with a projectDir, which makes the
-// processor a subproject of the example -- so the example's build owns the
-// processor's lifecycle, and `ksp(project(":processor"))` couples them by path
-// rather than by name.
-//
-// A composite build is the right shape: the example depends on
-// `center.tabula:tabular-center-ksp` the way any consumer would, and the substitution
-// says "resolve that from source, here". Nothing is published to that
-// coordinate; it exists to be named, which is the point -- when the processor
-// is published, deleting this block is the whole migration.
 includeBuild("../../ksp") {
     dependencySubstitution {
         substitute(module("center.tabula:tabular-center-ksp"))

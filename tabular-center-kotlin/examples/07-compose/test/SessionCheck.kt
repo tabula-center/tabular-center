@@ -26,23 +26,18 @@ fun sessionChecks() {
         "booting starts a session holding an idle connection",
     )
 
-    // One parent action, narrowed by the prism to the child's `Start`, whose
-    // cell is a GO emitting Dial -- and the parent sees its own effect, lifted.
     Check.eq(
         step(cells, ctx, S.Running(ChildS.Idle), A.Tap),
         Step.Go(S.Running(ChildS.Connecting), listOf(F.Note)),
         "a tap is delegated, and the child's effect is lifted to the parent's",
     )
 
-    // The prism declines while the child is dialling: nothing to send, so the
-    // parent ignores rather than inventing a transition.
     Check.eq(
         step(cells, ctx, S.Running(ChildS.Connecting), A.Tap),
         Step.Ignored,
         "a tap with nothing to delegate is ignored",
     )
 
-    // The child's own payload survives the round trip through the parent.
     Check.eq(
         step(cells, ctx, S.Running(ChildS.Live(since = 3)), A.Tap),
         Step.Go(S.Running(ChildS.Idle), listOf(F.Note)),

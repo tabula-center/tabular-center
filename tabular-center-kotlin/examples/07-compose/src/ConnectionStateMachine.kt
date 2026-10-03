@@ -28,14 +28,6 @@ data class ConnectionModel(
     val status: String,
     val detail: String,
     val buttons: List<Button>,
-    /**
-     * The matrix this screen is running, rendered.
-     *
-     * `TABLE` is inert data the processor generated beside the dispatcher, so
-     * a screen can show the machine it runs. Change a cell in `Machine.tb.kt`
-     * and this changes with it: the picture and the dispatch come from one
-     * table, rather than from a diagram someone has to keep current.
-     */
     val grid: String,
 ) {
     data class Button(val label: String, val onClick: () -> Unit)
@@ -57,9 +49,6 @@ class ConnectionCells(private val log: (String) -> Unit) : Cells {
 
     override fun dial(ctx: Ctx, effect: F.Dial): A? {
         log("dialling")
-        // A real one would connect and answer later; answering here keeps the
-        // example honest about the shape: an effect may produce a follow-up
-        // action, and the driver enqueues it rather than recursing.
         return A.Ready(at = ctx.now())
     }
 
@@ -105,14 +94,6 @@ object ConnectionDescriptions : Renders {
     override fun renderFailed(state: S.Failed): Pair<String, String> = "Failed" to "The connection dropped."
 }
 
-/**
- * A connection state as a screen's model.
- *
- * A pure function, so both screens share it: this one, which owns its state,
- * and the nested one in `SessionStateMachine`, whose state belongs to its
- * parent. It decides what to show, never what happens next; the per-state
- * wording comes from [ConnectionDescriptions] through the generated `render`.
- */
 fun connectionModel(state: S, send: (A) -> Unit): ConnectionModel {
     val (status, detail) = render(ConnectionDescriptions, state)
 

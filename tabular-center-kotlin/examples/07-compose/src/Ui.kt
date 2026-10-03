@@ -33,8 +33,6 @@ fun ConnectionUi(model: ConnectionModel) {
                     Button(onClick = button.onClick) { Text(button.label) }
                 }
             }
-            // The machine on screen, rendered from the same TABLE the
-            // dispatcher uses -- as the iced example's window does.
             Text("The matrix this screen is running:")
             Text(model.grid, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
         }

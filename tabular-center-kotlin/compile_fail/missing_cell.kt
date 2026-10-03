@@ -16,8 +16,6 @@ class Hole : TimerMachine() {
     override suspend fun idleStart(ctx: Ctx, state: S.Idle, action: A.Start): Step<S, F> =
         Step.Go(S.Running(0), listOf(F.StartClock))
 
-    // runningTick is missing.
-
     override suspend fun startClock(ctx: Ctx, effect: F.StartClock): A? = null
     override suspend fun stopClock(ctx: Ctx, effect: F.StopClock): A? = null
 }

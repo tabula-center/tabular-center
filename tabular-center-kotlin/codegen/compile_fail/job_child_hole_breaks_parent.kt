@@ -14,7 +14,6 @@ import center.tabula.Step
 class Incomplete : Cells {
     override fun readyAttempt(ctx: generated.retry.Ctx, state: generated.retry.S.Ready, action: generated.retry.A.Attempt): Step<generated.retry.S, generated.retry.F> =
         Step.Ignored
-    // waitingElapsed is missing -- a child cell.
     override fun sleep(ctx: generated.retry.Ctx, effect: generated.retry.F.Sleep): generated.retry.A? = null
     override fun giveUp(ctx: generated.retry.Ctx, effect: generated.retry.F.GiveUp): generated.retry.A? = null
 

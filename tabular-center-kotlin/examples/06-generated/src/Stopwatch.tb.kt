@@ -18,13 +18,5 @@ import center.tabula.Step
 @Row(S.Idle::class,      [CellSpec(Kind.HANDLE),  CellSpec(Kind.IGNORE)])
 @Row(S.Running::class,   [CellSpec(Kind.IGNORE),  CellSpec(Kind.HANDLE)])
 internal interface StopwatchSpec {
-    /**
-     * `Clock.` is the whole fixture, as `suspend` is Gate's.
-     *
-     * The generator copies the receiver onto every member it emits, the same
-     * way it copies modifiers: it does not know what a `Clock` is and does not
-     * need to. `internal` on the interface above is the other half -- the
-     * generated surface takes its visibility from here.
-     */
     fun Clock.handle(ctx: Ctx, state: S, action: A): Step<S, F>
 }

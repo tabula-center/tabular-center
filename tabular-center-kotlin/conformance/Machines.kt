@@ -1,48 +1,26 @@
+// The fixture machines, written in the shape KSP will generate.
+//
+// Each is the Kotlin counterpart of a Rust adapter in `tabular-center-conformance`.
+// The two implementations agreeing on these fixtures is the only thing keeping
+// them from drifting.
 package conformance
 
 import center.tabula.*
 import center.tabula.testing.*
 
-/**
- * The fixture machines, written in the shape KSP will generate.
- *
- * Each is the Kotlin counterpart of a Rust adapter in `tabular-center-conformance`.
- * The two implementations agreeing on these fixtures is the only thing keeping
- * them from drifting.
- */
-
 /** Binds one fixture to one real machine. */
 interface Adapter {
-    /** Fixture name; `<name>.tbl` and `traces/<name>.trace`. */
     val name: String
 
-    /** The generated table. */
     val table: Table
 
-    /**
-     * Payload fields, as `(state, field, type)`.
-     *
-     * Separate from [table] because only the lints need it, and only
-     * `tabular-center::payload-hoist` among those. Rust has passed its `PAYLOADS` to
-     * the lint since the lint existed; this side was calling `report(table)`
-     * and taking the empty default, so the two agreed only because no fixture
-     * had a field repeated often enough to fire.
-     *
-     * `type` is spelled in the implementation's own language. See
-     * `spec/diagnostics.md`.
-     */
     val payloads: Payloads get() = emptyList()
 
-    /** Replay one trace, one [Observed] per step. */
     fun replay(trace: Trace): List<Observed>
 }
 
 /** Outcome of one replayed step, in fixture vocabulary. */
 data class Observed(val expect: Expect, val effects: List<String>)
-
-// ---------------------------------------------------------------------------
-// timer.tbl
-// ---------------------------------------------------------------------------
 
 object timer {
     sealed interface S {
@@ -155,10 +133,6 @@ object TimerAdapter : Adapter {
     }
 }
 
-// ---------------------------------------------------------------------------
-// toggle.tbl -- the only coverage for EMIT and UNREACHABLE
-// ---------------------------------------------------------------------------
-
 object toggle {
     sealed interface S {
         data object Off : S
@@ -187,8 +161,6 @@ object toggle {
             is S.On -> when (a) {
                 is A.Flip -> Step.Go(S.Off)
                 is A.Poke -> onPoke(ctx, s, a)
-                // UNREACHABLE compiles to a trap. Writing it *is* the
-                // implementation, so it generates no member.
                 is A.Reset -> error("tabular-center: On x Reset was declared UNREACHABLE but occurred")
             }
         }
@@ -271,9 +243,6 @@ object effectsNever {
     }
 
     class Impl : Machine() {
-        // The only route into Open, and deliberately dynamic: a statically
-        // resolvable transition here would make the matrix fully static and
-        // defeat the reachability gate this fixture pins.
         override fun onUnlock(ctx: Ctx, state: S.Locked, action: A.Unlock): Step<S, F> =
             Step.Go(S.Open)
 
@@ -300,9 +269,6 @@ object EffectsNeverAdapter : Adapter {
                 else -> error("effects-never: unknown action `${st.action}`")
             }
             val step = m.step(effectsNever.Ctx, state, action)
-            // Always empty -- F has no implementors -- but mapped the same way
-            // as every other adapter, so the trace assertions test the real
-            // path rather than a short circuit.
             val effects = step.effects.map { it.toString() }
             val expect = when (step) {
                 is Step.Stay -> Expect.Stay
@@ -351,10 +317,6 @@ object ToggleAdapter : Adapter {
     }
 }
 
-// ---------------------------------------------------------------------------
-// payload-hoist.tbl -- the only coverage for `tabular-center::payload-hoist`
-// ---------------------------------------------------------------------------
-
 /**
  * `attempt` in three states, which is what the lint is looking for.
  *
@@ -391,10 +353,6 @@ object payloadHoist {
         fun step(ctx: Ctx, s: S, a: A): Step<S, F> = when (s) {
             is S.Connecting -> when (a) {
                 is A.Open -> connectingOpen(ctx, s, a)
-                // A static cell cannot read the state it is leaving, so the
-                // counter restarts here. That is not a shortcut for the
-                // fixture -- it is what GO means, and it is half of why this
-                // machine wants the field hoisted.
                 is A.Fail -> Step.Go(S.Backoff(0))
                 is A.Timeout -> Step.Go(S.Backoff(0))
             }
@@ -438,7 +396,6 @@ object payloadHoist {
         override fun reconnectingOpen(ctx: Ctx, state: S.Reconnecting, action: A.Open): Step<S, F> =
             Step.Go(S.Live)
 
-        /** The only cell that advances the counter, and the only one that can. */
         override fun backoffTimeout(ctx: Ctx, state: S.Backoff, action: A.Timeout): Step<S, F> =
             if (state.attempt >= ctx.maxAttempts) Step.Stay()
             else Step.Go(S.Reconnecting(state.attempt + 1))
@@ -448,15 +405,6 @@ object payloadHoist {
 object PayloadHoistAdapter : Adapter {
     override val name = "payload-hoist"
 
-    /**
-     * Spelled `Long`, not `int`.
-     *
-     * The adapter reports the type in its own language and `canonicalType`
-     * maps it onto the spec vocabulary before the comparison. Rust says `u32`
-     * and Swift says `Int` for this same field; all three land on
-     * `attempt: int` and share one `.lint` golden. Writing `int` here would
-     * pass today and hide the mapping that makes the fixture work.
-     */
     override val payloads: Payloads = listOf(
         Triple("Connecting", "attempt", "Long"),
         Triple("Backoff", "attempt", "Long"),
@@ -510,10 +458,6 @@ object PayloadHoistAdapter : Adapter {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// dead-column.tbl -- the only coverage for `tabular-center::dead-column`
-// ---------------------------------------------------------------------------
 
 /**
  * A vending machine whose refund button was never wired up.
@@ -582,14 +526,6 @@ object deadColumn {
         override fun idleInsert(ctx: Ctx, state: S.Idle, action: A.Insert): Step<S, F> =
             Step.Go(S.Charged(1))
 
-        /**
-         * `stay`, not `ignored`, when the credit is short.
-         *
-         * The distinction the third trace exists for: this cell is HANDLE and
-         * refuses, while `Charged`/`Insert` beside it is IGNORE and never
-         * runs. An implementation collapsing the two passes every other
-         * fixture.
-         */
         override fun chargedSelect(ctx: Ctx, state: S.Charged, action: A.Select): Step<S, F> =
             if (state.credit >= ctx.price) Step.Go(S.Dispensing) else Step.Stay()
     }
@@ -598,7 +534,6 @@ object deadColumn {
 object DeadColumnAdapter : Adapter {
     override val name = "dead-column"
 
-    /** One state, so `payload-hoist` stays out of this fixture's way. */
     override val payloads: Payloads = listOf(Triple("Charged", "credit", "Long"))
 
     override val table = deadColumn.Machine.TABLE
@@ -644,10 +579,6 @@ object DeadColumnAdapter : Adapter {
         is deadColumn.S.Dispensing -> Expect.Go("Dispensing", emptyMap())
     }
 }
-
-// ---------------------------------------------------------------------------
-// ignore-heavy.tbl
-// ---------------------------------------------------------------------------
 
 /**
  * The `tabular-center::ignore-heavy` fixture: 15 of 20 cells `IGNORE` (75%).
@@ -738,11 +669,6 @@ object ignoreHeavy {
         override fun idleArm(ctx: Ctx, state: S.Idle, action: A.Arm): Step<S, F> =
             Step.Go(S.Armed)
 
-        /**
-         * `stay`, not `ignored`: the tick is handled and changes nothing.
-         * `one-action-per-state` asserts exactly that, one step after an
-         * `Arm => ignored` from the same state -- the two outcomes side by side.
-         */
         override fun armedTick(ctx: Ctx, state: S.Armed, action: A.Tick): Step<S, F> =
             Step.Stay()
 
@@ -790,9 +716,6 @@ object IgnoreHeavyAdapter : Adapter {
         else -> error("ignore-heavy: unknown action `$name`")
     }
 
-    // Exhaustive `when` rather than `toString()`, so a state added to `S`
-    // without a name here fails to compile instead of printing a data-object
-    // rendering the fixture would never match.
     private fun nameOf(s: ignoreHeavy.S): String = when (s) {
         is ignoreHeavy.S.Idle -> "Idle"
         is ignoreHeavy.S.Armed -> "Armed"
@@ -800,10 +723,6 @@ object IgnoreHeavyAdapter : Adapter {
         is ignoreHeavy.S.Spent -> "Spent"
     }
 }
-
-// ---------------------------------------------------------------------------
-// no-static-exit.tbl
-// ---------------------------------------------------------------------------
 
 /**
  * The `tabular-center::no-static-exit` fixture: `Fault` can be entered and, as far as
@@ -872,11 +791,6 @@ object noStaticExit {
     }
 
     class Impl : Machine() {
-        /**
-         * The only dynamic cell, and the reason the matrix is not fully static
-         * -- which is what keeps `no-static-entry` quiet about `Fault`, a state
-         * nothing in the matrix enters.
-         */
         override fun idleStart(ctx: Ctx, state: S.Idle, action: A.Start): Step<S, F> =
             Step.Go(S.Blinking)
     }
@@ -924,10 +838,6 @@ object NoStaticExitAdapter : Adapter {
         is noStaticExit.S.Fault -> "Fault"
     }
 }
-
-// ---------------------------------------------------------------------------
-// no-static-entry.tbl
-// ---------------------------------------------------------------------------
 
 /**
  * The `tabular-center::no-static-entry` fixture: `Jammed` has a row and a way out, and
@@ -1041,10 +951,6 @@ object NoStaticEntryAdapter : Adapter {
     }
 }
 
-// ---------------------------------------------------------------------------
-// unreachable-heavy.tbl
-// ---------------------------------------------------------------------------
-
 /**
  * The `tabular-center::unreachable-heavy` fixture: three `UNREACHABLE` cells of twelve,
  * which is `UNREACHABLE_HEAVY_PERCENT` exactly -- on the boundary, so `>` in
@@ -1112,7 +1018,6 @@ object unreachableHeavy {
     }
 
     class Impl : Machine() {
-        /** `stay`, not `ignored`, when refused: the cell ran and chose not to move. */
         override fun dialingAck(ctx: Ctx, state: S.Dialing, action: A.Ack): Step<S, F> =
             if (ctx.accept) Step.Go(S.Up) else Step.Stay()
     }
@@ -1163,7 +1068,6 @@ object UnreachableHeavyAdapter : Adapter {
     }
 }
 
-/** Every adapter that has landed. A fixture with none is reported as skipped. */
 val adapters: List<Adapter> =
     listOf(
         TimerAdapter, ToggleAdapter, RetryAdapter, JobAdapter, EffectsNeverAdapter,

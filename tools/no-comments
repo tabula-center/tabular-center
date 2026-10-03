@@ -20,12 +20,16 @@ clean_patterns=(
     '*.yaml'
     '*.nix'
     '*.rs'
+    '*.kt'
+    '*.kts'
 )
 
 clean_paths=()
 
 documented_paths=(
     'tabular-center-rust/tabular-center/src/*.rs'
+    'tabular-center-kotlin/core/*.kt'
+    'tabular-center-kotlin/annotations/*.kt'
 )
 
 clean_files=(
@@ -130,6 +134,7 @@ find_comments() {
                     while (i <= n) {
                         c = substr(line, i, 1)
                         if (c == "\\") { i += 2; continue }
+                        if (ENVIRON["FILE"] !~ /\.rs$/ && substr(line, i, 2) == "${") { i = past_template(line, i + 2); continue }
                         i++
                         if (c == "\"") { in_string = 0; break }
                     }
@@ -154,6 +159,21 @@ find_comments() {
                 out = out c; i++
             }
             return out
+        }
+        function past_template(line, i,   depth, c, n) {
+            depth = 0; n = length(line)
+            while (i <= n) {
+                c = substr(line, i, 1)
+                if (c == "\"") {
+                    i++
+                    while (i <= n && substr(line, i, 1) != "\"") i += (substr(line, i, 1) == "\\") ? 2 : 1
+                    i++; continue
+                }
+                if (c == "{") depth++
+                if (c == "}") { if (depth == 0) return i + 1; depth-- }
+                i++
+            }
+            return i
         }
         function is_column_labels(line) {
             return line ~ /^[[:space:]]*\/\/([[:space:]]+[A-Za-z_][A-Za-z0-9_.]*){2,}[[:space:]]*$/
@@ -220,17 +240,30 @@ find_comments() {
 
 find_undocumented() {
     FILE="$1" awk '
-        BEGIN { last = "start" }
+        function opens(t) { return gsub(/\(/, "(", t) - gsub(/\)/, ")", t) }
+        function is_public_type(line,   head) {
+            if (ENVIRON["FILE"] ~ /\.rs$/) {
+                return line ~ /^[[:space:]]*pub[[:space:]]+(struct|enum|trait|union|type)[[:space:]]+[A-Za-z_]/ ||
+                       line ~ /^[[:space:]]*macro_rules![[:space:]]+[A-Za-z][A-Za-z0-9_]*/
+            }
+            if (line !~ /^[[:space:]]*(((public|open|final|abstract|sealed|data|enum|annotation|inline|value|fun|companion|expect|actual|inner|private|internal|protected)[[:space:]]+)*)(class|interface|object|typealias)[[:space:]]+[A-Za-z_]/) return 0
+            head = line
+            sub(/(class|interface|object|typealias)[[:space:]].*$/, "", head)
+            return head !~ /(private|internal|protected)/
+        }
+        BEGIN { last = "start"; depth = 0 }
         /^[[:space:]]*$/ { if (last != "start") last = "blank"; next }
-        last == "start" && $0 !~ /^[[:space:]]*\/\// {
+        last == "start" && $0 !~ /^[[:space:]]*(\/\/|\/\*)/ {
             printf "%s:%d: no file header\n", ENVIRON["FILE"], FNR
             last = "code"
         }
-        /^[[:space:]]*\/\// { last = "comment"; next }
+        /^[[:space:]]*(\/\/|\/\*)/ || (ENVIRON["FILE"] !~ /\.rs$/ && /^[[:space:]]*\*/) { last = "comment"; next }
+        depth > 0 { depth += opens($0); next }
         /^[[:space:]]*#!?\[/ { next }
+        /^[[:space:]]*@[A-Za-z]/ { depth = opens($0); if (depth < 0) depth = 0; next }
         {
-            if ($0 ~ /^[[:space:]]*pub[[:space:]]+(struct|enum|trait|union|type)[[:space:]]+[A-Za-z_]/ || $0 ~ /^[[:space:]]*macro_rules![[:space:]]+[A-Za-z][A-Za-z0-9_]*/) {
-                if (last != "comment") printf "%s:%d: public type without a comment: %s\n", ENVIRON["FILE"], FNR, $0
+            if (is_public_type($0) && last != "comment") {
+                printf "%s:%d: public type without a comment: %s\n", ENVIRON["FILE"], FNR, $0
             }
             last = "code"
         }

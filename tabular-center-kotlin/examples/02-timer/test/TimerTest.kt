@@ -23,7 +23,6 @@ fun main() {
         Step.Go(S.Done, listOf(F.StopClock(Reason.Elapsed))),
         "timer: the limit finishes the timer",
     )
-    // The same effect, a different reason. The payload is what tells them apart.
     Check.eq(
         step(m, Ctx(100), S.Running(0), A.Cancel).effects,
         listOf(F.StopClock(Reason.Cancelled)),

@@ -1,3 +1,9 @@
+// Running a machine: `Driver` and its suspending twin `SuspendDriver` hold a
+// state and a FIFO mailbox, step one action at a time, apply the outcome
+// before performing effects, and queue follow-up actions rather than
+// re-entering `step`. Neither needs a coroutine library.
+//
+// - `applyOutcome`: Applies one step's outcome and counts it.
 package center.tabula
 
 /** Why a driver call could not proceed. */
@@ -29,6 +35,9 @@ data class Progress(
  * everything that is colorless. That split is the shape every colored API in
  * this library takes — one file per color, no shared abstraction, because the
  * language does not offer one.
+ *
+ * - `pending`: Pending actions.
+ * - `enqueue`: Add an action to the back of the mailbox.
  */
 class Mailbox<S, A>(initial: S, val capacity: Int = 8) {
     var state: S = initial
@@ -36,12 +45,10 @@ class Mailbox<S, A>(initial: S, val capacity: Int = 8) {
 
     private val queue = ArrayDeque<A>()
 
-    /** Pending actions. */
     val pending: Int get() = queue.size
 
     internal var running = false
 
-    /** Add an action to the back of the mailbox. */
     fun enqueue(action: A) {
         if (queue.size == capacity) throw DriverException(DriverError.QueueFull(capacity))
         queue.addLast(action)
@@ -50,15 +57,6 @@ class Mailbox<S, A>(initial: S, val capacity: Int = 8) {
     internal fun dequeue(): A? = queue.removeFirstOrNull()
 }
 
-/**
- * Applies one step's outcome and counts it. Shared by both drivers so the two
- * colors cannot drift in semantics.
- *
- * The outcome is applied **before** effects are performed, so a handler that
- * enqueues an action sees the post-transition state. The reverse order would
- * make `Go(X, [E])` mean "perform E while still in the old state", which is
- * almost never what a cell author intends.
- */
 internal fun <S, A, F> Mailbox<S, A>.applyOutcome(step: Step<S, F>, p: Progress): Progress =
     when (step) {
         is Step.Go -> { state = step.next; p.copy(transitions = p.transitions + 1) }
@@ -72,23 +70,24 @@ internal fun <S, A, F> Mailbox<S, A>.applyOutcome(step: Step<S, F>, p: Progress)
  * `step` is never re-entered, and follow-up actions are **queued, never
  * recursed**: a handler returns an action as data and is handed no way back
  * into `step`.
+ *
+ * - `state`: The current state.
+ * - `enqueue`: Add an action to the back of the mailbox.
+ * - `dispatch`: Dispatch one action and drain everything it causes.
+ * - `run`: Drain the mailbox, strictly FIFO.
  */
 class Driver<S, A, F>(initial: S, capacity: Int = 8) {
     val mailbox = Mailbox<S, A>(initial, capacity)
 
-    /** The current state. */
     val state: S get() = mailbox.state
 
-    /** Add an action to the back of the mailbox. */
     fun enqueue(action: A) = mailbox.enqueue(action)
 
-    /** Dispatch one action and drain everything it causes. */
     fun dispatch(action: A, step: (S, A) -> Step<S, F>, perform: (F) -> A?): Progress {
         enqueue(action)
         return run(step, perform)
     }
 
-    /** Drain the mailbox, strictly FIFO. */
     fun run(step: (S, A) -> Step<S, F>, perform: (F) -> A?): Progress {
         if (mailbox.running) throw DriverException(DriverError.Reentered)
         mailbox.running = true
@@ -120,17 +119,19 @@ class Driver<S, A, F>(initial: S, capacity: Int = 8) {
  *
  * Depends on the `suspend` keyword only, not on `kotlinx.coroutines`: the
  * zero-runtime-dependency rule holds.
+ *
+ * - `state`: The current state.
+ * - `enqueue`: Add an action to the back of the mailbox.
+ * - `dispatch`: Dispatch one action and drain everything it causes.
+ * - `run`: Drain the mailbox, strictly FIFO.
  */
 class SuspendDriver<S, A, F>(initial: S, capacity: Int = 8) {
     val mailbox = Mailbox<S, A>(initial, capacity)
 
-    /** The current state. */
     val state: S get() = mailbox.state
 
-    /** Add an action to the back of the mailbox. */
     fun enqueue(action: A) = mailbox.enqueue(action)
 
-    /** Dispatch one action and drain everything it causes. */
     suspend fun dispatch(
         action: A,
         step: suspend (S, A) -> Step<S, F>,
@@ -140,7 +141,6 @@ class SuspendDriver<S, A, F>(initial: S, capacity: Int = 8) {
         return run(step, perform)
     }
 
-    /** Drain the mailbox, strictly FIFO. */
     suspend fun run(
         step: suspend (S, A) -> Step<S, F>,
         perform: suspend (F) -> A?,

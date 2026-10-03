@@ -10,6 +10,9 @@
 // tools/central-bundle names (TABULAR_CENTER_STAGING), and signs only when a
 // key is given (SIGNING_KEY) -- so the example builds that include ksp/ see
 // nothing but two extra jar tasks.
+//
+// One VERSION for all three languages (RELEASING.md), found by walking up:
+// this file serves builds rooted at tabular-center-kotlin/ and at ksp/.
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.plugins.signing.SigningExtension
@@ -17,8 +20,6 @@ import org.gradle.plugins.signing.SigningExtension
 apply(plugin = "maven-publish")
 apply(plugin = "signing")
 
-// One VERSION for all three languages (RELEASING.md), found by walking up:
-// this file serves builds rooted at tabular-center-kotlin/ and at ksp/.
 fun releaseVersion(): String {
     var dir: File? = projectDir
     while (dir != null) {
@@ -40,8 +41,6 @@ val descriptions = mapOf(
     "tabular-center-testing" to "The .tbl fixture harness for testing tabular-center machines.",
 )
 
-// Central requires a sources jar and a javadoc jar beside every jar. The
-// sources are Kotlin, so the javadoc jar is empty, which Central accepts.
 configure<JavaPluginExtension> {
     withSourcesJar()
     withJavadocJar()

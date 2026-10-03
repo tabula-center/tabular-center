@@ -51,7 +51,6 @@ import example.compose.checkout.S.Payment
 import example.compose.checkout.S.Placed
 import example.compose.checkout.S.Review
 
-/** Why a card was refused. A `const val`, so a cell may name it. */
 private const val CARD = "(\"the card was declined\")"
 private const val BANK = "(\"the bank refused the charge\")"
 
@@ -64,7 +63,6 @@ private const val BANK = "(\"the bank refused the charge\")"
     effects = [Charge::class, Email::class],
     initial = Cart::class,
 )
-// The route, once, in both directions.
 @Path(
     "checkout",
     [

@@ -1,3 +1,10 @@
+// `Step`, the value every cell returns -- a transition, a stay or an ignore,
+// with its effects -- and the operations that compose steps
+// (spec/cells.md 6).
+//
+// - `target`: The target state, if this step transitions.
+// - `isIgnored`: Whether the cell declared the action inapplicable.
+// - `mapEffects`: Relabel the effects, keeping the outcome.
 package center.tabula
 
 /**
@@ -26,9 +33,13 @@ package center.tabula
  *
  * Step.go(S.Validating, F.Log).flatMap(::enter)   // Go(Validating, [Log, Fetch])
  * ```
+ *
+ * - `effects`: Effects emitted, in order.
+ * - `go`: Transition, emitting the listed effects.
+ * - `stay`: Remain in place, emitting the listed effects.
+ * - `ignored`: This action is not applicable here.
  */
 sealed interface Step<out S, out F> {
-    /** Effects emitted, in order. */
     val effects: List<F>
 
     /** Transition to [next]. */
@@ -48,22 +59,17 @@ sealed interface Step<out S, out F> {
     }
 
     companion object {
-        /** Transition, emitting the listed effects. */
         fun <S, F> go(next: S, vararg effects: F): Step<S, F> = Go(next, effects.toList())
 
-        /** Remain in place, emitting the listed effects. */
         fun <F> stay(vararg effects: F): Step<Nothing, F> = Stay(effects.toList())
 
-        /** This action is not applicable here. */
         fun ignored(): Step<Nothing, Nothing> = Ignored
     }
 }
 
-/** The target state, if this step transitions. */
 val <S> Step<S, *>.target: S?
     get() = (this as? Step.Go)?.next
 
-/** Whether the cell declared the action inapplicable. */
 val Step<*, *>.isIgnored: Boolean get() = this is Step.Ignored
 
 fun <S, T, F> Step<S, F>.map(f: (S) -> T): Step<T, F> = when (this) {
@@ -91,12 +97,6 @@ fun <S, T, U, F> Step<S, F>.zip(other: Step<T, F>, transform: (S, T) -> U): Step
 fun <S, T, F> Step<S, F>.zip(other: Step<T, F>): Step<Pair<S, T>, F> =
     zip(other) { x, y -> x to y }
 
-/**
- * Relabel the effects, keeping the outcome.
- *
- * Composition primitive: a `DELEGATE` cell lifts a child's effects into the
- * parent's vocabulary with this.
- */
 fun <S, F, G> Step<S, F>.mapEffects(f: (F) -> G): Step<S, G> = when (this) {
     is Step.Go -> Step.Go(next, effects.map(f))
     is Step.Stay -> Step.Stay(effects.map(f))

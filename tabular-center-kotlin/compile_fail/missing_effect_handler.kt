@@ -15,5 +15,4 @@ class NoStop : TimerMachine() {
         Step.Stay()
 
     override suspend fun startClock(ctx: Ctx, effect: F.StartClock): A? = null
-    // stopClock is missing.
 }

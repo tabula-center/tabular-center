@@ -29,7 +29,6 @@ sealed interface F {
 }
 
 class Ctx(val maxAttempts: Int) {
-    /** Every effect the handler carried out, in order. */
     val performed = mutableListOf<String>()
 }
 
@@ -75,12 +74,6 @@ class Impl : Cells {
             Step.Go(S.Waiting(next), listOf(F.Sleep(100L * next)))
         }
 
-    /**
-     * Sleeping is what produces the next `Elapsed`.
-     *
-     * Returned as data. The driver enqueues it; this function cannot reach
-     * `step` even if it wanted to.
-     */
     override fun sleep(ctx: Ctx, effect: F.Sleep): A? {
         ctx.performed.add("sleep:${effect.ms}")
         return A.Elapsed
@@ -92,7 +85,6 @@ class Impl : Cells {
     }
 }
 
-/** Drive from `Ready` until nothing is pending. */
 fun run(maxAttempts: Int): Pair<S, Ctx> {
     val ctx = Ctx(maxAttempts)
     val cells = Impl()

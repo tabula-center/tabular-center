@@ -7,6 +7,9 @@
 //
 // Each project's directory is its source directory, packages and all, so no
 // build file sits among the sources: build.gradle.kts here configures them.
+//
+// Offline under nix (the pinned set gradle-lock.json describes), the
+// public repositories otherwise -- as ksp/settings.gradle.kts does.
 rootProject.name = "tabular-center-kotlin"
 
 include(
@@ -21,8 +24,6 @@ project(":tabular-center-codegen").projectDir = file("codegen")
 project(":tabular-center-testing").projectDir = file("testing")
 
 pluginManagement {
-    // Offline under nix (the pinned set gradle-lock.json describes), the
-    // public repositories otherwise -- as ksp/settings.gradle.kts does.
     val tabulaRepo: String? = System.getenv("TABULAR_CENTER_MAVEN_REPO")?.takeIf { it.isNotBlank() }
     repositories {
         if (tabulaRepo != null) {

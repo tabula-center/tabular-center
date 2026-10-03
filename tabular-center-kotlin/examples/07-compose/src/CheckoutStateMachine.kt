@@ -33,10 +33,7 @@ data class CheckoutProps(val total: Int)
 
 class CheckoutCells(private val log: (String) -> Unit) : Cells {
 
-    /** The only cell the table leaves to code. */
     override fun declinedNext(ctx: Ctx, state: S.Declined, action: A.Next): Step<S, F> =
-        // A decision, not a transition: worth retrying only if there is
-        // something to retry with.
         if (ctx.total > 0) Step.Go(S.Payment) else Step.Go(S.Abandoned)
 
     override fun charge(ctx: Ctx, effect: F.Charge): A? {

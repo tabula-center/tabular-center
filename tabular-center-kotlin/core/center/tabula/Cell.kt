@@ -1,3 +1,11 @@
+// The six cell kinds, as inert data: what `TABLE` holds for each position of
+// a matrix, and what the renderers, lints and coverage report read.
+//
+// - `isStatic`: Whether the generator resolves this cell entirely, with no developer code.
+// - `generatesMember`: Whether this cell contributes a required member.
+// - `staticTarget`: The target state variant, if this cell transitions unconditionally.
+// - `staticEffects`: Effects this cell emits unconditionally.
+// - `kindName`: Lowercase kind name, as used in diagnostics and the conformance format.
 package center.tabula
 
 /**
@@ -42,24 +50,15 @@ sealed interface Cell {
     data object Unreachable : Cell
 }
 
-/** Whether the generator resolves this cell entirely, with no developer code. */
 val Cell.isStatic: Boolean
     get() = this is Cell.Ignore || this is Cell.Go || this is Cell.Emit
 
-/**
- * Whether this cell contributes a required member.
- *
- * Sum it over the matrix and you have the number of things the developer must
- * implement. This is the predicate the guarantee rests on.
- */
 val Cell.generatesMember: Boolean
     get() = this is Cell.Handle || this is Cell.Delegate
 
-/** The target state variant, if this cell transitions unconditionally. */
 val Cell.staticTarget: String?
     get() = (this as? Cell.Go)?.target
 
-/** Effects this cell emits unconditionally. */
 val Cell.staticEffects: List<String>
     get() = when (this) {
         is Cell.Go -> effects
@@ -67,7 +66,6 @@ val Cell.staticEffects: List<String>
         else -> emptyList()
     }
 
-/** Lowercase kind name, as used in diagnostics and the conformance format. */
 val Cell.kindName: String
     get() = when (this) {
         is Cell.Ignore -> "ignore"

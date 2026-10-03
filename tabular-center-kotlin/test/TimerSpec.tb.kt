@@ -38,11 +38,5 @@ import center.tabula.Step
 @Row(S.Running::class, [CellSpec(Kind.IGNORE),                                                  CellSpec(Kind.HANDLE),   CellSpec(Kind.GO, to = S.Idle::class, emit = [F.StopClock::class])])
 @Row(S.Done::class,    [CellSpec(Kind.GO, to = S.Running::class, emit = [F.StartClock::class]), CellSpec(Kind.IGNORE),   CellSpec(Kind.IGNORE)])
 interface TimerSpec {
-    /**
-     * The prototype. Whatever modifiers appear here are copied onto every
-     * generated cell member — `suspend` below, but equally a context receiver,
-     * an annotation, or anything a future Kotlin version ships. The library
-     * never enumerates colors; it copies.
-     */
     suspend fun handle(ctx: Ctx, state: S, action: A): Step<S, F>
 }

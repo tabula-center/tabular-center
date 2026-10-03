@@ -69,22 +69,13 @@ class TabularCenterProcessor(
                 val desc = buildDesc(raw)
                 write(decl, desc.packageName, raw.machine, emit(desc))
             } catch (e: TabularCenterError) {
-                // Diagnostics are authored in `codegen`, not here, so their
-                // text stays identical whether they are triggered through KSP
-                // or through the tests. Only the source position is added --
-                // the `@Row` the error came from where it named one, so a
-                // row-arity or unknown-effect message underlines the row a
-                // reader has to fix rather than the interface it sits on.
                 logger.error(e.message, e.state?.let { rowNodes(decl)[it] } ?: decl)
             } catch (e: Exception) {
                 logger.error("tabular-center: ${e.message}", decl)
             }
         }
-        // Nothing is deferred: everything needed is resolvable in one round.
         return emptyList()
     }
-
-    // -- extraction ---------------------------------------------------------
 
     private fun readMachine(decl: KSClassDeclaration): RawMachine {
         val machineAnn = decl.annotation(MACHINE_SIMPLE)
@@ -104,13 +95,6 @@ class TabularCenterProcessor(
             }
             .toList()
 
-        // Happy paths. Same shape as the rows above, which is the point: both
-        // are repeatable annotations on the declaration, and reading them the
-        // same way keeps one pattern rather than two.
-        //
-        // No validation here. `buildDesc` owns all four `path-*` diagnostics,
-        // so a route naming a state that does not exist is rejected there with
-        // the normative message rather than twice with two.
         val paths = decl.annotations
             .filter { it.shortName.asString() == PATH_SIMPLE }
             .map { path ->
@@ -126,26 +110,8 @@ class TabularCenterProcessor(
         return RawMachine(
             packageName = decl.packageName.asString(),
             machine = machineNameOf(decl),
-            // The sealed hierarchies are nested in the annotated interface, so
-            // their outer names are the type names a developer already chose.
             stateType = outerOf(machineAnn, "states"),
             actionType = outerOf(machineAnn, "actions"),
-            // `F` when there are no effects, not `Unit`.
-            //
-            // The type names are read from the first variant's outer class,
-            // which is right for states and actions -- a machine cannot have
-            // none -- and has no answer for an empty `effects` list.
-            // `outerOf` returned `Unit`, so the generated surface was
-            // `Step<S, Unit>` while the developer had written
-            // `sealed interface F` and implemented against `Step<S, F>`:
-            //
-            //   Return type of 'failedStart' is not a subtype of the return
-            //   type of the overridden member ... Step<S, Unit>
-            //
-            // Every machine before `Spine` declared at least one effect, so
-            // this path had never run. `F` matches the convention SURFACE.md
-            // states and `ChildDesc` already defaults to, and it makes the
-            // `sealed interface F` a developer writes mean something.
             effectType = outerOf(machineAnn, "effects").takeIf { it != "Unit" } ?: "F",
             ctxType = ctxTypeOf(decl),
             initial = initial,
@@ -166,32 +132,15 @@ class TabularCenterProcessor(
         kind = a.enumName("kind"),
         target = a.classes("to").firstOrNull()?.simpleName?.asString()?.takeIf { it != "Unit" } ?: "",
         targetArgs = a.string("args"),
-        // `emit` names payload-free effects; `emits` pairs an effect with
-        // its literal arguments. Both end up as references -- `StopClock`, or
-        // `StopClock(reason = Reason.Cancelled)` -- which is what a static
-        // cell emits verbatim.
         effects = a.classes("emit").map { it.simpleName.asString() } +
             a.annotations("emits").map { e ->
                 val name = e.classes("effect").firstOrNull()?.simpleName?.asString() ?: ""
                 val args = e.string("args")
                 if (args.isBlank()) name else "$name($args)"
             },
-        // A DELEGATE cell names the child's annotated declaration; the
-        // matrix carries the alias the parent's members are built from, and
-        // `childrenOf` carries everything else about it.
         child = a.childDecl()?.let { aliasOf(it) } ?: "",
     )
 
-    /**
-     * Each `@Row` annotation by the state it declares, for positioning
-     * diagnostics.
-     *
-     * KSP positions a message at any `KSNode`, and an annotation is one. The
-     * cell would be better still -- ARCHITECTURE 3 shows `row-arity` pointing
-     * at a row, and a cell-level position would beat it -- but a `CellSpec`
-     * inside an annotation argument is not separately addressable here, so
-     * the row is as fine as this front end goes.
-     */
     private fun rowNodes(decl: KSClassDeclaration): Map<String, KSAnnotation> =
         decl.annotations
             .filter { it.shortName.asString() == ROW_SIMPLE }
@@ -200,44 +149,16 @@ class TabularCenterProcessor(
             }
             .toMap()
 
-    /** The child a DELEGATE cell names, or null for every other kind. */
     private fun KSAnnotation.childDecl(): KSClassDeclaration? =
         classes("child").firstOrNull()?.takeIf { it.simpleName.asString() != "Unit" }
 
-    /**
-     * The machine's own name: `@Machine(name = ..)`, or the declaration's,
-     * less a `Spec` suffix.
-     */
     private fun machineNameOf(decl: KSClassDeclaration): String =
         decl.annotation(MACHINE_SIMPLE)?.string("name")?.ifBlank { null }
             ?: decl.simpleName.asString().removeSuffix("Spec")
 
-    /**
-     * The alias a parent names a child by: the child's machine name,
-     * decapitalized.
-     *
-     * It is an identifier, not a package: the parent's generated members are
-     * built from it (`retryChildState`, `delegateToRetry`), while every
-     * reference to the child's own types goes through
-     * [ChildDesc.packageName]. `Emit.kt` keeps the two apart, and
-     * `runChildPackageTest` pins that.
-     */
     private fun aliasOf(decl: KSClassDeclaration): String =
         machineNameOf(decl).replaceFirstChar { it.lowercase() }
 
-    /**
-     * One [ChildDesc] per distinct child named by a DELEGATE cell.
-     *
-     * Everything the parent needs is read from the child's own declaration --
-     * the package its generated code lands in (the same package the developer
-     * declared it in), its type names, its context -- with the same helpers
-     * this file uses for the machine it is processing. A parent therefore
-     * declares nothing about its child but the class itself.
-     *
-     * The child must be in this compilation: `@Machine` is `SOURCE`-retention,
-     * so a child from a prebuilt module has no annotation left to read. That
-     * is the case `tabular-center::unknown-child` names here.
-     */
     private fun childrenOf(decl: KSClassDeclaration): List<ChildDesc> = decl.annotations
         .filter { it.shortName.asString() == ROW_SIMPLE }
         .flatMap { it.annotations("cells").asSequence() }
@@ -262,22 +183,11 @@ class TabularCenterProcessor(
         }
         .toList()
 
-    /**
-     * The prototype's modifiers, copied verbatim onto every generated member.
-     *
-     * ARCHITECTURE §5: the library never enumerates colors, it copies them. A
-     * `suspend` prototype yields suspending cells; a context receiver or an
-     * annotation this code has never heard of is carried along the same way.
-     */
     private fun prototypeModifiers(decl: KSClassDeclaration): List<String> {
         val proto = decl.getDeclaredFunctions().firstOrNull { it.simpleName.asString() == "handle" }
             ?: return emptyList()
         return buildList {
             if (Modifier.SUSPEND in proto.modifiers) add("suspend")
-            // Qualified, as `renderOf` copies them: the generated file imports
-            // only `center.tabula`, so a short name would not resolve there.
-            // Short names were copied until Phase 9b; no machine had put an
-            // annotation on `handle`, so it had never run.
             proto.annotations.forEach { a ->
                 val fq = a.annotationType.resolve().declaration.qualifiedName?.asString()
                 add("@" + (fq ?: a.shortName.asString()))
@@ -285,18 +195,6 @@ class TabularCenterProcessor(
         }
     }
 
-    /**
-     * `tabular-center::composable-transition`: `@Composable` on the TRANSITION
-     * prototype. ARCHITECTURE §5 and §9.
-     *
-     * A warning, not a refusal. Colors are copied, never judged, so the
-     * machine is generated as declared -- every cell composable. But Compose
-     * may skip, restart, reorder or discard a composition, and a transition
-     * run inside one may therefore run any number of times, or not at all:
-     * a correctness hazard against the runtime's contract, not a style
-     * point. The rendering prototype is where `@Composable` belongs, and the
-     * message says so. Positioned at `handle`, which is what to change.
-     */
     private fun warnComposableTransition(decl: KSClassDeclaration) {
         val proto = decl.getDeclaredFunctions().firstOrNull { it.simpleName.asString() == "handle" }
             ?: return
@@ -313,24 +211,6 @@ class TabularCenterProcessor(
         )
     }
 
-    /**
-     * The rendering prototype, or null for a machine without one.
-     *
-     * A second function on the annotated interface, named `render`, taking
-     * the state: `fun render(state: S): R`. ARCHITECTURE §9. Optional -- no
-     * `render`, no rendering surface, and the generated file is what it was.
-     *
-     * Its color is read the way [prototypeModifiers] reads `handle`'s, with
-     * one difference: annotations are copied by QUALIFIED name. The generated
-     * file imports nothing but `center.tabula`, so `@Composable` copied as
-     * a short name would not resolve there; `@androidx.compose.runtime.Composable`
-     * does, with no import. (`handle`'s annotations are still copied short --
-     * no example has put one there yet. PLAN.md, Phase 9b.)
-     *
-     * Refused rather than generated wrong: an extension receiver, which the
-     * `render` dispatcher would have to thread through, and any shape other
-     * than one parameter.
-     */
     private fun renderOf(decl: KSClassDeclaration): RenderDesc? {
         val proto = decl.getDeclaredFunctions().firstOrNull { it.simpleName.asString() == "render" }
             ?: return null
@@ -357,38 +237,12 @@ class TabularCenterProcessor(
         return RenderDesc(modifiers = modifiers, returnType = returnType)
     }
 
-    /**
-     * The prototype's extension receiver, fully qualified, or empty.
-     *
-     * Qualified because the generated file imports nothing but `center.tabula`,
-     * and the receiver -- unlike `S`, `A` and `Ctx` -- is usually a type from
-     * somewhere else: a clock, a scope, a logger.
-     *
-     * Context parameters are the other half of ARCHITECTURE §5's Kotlin row
-     * and are not read here: they need Kotlin 2.2 (`-Xcontext-parameters`),
-     * and the toolchain is pinned to 2.1.20, where the syntax does not parse.
-     * A prototype that uses them fails in the user's own file before this
-     * processor runs, so there is nothing to read yet.
-     */
     private fun prototypeReceiver(decl: KSClassDeclaration): String {
         val proto = decl.getDeclaredFunctions().firstOrNull { it.simpleName.asString() == "handle" }
             ?: return ""
         return proto.extensionReceiver?.resolve()?.render() ?: ""
     }
 
-    /**
-     * `internal` or public, from the annotated declaration.
-     *
-     * Not from the prototype: an interface member's visibility is not the
-     * question. The generated `Cells`, `step`, `perform`, `TABLE` and
-     * `PAYLOADS` name the machine's own types, so they can be at most as
-     * visible as the declaration that owns those types.
-     *
-     * `private` and `protected` are refused rather than mapped. The generated
-     * file is a different file, so a file-private `Cells` is one the user's
-     * implementation could never see; widening it to `internal` silently would
-     * be the generator deciding something the developer wrote the opposite of.
-     */
     private fun visibilityOf(decl: KSClassDeclaration): String = when (decl.getVisibility()) {
         Visibility.PUBLIC -> ""
         Visibility.INTERNAL -> "internal"
@@ -399,7 +253,6 @@ class TabularCenterProcessor(
         )
     }
 
-    /** A resolved type as source text: qualified, with arguments and `?`. */
     private fun KSType.render(): String {
         val base = declaration.qualifiedName?.asString() ?: declaration.simpleName.asString()
         val args = if (arguments.isEmpty()) "" else arguments.joinToString(", ", "<", ">") { arg ->
@@ -428,8 +281,6 @@ class TabularCenterProcessor(
         OutputStreamWriter(file, Charsets.UTF_8).use { it.write(source) }
     }
 
-    // -- tiny KSP helpers ---------------------------------------------------
-
     private fun KSClassDeclaration.annotation(simple: String): KSAnnotation? =
         annotations.firstOrNull { it.shortName.asString() == simple }
 
@@ -444,17 +295,6 @@ class TabularCenterProcessor(
             else -> v?.toString()?.substringAfterLast('.') ?: ""
         }
 
-    /**
-     * `KClass` arguments, which KSP hands back as [KSType].
-     *
-     * An unrecognised shape **throws** rather than returning an empty list.
-     * That is the whole change: `filterIsInstance` silently dropped anything
-     * it did not recognise, so a KSP version handing back
-     * `KSClassDeclaration` directly would have produced a machine with no
-     * states and no error -- the one failure mode on this file's list that can
-     * look like success. It is unverified code against an API that has moved
-     * between versions; it should fail loudly or not at all.
-     */
     private fun KSAnnotation.classes(name: String): List<KSClassDeclaration> =
         when (val v = argument(name)) {
             null -> emptyList()
@@ -467,9 +307,6 @@ class TabularCenterProcessor(
         is KSClassDeclaration -> this
         else -> null
     } ?: error(
-        // Not a TabularCenterError: diagnostics are authored in `codegen` and this is
-        // an extraction failure in the adapter, not a claim about the user's
-        // machine. `process` catches it and prefixes `tabular-center:` like any other.
         "argument `$name` came back as ${this?.let { it::class.simpleName } ?: "null"}, " +
             "which this processor does not know how to read as a class. " +
             "See the argument-shape note in tabular-center-kotlin/ksp/README.md.",
@@ -479,13 +316,6 @@ class TabularCenterProcessor(
     private fun KSAnnotation.annotations(name: String): List<KSAnnotation> =
         (argument(name) as? List<*>)?.filterIsInstance<KSAnnotation>() ?: emptyList()
 
-    /**
-     * `S.Running` carries a payload iff it is a data class rather than an
-     * object.
-     *
-     * The field list feeds `tabular-center::payload-hoist` only, so an unresolvable
-     * type degrades that one lint rather than the machine.
-     */
     private fun KSClassDeclaration.variant(): RawVariant {
         val hasPayload = classKind == com.google.devtools.ksp.symbol.ClassKind.CLASS
         val fields = if (!hasPayload) emptyList() else
@@ -496,7 +326,6 @@ class TabularCenterProcessor(
         return RawVariant(simpleName.asString(), hasPayload, fields)
     }
 
-    /** The sealed hierarchy's own name, e.g. `S` for `S.Idle`. */
     private fun outerOf(ann: KSAnnotation, name: String): String =
         ann.classes(name).firstOrNull()?.parentDeclaration?.simpleName?.asString() ?: "Unit"
 
@@ -514,5 +343,4 @@ class TabularCenterProcessorProvider : SymbolProcessorProvider {
         TabularCenterProcessor(environment.codeGenerator, environment.logger)
 }
 
-/** Compose's annotation, by the name the processor compares against. */
 private const val COMPOSABLE = "androidx.compose.runtime.Composable"

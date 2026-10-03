@@ -12,7 +12,6 @@ package generated.job
 import center.tabula.Step
 
 class JobImpl : Cells {
-    // The child's cells, required through `generated.retry.Cells`.
     override fun readyAttempt(
         ctx: generated.retry.Ctx,
         state: generated.retry.S.Ready,
@@ -36,20 +35,17 @@ class JobImpl : Cells {
 
     override fun giveUp(ctx: generated.retry.Ctx, effect: generated.retry.F.GiveUp): generated.retry.A? = null
 
-    // The parent's own cell and effect handler.
     override fun idleRun(ctx: Ctx, state: S.Idle, action: A.Run): Step<S, F> =
         Step.Go(S.Retrying(generated.retry.S.Ready), listOf(F.Log))
 
     override fun log(ctx: Ctx, effect: F.Log): A? = null
 
-    // The action prisms: one per DELEGATE cell, the only per-cell part.
     override fun retryingRunToChild(ctx: Ctx, state: S.Retrying, action: A.Run): generated.retry.A? =
         generated.retry.A.Attempt
 
     override fun retryingTickToChild(ctx: Ctx, state: S.Retrying, action: A.Tick): generated.retry.A? =
         generated.retry.A.Elapsed
 
-    // The lens: once per child, however many cells delegate.
     override fun retryChildState(state: S): generated.retry.S =
         (state as? S.Retrying)?.child ?: generated.retry.S.Ready
 

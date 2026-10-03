@@ -1,3 +1,11 @@
+// Adapters for `retry.tbl` and `nested-delegate.tbl`.
+//
+// Two adapters over one pair of machines, because the child must be conformant
+// **on its own**: being composed does not change it, and a child that only
+// works inside its parent is not a reusable machine.
+//
+// The machines live in `test/Composition.kt` rather than here — they are the
+// KSP specification first and conformance fixtures second.
 package conformance
 
 import composition.Impl
@@ -8,17 +16,6 @@ import center.tabula.Step
 import center.tabula.testing.Expect
 import center.tabula.testing.Spec
 import center.tabula.testing.Trace
-
-/**
- * Adapters for `retry.tbl` and `nested-delegate.tbl`.
- *
- * Two adapters over one pair of machines, because the child must be conformant
- * **on its own**: being composed does not change it, and a child that only
- * works inside its parent is not a reusable machine.
- *
- * The machines live in `test/Composition.kt` rather than here — they are the
- * KSP specification first and conformance fixtures second.
- */
 
 object RetryAdapter : Adapter {
     override val payloads: Payloads = listOf(Triple("Waiting", "attempt", "Long"))
@@ -67,9 +64,6 @@ object RetryAdapter : Adapter {
 }
 
 object JobAdapter : Adapter {
-    // `Retrying` holds the child's state, not a scalar. Nothing to hoist and
-    // nothing the lint compares, so the list is empty rather than guessing a
-    // spelling for a nested machine.
     override val payloads: Payloads = emptyList()
     override val name = "nested-delegate"
     override val table = job.TABLE
@@ -78,9 +72,6 @@ object JobAdapter : Adapter {
         val ctx = job.Ctx(retry.Ctx(trace.ctx["max_attempts"] ?: 1))
         val cells = Impl()
 
-        // `from Retrying child_attempt=N` starts the child in Waiting(N);
-        // absent means Ready. The trace format is flat by design, so a nested
-        // state is addressed by a prefixed field rather than by nesting.
         var state: job.S = when (trace.from) {
             "Idle" -> job.S.Idle
             "Done" -> job.S.Done

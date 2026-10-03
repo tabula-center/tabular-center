@@ -44,13 +44,6 @@ fun step(cells: Cells, ctx: Ctx, s: S, a: A): Step<S, Nothing> = when (s) {
 }
 
 class Controller : Cells {
-    /**
-     * The one cell with a decision in it.
-     *
-     * It could have been `GO(Red)` — it is `HANDLE` because it touches
-     * context, and a static cell cannot. That boundary is why both kinds
-     * exist.
-     */
     override fun amberAdvance(ctx: Ctx, state: S.Amber, action: A.Advance): Step<S, Nothing> {
         ctx.cycles++
         return Step.Go(S.Red)

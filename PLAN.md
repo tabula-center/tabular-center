@@ -849,8 +849,8 @@ ARCHITECTURE 15's exemptions and `is_directive` if it is not already.
       ARCHITECTURE 15 says so, so nobody restores it
 - [ ] What `missing_docs` enforced that the rule keeps: every public type,
       trait and macro carries a comment, and every module a header. **Rust:
-      done in stage 4b** (`documented_paths`); Kotlin's `core` and Swift's
-      `Sources/TabularCenter` join it in stages 5 and 6
+      done in stage 4b** (`documented_paths`), **Kotlin in stage 5** (`core`,
+      `annotations`); Swift's `Sources/TabularCenter` joins it in stage 6
 - [x] **Stage 4a: Rust outside the library** -- tests and compile-fail
       fixtures, the bench, the conformance crate, the examples,
       `tabular-center-fmt`: 68 files, 578 comment lines and 4 trailing
@@ -904,9 +904,34 @@ ARCHITECTURE 15's exemptions and `is_directive` if it is not already.
             says so. Emulated: clean on the library, 4 of 4 planted defects
             caught; the comment checker finds nothing in all 79 `.rs` files
             and exactly 615 in the library's originals
-- [ ] Stage 5: Kotlin, `*.kt` and `*.kts` -- ~2,900 lines. KDoc on classes,
-      interfaces and objects stays. `ReferenceTimer.kt`'s `GENERATED`
-      marker: check whether anything reads it before removing
+- [x] **Stage 5: Kotlin**, `*.kt` and `*.kts` -- 142 files, 1,424 comment
+      lines and 3 trailing comments removed. Seven published files had no
+      header (each began with `package`) and have one now; member KDoc in
+      `core` and `annotations` folds into its type's KDoc as a list, primary
+      constructor properties included, and free items into the file header;
+      fourteen files' main explanation, sitting after the imports, is
+      promoted to the header (one helper's KDoc excluded by hand). The
+      rationale is ARCHITECTURE 16, "Kotlin generation and processing". Safe
+      by construction: `//~ AT:` matches a line's content, not its number,
+      and nothing reads `ReferenceTimer.kt`'s `GENERATED` marker.
+      Checked: a Kotlin lexer with a mode stack (string templates holding
+      nested strings, raw strings across lines, nested block comments) ends
+      every file in code mode; code identical in all 142 files, template and
+      raw-string contents included; all 17 Kotlin samples `tools/docs` cuts
+      still match
+      - [x] Two defects in the first folding pass, caught by reading its
+            output and reverted, not patched: list lines indented one space
+            too far, and extension properties (`val Step<*, *>.isIgnored`)
+            named after their receiver
+      - [x] `no-comments` enforces `*.kt` and `*.kts`; its scanner learned
+            Kotlin string templates (`"${f("x")}"`), unexercised by today's
+            tree but a desynchronisation waiting for the first one. Port
+            results: nothing in the stripped tree; exactly 1,427 on the
+            Kotlin originals, the 1,424 lines and 3 trailing comments removed
+      - [x] The documented check covers `core` and `annotations`: public
+            means not `private`/`internal`/`protected`, KDoc lines count as
+            comment, multi-line annotations are skipped by parenthesis depth.
+            Clean on all 18 published files; 3 of 3 planted defects caught
 - [ ] Stage 6: Swift -- ~2,300 lines. Doc comments on protocols, structs,
       classes and actors stay; `// swift-format-ignore-file` and
       `swift-tools-version` are exempt

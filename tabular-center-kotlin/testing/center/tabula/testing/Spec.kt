@@ -1,23 +1,20 @@
+// Parses `spec/conformance` — the same `.tbl` and `.trace` files the Rust
+// harness reads.
+//
+// Published as **tabular-center-testing**, separately from the runtime: a machine in
+// production has no use for a fixture parser, and a test dependency that ships
+// to users is a test dependency nobody removes later.
+//
+// Depends on `tabular-center-core` and nothing else — enforced by `tools/verify`,
+// which compiles each artifact against only its declared dependencies.
+//
+// A port, deliberately: the format was chosen to parse in about sixty lines
+// precisely so each language could own its parser without a dependency. Two
+// small parsers that agree are worth more than one shared one that neither
+// language can build offline.
 package center.tabula.testing
 
 import center.tabula.*
-
-/**
- * Parses `spec/conformance` — the same `.tbl` and `.trace` files the Rust
- * harness reads.
- *
- * Published as **tabular-center-testing**, separately from the runtime: a machine in
- * production has no use for a fixture parser, and a test dependency that ships
- * to users is a test dependency nobody removes later.
- *
- * Depends on `tabular-center-core` and nothing else — enforced by `tools/verify`,
- * which compiles each artifact against only its declared dependencies.
- *
- * A port, deliberately: the format was chosen to parse in about sixty lines
- * precisely so each language could own its parser without a dependency. Two
- * small parsers that agree are worth more than one shared one that neither
- * language can build offline.
- */
 
 /** A cell as the fixture declares it. */
 sealed interface CellSpecFixture {
@@ -74,18 +71,6 @@ data class Trace(
     val steps: List<TraceStep>,
 )
 
-/**
- * Reduce an effect or state rendering to its bare variant name.
- *
- * Three shapes must all land on `StopClock`: the fixture's own `StopClock`, a
- * qualified `F.StopClock`, and Kotlin's `toString` on a data class,
- * `StopClock(reason=1)`.
- *
- * **Order matters.** Taking the last path segment first breaks on the third,
- * because `(reason=1)` may contain a separator. Strip the payload, then split
- * the path. The Rust harness learned this the same way — four conformance
- * failures — and the two must agree.
- */
 fun lastSegment(s: String): String {
     val cut = s.indexOfFirst { it == '(' || it == '{' || it == ' ' }
     val head = if (cut >= 0) s.substring(0, cut) else s
@@ -120,7 +105,6 @@ private fun parseCell(text: String, at: String): CellSpecFixture {
     }
 }
 
-/** Parse a `.tbl` fixture. */
 fun parseSpec(src: String, origin: String): Spec {
     var machine: String? = null
     var initial: String? = null
@@ -172,7 +156,6 @@ private fun parseKv(words: List<String>, at: String): Map<String, Long> =
         k to (v.toLongOrNull() ?: error("$at: `$v` is not an integer"))
     }
 
-/** Parse a `.trace` file, which may hold several traces. */
 fun parseTraces(src: String, origin: String): List<Trace> {
     val out = mutableListOf<Trace>()
     src.lines().forEachIndexed { n, raw ->
@@ -191,9 +174,6 @@ fun parseTraces(src: String, origin: String): List<Trace> {
         out.add(
             when (words[0]) {
                 "ctx" -> t.copy(ctx = parseKv(words.drop(1), at))
-                // `from` accepts payload fields exactly as `go` does. It did
-                // not, once, and silently started a composition trace in the
-                // wrong child state.
                 "from" -> t.copy(from = words[1], fromFields = parseKv(words.drop(2), at))
                 else -> {
                     val (lhs, rhs) = line.split("=>", limit = 2).also {
@@ -242,12 +222,6 @@ private fun cellMatches(got: Cell, want: CellSpecFixture): Boolean {
     }
 }
 
-/**
- * Compare a generated table against a fixture, cell by cell.
- *
- * Not redundant with trace replay: several wrong tables produce right answers
- * on any one trace.
- */
 fun checkTable(got: Table, want: Spec): List<String> {
     val errs = mutableListOf<String>()
     if (got.machine != want.machine) errs.add("machine name: got `${got.machine}`, want `${want.machine}`")

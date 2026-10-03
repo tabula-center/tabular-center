@@ -8,7 +8,6 @@ import center.tabula.Table
 
 //            Start    Arrived   Give
 // Idle       HANDLE   IGNORE    IGNORE
-// Loading    IGNORE   HANDLE    GO(Loaded)
 // Loaded     IGNORE   IGNORE    IGNORE
 val TABLE = Table(
     machine = "Fetch",

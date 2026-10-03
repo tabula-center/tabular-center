@@ -16,7 +16,6 @@ sealed interface A {
 }
 
 sealed interface F {
-    // none
 }
 
 class Ctx

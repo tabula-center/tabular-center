@@ -1,3 +1,7 @@
+// The annotations a machine is declared with, read by the KSP processor:
+// `@Machine` on the spec interface, one `@Row` per state holding its cells
+// (`CellSpec`, by `Kind`), `Emit` for an effect with literal arguments, and
+// `@Path` for a happy path. Compile-time only; nothing here runs.
 package center.tabula
 
 import kotlin.reflect.KClass
@@ -11,31 +15,17 @@ enum class Kind { HANDLE, IGNORE, GO, EMIT, UNREACHABLE, DELEGATE }
  * `to` and `emit` take `KClass`, not strings, so a typo is a compile error
  * rather than a generator error — the earliest possible failure, and one that
  * costs nothing to provide.
+ *
+ * - `args`: Literal constructor arguments for [to], e.g.
+ * - `emit`: Payload-free effects: `emit = [F.StopClock::class]`.
+ * - `emits`: Effects that carry a payload, with their literal arguments: `emits = [Emit(F.StopClock::class, "reason = Reason.Cancelled")]`.
  */
 @Retention(AnnotationRetention.SOURCE)
 annotation class CellSpec(
     val kind: Kind,
     val to: KClass<*> = Unit::class,
-    /**
-     * Literal constructor arguments for [to], e.g. "(0)".
-     *
-     * A string because an annotation cannot hold an expression. Rule R3 keeps
-     * this honest: a GO target that needs runtime data is rejected outright
-     * rather than papered over here, so the only thing this ever carries is a
-     * literal.
-     */
     val args: String = "",
-    /** Payload-free effects: `emit = [F.StopClock::class]`. */
     val emit: Array<KClass<*>> = [],
-    /**
-     * Effects that carry a payload, with their literal arguments:
-     * `emits = [Emit(F.StopClock::class, "reason = Reason.Cancelled")]`.
-     *
-     * A separate parameter rather than an `emitArgs` array parallel to [emit],
-     * because a parallel array is positional against another array and
-     * silently misaligns. Paired here, the effect and its arguments cannot
-     * drift apart.
-     */
     val emits: Array<Emit> = [],
     val child: KClass<*> = Unit::class,
 )
@@ -117,6 +107,8 @@ annotation class Machine(
  * with it. `tabular-center::path-unknown-state` catches what a rename cannot -- a state
  * that never existed -- and the other three `path-*` codes catch a route that
  * does not match the rows it describes.
+ *
+ * - `back`: The action that walks this path backwards, if it has one.
  */
 @Repeatable
 @Retention(AnnotationRetention.SOURCE)
@@ -124,19 +116,5 @@ annotation class Machine(
 annotation class Path(
     val name: String,
     val states: Array<KClass<*>>,
-    /**
-     * The action that walks this path backwards, if it has one.
-     *
-     * A wizard's "back" is the path read in reverse, and writing it out cell
-     * by cell is writing the route a second time -- in the opposite order,
-     * where a mistake looks like an ordinary cell. Name the action here and
-     * each hop's reverse derives too: for `A -next-> B`, the cell
-     * `(B, back)` becomes `GO(A)`.
-     *
-     * Derived over `HANDLE` cells only, exactly as the forward direction is,
-     * so a row that says something else keeps saying it -- a wizard whose
-     * back from payment abandons the order, say, writes that GO and the path
-     * leaves it alone.
-     */
     val back: KClass<*> = Unit::class,
 )

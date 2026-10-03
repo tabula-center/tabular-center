@@ -25,6 +25,4 @@ class Blank : Cells, Renders {
 
     override fun renderIdle(state: S.Idle): String = "idle"
     override fun renderRunning(state: S.Running): String = "running since ${state.since}"
-
-    // renderDone is missing.
 }

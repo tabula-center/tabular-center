@@ -22,10 +22,6 @@ package composition
 
 import center.tabula.*
 
-// ---------------------------------------------------------------------------
-// Child: a retry machine, written without knowing anything about its parent.
-// ---------------------------------------------------------------------------
-
 object retry {
     sealed interface S {
         data object Ready : S
@@ -50,13 +46,6 @@ object retry {
         fun waitingElapsed(ctx: Ctx, state: S.Waiting, action: A.Elapsed): Step<S, F>
     }
 
-    /**
-     * Dispatch, taking the surface rather than being a method on it.
-     *
-     * Free function so a parent can pass its own `this` — one object satisfying
-     * both machines' surfaces, exactly as the Rust `Impl` implements both
-     * machines' `Handle` bounds.
-     */
     fun step(cells: Cells, ctx: Ctx, s: S, a: A): Step<S, F> = when (s) {
         is S.Ready -> when (a) {
             is A.Attempt -> cells.readyAttempt(ctx, s, a)
@@ -87,10 +76,6 @@ object retry {
         ),
     )
 }
-
-// ---------------------------------------------------------------------------
-// Parent: a job machine whose Retrying state holds the child's state.
-// ---------------------------------------------------------------------------
 
 object job {
     sealed interface S {
@@ -143,11 +128,9 @@ object job {
     interface Cells : retry.Cells {
         fun idleRun(ctx: Ctx, state: S.Idle, action: A.Run): Step<S, F>
 
-        // One per DELEGATE cell: the action prism.
         fun retryingRunToChild(ctx: Ctx, state: S.Retrying, action: A.Run): retry.A?
         fun retryingTickToChild(ctx: Ctx, state: S.Retrying, action: A.Tick): retry.A?
 
-        // Once per child: the lens, the effect relabelling, the context.
         fun retryChildState(state: S.Retrying): retry.S
         fun retryEmbed(state: S.Retrying, child: retry.S): S
         fun retryLift(effect: retry.F): F
@@ -172,13 +155,6 @@ object job {
         }
     }
 
-    /**
-     * Run the child and fold the result back.
-     *
-     * `toChild` returning null reports **Ignored**, not Stay: a parent action
-     * the child's alphabet does not contain was not handled, and the
-     * distinction is load-bearing for the lints.
-     */
     private fun delegate(
         cells: Cells,
         ctx: Ctx,
@@ -213,16 +189,10 @@ object job {
     )
 }
 
-// ---------------------------------------------------------------------------
-// The developer's side: one object satisfying BOTH machines' surfaces.
-// ---------------------------------------------------------------------------
-
 class Impl : job.Cells {
-    // The parent's own HANDLE cell.
     override fun idleRun(ctx: job.Ctx, state: job.S.Idle, action: job.A.Run) =
         Step.Go(job.S.Retrying(retry.S.Ready), listOf(job.F.Log))
 
-    // The CHILD's cells, required because `job.Cells : retry.Cells`.
     override fun readyAttempt(ctx: retry.Ctx, state: retry.S.Ready, action: retry.A.Attempt) =
         Step.Go(retry.S.Waiting(1), listOf(retry.F.Sleep))
 
@@ -237,7 +207,6 @@ class Impl : job.Cells {
             Step.Go(retry.S.Waiting(state.attempt + 1), listOf(retry.F.Sleep))
         }
 
-    // The delegate cells.
     override fun retryingRunToChild(ctx: job.Ctx, state: job.S.Retrying, action: job.A.Run) =
         retry.A.Attempt
 
@@ -246,12 +215,6 @@ class Impl : job.Cells {
 
     override fun retryChildState(state: job.S.Retrying) = state.child
 
-    /**
-     * A child transition can be a parent transition.
-     *
-     * `embed` returns the full parent state, not the narrowed variant, because
-     * a child reaching its terminal state is usually the parent's cue to leave.
-     */
     override fun retryEmbed(state: job.S.Retrying, child: retry.S): job.S =
         if (child is retry.S.Exhausted) job.S.Done else job.S.Retrying(child)
 

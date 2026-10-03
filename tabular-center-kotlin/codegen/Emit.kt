@@ -1,17 +1,13 @@
+// Turns a [MachineDesc] into Kotlin source.
+//
+// The shape is fixed by `test/ReferenceTimer.kt` and `test/Composition.kt`.
+// Those files are hand-written and kept building forever; this emitter has to
+// reproduce them, and `tools/verify kotlin-codegen` holds the proof by
+// compiling what it emits against `codegen/support/`.
 package center.tabula.codegen
 
-/**
- * Turns a [MachineDesc] into Kotlin source.
- *
- * The shape is fixed by `test/ReferenceTimer.kt` and `test/Composition.kt`.
- * Those files are hand-written and kept building forever; this emitter has to
- * reproduce them, and `tools/verify kotlin-codegen` holds the proof by
- * compiling what it emits against `codegen/support/`.
- */
 fun emit(d: MachineDesc): String = buildString {
     val mods = if (d.prototypeModifiers.isEmpty()) "" else d.prototypeModifiers.joinToString(" ") + " "
-    // Both empty for a plain public machine, so its output is byte-identical
-    // to what it was before either existed -- the goldens say so.
     val vis = if (d.visibility.isEmpty()) "" else d.visibility + " "
     val recv = if (d.prototypeReceiver.isEmpty()) "" else d.prototypeReceiver + "."
 
@@ -28,7 +24,6 @@ fun emit(d: MachineDesc): String = buildString {
     appendLine("import center.tabula.Table")
     appendLine()
 
-    // -- cell surface --------------------------------------------------
     appendLine("/**")
     appendLine(" * The cell surface: one required member per non-static cell, with narrowed")
     appendLine(" * argument types.")
@@ -59,12 +54,9 @@ fun emit(d: MachineDesc): String = buildString {
         }
     }
 
-    // Lens members are per CHILD, not per cell: a second delegate cell to the
-    // same child reuses them. Only the action prism above is per cell.
     for (c in d.children) {
         appendLine()
         appendLine("    // Lens onto `${c.alias}`. Per child, not per cell.")
-        // Member names from the alias; types from the child's package.
         val p = c.packageName
         appendLine("    fun ${c.alias}ChildState(state: ${d.stateType}): $p.${c.stateType}")
         appendLine("    fun ${c.alias}Embed(state: ${d.stateType}, child: $p.${c.stateType}): ${d.stateType}")
@@ -86,7 +78,6 @@ fun emit(d: MachineDesc): String = buildString {
     appendLine("}")
     appendLine()
 
-    // -- dispatcher ----------------------------------------------------
     appendLine("/** Dispatch one `(state, action)` pair. No wildcard branch. */")
     appendLine(
         "$vis${mods}fun ${recv}step(cells: Cells, ctx: ${d.ctxType}, s: ${d.stateType}, a: ${d.actionType}): " +
@@ -101,7 +92,6 @@ fun emit(d: MachineDesc): String = buildString {
     }
     appendLine("}")
 
-    // -- delegate helpers ----------------------------------------------
     for (c in d.children) {
         appendLine()
         appendLine("/**")
@@ -128,7 +118,6 @@ fun emit(d: MachineDesc): String = buildString {
         appendLine("}")
     }
 
-    // -- effect dispatch -----------------------------------------------
     if (d.effects.isNotEmpty()) {
         appendLine()
         appendLine("/** Carry out one effect, returning any follow-up action. */")
@@ -142,9 +131,6 @@ fun emit(d: MachineDesc): String = buildString {
         appendLine("}")
     }
 
-    // -- rendering surface (optional) -------------------------------------
-    // Only for a machine that declares a rendering prototype. Without one,
-    // nothing here is emitted and the output is what it always was.
     d.render?.let { r ->
         val rmods = if (r.modifiers.isEmpty()) "" else r.modifiers.joinToString(" ") + " "
         appendLine()
@@ -173,11 +159,8 @@ fun emit(d: MachineDesc): String = buildString {
         appendLine("}")
     }
 
-    // -- narrowed surface: one member per hop (optional) ----------------
-    // Only for a machine with paths; without one nothing here is emitted.
     for (h in d.hops) hop(d, h, vis, mods, recv)
 
-    // -- table ----------------------------------------------------------
     appendLine()
     appendLine("/** The matrix as inert data. Diagrams, lints, and coverage read this. */")
     appendLine("${vis}val TABLE = Table(")
@@ -192,8 +175,6 @@ fun emit(d: MachineDesc): String = buildString {
     appendLine("    ),")
     appendLine(")")
 
-    // Payload metadata, kept separate from TABLE: the table is the matrix, and
-    // this is metadata about the states. Feeds tabular-center::payload-hoist.
     appendLine()
     appendLine("/** State payload fields, as `(state, field, type)`. */")
     val payloadStates = d.states.filter { it.hasPayload }
@@ -214,13 +195,6 @@ private inline fun forEachCell(d: MachineDesc, body: (Int, Int, CellDesc) -> Uni
     d.rows.forEachIndexed { i, row -> row.forEachIndexed { j, c -> body(i, j, c) } }
 }
 
-/**
- * The states `from` can end up in when an action arrives there, per
- * spec/happy-paths.md: a `GO` its target, `EMIT`/`IGNORE`/`DELEGATE` `from`
- * itself, a `HANDLE` any state (its code decides), `UNREACHABLE` none. The
- * hop's own cell is a `GO` to `to` after derivation, so `to` is always in.
- * Sorted, in declaration order.
- */
 internal fun hopOutcomes(d: MachineDesc, h: HopDesc): List<Int> {
     val out = sortedSetOf(h.to)
     for (cell in d.rows[h.from]) {
@@ -234,11 +208,6 @@ internal fun hopOutcomes(d: MachineDesc, h: HopDesc): List<Int> {
     return out.toList()
 }
 
-/**
- * One hop's narrowed surface: a sealed outcome type, the member that steps
- * `from` with the action that arrived, and an `inline` `elvis` over the
- * outcome. spec/happy-paths.md, "Settled before implementation".
- */
 private fun StringBuilder.hop(d: MachineDesc, h: HopDesc, vis: String, mods: String, recv: String) {
     val name = member(d, h.from, h.action)
     val type = cap(name)
@@ -262,8 +231,6 @@ private fun StringBuilder.hop(d: MachineDesc, h: HopDesc, vis: String, mods: Str
     }
     appendLine("}")
 
-    // With a receiver prototype the receiver slot is taken, so `cells` is a
-    // parameter; `step` is then reached through that receiver, as it is here.
     val self = if (recv.isEmpty()) "Cells." else recv
     val cellsParam = if (recv.isEmpty()) "" else "cells: Cells, "
     val cellsArg = if (recv.isEmpty()) "this" else "cells"
@@ -290,7 +257,6 @@ private fun StringBuilder.hop(d: MachineDesc, h: HopDesc, vis: String, mods: Str
     appendLine("    }")
     appendLine("}")
 
-    // `inline`, so a handler may `return` from the caller: the railway.
     appendLine()
     appendLine("/** The happy outcome of [$name], or each handler's answer for the others. */")
     if (others.isEmpty()) {
@@ -318,17 +284,6 @@ private fun StringBuilder.hop(d: MachineDesc, h: HopDesc, vis: String, mods: Str
  */
 internal data class GeneratedMember(val name: String, val origin: String, val state: String?)
 
-/**
- * Every member the generated `Cells` interface declares: one per HANDLE cell,
- * one per DELEGATE cell's action prism, four lens members per child, one per
- * effect.
- *
- * The one list both the emitter's naming and `buildDesc`'s collision check
- * read, so the check cannot disagree with what is emitted. Names are
- * concatenations -- `lower(state) + cap(action)`, as `hadilq/happy`'s are --
- * and nothing else stops `LogIn`+`Start` and `Log`+`InStart` meeting at
- * `logInStart`.
- */
 internal fun cellsMembers(d: MachineDesc): List<GeneratedMember> = buildList {
     forEachCell(d) { i, j, cell ->
         val at = "cell (${d.states[i].name}, ${d.actions[j].name})"
@@ -345,8 +300,6 @@ internal fun cellsMembers(d: MachineDesc): List<GeneratedMember> = buildList {
         }
     }
     for (e in d.effects) add(GeneratedMember(lower(e.name), "effect ${e.name}", null))
-    // Not `Cells` members, but named on the same scheme: two hops meeting at one
-    // name would be two top-level functions of the same signature.
     for (h in d.hops) {
         val at = "hop (${d.states[h.from].name}, ${d.actions[h.action].name})"
         add(GeneratedMember(member(d, h.from, h.action), at, d.states[h.from].name))
@@ -357,12 +310,6 @@ private fun child(d: MachineDesc, alias: String): ChildDesc =
     d.children.firstOrNull { it.alias == alias }
         ?: error("tabular-center::unknown-child: `$alias` is not a declared child")
 
-/**
- * Cell member name: `Idle` x `Start` becomes `idleStart`.
- *
- * KSP can build identifiers, which is why Kotlin names cells and Rust reaches
- * for trait bounds instead. See ARCHITECTURE §11.0.
- */
 private fun member(d: MachineDesc, i: Int, j: Int): String =
     lower(d.states[i].name) + cap(d.actions[j].name)
 
@@ -385,20 +332,6 @@ private fun arm(d: MachineDesc, i: Int, j: Int): String {
     }
 }
 
-/**
- * A call to a `Cells` member, from `step` or `perform`.
- *
- * Plain `cells.x(...)` when the prototype has no receiver. With one, each
- * member is an extension declared inside `Cells` -- a *member extension* --
- * and calling it needs two receivers: `cells` as the dispatch receiver and the
- * prototype's receiver as the extension receiver. `step` is itself an
- * extension on that receiver, so it is already in scope implicitly; `with`
- * adds `cells`, and Kotlin resolves the call against both.
- *
- * `cells.x(...)` would not compile there: an explicit receiver on a member
- * extension call is taken as the EXTENSION receiver, and `Cells` is not a
- * `Clock`.
- */
 private fun onCells(d: MachineDesc, call: String): String =
     if (d.prototypeReceiver.isEmpty()) "cells.$call" else "with(cells) { $call }"
 

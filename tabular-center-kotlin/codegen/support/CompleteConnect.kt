@@ -15,17 +15,8 @@ class CompleteConnect : Cells {
     override fun banner(ctx: Ctx, effect: F.Banner): A? = null
 }
 
-/**
- * The happy path reads straight down; each corner case is a named, required
- * handler, and `return` leaves this function from inside one -- `elvis` is
- * `inline`. Effects come back with the state, for the caller to run.
- */
 fun connectHappily(cells: Cells, ctx: Ctx, arrived: A): String {
-    // One alternative (Start in Idle goes to Connecting, or nothing happens):
-    // infix, with a trailing lambda.
     val connecting = cells.idleStart(ctx, S.Idle, A.Start) elvis { return "stayed idle" }
-    // Drop is a HANDLE, so Connecting can end anywhere: every other state is
-    // a required, named handler.
     val (live, effects) = cells.connectingReady(ctx, connecting.state, arrived).elvis(
         Idle = { return "back to idle" },
         Connecting = { return "still connecting" },

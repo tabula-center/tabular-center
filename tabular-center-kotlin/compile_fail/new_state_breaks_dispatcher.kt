@@ -14,7 +14,7 @@ import center.tabula.*
 sealed interface S {
     data object Idle : S
     data object Running : S
-    data object Paused : S // added after the dispatcher was generated
+    data object Paused : S
 }
 
 sealed interface A {

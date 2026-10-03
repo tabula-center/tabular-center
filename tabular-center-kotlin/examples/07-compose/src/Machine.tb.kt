@@ -43,12 +43,5 @@ import example.compose.connection.S.Live
 interface ConnectionSpec {
     fun handle(ctx: Ctx, state: S, action: A): Step<S, F>
 
-    /**
-     * The rendering prototype (ARCHITECTURE §9): how a state is described to a
-     * human, as a status and a detail. The generator turns it into `Renders`,
-     * one required member per state with the state narrowed, and a `render`
-     * dispatcher with no `else`. Its own prototype, so it has its own color --
-     * none here -- independent of `handle`'s.
-     */
     fun render(state: S): Pair<String, String>
 }

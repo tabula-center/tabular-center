@@ -1,3 +1,16 @@
+// Advisory findings about a matrix (spec/diagnostics.md): rows and columns
+// nothing uses, unreachable states, an `IGNORE`-heavy or `UNREACHABLE`-heavy
+// matrix, and payload fields that belong in the context. Thresholds are shared
+// with the coverage report; type names are canonicalised so all three
+// implementations print the same findings.
+//
+// - `IGNORE_HEAVY_PERCENT`: Percentage of `IGNORE` cells above which [Finding.IgnoreHeavy] fires.
+// - `UNREACHABLE_HEAVY_PERCENT`: Percentage of `UNREACHABLE` cells above which [Finding.UnreachableHeavy] fires.
+// - `PAYLOAD_HOIST_STATES`: Number of states a payload field must appear in before [Finding.PayloadHoist] fires.
+// - `canonicalType`: Map a Kotlin payload type name onto the spec vocabulary.
+// - `payloadHoist`: Fields repeated across [PAYLOAD_HOIST_STATES] or more states.
+// - `lint`: Every finding for a machine, in a stable order.
+// - `report`: Findings rendered one per line, prefixed with the machine name.
 package center.tabula
 
 /**
@@ -14,12 +27,13 @@ package center.tabula
  *   fires on a concentration, not on the one or two deliberate assertions the
  *   cell kind exists for.
  * - Two warnings for one problem is noise. [DeadRow] subsumes [NoStaticExit].
+ *
+ * - `code`: Stable diagnostic code, matching `spec/diagnostics.md`.
+ * - `message`: Human-readable message, remedy included.
  */
 sealed interface Finding {
-    /** Stable diagnostic code, matching `spec/diagnostics.md`. */
     val code: String
 
-    /** Human-readable message, remedy included. */
     val message: String
 
     /** Nothing can transition into this state, in a fully static matrix. */
@@ -86,41 +100,15 @@ sealed interface Finding {
     }
 }
 
-/** Percentage of `IGNORE` cells above which [Finding.IgnoreHeavy] fires. */
 const val IGNORE_HEAVY_PERCENT = 70
 
-/** Percentage of `UNREACHABLE` cells above which [Finding.UnreachableHeavy] fires. */
 const val UNREACHABLE_HEAVY_PERCENT = 25
 
-/**
- * Number of states a payload field must appear in before
- * [Finding.PayloadHoist] fires.
- *
- * Two is a coincidence; three is a pattern. Set deliberately high because a
- * lint that fires on healthy machines is a lint people turn off.
- */
 const val PAYLOAD_HOIST_STATES = 3
 
 /** State payload fields, as `(state, field, type)` in declaration order. */
 typealias Payloads = List<Triple<String, String, String>>
 
-/**
- * Map a Kotlin payload type name onto the spec vocabulary.
- *
- * `spec/diagnostics.md` holds the normative table. The short version: the lint
- * prints the field's type, each language spells its own, and the `.lint`
- * goldens are compared byte for byte — so without this the lint could never
- * have a shared fixture.
- *
- * Applied before the comparison, not only before the message. Kotlin grouping
- * `Int` with `Long` while Rust kept `u32` and `usize` apart would produce
- * different findings from the same machine, which is the problem this exists
- * to solve rather than a detail of how it is solved.
- *
- * Anything unrecognised passes through unchanged: a domain type is usually
- * spelled the same in every port, and an unmapped primitive rendering as
- * itself fails a golden loudly instead of quietly.
- */
 fun canonicalType(type: String): String = when (type) {
     "Byte", "Short", "Int", "Long", "UByte", "UShort", "UInt", "ULong" -> "int"
     "Float", "Double" -> "float"
@@ -130,22 +118,15 @@ fun canonicalType(type: String): String = when (type) {
     else -> type
 }
 
-/** Fields repeated across [PAYLOAD_HOIST_STATES] or more states. */
 fun payloadHoist(payloads: Payloads): List<Finding> =
     payloads
-        // Same name AND same canonical type. A `count: Int` and a
-        // `count: String` are two ideas that happen to share a word; a
-        // `count: Int` and a `count: Long` are one idea spelled twice.
         .groupBy { it.second to canonicalType(it.third) }
         .filter { (_, group) -> group.size >= PAYLOAD_HOIST_STATES }
         .map { (key, group) ->
             Finding.PayloadHoist(key.first, key.second, group.map { it.first })
         }
 
-/** Every finding for a machine, in a stable order. */
 fun lint(t: Table): List<Finding> = buildList {
-    // Only meaningful when every cell is static; otherwise a HANDLE cell could
-    // reach anything and the rule would be guessing.
     if (t.isFullyStatic()) {
         t.staticallyUnreached().forEach { add(Finding.NoStaticEntry(it)) }
     }
@@ -171,7 +152,6 @@ fun lint(t: Table): List<Finding> = buildList {
     }
 }
 
-/** Findings rendered one per line, prefixed with the machine name. */
 fun report(t: Table, payloads: Payloads = emptyList()): String =
     (lint(t) + payloadHoist(payloads))
         .joinToString("") { "warning[${it.code}]: ${t.machine}: ${it.message}\n" }

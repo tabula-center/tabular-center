@@ -60,7 +60,6 @@ interface Cells {
     suspend fun loadingArrived(ctx: Ctx, state: S.Loading, action: A.Arrived): Step<S, F>
 }
 
-/** The generated dispatcher, suspending because the cells are. */
 suspend fun step(c: Cells, ctx: Ctx, s: S, a: A): Step<S, F> = when (s) {
     is S.Idle -> when (a) {
         is A.Start -> c.idleStart(ctx, s, a)
@@ -75,11 +74,9 @@ suspend fun step(c: Cells, ctx: Ctx, s: S, a: A): Step<S, F> = when (s) {
     is S.Loaded -> Step.Ignored
 }
 
-/** The effect handler, also suspending, and also free not to suspend. */
 suspend fun perform(ctx: Ctx, f: F): A? = when (f) {
     is F.Fetch -> {
         ctx.log.add("fetch")
-        // Returned as data. This function cannot reach `step`, colored or not.
         A.Arrived
     }
     is F.Log -> {
@@ -96,7 +93,6 @@ class Impl : Cells {
         Step.Go(S.Loaded, listOf(F.Log("loaded")))
 }
 
-/** Drive the machine from `Idle` until nothing is pending. */
 suspend fun run(): Pair<S, Ctx> {
     val ctx = Ctx()
     val cells = Impl()
@@ -109,14 +105,6 @@ suspend fun run(): Pair<S, Ctx> {
     return driver.state to ctx
 }
 
-/**
- * Run a suspending block to completion on the calling thread.
- *
- * `kotlinx.coroutines` would give this for free and is a Maven dependency;
- * `kotlin.coroutines` is in the stdlib and is enough. Twelve lines is what the
- * zero-runtime-dependency rule costs a caller who has no coroutine runtime of
- * their own — and a caller who does has `runBlocking` already.
- */
 fun runSuspend(block: suspend () -> Unit) {
     var error: Throwable? = null
     var done = false

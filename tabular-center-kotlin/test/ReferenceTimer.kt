@@ -19,10 +19,6 @@ package reference
 
 import center.tabula.*
 
-// ---------------------------------------------------------------------------
-// What the developer declares
-// ---------------------------------------------------------------------------
-
 sealed interface S {
     data object Idle : S
     data class Running(val since: Long) : S
@@ -46,18 +42,6 @@ class Ctx(val limit: Long) {
     var lastStopReason: Int? = null
 }
 
-// The matrix itself lives in `TimerSpec.tb.kt`, next to this file.
-//
-// `spec/matrix-files.md` makes the case: a matrix is column-aligned on purpose
-// and a general-purpose formatter's whole job is to normalise whitespace, so
-// the two cannot share a file. `.editorconfig` exempts `*.tb.kt` and nothing
-// else, and while the declaration sat here it was outside that exemption --
-// unnoticed, because `kotlin-matrix-stable` had never run anywhere.
-
-// ===========================================================================
-// GENERATED — everything below this line is what KSP must emit
-// ===========================================================================
-
 /**
  * The cell surface: one required member per non-static cell, with NARROWED
  * argument types. The prototype's `suspend` is copied onto each.
@@ -76,8 +60,6 @@ interface TimerCells {
     suspend fun idleStart(ctx: Ctx, state: S.Idle, action: A.Start): Step<S, F>
     suspend fun runningTick(ctx: Ctx, state: S.Running, action: A.Tick): Step<S, F>
 
-    // One required member per effect variant, again with narrowed payloads.
-    // Add an effect to the declaration and every handler stops compiling.
     suspend fun startClock(ctx: Ctx, effect: F.StartClock): A?
     suspend fun stopClock(ctx: Ctx, effect: F.StopClock): A?
 }
@@ -89,15 +71,6 @@ interface TimerCells {
  */
 abstract class TimerMachine : TimerCells {
 
-    /**
-     * The dispatcher, which exists **only here**.
-     *
-     * A developer never writes a `when`, so `else` is not a temptation — it is
-     * not available. That is the difference between a convention and a
-     * guarantee, and it is why the matrix lives in annotations: KSP can only
-     * generate new files, so the only way to own the dispatch is to be the
-     * sole author of it.
-     */
     suspend fun step(ctx: Ctx, s: S, a: A): Step<S, F> = when (s) {
         is S.Idle -> when (a) {
             is A.Start -> idleStart(ctx, s, a)
@@ -106,7 +79,7 @@ abstract class TimerMachine : TimerCells {
         }
         is S.Running -> when (a) {
             is A.Start -> Step.Ignored
-            is A.Tick -> runningTick(ctx, s, a) // smart-cast to S.Running
+            is A.Tick -> runningTick(ctx, s, a)
             is A.Cancel -> Step.Go(S.Idle, listOf(F.StopClock(1)))
         }
         is S.Done -> when (a) {
@@ -116,7 +89,6 @@ abstract class TimerMachine : TimerCells {
         }
     }
 
-    /** Effect dispatch. Also no `else`. */
     suspend fun perform(ctx: Ctx, f: F): A? = when (f) {
         is F.StartClock -> startClock(ctx, f)
         is F.StopClock -> stopClock(ctx, f)
@@ -137,17 +109,11 @@ abstract class TimerMachine : TimerCells {
     }
 }
 
-// ===========================================================================
-// DEVELOPER — two HANDLE cells, two effect variants, four overrides
-// ===========================================================================
-
 class Timer : TimerMachine() {
     override suspend fun idleStart(ctx: Ctx, state: S.Idle, action: A.Start): Step<S, F> =
         Step.Go(S.Running(0), listOf(F.StartClock))
 
     override suspend fun runningTick(ctx: Ctx, state: S.Running, action: A.Tick): Step<S, F> {
-        // Payload arrives destructured and non-optional: no `is`, no cast,
-        // no `?:`. Rule R2.
         ctx.ticksSeen++
         return if (action.now - state.since >= ctx.limit) {
             Step.Go(S.Done, listOf(F.StopClock(2)))

@@ -17,21 +17,17 @@ fun main() {
     val cells = Impl()
     val ctx = Ctx()
 
-    // A static cell: no member generated behind it, and it carries its effect.
     Check.eq(
         step(cells, ctx, S.Locked, A.Coin),
         Step.Go(S.Unlocked, listOf(F.Click)),
         "generated: a coin unlocks and clicks",
     )
 
-    // IGNORE is generated too, and is not a handler returning Stay.
     Check.ok(
         step(cells, ctx, S.Locked, A.Push) is Step.Ignored,
         "generated: pushing a locked turnstile is not applicable",
     )
 
-    // The one HANDLE cell reaches the developer's code, which touches ctx --
-    // the reason it could not have been a static cell.
     Check.eq(
         step(cells, ctx, S.Unlocked, A.Push),
         Step.Go(S.Locked),

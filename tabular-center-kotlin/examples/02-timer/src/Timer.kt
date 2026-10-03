@@ -72,8 +72,6 @@ class Impl : Cells {
         if (action.now - state.since >= ctx.limit) {
             Step.Go(S.Done, listOf(F.StopClock(Reason.Elapsed)))
         } else {
-            // Handled, staying put. Distinct from Ignored, which would claim a
-            // tick is meaningless while running.
             Step.Stay()
         }
 

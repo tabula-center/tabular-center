@@ -1274,8 +1274,10 @@ not prose for a person:
 **Published code keeps its documentation.** For the published libraries'
 sources (`documented_paths` in `tools/no-comments`; Rust's `src/` today),
 every file needs a header and every public type, trait and macro a comment,
-directly or through attribute lines -- what `#![warn(missing_docs)]`
-enforced that this rule keeps. Two exclusions, both of things that are not
+directly or through attribute or annotation lines (a multi-line `@Machine(...)`
+included) -- what `#![warn(missing_docs)]` enforced that this rule keeps.
+In Kotlin, public means not `private`, `internal` or `protected`, and the
+published sources are `core` and `annotations`. Two exclusions, both of things that are not
 API: items a macro generates (their names are metavariables, `pub enum $a`,
 and the generating macro documents them) and macros named `__*`, the
 convention for hidden helpers. Members' documentation lives in the type's
@@ -1821,6 +1823,49 @@ What their comments carried that a reader of the tree needs:
   is usually a cell that wants splitting, and the ceiling makes that
   visible. Overflow is a programming error (capacity is a compile-time
   property), so `push` panics and `try_push` exists where that is not true.
+
+### Kotlin generation and processing
+
+- **The emitter reproduces hand-written code.** `test/ReferenceTimer.kt`
+  (with its dispatcher, which exists only there: a developer never writes a
+  `when`, so `else` is not a temptation, it is not available) and
+  `test/Composition.kt` fix the shape; `codegen/Emit.kt` must produce it, and
+  `kotlin-codegen` proves the output compiles, is satisfiable, still refuses
+  an incomplete implementation, and is deterministic. Nothing generated is
+  committed.
+- **Validation lives in `buildDesc`, not in the processor.** Every
+  declaration diagnostic fires in `codegen`, where `Tests.kt` has a case for
+  each; the processor only extracts a `RawMachine` and adds a source position,
+  so a diagnostic's text is identical through KSP and through the tests. Row
+  tagging happens in one place, the loop that knows the row. Extraction is
+  the one step nothing else checks, so KSP's output is compared with twins
+  stated by hand (`codegen/Main.kt`), not with a second extraction.
+- **Prototype modifiers are copied verbatim**, never enumerated: a `suspend`
+  prototype gives suspending members, a receiver prototype makes every member
+  a member extension (calling one needs both receivers), and
+  `@Composable` on the transition prototype is a warning
+  (`composable-transition`), not a refusal -- colors are copied, never
+  judged. Annotations are copied qualified, since the generated file imports
+  only `center.tabula`. Visibility comes from the annotated declaration, not
+  the prototype, because the generated surface names the machine's own types.
+- **Names**: a cell member is `idleStart` (KSP can build identifiers, which
+  Rust's macro cannot -- hence its trait bounds, §11.0); two things given one
+  name are `member-collision`, refused even though Kotlin would accept them
+  as overloads. Lens members are per child, the action prism per cell; a child
+  is reached through its package and named through its alias. Effects with
+  arguments are emitted as references (`Halt(reason = "cancelled")`), while
+  `TABLE` records only the name.
+- **Spines** (spec/happy-paths.md) are validated before anything derives from
+  them -- a default computed from an invalid spine is worse than none: shape
+  first (states and actions alternate), each hop through *that* cell, a path
+  must end, walking back is not leaving. A `HANDLE` named by a hop becomes a
+  `GO`; an explicit cell always wins; a machine with no path is untouched.
+- **Additive features emit nothing when absent**: the rendering surface and
+  the narrowed surface are both optional, and a machine without them
+  generates exactly what it did before they existed.
+- **The processor throws on an annotation shape it does not recognise**,
+  where `filterIsInstance` once dropped it silently; a payload type it cannot
+  resolve degrades only `payload-hoist`.
 
 ### The checks, step by step
 

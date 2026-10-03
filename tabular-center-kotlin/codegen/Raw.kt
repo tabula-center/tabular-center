@@ -23,28 +23,18 @@ package center.tabula.codegen
 data class RawPath(
     val name: String,
     val elements: List<String>,
-    /** The action that walks this path backwards, or "" if it has none. */
     val back: String = "",
 ) {
-    /** States, at the even positions. */
     val states: List<String> get() = elements.filterIndexed { i, _ -> i % 2 == 0 }
 
-    /** Actions, at the odd positions -- one per hop. */
     val actions: List<String> get() = elements.filterIndexed { i, _ -> i % 2 == 1 }
 
-    /** Hops, as `(from, action, to)`. Empty when the shape is wrong. */
     val hops: List<Triple<String, String, String>>
         get() = if (elements.size < 3 || elements.size % 2 == 0) emptyList()
         else (0 until elements.size / 2).map {
             Triple(elements[it * 2], elements[it * 2 + 1], elements[it * 2 + 2])
         }
 
-    /**
-     * The same hops, walked backwards: `(next, back) -> previous`.
-     *
-     * Empty when the path names no back action, which is why adding this
-     * changes nothing for any machine that had one already.
-     */
     val reverseHops: List<Triple<String, String, String>>
         get() = if (back.isBlank()) emptyList()
         else hops.map { (from, _, to) -> Triple(to, back, from) }
@@ -58,31 +48,15 @@ data class RawMachine(
     val effectType: String,
     val ctxType: String,
     val initial: String,
-    /** Declared state variants, in row order. */
     val states: List<RawVariant>,
     val actions: List<RawVariant>,
     val effects: List<RawVariant>,
     val rows: List<RawRow>,
     val prototypeModifiers: List<String> = emptyList(),
     val children: List<ChildDesc> = emptyList(),
-    /**
-     * Declared happy paths, in declaration order. See `spec/happy-paths.md`.
-     *
-     * Defaulted to empty, which is the whole feature's constraint expressed as
-     * a parameter: a machine without a spine is constructed exactly as before,
-     * and every existing caller -- the KSP processor, `MachineSyntax`, the
-     * hand-built descriptions in `Main.kt` -- compiles untouched.
-     *
-     * Read at generation time and discarded. Nothing here reaches `Table`, so
-     * a machine with a spine and the same machine written longhand produce
-     * byte-identical `TABLE`, `.grid`, `.lint`, `.cov` and `.mmd`.
-     */
     val paths: List<RawPath> = emptyList(),
-    /** See [MachineDesc.prototypeReceiver]. */
     val prototypeReceiver: String = "",
-    /** See [MachineDesc.visibility]. */
     val visibility: String = "",
-    /** See [MachineDesc.render]. */
     val render: RenderDesc? = null,
 )
 
@@ -90,7 +64,6 @@ data class RawMachine(
 data class RawVariant(
     val name: String,
     val hasPayload: Boolean = false,
-    /** `name to type`, for `tabular-center::payload-hoist`. Optional. */
     val fields: List<Pair<String, String>> = emptyList(),
 )
 
@@ -101,7 +74,6 @@ data class RawRow(val state: String, val cells: List<RawCell>)
 data class RawCell(
     val kind: String,
     val target: String = "",
-    /** Literal constructor arguments for [target], e.g. `"(0)"`. */
     val targetArgs: String = "",
     val effects: List<String> = emptyList(),
     val child: String = "",
@@ -123,13 +95,6 @@ class TabularCenterError(
     val state: String? = null,
 ) : IllegalArgumentException(message)
 
-/**
- * Run [body], tagging any diagnostic it raises with the row it came from.
- *
- * Done here rather than at each of the eighteen `fail` sites: the row is
- * known at exactly one place, the loop below, and a parameter threaded
- * through every validator would be eighteen chances to forget it.
- */
 private inline fun <T> inRow(state: String, body: () -> T): T =
     try {
         body()
@@ -139,13 +104,6 @@ private inline fun <T> inRow(state: String, body: () -> T): T =
 
 private fun fail(code: String, message: String): Nothing = throw TabularCenterError(code, "$code: $message")
 
-/**
- * Validate a [RawMachine] and turn it into a [MachineDesc].
- *
- * Every diagnostic in `spec/diagnostics.md` that concerns the *declaration*
- * fires here, which means each one has a test and none of them lives in the
- * untested processor.
- */
 fun buildDesc(raw: RawMachine): MachineDesc {
     val stateNames = raw.states.map { it.name }
     val actionNames = raw.actions.map { it.name }
@@ -161,9 +119,6 @@ fun buildDesc(raw: RawMachine): MachineDesc {
 
     validatePaths(raw, stateNames, actionNames)
 
-    // Rows must correspond to states one-to-one, in order. Position is how a
-    // row is identified, so an out-of-order row is not a reordering -- it is a
-    // row for the wrong state.
     raw.rows.forEachIndexed { i, row ->
         val expected = stateNames.getOrNull(i)
             ?: fail(
@@ -227,12 +182,6 @@ fun buildDesc(raw: RawMachine): MachineDesc {
     return desc
 }
 
-/**
- * Forward hops of every path, in declaration order, deduplicated by
- * `(from, action)`. Called after the paths were validated, so every name
- * resolves. Backward walks (`RawPath.back`) generate no narrowed members yet:
- * PLAN.md, happy paths.
- */
 private fun hopsOf(raw: RawMachine): List<HopDesc> {
     val state = raw.states.map { it.name }
     val action = raw.actions.map { it.name }
@@ -241,17 +190,6 @@ private fun hopsOf(raw: RawMachine): List<HopDesc> {
         .distinctBy { it.from to it.action }
 }
 
-/**
- * `tabular-center::member-collision`: two things the generator would give the
- * same member name.
- *
- * Refused in Kotlin although the collision would compile -- the two members'
- * parameter types differ, so they are overloads -- because two unrelated
- * `logInStart`s on one interface are a trap for whoever implements it, and
- * because in Swift the same collision between payload-free cells does not
- * compile at all, and one rule reads better than two. Rust has no generated
- * member names: its cells are trait impls keyed by type.
- */
 private fun checkMemberCollisions(d: MachineDesc) {
     val seen = HashMap<String, GeneratedMember>()
     for (m in cellsMembers(d)) {
@@ -298,10 +236,6 @@ private fun cell(
                         "declared state. States: ${stateNames.joinToString(" ")}"
                 )
             }
-            // Rule R3. A GO cell is resolved entirely by the generator, so its
-            // target must be constructible without developer code. Without
-            // this, GO quietly becomes the lazy option and payloads fill up
-            // with zero values chosen to avoid writing a cell.
             if (c.target in payloadStates && c.targetArgs.isBlank()) {
                 fail(
                     "tabular-center::go-target",
@@ -341,21 +275,6 @@ private fun cell(
     }
 }
 
-/**
- * Reject a broken happy path before anything derives from it.
- *
- * Errors before features, and deliberately so: a default computed from an
- * invalid spine is worse than no default, because it produces a machine that
- * compiles and goes somewhere nobody wrote down.
- *
- * Runs before the row checks, so a spine is judged against the DECLARED states
- * rather than against whatever survived them. A machine with both a bad row
- * and a bad path reports the path first, which is the right order: the path is
- * the thing the developer added.
- *
- * See `spec/happy-paths.md`. Nothing here reaches `MachineDesc` -- these are
- * rejections, not data.
- */
 private fun validatePaths(
     raw: RawMachine,
     stateNames: List<String>,
@@ -381,9 +300,6 @@ private fun validatePaths(
             }
         }
 
-        // The back action, if there is one, is an action like any other. Same
-        // code as an unknown state: a path that names something the machine
-        // does not declare is the same mistake whichever column it is in.
         if (path.back.isNotBlank() && path.back !in actionNames) {
             fail(
                 "tabular-center::path-unknown-state",
@@ -392,10 +308,6 @@ private fun validatePaths(
             )
         }
 
-        // Shape before content. A route is a sequence of hops, and a hop is a
-        // state, an action and a state -- so the elements alternate and the
-        // count is odd and at least three. Checking this first means the hop
-        // walk below can index without guarding.
         if (path.elements.size < 3 || path.elements.size % 2 == 0) {
             fail(
                 "tabular-center::path-broken",
@@ -405,13 +317,6 @@ private fun validatePaths(
             )
         }
 
-        // Consecutive states must be connected by a real cell, which is what
-        // keeps the declaration and the matrix from drifting -- the objection
-        // to declaring a route away from the rows it describes.
-        //
-        // A HANDLE counts. Its target is not knowable from the matrix, and
-        // supplying that target is exactly what the path is for; refusing it
-        // here would reject the only cell kind the feature exists to shorten.
         for ((from, action, to) in path.hops) {
             val col = actionNames.indexOf(action)
             if (col < 0) {
@@ -423,10 +328,6 @@ private fun validatePaths(
             }
             val row = raw.rows.firstOrNull { it.state == from }
             val cell = row?.cells?.getOrNull(col)
-            // THAT cell, not some cell in the row. A states-only spine could
-            // only ask whether anything in the row reached `to`, so a HANDLE
-            // anywhere made the row connect to anything. Naming the action is
-            // what makes this precise.
             val ok = cell != null && (
                 cell.kind == "HANDLE" || cell.kind == "DELEGATE" ||
                     (cell.kind == "GO" && cell.target == to)
@@ -440,13 +341,6 @@ private fun validatePaths(
             }
         }
 
-        // A path that never ends is not a happy path, it is a loop with a name.
-        //
-        // Walking BACK is not leaving: a path with a `back` action is
-        // travelled in both directions, so its own back column does not count
-        // against the ending. Without this, every wizard that can go back
-        // would be reported unterminated -- which is what the first version
-        // did, and what its own test caught.
         val last = path.states.last()
         val lastRow = raw.rows.firstOrNull { it.state == last }
         val leaves = lastRow?.cells?.withIndex()?.any { (j, c) ->
@@ -468,33 +362,8 @@ private fun validatePaths(
     }
 }
 
-/**
- * A `HANDLE` named by a hop becomes a `GO` to that hop's next state.
- *
- * The half of `spec/happy-paths.md` that motivated the feature: on the happy
- * path the common case stops being typed at all. A developer declares the
- * route once and the cells along it are written by the generator.
- *
- * Only `HANDLE`. A `GO` already says where it goes, and rewriting it would let
- * a path silently contradict a cell -- the developer would have written two
- * answers and been told neither. `tabular-center::path-broken` already rejects a hop
- * whose `GO` disagrees, so by the time this runs the two agree or the build
- * stopped.
- *
- * The result is indistinguishable from the longhand machine, which is the
- * additive test: a derived `GO(to)` and a written `GO(to)` are the same
- * `CellDesc`, so `TABLE`, `.grid`, `.lint`, `.cov` and `.mmd` are byte-identical
- * either way. Nothing downstream can tell which was written.
- *
- * Runs after `validatePaths`, so a hop is known to name a real cell before
- * anything is derived from it. Deriving from an invalid spine would produce a
- * machine that compiles and goes somewhere nobody wrote down.
- */
 private fun derive(c: RawCell, state: String, action: String, raw: RawMachine): RawCell {
     if (c.kind != "HANDLE") return c
-    // Forward hops first, then the reverse ones a `back` action declares.
-    // Both derive over HANDLE cells only, so an explicit cell always wins and
-    // a machine that declares no path is untouched.
     val to = raw.paths
         .flatMap { it.hops + it.reverseHops }
         .firstOrNull { it.first == state && it.second == action }

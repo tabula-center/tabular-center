@@ -46,6 +46,5 @@ internal class StopwatchComplete : Cells {
     override fun Clock.beep(ctx: Ctx, effect: F.Beep): A? = null
 }
 
-/** A caller, so the receiver requirement on `step` is exercised, not just declared. */
 internal fun dispatchOnce(clock: Clock): Step<S, F> =
     with(clock) { step(StopwatchComplete(), Ctx(), S.Idle, A.Start) }

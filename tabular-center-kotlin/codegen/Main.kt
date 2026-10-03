@@ -1,30 +1,26 @@
+// Emits the reference machines for `tools/verify` to compile.
+//
+// Generated code is never committed -- not as source, not as a golden. What
+// a golden diff proved, something else proves here, from source alone:
+//
+// - **That the output is Kotlin, and still enforces the guarantee.**
+//   `tools/verify kotlin-codegen` compiles every emitted machine, a complete
+//   implementation against it, and deliberately incomplete ones that must be
+//   refused. That was always the half that mattered; a golden only ever
+//   proved the characters had not moved.
+// - **That emission is deterministic.** Checked below, by emitting twice.
+// - **That KSP extracts what the annotations say.** [kspTwins] states, by
+//   hand, the description each example machine should extract to;
+//   `tools/verify kotlin-ksp` emits those and diffs them against what KSP just
+//   generated. Both sides are produced at check time. This is what
+//   `tabular-center-kotlin/ksp/golden/` did, with the expected side as reviewable source
+//   instead of committed output.
+//
+// Writes nothing unless given `--emit=<dir>`.
 package center.tabula.codegen
 
 import java.io.File
 
-/**
- * Emits the reference machines for `tools/verify` to compile.
- *
- * Generated code is never committed -- not as source, not as a golden. What
- * a golden diff proved, something else proves here, from source alone:
- *
- * - **That the output is Kotlin, and still enforces the guarantee.**
- *   `tools/verify kotlin-codegen` compiles every emitted machine, a complete
- *   implementation against it, and deliberately incomplete ones that must be
- *   refused. That was always the half that mattered; a golden only ever
- *   proved the characters had not moved.
- * - **That emission is deterministic.** Checked below, by emitting twice.
- * - **That KSP extracts what the annotations say.** [kspTwins] states, by
- *   hand, the description each example machine should extract to;
- *   `tools/verify kotlin-ksp` emits those and diffs them against what KSP just
- *   generated. Both sides are produced at check time. This is what
- *   `tabular-center-kotlin/ksp/golden/` did, with the expected side as reviewable source
- *   instead of committed output.
- *
- * Writes nothing unless given `--emit=<dir>`.
- */
-
-/** `timer.tbl`, as the KSP processor would build it from annotations. */
 val timerDesc = MachineDesc(
     packageName = "generated.timer",
     machine = "Timer",
@@ -47,8 +43,6 @@ val timerDesc = MachineDesc(
     effects = listOf(
         Variant("StartClock"),
         Variant("StopClock"),
-        // Carries a payload, and a static cell emits it below: the generated
-        // arm writes the constructor call, `TABLE` records the name.
         Variant("Halt", hasPayload = true, fields = listOf("reason" to "String")),
     ),
     rows = listOf(
@@ -66,7 +60,6 @@ val timerDesc = MachineDesc(
     ),
 )
 
-/** `toggle.tbl` — the only coverage for EMIT and UNREACHABLE. */
 val toggleDesc = MachineDesc(
     packageName = "generated.toggle",
     machine = "Toggle",
@@ -84,13 +77,6 @@ val toggleDesc = MachineDesc(
     ),
 )
 
-/**
- * A receiver-colored, internal machine: the two prototype properties the other
- * two leave at their defaults. The same machine as
- * `tabular-center-kotlin/examples/06-generated/src/Stopwatch.tb.kt`, so it doubles as that
- * machine's KSP twin in [kspTwins] -- the processor's extraction and this
- * hand-built description must emit the same characters.
- */
 val stopwatchDesc = MachineDesc(
     packageName = "generated.stopwatch",
     machine = "Stopwatch",
@@ -113,14 +99,6 @@ val stopwatchDesc = MachineDesc(
     ),
 )
 
-/**
- * The child in `test/Composition.kt`: a retry machine, written knowing nothing
- * about any parent.
- *
- * In an ordinary nested package, and reached by its parent through
- * [ChildDesc.packageName]. Until the audit the emitter reached a child
- * through its alias, so this had to be a root package called `retry`.
- */
 fun retryDesc(pkg: String, mods: List<String> = emptyList()) = MachineDesc(
     packageName = pkg,
     machine = "Retry",
@@ -144,18 +122,10 @@ fun retryDesc(pkg: String, mods: List<String> = emptyList()) = MachineDesc(
     prototypeModifiers = mods,
 )
 
-/**
- * The parent: its `Retrying` state holds the child's state, and two of its
- * cells delegate to the child.
- */
 fun jobDesc(
     pkg: String,
     child: String,
     mods: List<String> = emptyList(),
-    // How the child's state type is spelled in the parent's payload. KSP reads
-    // a field's type as its SIMPLE name, so the twin says `S` where the
-    // hand-built description says `generated.retry.S`. It feeds
-    // `tabular-center::payload-hoist` and nothing else.
     childField: String = "generated.$child.S",
 ) = MachineDesc(
     packageName = pkg,
@@ -181,11 +151,6 @@ fun jobDesc(
     children = listOf(ChildDesc(child, "generated.$child", "S", "A", "F", "Ctx")),
 )
 
-/**
- * Every machine whose emitted source must compile. Composition was emitted
- * by `Emit.kt` from the start and never compiled: nothing built a
- * [ChildDesc], here or in the KSP processor. These four are what compile it.
- */
 private val all = mapOf(
     "timer" to timerDesc,
     "toggle" to toggleDesc,
@@ -193,15 +158,7 @@ private val all = mapOf(
     "retry" to retryDesc("generated.retry"),
     "retrysuspend" to retryDesc("generated.retrysuspend", listOf("suspend")),
     "job" to jobDesc("generated.job", "retry"),
-    // A colorless child in a colored parent: allowed, and compiled.
     "jobsuspend" to jobDesc("generated.jobsuspend", "retry", listOf("suspend")),
-    // The rendering surface (ARCHITECTURE §9): the Timer again, plus a render
-    // prototype. Its transitions stay `suspend` and its renderers are plain,
-    // which is the point of a second prototype -- two surfaces, two colors.
-    // The narrowed surface (spec/happy-paths.md): a path through Idle ->
-    // Connecting -> Live, where Drop in Connecting is a HANDLE the path does not
-    // name -- so connectingReady can end in any state -- and emits an effect,
-    // which comes back with the outcome rather than being run.
     "connect" to buildDesc(
         RawMachine(
             packageName = "generated.connect",
@@ -229,33 +186,10 @@ private val all = mapOf(
     ),
 )
 
-/**
- * Machines whose emitted source must NOT compile. Written apart, to
- * `refused/`, so `tools/verify` compiles each only with the fixture that
- * names it. A colored child in a colorless parent: color flows one way, and
- * the generated `delegateTo<Child>` carries the parent's color, so kotlinc
- * refuses the child's `suspend` `step` from a plain function.
- */
 private val refused = mapOf(
     "jobmixed" to jobDesc("generated.jobmixed", "retrysuspend"),
 )
 
-/**
- * What the KSP processor must extract from each machine in
- * `tabular-center-kotlin/examples/06-generated/src`, keyed by the file KSP writes.
- *
- * Stated by hand, deliberately. Extraction is the one step between the
- * annotations and `emit` that nothing else checks: the example compiling
- * proves `Cells` has members `Impl.kt` can override and that `step`
- * type-checks, and nothing about the table. Rows read in the wrong order, an
- * effect dropped from a GO cell, `initial` resolved to the wrong state -- all
- * compile, and `TABLE` is inert data the example never reads.
- *
- * So if `tools/verify kotlin-ksp` reports a diff, the question is which side
- * is wrong. A diff in `TABLE`, `PAYLOADS` or member order is the extraction
- * path drifting -- the failure this exists to catch. Change a twin only when
- * the annotations it restates changed.
- */
 val kspTwins: Map<String, MachineDesc> = mapOf(
     "TurnstileGenerated" to MachineDesc(
         packageName = "generated.turnstile",
@@ -273,7 +207,6 @@ val kspTwins: Map<String, MachineDesc> = mapOf(
             listOf(CellDesc.Ignore, CellDesc.Handle),
         ),
     ),
-    // The machine that proves prototype modifiers are COPIED, not enumerated.
     "GateGenerated" to MachineDesc(
         packageName = "generated.gate",
         machine = "Gate",
@@ -292,8 +225,6 @@ val kspTwins: Map<String, MachineDesc> = mapOf(
         ),
         prototypeModifiers = listOf("suspend"),
     ),
-    // Through `buildDesc`, as the processor goes: the spine's HANDLEs become
-    // GOs there, and the twin must restate the annotations, not the result.
     "SpineGenerated" to buildDesc(
         RawMachine(
             packageName = "generated.spine",
@@ -315,15 +246,7 @@ val kspTwins: Map<String, MachineDesc> = mapOf(
             paths = listOf(RawPath("connect", listOf("Idle", "Start", "Connecting", "Ready", "Live"))),
         ),
     ),
-    // The same machine as `stopwatchDesc`, reached through KSP: extension
-    // receiver and `internal` included. One description, two front-ends.
     "StopwatchGenerated" to stopwatchDesc,
-    // Composition through annotations: `Retry.tb.kt` and `Job.tb.kt` in the
-    // KSP example declare the same two machines the compile stage above
-    // builds by hand, so these twins are those descriptions. If the processor
-    // resolves a child differently from `childrenOf`'s contract -- a wrong
-    // package, an alias that is not the child's machine name -- the parent's
-    // emitted source says so here.
     "RetryGenerated" to retryDesc("generated.retry"),
     "JobGenerated" to jobDesc("generated.job", "retry", childField = "S"),
 )
@@ -333,8 +256,6 @@ fun main(args: Array<String>) {
 
     val machines = all + refused + kspTwins
 
-    // Deterministic: the same description emits the same characters. What a
-    // golden diff checked implicitly, minus the committed output.
     var failed = 0
     for ((name, desc) in machines) {
         if (emit(desc) == emit(desc)) {
@@ -345,8 +266,6 @@ fun main(args: Array<String>) {
         }
     }
 
-    // Emit into a scratch directory for the compile stages that follow, and
-    // for kotlin-ksp's comparison. Never into the tree.
     val out = args.firstOrNull { it.startsWith("--emit=") }?.removePrefix("--emit=")
     if (out != null) {
         val dir = File(out).apply { mkdirs() }

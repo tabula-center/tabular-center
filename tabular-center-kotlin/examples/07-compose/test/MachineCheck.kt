@@ -27,7 +27,6 @@ fun main() {
     val started = step(cells, ctx, S.Idle, A.Start)
     Check.eq(started, Step.Go(S.Connecting, listOf(F.Dial)), "start dials")
 
-    // The effect answers with a follow-up action, as a socket would.
     val follow = perform(cells, ctx, F.Dial)
     Check.eq(follow, A.Ready(at = 7), "dialling answers with Ready")
     Check.eq(log.toList(), listOf("dialling"), "the effect ran once")
@@ -35,13 +34,9 @@ fun main() {
     val live = step(cells, ctx, S.Connecting, A.Ready(at = 7))
     Check.eq(live, Step.Go(S.Live(since = 7)), "ready goes live, carrying the payload")
 
-    // The table decides the rest: pressing a button in the wrong state is a
-    // decision, not a bug to defend against in the UI.
     Check.eq(step(cells, ctx, S.Live(since = 7), A.Start), Step.Ignored, "Start in Live is ignored")
     Check.ok(step(cells, ctx, S.Failed, A.Retry) is Step.Go, "Failed retries")
 
-    // Composition, in SessionCheck.kt: one runner, because the Gradle task
-    // executes one main class and a check nobody runs is not a check.
     sessionChecks()
     checkoutChecks()
 

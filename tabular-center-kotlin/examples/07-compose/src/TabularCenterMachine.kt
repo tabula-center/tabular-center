@@ -21,13 +21,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import center.tabula.Step
 
-/**
- * A list that survives recomposition, for what effects have done.
- *
- * `remember` and nothing else: the effect log is the application's, not
- * tabular-center's -- a `perform` returns a follow-up action, and anything else it
- * wants to record it records itself.
- */
 @Composable
 fun remembering(): MutableList<String> = remember { mutableStateListOf() }
 
@@ -37,12 +30,6 @@ class Machine<S : Any, A : Any>(
     val send: (A) -> Unit,
 )
 
-/**
- * Remember a machine driven by [step] and [perform].
- *
- * Both are the generated functions, passed as values: this file knows nothing
- * about any particular machine, and nothing about `Cells`.
- */
 @Composable
 fun <S : Any, A : Any, F : Any> rememberMachine(
     initial: S,

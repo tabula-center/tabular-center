@@ -8,9 +8,6 @@ fun main() {
     runSuspend {
         val (state, ctx) = run()
         Check.eq(state, S.Loaded, "suspend: one dispatch drives the machine to Loaded")
-        // Fetch returned an Arrived, which the driver queued rather than
-        // recursed into. Two steps, two effects, one follow-up -- the same
-        // property the blocking example demonstrates, in the other color.
         Check.eq(
             ctx.log,
             listOf("fetch", "loaded"),
@@ -18,8 +15,6 @@ fun main() {
         )
     }
 
-    // A colored machine is still a machine: the static cells resolve without
-    // any handler, and `Ignored` still means the action does not apply here.
     runSuspend {
         val s = step(
             Impl(),

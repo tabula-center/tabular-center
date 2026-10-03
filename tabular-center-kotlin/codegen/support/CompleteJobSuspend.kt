@@ -38,6 +38,5 @@ class CompleteJobSuspend : Cells {
     override fun retryChildCtx(ctx: Ctx): generated.retry.Ctx = ctx.retry
 }
 
-/** The color reaches the caller: driving the parent needs a coroutine. */
 suspend fun driveJobSuspend(): Step<S, F> =
     step(CompleteJobSuspend(), Ctx(generated.retry.Ctx(3)), S.Retrying(generated.retry.S.Ready), A.Run)
