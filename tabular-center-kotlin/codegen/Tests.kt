@@ -1,4 +1,4 @@
-package codegen
+package center.tabula.codegen
 
 /**
  * Tests for the validation layer.

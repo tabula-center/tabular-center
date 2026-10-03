@@ -11,8 +11,6 @@ plugins {
 // A coordinate, so a consuming build can substitute this project for it.
 // Nothing publishes to it; it exists to be named. See
 // tabular-center-kotlin/examples/06-generated/settings.gradle.kts.
-group = "center.tabula"
-version = "0.1.0"
 
 // Same TABULAR_CENTER_MAVEN_REPO switch as the example. This is an included build, so
 // it resolves independently -- its own pluginManagement lives in the
@@ -46,3 +44,7 @@ sourceSets["main"].kotlin {
 }
 
 kotlin { jvmToolchain(21) }
+
+// Coordinates (group center.tabula, the version from VERSION), the POM and
+// signing: shared with the other four artifacts. Inert unless staging.
+apply(from = "../gradle/publication.gradle.kts")

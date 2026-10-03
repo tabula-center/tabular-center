@@ -1,4 +1,4 @@
-package codegen
+package center.tabula.codegen
 
 /**
  * Turns a [MachineDesc] into Kotlin source.

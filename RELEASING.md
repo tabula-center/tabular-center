@@ -207,10 +207,24 @@ they live only in the `maven-central` environment:
    `keys.openpgp.org` and `keyserver.ubuntu.com`, where Central looks; keep a
    revocation certificate offline. A leaked subkey is revoked and replaced
    without touching the identity the primary key carries.
-5. **Environment.** `maven-central`: required reviewers, only `v*` tags. Then
-   set the repository variable `MAVEN_CENTRAL_ENABLED=true` -- once the Kotlin
-   Gradle publication exists (PLAN.md); until then the job is skipped, so the
-   secrets are never loaded.
+5. **Environment.** `maven-central`: required reviewers, only `v*` tags. The
+   job runs on every release tag from then on.
+
+**What is uploaded.** `tabular-center-kotlin/tools/central-bundle` builds one
+bundle for all five artifacts: the root Gradle build in `tabular-center-kotlin/`
+(core, annotations, codegen, testing, each compiled from its own directory) and
+the KSP processor's build in `ksp/`, which stays separate because three
+example builds include it. Both apply `gradle/publication.gradle.kts`, which
+holds the coordinates (group `center.tabula`, the version from `VERSION`), the
+POM, the sources and (empty) javadoc jars, and the in-memory signing -- with
+Gradle's own plugins only, so the pinned artifact set does not change.
+`publish --execute --only kotlin` uploads the bundle to the Central Portal's
+publisher API and waits until Central has validated it. The
+`kotlin-publication` check builds the same bundle on every push, signed with a
+throwaway key (`tools/publication-check-key.asc`, not a secret), and checks
+what Central would: every file signed and checksummed, every POM complete.
+The POM's `<developers>` names the organisation, `tabula-center`; a person can
+be named there instead (`gradle/publication.gradle.kts`).
 
 ### Swift: tags only
 

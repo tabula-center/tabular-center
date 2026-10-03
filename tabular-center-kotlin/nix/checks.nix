@@ -65,4 +65,15 @@ in
   # The Compose Desktop example. The step itself skips, loudly, when the
   # locked artifact set predates Compose.
   kotlin-compose = withRepo "kotlin-compose" "tabular-center-kotlin/examples/07-compose";
+
+  # The Maven Central bundle, built offline and checked against Central's
+  # rules: withRepo's artifact set, plus gpg (for gpgv and --dearmor) and zip.
+  kotlin-publication =
+    if gradleRepo != null
+    then
+      mkCheck "kotlin-publication" (kotlinInputs ++ [ ctx.pkgs.gnupg ctx.pkgs.zip ctx.pkgs.unzip ]) ''
+        export TABULAR_CENTER_MAVEN_REPO="${gradleRepo}"
+        ./tabular-center-kotlin/tools/verify kotlin-publication
+      ''
+    else withRepo "kotlin-publication" "the Maven Central bundle";
 }

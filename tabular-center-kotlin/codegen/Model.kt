@@ -1,4 +1,4 @@
-package codegen
+package center.tabula.codegen
 
 /**
  * The machine description a generator emits from.

@@ -66,9 +66,8 @@ in
       # it. Three files drifting apart is the normal way a polyglot release
       # goes wrong.
       sed -i "s/^version = \".*\"$/version = \"$version\"/" tabular-center-rust/Cargo.toml
-      if [ -f tabular-center-kotlin/build.gradle.kts ]; then
-        sed -i "s/^version = \".*\"$/version = \"$version\"/" tabular-center-kotlin/build.gradle.kts
-      fi
+      # Kotlin has no version line to edit: gradle/publication.gradle.kts
+      # reads VERSION itself.
 
       # Bumping a version stales every Cargo.lock that records it -- including
       # the examples', which pin tabular-center by path. Without this, `--locked` fails
@@ -116,7 +115,8 @@ in
 
   publish = pkgs.writeShellApplication {
     name = "tabular-center-publish";
-    runtimeInputs = commonInputs ++ rustInputs ++ kotlinInputs ++ swiftInputs;
+    # curl and zip for the Maven Central bundle and its upload; jq is common.
+    runtimeInputs = commonInputs ++ rustInputs ++ kotlinInputs ++ swiftInputs ++ [ pkgs.curl pkgs.zip ];
     text = ''
       # `--only rust|kotlin|swift` publishes one ecosystem, so CI can give each
       # job exactly one registry's credentials (.github/workflows/publish.yml).
@@ -159,27 +159,52 @@ in
       fi
 
       if want kotlin; then
-      ${lib.optionalString has.kotlinGradle ''
-        echo "== kotlin: maven =="
-        # Five artifacts, because they have different scopes: core is
-        # `implementation`, annotations `compileOnly`, ksp `ksp`, testing
-        # `testImplementation`. Publishing one fat jar would force every
-        # consumer to take a processor and a fixture parser into production.
-        for m in tabular-center-core tabular-center-annotations tabular-center-codegen tabular-center-ksp tabular-center-testing; do
-          echo "  -> $m"
-          if [ "$execute" -eq 1 ]; then
-            (cd tabular-center-kotlin && gradle --no-daemon ":$m:publish")
-          else
-            (cd tabular-center-kotlin && gradle --no-daemon ":$m:publishToMavenLocal")
+      echo "== kotlin: maven central =="
+      # Five artifacts with different scopes -- core `implementation`,
+      # annotations `compileOnly`, ksp `ksp`, testing `testImplementation`,
+      # codegen for builds that generate without KSP -- in ONE bundle, which
+      # Central validates and publishes as a unit. tools/central-bundle builds
+      # it; gradle/publication.gradle.kts holds the POM and the signing.
+      bundle_dir="$(mktemp -d)"
+      if [ "$execute" -eq 1 ]; then
+        for v in MAVEN_CENTRAL_USERNAME MAVEN_CENTRAL_PASSWORD SIGNING_KEY; do
+          if [ -z "''${!v:-}" ]; then
+            echo "publish: $v is not set (the maven-central environment holds it in CI)"
+            exit 1
           fi
         done
-      ''}
-      ${lib.optionalString (!has.kotlinGradle) ''
-        echo "== kotlin: skipped =="
-        echo "  no Gradle build yet; the artifacts compile with kotlinc alone."
-        echo "  planned: tabular-center-core, -annotations, -codegen, -ksp, -testing"
-        echo "  see RELEASING.md"
-      ''}
+      fi
+      tabular-center-kotlin/tools/central-bundle "$bundle_dir/staging" "$bundle_dir/bundle.zip"
+      if [ "$execute" -eq 1 ]; then
+        # The Central Portal publisher API: the user token as a bearer, the
+        # bundle as a form upload; AUTOMATIC publishes once it validates.
+        auth="$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')"
+        api="https://central.sonatype.com/api/v1/publisher"
+        id="$(curl -sS --fail-with-body -X POST -H "Authorization: Bearer $auth" \
+          -F "bundle=@$bundle_dir/bundle.zip" \
+          "$api/upload?name=tabular-center-$version&publishingType=AUTOMATIC")"
+        echo "  uploaded: deployment $id"
+        # Validation takes minutes; publishing to the mirrors, longer. Past
+        # validation the release is Central's to finish, so PUBLISHING ends
+        # this as well as PUBLISHED does. FAILED prints Central's reasons.
+        state=""
+        for _ in $(seq 1 60); do
+          status="$(curl -sS --fail-with-body -X POST -H "Authorization: Bearer $auth" "$api/status?id=$id")"
+          state="$(printf '%s' "$status" | jq -r .deploymentState)"
+          case "$state" in
+            PUBLISHED|PUBLISHING) echo "  central: $state"; break ;;
+            FAILED) echo "  central refused the bundle:"; printf '%s' "$status" | jq .; exit 1 ;;
+            *) sleep 20 ;;
+          esac
+        done
+        case "$state" in
+          PUBLISHED|PUBLISHING) ;;
+          *) echo "  central: still $state after 20 minutes; see deployment $id in the portal"; exit 1 ;;
+        esac
+      else
+        echo "  would upload $bundle_dir/bundle.zip to the Central Portal (needs --execute)"
+      fi
+      rm -rf "$bundle_dir"
 
       fi
 

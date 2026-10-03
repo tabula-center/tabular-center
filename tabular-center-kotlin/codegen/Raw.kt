@@ -1,4 +1,4 @@
-package codegen
+package center.tabula.codegen
 
 /**
  * The flat, stringly-typed shape a KSP processor can fill in without judgement.

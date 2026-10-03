@@ -9,12 +9,15 @@ let
   # What a check is given, each part its own store path.
   #
   # The checks run `tabular-center-kotlin/tools/verify` from a copy of the
-  # repository's layout holding three things: this directory, spec/ (the
-  # conformance contract, the one input all three languages share by design)
-  # and .editorconfig. Each is copied into the store separately with
-  # `builtins.path`, so each is hashed by its own contents -- and a check's
-  # inputs are exactly those three and its toolchain. Editing Kotlin does not
-  # rebuild a Rust check; editing spec/ rebuilds all three, as it should.
+  # repository's layout holding four things: this directory, spec/ (the
+  # conformance contract, the one input all three languages share by design),
+  # .editorconfig, and VERSION -- the single version all three release under,
+  # which every Kotlin build reads (gradle/publication.gradle.kts: the example
+  # builds include ksp/, which applies it). Each is copied into the store
+  # separately with `builtins.path`, so each is hashed by its own contents --
+  # and a check's inputs are exactly those four and its toolchain. Editing
+  # Kotlin does not rebuild a Rust check; editing spec/ rebuilds all three, as
+  # it should; VERSION changes only on release.
   #
   # It used to copy `self.sourceInfo` -- the whole checkout, one store path --
   # so every commit anywhere rebuilt every check, even after each check had
@@ -42,6 +45,7 @@ let
 
   specSrc = builtins.path { path = fromCheckout ../../spec; name = "tabular-center-spec"; };
   editorconfig = builtins.path { path = fromCheckout ../../.editorconfig; name = "tabular-center-editorconfig"; };
+  versionFile = builtins.path { path = fromCheckout ../../VERSION; name = "tabular-center-version"; };
   langSrc = builtins.path { path = ./..; name = "tabular-center-kotlin-src"; };
 
   has = {
@@ -160,7 +164,7 @@ let
         org.gradle.java.installations.auto-download=false
         PROPS
 
-        # This directory, spec/, and .editorconfig -- laid out as in the
+        # This directory, spec/, .editorconfig and VERSION -- laid out as in the
         # repository, and nothing else. tools/verify runs from the repository
         # root and names paths from there, so the layout is kept; what is left
         # out is the other two languages and the root's own files. A step that
@@ -172,6 +176,7 @@ let
         cp -r ${specSrc} src/spec
         cp -r ${langSrc} src/tabular-center-kotlin
         cp ${editorconfig} src/.editorconfig
+        cp ${versionFile} src/VERSION
         chmod -R u+w src && cd src
 
         # Every script here starts `#!/usr/bin/env bash`, and the build

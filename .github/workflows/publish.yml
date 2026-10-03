@@ -9,8 +9,7 @@
 #   exchanged for a token that is revoked when the job ends. No stored secret.
 # - Maven Central has no OIDC, so it needs a stored user token and a signing
 #   key. They live only in the `maven-central` environment, which should
-#   require a reviewer and allow only `v*` tags. That job is off until the
-#   Kotlin Gradle publication exists (vars.MAVEN_CENTRAL_ENABLED).
+#   require a reviewer and allow only `v*` tags.
 # - Every action is pinned to a commit: a moved tag cannot change code that
 #   holds credentials. Checkout does not keep its token in .git/config. No
 #   shared Nix cache in these jobs -- a poisoned cache is a way into a release.
@@ -85,6 +84,7 @@ jobs:
     permissions:
       contents: read
       id-token: write # the OIDC identity crates.io exchanges for a token
+    if: ${{ vars.CRATES_IO_ENABLED == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -99,10 +99,10 @@ jobs:
 
   maven-central:
     needs: [resolve, verify]
-    # Off until tabular-center-kotlin has its Gradle publication (PLAN.md):
-    # until then `publish --only kotlin` has nothing to upload, and secrets
-    # should not be loaded into a job that does nothing with them.
-    if: ${{ vars.MAVEN_CENTRAL_ENABLED == 'true' }}
+    # Builds the five-artifact bundle (tabular-center-kotlin/tools/central-bundle),
+    # signs it with the subkey, uploads it to the Central Portal and waits for
+    # validation. The kotlin-publication check builds the same bundle, with a
+    # throwaway key, on every push.
     runs-on: ubuntu-latest
     environment: maven-central
     steps:

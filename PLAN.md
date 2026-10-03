@@ -1154,6 +1154,21 @@ green in CI for all three languages.
       setting is written down (RELEASING.md, "The site"), and `deploy-pages`
       fails rather than falling back. `tools/verify docs` keeps what still
       matters: every sample resolves, every diagnostic has its anchor
+- [x] Maven Central, ready: a root Gradle build in `tabular-center-kotlin/` for
+      core, annotations, codegen and testing (each project's directory is its
+      source root, so no build files among the sources), `ksp/` applying the
+      same `gradle/publication.gradle.kts`, `tools/central-bundle` staging
+      both into one bundle, `publish --only kotlin` uploading it to the
+      Central Portal API and waiting for validation, and the publish
+      workflow's job ungated. Gradle's own plugins only, so the lock stands.
+      Before publishing, `codegen`'s package moved from the bare `codegen`
+      to `center.tabula.codegen`: a top-level `codegen` on Maven Central
+      would claim a name any library might use. Checked on every push by
+      `kotlin-publication` -- the real bundle, offline, signed with a
+      throwaway key, verified with gpgv (no agent, whose socket path a long
+      sandbox directory overflows), every file signed and checksummed, every
+      POM complete. `<developers>` names the organisation until a person is
+      given
 - [ ] License files. Every manifest declares `MIT OR Apache-2.0`, but the tree
       has no `LICENSE-MIT` or `LICENSE-APACHE`. This box was ticked with the
       two above; the September 2026 re-audit found nothing behind it. Needs

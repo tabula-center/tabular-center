@@ -1,15 +1,15 @@
 package center.tabula.ksp
 
-import codegen.ChildDesc
-import codegen.RawCell
-import codegen.RawMachine
-import codegen.RawPath
-import codegen.RawRow
-import codegen.RawVariant
-import codegen.RenderDesc
-import codegen.TabularCenterError
-import codegen.buildDesc
-import codegen.emit
+import center.tabula.codegen.ChildDesc
+import center.tabula.codegen.RawCell
+import center.tabula.codegen.RawMachine
+import center.tabula.codegen.RawPath
+import center.tabula.codegen.RawRow
+import center.tabula.codegen.RawVariant
+import center.tabula.codegen.RenderDesc
+import center.tabula.codegen.TabularCenterError
+import center.tabula.codegen.buildDesc
+import center.tabula.codegen.emit
 import com.google.devtools.ksp.getDeclaredFunctions
 import com.google.devtools.ksp.getVisibility
 import com.google.devtools.ksp.processing.CodeGenerator

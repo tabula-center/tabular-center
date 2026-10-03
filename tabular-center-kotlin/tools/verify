@@ -356,6 +356,11 @@ step_kotlin_ksp_incremental() {
     # examples used to live outside this tree and were copied separately, at a
     # matching depth; inside it, one copy carries every relative path intact.
     cp -r tabular-center-kotlin "$scratch/tabular-center-kotlin"
+    # And VERSION beside it, as in the repository: every Kotlin build reads it
+    # (gradle/publication.gradle.kts, applied by ksp/, which the example
+    # includes), walking up from the build -- so a copy without it fails
+    # before the experiment starts.
+    cp VERSION "$scratch/VERSION"
     chmod -R u+w "$scratch"
 
     local ex="$scratch/tabular-center-kotlin/examples/06-generated"
@@ -742,7 +747,7 @@ step_kotlin_ksp() {
         "$KOTLINC" -cp "$tcp" codegen/*.kt -include-runtime -d "$twins/cg.jar" 2>&1 \
             | grep -v "^info:" || true
         [ -f "$twins/cg.jar" ] || { echo "the codegen check failed to compile"; exit 1; }
-        java -cp "$twins/cg.jar:$tcp" codegen.MainKt "--emit=$twins/out"
+        java -cp "$twins/cg.jar:$tcp" center.tabula.codegen.MainKt "--emit=$twins/out"
     ) 2>&1 )" || {
         echo "FAIL could not build or run the codegen check that states the twins:"
         printf '%s\n' "$built" | tail -20 | sed 's/^/       /'
@@ -947,7 +952,7 @@ step_kotlin_codegen() {
         # 1. validate, check determinism, and emit -- into scratch, never the
         #    tree. Generated code is not committed, so there is no golden to
         #    diff; stages 2-4 are what prove the output is right.
-        java -cp "$out/cg.jar:$KCP" codegen.MainKt "--emit=$gen" || exit 1
+        java -cp "$out/cg.jar:$KCP" center.tabula.codegen.MainKt "--emit=$gen" || exit 1
 
         # 2. the emitted source must compile
         # StopwatchTypes.kt carries its own implementation: that machine is
@@ -1092,7 +1097,81 @@ step_kotlin_render() {
     echo "skip renderings-agree (kotlin: \$KOTLINC not found)"
 }
 
-STEPS_DEFAULT=(kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen kotlin-examples kotlin-ksp kotlin-ksp-compile-fail kotlin-ksp-incremental kotlin-matrix-stable kotlin-compose)
+# The Maven Central bundle, built as a release would build it and checked
+# against Central's rules, so the first upload holds no surprises.
+#
+# tools/central-bundle stages all five artifacts, signed with a THROWAWAY key
+# (tools/publication-check-key.asc -- not a secret, trusted by no one). Then,
+# for each: jar, sources, javadoc, POM and Gradle module, each with a .asc
+# that gpgv verifies and .md5/.sha1 checksums; the POM elements Central
+# rejects a release without; testing's dependency on core at compile scope;
+# and no maven-metadata in the bundle. gpgv and --dearmor need no gpg agent,
+# whose socket path a long sandbox directory can overflow.
+step_kotlin_publication() {
+    local t
+    for t in gradle gpg gpgv zip unzip; do
+        if ! command -v "$t" >/dev/null 2>&1; then
+            echo "skip kotlin-publication (\$$t not found)"
+            return 0
+        fi
+    done
+    local scratch version bad=0
+    scratch="$(mktemp -d)"
+    version="$(tr -d '[:space:]' < VERSION)"
+
+    SIGNING_KEY="$(sed -n '/-----BEGIN PGP PRIVATE KEY BLOCK-----/,$p' tabular-center-kotlin/tools/publication-check-key.asc)"
+    SIGNING_KEY_PASSWORD=""
+    export SIGNING_KEY SIGNING_KEY_PASSWORD
+    if ! tabular-center-kotlin/tools/central-bundle "$scratch/staging" "$scratch/bundle.zip" 2>&1 | tail -15; then
+        echo "FAIL the bundle did not build"
+        rm -rf "$scratch"
+        return 1
+    fi
+    unset SIGNING_KEY SIGNING_KEY_PASSWORD
+
+    mkdir -m 700 "$scratch/gnupg"
+    GNUPGHOME="$scratch/gnupg" gpg --batch --dearmor \
+        < tabular-center-kotlin/tools/publication-check-key.pub.asc > "$scratch/check.gpg"
+
+    local a base f ext tag
+    for a in core annotations codegen ksp testing; do
+        base="$scratch/staging/center/tabula/tabular-center-$a/$version/tabular-center-$a-$version"
+        for f in "$base.jar" "$base-sources.jar" "$base-javadoc.jar" "$base.pom" "$base.module"; do
+            for ext in "" .asc .md5 .sha1; do
+                if [ ! -f "$f$ext" ]; then
+                    echo "FAIL missing $(basename "$f$ext")"
+                    bad=1
+                fi
+            done
+            if [ -f "$f.asc" ] && ! gpgv --keyring "$scratch/check.gpg" "$f.asc" "$f" >/dev/null 2>&1; then
+                echo "FAIL $(basename "$f").asc does not verify"
+                bad=1
+            fi
+        done
+        for tag in name description url licenses developers scm; do
+            if [ -f "$base.pom" ] && ! grep -q "<$tag>" "$base.pom"; then
+                echo "FAIL $(basename "$base.pom") has no <$tag>, which Central requires"
+                bad=1
+            fi
+        done
+    done
+
+    local testing_pom="$scratch/staging/center/tabula/tabular-center-testing/$version/tabular-center-testing-$version.pom"
+    if [ -f "$testing_pom" ] && ! grep -A3 '<artifactId>tabular-center-core</artifactId>' "$testing_pom" | grep -q '<scope>compile</scope>'; then
+        echo "FAIL tabular-center-testing must depend on tabular-center-core at compile scope"
+        bad=1
+    fi
+    if unzip -l "$scratch/bundle.zip" | grep -q 'maven-metadata'; then
+        echo "FAIL the bundle carries maven-metadata, a repository's file, not a release's"
+        bad=1
+    fi
+
+    rm -rf "$scratch"
+    [ "$bad" -eq 0 ] || return 1
+    echo "ok   five artifacts for Maven Central: signed, checksummed, POMs complete"
+}
+
+STEPS_DEFAULT=(kotlin kotlin-compile-fail kotlin-conformance kotlin-codegen kotlin-examples kotlin-ksp kotlin-ksp-compile-fail kotlin-ksp-incremental kotlin-matrix-stable kotlin-compose kotlin-publication)
 STEPS_EXTRA=(kotlin-render)
 
 # `--list` is how the root finds out which steps are this script's, so a step
@@ -1111,6 +1190,7 @@ for s in "${steps[@]}"; do
         kotlin-compile-fail)     run kotlin-compile-fail     step_kotlin_compile_fail ;;
         kotlin-conformance)      run kotlin-conformance      step_kotlin_conformance ;;
         kotlin-codegen)          run kotlin-codegen          step_kotlin_codegen ;;
+        kotlin-publication) run kotlin-publication step_kotlin_publication ;;
         kotlin-examples)         run kotlin-examples         step_kotlin_examples ;;
         kotlin-ksp)              run kotlin-ksp              step_kotlin_ksp ;;
         kotlin-ksp-compile-fail) run kotlin-ksp-compile-fail step_kotlin_ksp_compile_fail ;;
