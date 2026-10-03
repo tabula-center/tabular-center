@@ -1,4 +1,16 @@
 #!/usr/bin/env bash
+# The Cleanness rule (ARCHITECTURE 15), enforced over the file types already
+# migrated, listed in clean_patterns.
+#
+# A comment is allowed in three places: the header block at the top of a file,
+# before its first line of code; a block attached to a type declaration --
+# trait, struct, enum, class, interface, object, protocol, actor, type alias,
+# macro_rules! -- directly or through attribute and annotation lines; and the
+# directives a tool reads. Anything else is reported with its file and line.
+# String literals, Kotlin and Swift triple-quoted strings and shell heredocs
+# are skipped, so text a program writes is never taken for a comment.
+#
+#   tools/no-comments     exit 0 clean, 1 with every finding listed
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -48,13 +60,22 @@ find_comments() {
             if (FNR == 1 && line ~ /^#!/) return 1
             if (line ~ /^[[:space:]]*\/\/~ (EXPECT|AT|BUILDS)/) return 1
             if (line ~ /^[[:space:]]*\/\/ swift-format-ignore-file[[:space:]]*$/) return 1
-            if (FNR == 1 && line ~ /^\/\/ swift-tools-version:/) return 1
-            if (line ~ /^[[:space:]]*# shellcheck (disable|source)=/) return 1
+            if (line ~ /^\/\/ swift-tools-version:/) return 1
+            if (line ~ /^[[:space:]]*# shellcheck (disable|source|shell)=/) return 1
             if (line ~ /@[0-9a-f]{40}[[:space:]]+# v[0-9][0-9A-Za-z.\-]*[[:space:]]*$/) return 1
             if (ENVIRON["FILE"] ~ /\.tb\./ && line ~ /^[[:space:]]*\/\/([[:space:]]+[A-Za-z_][A-Za-z0-9_.]*){2,}[[:space:]]*$/) return 1
             return 0
         }
-        function report(line) { printf "%s:%d: %s\n", ENVIRON["FILE"], FNR, line }
+        function is_type_declaration(code) {
+            return code ~ /^[[:space:]]*(((pub(\([^)]*\))?|public|private|internal|protected|fileprivate|open|final|abstract|sealed|data|enum|annotation|inline|value|fun|indirect|companion|expect|actual|unsafe|@[A-Za-z_][A-Za-z0-9_.]*)[[:space:]]+)*(struct|enum|trait|union|type|class|interface|object|protocol|actor|typealias)[[:space:]]|macro_rules![[:space:]])/
+        }
+        function is_attribute(code) {
+            return code ~ /^[[:space:]]*(#!?\[|@[A-Za-z_])/
+        }
+        function hold(line) { held[++held_count] = sprintf("%s:%d: %s", ENVIRON["FILE"], FNR, line) }
+        function report_held(   i) { for (i = 1; i <= held_count; i++) print held[i]; held_count = 0 }
+        function comment_line(line) { if (seen_code) hold(line) }
+        function trailing(line) { printf "%s:%d: %s\n", ENVIRON["FILE"], FNR, line }
 
         heredoc_end != "" {
             check = $0
@@ -68,28 +89,46 @@ find_comments() {
             next
         }
         in_block_comment {
-            report($0)
+            comment_line($0)
             if ($0 ~ /\*\//) in_block_comment = 0
             next
         }
+        /^[[:space:]]*$/ {
+            if (seen_code) report_held()
+            next
+        }
+        is_directive($0) { next }
         {
-            if (is_directive($0)) next
             code = without_strings($0)
 
             if (ENVIRON["STYLE"] == "slash") {
-                if (gsub(/"""/, "&", code) % 2 == 1) { in_triple_quotes = 1 }
-                if (code ~ /\/\// || code ~ /\/\*/) report($0)
+                if (code ~ /^[[:space:]]*\/\//) { comment_line($0); next }
+                if (code ~ /^[[:space:]]*\/\*/) {
+                    comment_line($0)
+                    if (code !~ /\*\//) in_block_comment = 1
+                    next
+                }
+                if (code ~ /\/\/|\/\*/) trailing($0)
                 if (code ~ /\/\*/ && code !~ /\*\//) in_block_comment = 1
+                if (gsub(/"""/, "&", code) % 2 == 1) in_triple_quotes = 1
+                seen_code = 1
+                if (is_type_declaration(code)) { held_count = 0; next }
+                if (is_attribute(code)) next
+                report_held()
                 next
             }
 
-            if (code ~ /(^|[[:space:]])#/) report($0)
+            if (code ~ /^[[:space:]]*#/) { comment_line($0); next }
+            if (code ~ /[[:space:]]#/) trailing($0)
+            report_held()
+            seen_code = 1
             if (match(code, /<<-?[[:space:]]*["'"'"']?[A-Za-z_][A-Za-z0-9_]*["'"'"']?/)) {
                 marker = substr(code, RSTART, RLENGTH)
                 gsub(/^<<-?[[:space:]]*["'"'"']?|["'"'"']$/, "", marker)
                 heredoc_end = marker
             }
         }
+        END { report_held() }
     ' "$2"
 }
 
@@ -97,10 +136,10 @@ findings="$(for f in "${files[@]}"; do find_comments "$(comment_style "$f")" "$f
 
 if [ -n "$findings" ]; then
     count="$(wc -l <<<"$findings" | tr -d ' ')"
-    echo "FAIL $count comment line(s) in files that must read without comments (ARCHITECTURE 15):"
+    echo "FAIL $count comment line(s) outside a file header or a type's documentation (ARCHITECTURE 15):"
     head -40 <<<"$findings" | sed 's/^/  /'
     [ "$count" -gt 40 ] && echo "  ... and $((count - 40)) more"
-    echo "  Move what a reader needs to ARCHITECTURE.md or PLAN.md, then delete the comment."
+    echo "  Move what a reader needs to the file header, the type's comment, ARCHITECTURE.md or PLAN.md."
     exit 1
 fi
 

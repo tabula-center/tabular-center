@@ -1,3 +1,21 @@
+# Publishes a release: what `nix run .#publish -- --execute` does by hand,
+# one registry per job, each job holding only its own registry's credentials.
+#
+#   nix run .#release -- 0.1.0   # by hand: VERSION, manifests, verify, tag v0.1.0
+#   git push --follow-tags       # by hand: this workflow, and swift-mirror, run
+#
+# Security, in the order it matters (RELEASING.md has the setup):
+# - crates.io uses trusted publishing: GitHub's OIDC identity for this job is
+#   exchanged for a token that is revoked when the job ends. No stored secret.
+# - Maven Central has no OIDC, so it needs a stored user token and a signing
+#   key. They live only in the `maven-central` environment, which should
+#   require a reviewer and allow only `v*` tags.
+# - Every action is pinned to a commit: a moved tag cannot change code that
+#   holds credentials. Checkout does not keep its token in .git/config. No
+#   shared Nix cache in these jobs -- a poisoned cache is a way into a release.
+# - `verify` reruns the checks on the tagged commit, holding no credentials: a
+#   tag can be pushed on a commit CI never saw.
+# Swift is not here: swift-mirror.yml publishes it from the same tag.
 name: publish
 
 on:

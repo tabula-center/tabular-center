@@ -409,15 +409,20 @@ decision, which was reversed twice and left a sentence behind each time.
 ## Cleanness: comments out of source
 
 Decided October 2026 (ARCHITECTURE 15): source and configuration read
-without comments; why a file is the way it is lives in `ARCHITECTURE.md` and
+without comments, except a file's header -- its high-level design and how to
+use it -- and the comment on a type (trait, struct, enum, class, interface,
+object, protocol, actor, type alias, `macro_rules!`) explaining it and its
+usage. Why a file is the way it is otherwise lives in `ARCHITECTURE.md` and
 here. About 10,500 comment lines across some 340 files when decided, so
 staged like the rename -- one file type per patch, each green on its own --
 with `tools/no-comments` enforcing exactly the types already migrated
 (`clean_patterns`), so nothing migrated can regress while the rest waits.
 
-Per stage: read every comment; move what a reader needs (design and
-constraints to ARCHITECTURE, the section it belongs to or 16 for build
-configuration; history and findings here; normative behaviour to `spec/`);
+Per stage: read every comment; keep or write the file's header and each
+type's comment, as orientation and usage rather than history; move the rest
+a reader needs (design and constraints to ARCHITECTURE, the section it
+belongs to or 16 for build configuration; history and findings here;
+normative behaviour to `spec/`);
 rename where a name can say what the comment said; delete the rest; add the
 type to `clean_patterns`. Two hazards to check each time: `tools/docs`
 includes samples by regex anchors, and an anchor that matches a comment line
@@ -427,14 +432,27 @@ ARCHITECTURE 15's exemptions and `is_directive` if it is not already.
 - [x] The rule, its exemptions, and `tools/no-comments` (root step and check
       `no-comments`): both comment syntaxes, string literals, Kotlin/Swift
       triple-quoted strings and shell heredocs skipped, so generated text and
-      markdown headings written by a script are not comments. Comment-free
-      itself, as is everything written since the decision (`tools/asm-diff`,
-      the `licenses` step, the signing key-ID fix)
+      markdown headings written by a script are not comments. Written to
+      the rule, as is everything since the decision (`tools/asm-diff`, the
+      `licenses` step, the signing key-ID fix)
+- [x] **The rule revised, on the owner's direction:** file headers and type
+      comments stay. The first version allowed no prose comments at all,
+      which took the orientation a reader needs on arriving at a file, and
+      the usage guide a trait or protocol needs, out of the one place they
+      are read. `tools/no-comments` now holds each comment block until the
+      next code line and allows it as the header (nothing but comments and
+      blank lines before it) or when it attaches to a type declaration,
+      directly or through attribute/annotation lines; every other block, and
+      every trailing comment, is reported
 - [x] **Stage 1: `*.toml`, `*.yml`, `*.yaml`** -- 18 files, 186 lines removed. The
       rationale is ARCHITECTURE 16, "Cargo manifests and toolchains" and
       "GitHub workflows". Every file parses to the same data as before
       (checked by loading both versions); only the pinned actions' `# vX`
-      annotations remain, which Dependabot reads
+      annotations remain, which Dependabot reads. Under the revised rule the
+      seven files that opened with a header (`publish.yml`,
+      `swift-mirror.yml`, `pages.yml`, the examples workspace, `05-iced`'s
+      manifest and toolchain file, `tabular-center-fmt`'s manifest) have it
+      back, verbatim; mid-file comments stay out, their reasons in 16
 - [ ] Stage 2: `*.nix` -- 28 files, ~1,000 lines. To ARCHITECTURE 13 and a
       "Nix" part of 16. Comments inside `''` strings are the embedded
       scripts' comments and go too
@@ -444,17 +462,19 @@ ARCHITECTURE 15's exemptions and `is_directive` if it is not already.
       tree; much of it is already history in this file and is deleted rather
       than moved. `no-comments` needs to select these by name and shebang, not
       extension
-- [ ] Stage 4: Rust tests, examples, benches and the conformance crate.
-      `reference_timer.rs` is "the macro's specification" and its narrative
-      becomes ARCHITECTURE 11.1's
-- [ ] Stage 5: Kotlin, `*.kt` and `*.kts` -- ~2,900 lines. `ReferenceTimer.kt`'s
-      `GENERATED` marker: check whether anything reads it before removing
-- [ ] Stage 6: Swift -- ~2,300 lines. `// swift-format-ignore-file` and
-      `swift-tools-version` stay (exempt)
-- [ ] Stage 7: the published libraries' public doc comments, last on purpose.
-      Removing `///` / KDoc empties docs.rs and IDE hover text; ARCHITECTURE
-      15 says the API is documented on the site and in the READMEs instead.
-      Confirm with the owner before this stage lands
+- [ ] Stage 4: Rust -- tests, examples, benches, the conformance crate and
+      the library. `reference_timer.rs` is "the macro's specification": its
+      header keeps that, and the part-by-part narrative inside it becomes
+      ARCHITECTURE 11.1's. Doc comments on public types and on
+      `transition_matrix!` stay; on functions and methods they go, so what
+      docs.rs shows is the module headers and the types -- carry any usage a
+      function's doc gave into its type's comment
+- [ ] Stage 5: Kotlin, `*.kt` and `*.kts` -- ~2,900 lines. KDoc on classes,
+      interfaces and objects stays. `ReferenceTimer.kt`'s `GENERATED`
+      marker: check whether anything reads it before removing
+- [ ] Stage 6: Swift -- ~2,300 lines. Doc comments on protocols, structs,
+      classes and actors stay; `// swift-format-ignore-file` and
+      `swift-tools-version` are exempt
 - [ ] Done: `clean_patterns` covers every type in ARCHITECTURE 15's scope,
       and the staging list goes
 

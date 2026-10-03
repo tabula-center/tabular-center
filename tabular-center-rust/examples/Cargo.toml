@@ -1,3 +1,18 @@
+# A workspace of complete example projects, one per machine, ordered by what
+# each adds. Each member has its own manifest, its own dependency line on
+# tabular-center, and its tests in `tests/` rather than beside the implementation --
+# because an example is read as a template for a real project, and a real
+# project does not put its tests in a `mod tests` at the bottom of `lib.rs`.
+#
+# One workspace rather than four detached packages, for one reason: a single
+# `Cargo.lock`. `tools/verify version` checks that lock against VERSION, and
+# four lockfiles would be four chances to forget. Splitting further later costs
+# nothing but that check.
+#
+# Deliberately outside the main workspace: an example should depend on tabular-center
+# the way a user would, by path, not by sharing its build graph. That is how
+# the driver's borrow bug was found -- every unit test passed because none of
+# them needed two closures to touch the same state.
 [workspace]
 resolver = "2"
 members = [

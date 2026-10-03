@@ -1149,45 +1149,61 @@ that happen to be pure), and the docs say so rather than pretending otherwise.
 
 ## 15. Cleanness
 
-> **Source and configuration read without comments.** A `.rs`, `.kt`,
-> `.kts`, `.swift`, `.nix`, `.yml`, `.toml` file, a shell script, an
-> `.editorconfig` or a `justfile` says what it does through its names, its
-> structure and its messages. Why it is that way lives here and in `PLAN.md`.
+> **Code reads without comments, except where a reader needs orientation.**
+> A file may open with a header explaining its high-level design and how to
+> use it, and a type -- trait, struct, enum, class, interface, object,
+> protocol, actor, type alias, or a `macro_rules!` macro -- may carry a
+> comment explaining what it is for and how to use it. Everything else says
+> what it does through its names, its structure and its messages.
 
-A comment is a second description of the code, maintained by hand, checked by
-nothing, and read by fewer people than the code it describes. This repository
-has found that kind of drift every time it looked (`PLAN.md`'s audits are a
-list of them), and comments are where it hides best. So the explanation moves
-to the two documents that are already read, reviewed and audited:
+Two places earn a comment because the code there cannot explain itself: the
+top of a file, where a reader arrives without knowing what the file is *for*,
+and a type, which is a contract other code is written against and whose
+intended use is not visible in its definition. Everywhere else -- function
+bodies, functions and methods, fields, statements, the end of a line -- a
+comment is a second description of the code, maintained by hand and checked
+by nothing, and this repository has found that kind of drift every time it
+looked (`PLAN.md`'s audits are a list of them).
 
 | What the comment said | Where it goes |
 |---|---|
+| what this file is, its high-level design, how to use it | the file's header |
+| what a type is for, its contract, a usage example | the type's comment |
 | why the design is this shape; a constraint a reader must know | `ARCHITECTURE.md` -- the section it belongs to, or §16 for build and release configuration |
 | what was tried, what failed, what was found, what is still open | `PLAN.md` -- the phase or audit it belongs to |
 | normative behaviour another implementation must match | `spec/` |
 | what the next line does | nowhere: rename the thing until the line says it |
 
-A comment that restates its code is deleted, not moved. The test for moving
-is whether a reader of the document needs it to understand a decision.
+A header or a type comment is orientation and usage, not history: what was
+tried and found belongs in `PLAN.md`, and a long rationale in the section of
+this file it belongs to, with the header pointing there.
 
-**What replaces a comment, in the file itself:** a name that says what a
+**What replaces a comment, in the code itself:** a name that says what a
 function or value is *for*; a function extracted so its name can carry the
 step; an error or log message that tells the reader what went wrong and what
 to do -- those are strings, read at exactly the moment they matter, and stay.
 
-**Doc comments are comments.** `///`, `//!`, KDoc and Swift `///` are not
-exempt: the API is documented on the site (`tools/docs`, generated from
-`spec/` and this file) and in each library's README, not inline.
+**Doc comments follow the same rule.** On a type (`///` or KDoc on a struct,
+trait, class, protocol, ...) they are the type's comment and stay; on a
+function, method or field they go, and the type's comment or the file header
+carries any usage the reader needs. Module docs (Rust `//!`) are the file's
+header.
 
-**Exempt: comments a tool reads.** These are syntax for a program, not prose
-for a person, and `tools/no-comments` allows exactly these:
+**The scope.** `.rs`, `.kt`, `.kts`, `.swift`, `.nix`, `.yml`, `.toml`, shell
+scripts, `.editorconfig`, `justfile`, `.gitignore`. Languages without types
+(Nix, YAML, TOML, shell) have only the header. Markdown is not in scope (it is
+where the explanation lives), nor are the conformance fixtures under
+`spec/conformance/`, which are the contract's data.
+
+**Exempt anywhere: comments a tool reads.** These are syntax for a program,
+not prose for a person:
 
 - a shebang, on line 1;
 - compile-fail markers `//~ EXPECT:`, `//~ AT:`, `//~ BUILDS`, which the
   compile-fail steps parse;
 - `// swift-format-ignore-file`, which `swift-format-config` requires on every
-  `.tb.swift`, and `// swift-tools-version:` on line 1 of a `Package.swift`;
-- `# shellcheck disable=` / `# shellcheck source=`;
+  `.tb.swift`, and `// swift-tools-version:` in a `Package.swift`;
+- `# shellcheck disable=`, `source=`, `shell=`;
 - the version annotation on an action pinned to a commit
   (`uses: owner/action@<40 hex> # v1.2.3`), which Dependabot reads to update
   the pin;
@@ -1195,22 +1211,24 @@ for a person, and `tools/no-comments` allows exactly these:
   (`//    Start    Tick    Cancel`): the table's labels, data rather than
   commentary, and aligned with the rows by `tabular-center-fmt`.
 
-Markdown is not in scope (it is where the explanation lives), nor are the
-conformance fixtures under `spec/conformance/`, which are the contract's data.
-
 **Enforced, by stage.** `tools/no-comments` (root step and check
-`no-comments`) fails on any comment outside the exemptions, in the file types
-it lists in `clean_patterns`. A file type is added to that list in the same
-patch that migrates it, so the check is green at every stage and a migrated
-type cannot regress. The stages and their state are in `PLAN.md`, "Cleanness".
+`no-comments`) holds each comment block until the next line of code, then
+allows it if it is the file's header (nothing but comments and blank lines
+before it) or if it attaches to a type declaration -- directly, or through
+attribute and annotation lines (`#[derive]`, `@Target`, `@available`), with no
+blank line between. Any other comment, and any comment after code on the same
+line, is reported with its file and line. It checks the file types listed in
+its `clean_patterns`, and a type is added in the same patch that migrates it,
+so the check is green at every stage and a migrated type cannot regress. The
+stages and their state are in `PLAN.md`, "Cleanness".
 
 ---
 
 ## 16. Configuration, explained
 
-What the build and release configuration does is in the files; why each is
-shaped the way it is, is here. Grouped by file, so a reader of one finds its
-reasons in one place.
+What the build and release configuration does is in the files, and each
+file's header says what it is for; the reasons behind each choice inside it
+are here. Grouped by file, so a reader of one finds its reasons in one place.
 
 ### Cargo manifests and toolchains
 

@@ -1,3 +1,9 @@
+# tabular-center-fmt: aligns the cells of `.tb.` matrix rows, and nothing else.
+# The contract is spec/tabular-center-fmt.md.
+#
+# Its own workspace, at the repository root: it belongs to the `.tb.` format,
+# not to any one language, and ships on its own cadence -- a formatting change
+# should not force a library version bump.
 [workspace]
 
 [package]
