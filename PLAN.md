@@ -41,7 +41,7 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 8 Introspection & tooling | **done (all three)** |
 | 9a Driver and mailbox | **done (all three)** |
 | 9b Rendering surface | **done** (Kotlin and Swift emitters, KSP, `composable-transition`) |
-| 10 Release | in progress: README, migration guide, versioning policy, benchmark done; publication, license files and the assembly comparison open |
+| 10 Release | in progress: README, migration guide, versioning policy, benchmark done; publication and the assembly comparison open |
 
 One exception to the table, found by the audit below: Rust had no prototype
 colors. It has one now, `async`, composing in both directions the rule
@@ -1225,7 +1225,7 @@ green in CI for all three languages.
       `gpgconf --kill all` stops gpg-agent and keyboxd. (An earlier version
       committed a throwaway private key to avoid that; it granted nothing,
       but committing private keys is the habit to never teach)
-- [ ] License files. Every manifest declares `MIT OR Apache-2.0`, but the tree
+- [x] License files. Every manifest declares `MIT OR Apache-2.0`, but the tree
       has no `LICENSE-MIT` or `LICENSE-APACHE`. This box was ticked with the
       two above; the September 2026 re-audit found nothing behind it. Needs
       the copyright holder's name, which is not something to guess at, and
@@ -1234,6 +1234,17 @@ green in CI for all three languages.
       `tabular-center-swift/` carries nothing from the root, so the license
       files need copies inside that directory too (and inside the Rust crate,
       whose archive likewise holds only its own directory)
+
+      *Done, October 2026.* The holder was in the tree all along: the root
+      `LICENSE` (MIT) names Hadi Lashkati Ghouchani. It became `LICENSE-MIT`,
+      unchanged; `LICENSE-APACHE` is the Apache Software Foundation's text,
+      checked word for word against a second published copy. Both are copied
+      beside the crate and into `tabular-center-swift/` -- copies, because a
+      symlink dangles in the subtree mirror. `tabular-center-fmt` needs none:
+      it is `publish = false`. Two checks keep it true: root `licenses`
+      (both texts at the root, the copies identical, the manifest still
+      dual) and `package`, which now fails unless both files are inside the
+      `.crate` itself
 
 **Risk:** Swift toolchain on Linux via nixpkgs is the known-flaky piece. Do not
 let it block Phase 0 — pin it, mark it best-effort, move on.

@@ -397,9 +397,21 @@ step_package() {
         return 0
     fi
     require_dir tabular-center-rust || return 1
+    local list f
     # shellcheck disable=SC2086
-    (cd tabular-center-rust && cargo package -p tabular-center $CARGO_FLAGS --allow-dirty --list) \
-        | sed 's/^/  packaged: /'
+    list="$(cd tabular-center-rust && cargo package -p tabular-center $CARGO_FLAGS --allow-dirty --list)" \
+        || return 1
+    while IFS= read -r f; do echo "  packaged: $f"; done <<<"$list"
+    # The manifest says MIT OR Apache-2.0, and the archive is all a crates.io
+    # user receives, so both texts must be IN it -- not merely at the
+    # repository root, where the crate cannot see them. Root `licenses` keeps
+    # these copies identical to the root's.
+    for f in LICENSE-MIT LICENSE-APACHE; do
+        if ! grep -qx -- "$f" <<<"$list"; then
+            echo "FAIL $f is not in the packaged crate"
+            return 1
+        fi
+    done
     # shellcheck disable=SC2086
     (cd tabular-center-rust && cargo package -p tabular-center $CARGO_FLAGS --allow-dirty)
 }

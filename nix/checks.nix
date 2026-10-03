@@ -21,6 +21,10 @@ in
   # an anchor, because the pages are what diagnostic messages link to.
   docs = verify "docs";
 
+  # Both license texts at the root, and identical copies beside the crate and
+  # the Swift mirror, which are published without the root. Text-only.
+  licenses = verify "licenses";
+
   # The check above the three matrix-stable checks. Each of those scans roots
   # it names, so a matrix in a directory none names is outside all of them and
   # silently so. This enumerates the files that exist and asks which scan

@@ -18,6 +18,7 @@
 #         tools/verify --list          (every step, with its owner)
 # Steps:  version docs matrix-covered diagnostics-coverage fixtures-complete
 #         no-bless no-generated diagnostics-tested renderings-agree tb-aligned
+#         licenses
 #         + every step listed by tabular-center-*/tools/verify --list
 set -uo pipefail
 
@@ -151,6 +152,40 @@ run() {
 # messages link to, and a broken anchor drops a developer who followed a link
 # from an error at the top of a long page.
 step_docs() { ./tools/docs --check; }
+
+# MIT OR Apache-2.0, as every manifest says, so both texts at the root -- and
+# beside the two directories that are published WITHOUT the root: the crate
+# (crates.io receives an archive of tabular-center-rust/tabular-center/ and
+# nothing above it) and tabular-center-swift/ (the Package Index mirror is a
+# `git subtree split` of that directory). Copies, not symlinks: a symlink to
+# ../LICENSE-MIT dangles in the mirror, which holds no parent. And copies are
+# what drift, so they are compared rather than trusted.
+step_licenses() {
+    local bad=0 f d
+    for f in LICENSE-MIT LICENSE-APACHE; do
+        if [ ! -f "$f" ]; then
+            echo "FAIL $f is missing at the repository root"
+            bad=1
+            continue
+        fi
+        for d in tabular-center-rust/tabular-center tabular-center-swift; do
+            if [ ! -f "$d/$f" ]; then
+                echo "FAIL $d/$f is missing: $d is published without the root"
+                bad=1
+            elif ! cmp -s "$f" "$d/$f"; then
+                echo "FAIL $d/$f differs from the root's; copy it: cp $f $d/"
+                bad=1
+            fi
+        done
+    done
+    if ! grep -q '^license = "MIT OR Apache-2.0"$' tabular-center-rust/Cargo.toml; then
+        echo "FAIL tabular-center-rust/Cargo.toml no longer declares MIT OR Apache-2.0;"
+        echo "     the license files and the manifest must change together"
+        bad=1
+    fi
+    [ "$bad" -eq 0 ] && echo "ok   LICENSE-MIT and LICENSE-APACHE, at the root and identical beside the crate and the Swift mirror"
+    return "$bad"
+}
 
 step_version() {
     local want got bad=0
@@ -630,7 +665,7 @@ step_tb_aligned() {
 # The three implementations, and the `.tb.` formatter: every component with a
 # tools/verify of its own, by directory suffix.
 LANGS=(rust kotlin swift fmt)
-ROOT_STEPS=(version docs matrix-covered diagnostics-coverage fixtures-complete no-bless no-generated diagnostics-tested renderings-agree tb-aligned)
+ROOT_STEPS=(version docs matrix-covered diagnostics-coverage fixtures-complete no-bless no-generated diagnostics-tested renderings-agree tb-aligned licenses)
 
 lang_script() { echo "tabular-center-$1/tools/verify"; }
 
@@ -697,6 +732,7 @@ for s in "${steps[@]}"; do
         diagnostics-tested)   run diagnostics-tested   step_diagnostics_tested ;;
         renderings-agree)     run renderings-agree     step_renderings_agree ;;
         tb-aligned)           run tb-aligned           step_tb_aligned ;;
+        licenses)             run licenses             step_licenses ;;
         *)
             if sc="$(owner_of "$s")"; then
                 delegate "$sc" "$s"

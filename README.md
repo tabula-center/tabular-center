@@ -82,7 +82,7 @@ child under a plain parent does not compile.
 | 8 | Introspection, lints, renderings | done (all three); renderings produced by each and diffed (`renderings-agree`) |
 | 9a | Driver and mailbox | done (all three) |
 | 9b | Rendering surface | done (Kotlin and Swift; `@Composable` and `@ViewBuilder` renderers) |
-| 10 | Release | in progress: publication, license files and the assembly comparison open |
+| 10 | Release | in progress: publication and the assembly comparison open |
 
 See `ARCHITECTURE.md` for the design, `PLAN.md` for the task breakdown, and
 `tabular-center-<lang>/examples/` for the worked machines — the same four core examples in every
@@ -118,3 +118,8 @@ wrong.
 
 Without nix: `./tools/verify` runs the same steps `nix flake check` does, and
 falls back to rustc's lints where clippy is unavailable.
+
+## License
+
+Licensed under either of [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE),
+at your option.
