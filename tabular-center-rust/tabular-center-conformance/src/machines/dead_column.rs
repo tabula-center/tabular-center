@@ -48,12 +48,6 @@ impl Handle<Vend, Idle, Insert> for Impl {
     }
 }
 
-/// `stay`, not `ignored`, when the credit is short.
-///
-/// The distinction the third trace exists for: this cell is `HANDLE` and
-/// refuses, while `Charged`/`Insert` beside it is `IGNORE` and never runs at
-/// all. An implementation that collapsed the two would pass every other
-/// fixture in the suite.
 impl Handle<Vend, Charged, Select> for Impl {
     fn handle(&mut self, c: &mut Ctx, s: Charged, _a: Select) -> Step<State, Effect> {
         if s.credit >= c.price {

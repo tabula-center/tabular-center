@@ -2,8 +2,6 @@ use retry::*;
 
 #[test]
 fn the_machine_backs_off_and_gives_up_on_its_own() {
-    // One dispatch. Everything after it is follow-up actions the handler
-    // returned, queued and stepped by the driver.
     let (state, ctx) = run(3);
     assert_eq!(state, State::Exhausted(Exhausted));
     assert_eq!(

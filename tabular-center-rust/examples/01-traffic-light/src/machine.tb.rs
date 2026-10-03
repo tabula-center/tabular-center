@@ -21,8 +21,6 @@ transition_matrix! {
     context Ctx;
     state   State;
     action  Action;
-    // An uninhabited enum: this machine emits nothing, and its cells do
-    // whatever they need to do directly. A supported mode, not a degraded one.
     effects Effect { }
     initial Red;
 

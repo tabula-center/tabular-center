@@ -21,7 +21,6 @@ impl AsyncHandle<Timer, Idle, Start> for T {
         Step::stay()
     }
 }
-// A colored machine, an uncolored impl: the mistake.
 impl Handle<Timer, Running, Tick> for T {
     fn handle(&mut self, _c: &mut Ctx, _s: Running, _a: Tick) -> Step<State, Effect> {
         Step::stay()

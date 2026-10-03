@@ -47,8 +47,6 @@ pub mod session {
 /// error in the PARENT -- the composition property, in an application.
 pub struct Cells;
 
-// ---- the child --------------------------------------------------------
-
 impl Handle<connection::Connection, connection::Connecting, connection::Ready> for Cells {
     fn handle(
         &mut self,
@@ -67,9 +65,6 @@ impl Perform<connection::Connection, connection::Dial> for Cells {
         _effect: connection::Dial,
     ) -> Option<connection::Action> {
         ctx.log.push("dialling".into());
-        // A real one would connect and answer later. Answering here keeps the
-        // shape honest: an effect may produce a follow-up action, and the
-        // driver enqueues it rather than recursing into `step`.
         Some(connection::Action::Ready(connection::Ready { at: ctx.now }))
     }
 }
@@ -85,8 +80,6 @@ impl Perform<connection::Connection, connection::Hangup> for Cells {
     }
 }
 
-// ---- the parent -------------------------------------------------------
-
 impl Perform<session::Session, session::Note> for Cells {
     fn perform(&mut self, ctx: &mut session::Ctx, _effect: session::Note) -> Option<session::Action> {
         ctx.connection.log.push("session ended".into());
@@ -94,13 +87,6 @@ impl Perform<session::Session, session::Note> for Cells {
     }
 }
 
-/// The parent's answer to the child's `Dial`.
-///
-/// A composed child's effects are LIFTED and performed by the parent, so the
-/// child's own `Perform` impls never run here -- the parent decides what a
-/// child's effect means, which is the point of `lift`. It answers with the
-/// parent's `Tap`, the mailbox delivers it, and the prism narrows it to the
-/// child's `Ready`: one press of Tap in Idle therefore reaches Live.
 impl Perform<session::Session, session::Dial> for Cells {
     fn perform(&mut self, ctx: &mut session::Ctx, _effect: session::Dial) -> Option<session::Action> {
         ctx.connection.log.push("dialling".into());
@@ -108,7 +94,6 @@ impl Perform<session::Session, session::Dial> for Cells {
     }
 }
 
-/// The lens: how the parent's state contains the child's, once per child.
 impl Lens<session::Session, session::Running, connection::Marker> for Cells {
     fn child_state(&mut self, state: &session::Running) -> connection::State {
         state.child
@@ -118,9 +103,6 @@ impl Lens<session::Session, session::Running, connection::Marker> for Cells {
         session::State::Running(session::Running { child })
     }
 
-    /// Which child effect happened is what the parent needs to know: mapping
-    /// them all to one parent effect would discard it, and the connection
-    /// would never be dialled.
     fn lift(&mut self, effect: connection::Effect) -> session::Effect {
         match effect {
             connection::Effect::Dial(_) => session::Effect::Dial(session::Dial),
@@ -133,13 +115,6 @@ impl Lens<session::Session, session::Running, connection::Marker> for Cells {
     }
 }
 
-/// The prism: one parent action, narrowed by the child's state.
-///
-/// One button, four meanings, and the child's state decides which -- the UI
-/// sends `Tap` and knows none of these words. A prism may also decline, by
-/// answering `None`, and then the parent ignores; here every child state has
-/// something sensible to send, so "a button that does nothing right now" is
-/// shown a level up instead: `Tap` in `Booting` is IGNORE in the table.
 impl tabular_center::Delegate<session::Session, session::Running, session::Tap, connection::Marker>
     for Cells
 {
@@ -169,9 +144,6 @@ impl tabular_center::Delegate<session::Session, session::Running, session::Tap, 
 /// and Dial answers Ready -- through the parent, lens and all.
 pub struct App {
     driver: Driver<session::State, session::Action, 8>,
-    /// The cells and the context together, because `dispatch` takes ONE
-    /// environment and hands it to both closures. Two closures capturing them
-    /// separately do not borrow-check.
     env: (Cells, session::Ctx),
 }
 
@@ -197,8 +169,6 @@ impl App {
         self.env.1.connection.now = now;
     }
 
-    /// Send one action. Errors are the mailbox's, not the machine's: the
-    /// matrix has an answer for every pair, so there is nothing else to fail.
     pub fn send(&mut self, action: session::Action) {
         let _ = self.driver.dispatch(
             &mut self.env,
@@ -208,10 +178,6 @@ impl App {
         );
     }
 
-    /// The session's own matrix, and the connection's, rendered.
-    ///
-    /// Both are inert data beside their dispatchers, so the window shows the
-    /// two machines it is running rather than a picture of them.
     pub fn grids(&self) -> (String, String) {
         (
             tabular_center::export::to_grid(&session::TABLE),
@@ -219,7 +185,6 @@ impl App {
         )
     }
 
-    /// What to say about the session, and about the connection inside it.
     pub fn describe(&self) -> (String, Option<(String, String)>) {
         match self.state() {
             session::State::Booting(_) => ("Booting".into(), None),

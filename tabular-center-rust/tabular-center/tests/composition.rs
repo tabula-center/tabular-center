@@ -13,10 +13,6 @@
 
 use tabular_center::{transition_matrix, Handle, Outcome, Step};
 
-// ---------------------------------------------------------------------------
-// Child: a retry machine, written without knowing anything about its parent.
-// ---------------------------------------------------------------------------
-
 mod retry {
     use super::*;
 
@@ -42,10 +38,6 @@ mod retry {
         Exhausted => [  IGNORE,   IGNORE,   IGNORE          ];
     }
 }
-
-// ---------------------------------------------------------------------------
-// Parent: a job machine whose `Retrying` state holds the child's state.
-// ---------------------------------------------------------------------------
 
 mod job {
     use super::*;
@@ -81,14 +73,9 @@ mod job {
 
 use job::{Action, Cancel, Idle, Retrying, Run, State, Tick};
 
-// ---------------------------------------------------------------------------
-// The developer's side
-// ---------------------------------------------------------------------------
-
 #[derive(Default)]
 struct Impl;
 
-// The parent's own HANDLE cell.
 impl Handle<job::Job, Idle, Run> for Impl {
     fn handle(&mut self, _c: &mut job::Ctx, _s: Idle, _a: Run) -> Step<State, job::Effect> {
         Step::go(State::Retrying(Retrying {
@@ -98,9 +85,6 @@ impl Handle<job::Job, Idle, Run> for Impl {
     }
 }
 
-// The child's HANDLE cells. Note these are implemented on the *same* type:
-// one object satisfies both machines' surfaces, which is what lets the parent
-// pass `self` straight through to `retry::step`.
 impl Handle<retry::Retry, retry::Ready, retry::Attempt> for Impl {
     fn handle(
         &mut self,
@@ -130,11 +114,6 @@ impl Handle<retry::Retry, retry::Waiting, retry::Elapsed> for Impl {
     }
 }
 
-// The lens: written ONCE for (Retrying, retry), however many cells delegate.
-//
-// An earlier version had all five methods on `Delegate`, instantiated per
-// cell, so these four were duplicated verbatim below. The Kotlin
-// implementation made the duplication obvious, and the finding came back here.
 impl tabular_center::Lens<job::Job, Retrying, retry::Marker> for Impl {
     fn child_state(&mut self, s: &Retrying) -> retry::State {
         s.child
@@ -154,7 +133,6 @@ impl tabular_center::Lens<job::Job, Retrying, retry::Marker> for Impl {
     }
 }
 
-// The prisms: one per delegate cell, and the only genuinely per-cell part.
 impl tabular_center::Delegate<job::Job, Retrying, Run, retry::Marker> for Impl {
     fn to_child(&mut self, _ctx: &mut job::Ctx, _s: &Retrying, _a: Run) -> Option<retry::Action> {
         Some(retry::Action::Attempt(retry::Attempt))
@@ -167,10 +145,6 @@ impl tabular_center::Delegate<job::Job, Retrying, Tick, retry::Marker> for Impl 
     }
 }
 
-/// The child reaching `Exhausted` is the parent's cue to leave `Retrying`.
-///
-/// This is why `embed` returns the full parent state rather than the narrowed
-/// variant: a child transition often *is* a parent transition.
 fn lift_child(child: retry::State) -> State {
     match child {
         retry::State::Exhausted(_) => State::Done(job::Done),
@@ -184,10 +158,6 @@ fn lift_effect(e: retry::Effect) -> job::Effect {
         retry::Effect::GiveUp(_) => job::Effect::Alert(job::Alert),
     }
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 fn ctx(max: u32) -> job::Ctx {
     job::Ctx {
@@ -207,7 +177,6 @@ fn delegate_runs_the_child_and_lifts_its_effects() {
         }),
         Action::Run(Run),
     );
-    // Child went Ready -> Waiting, emitting Sleep; the parent sees Backoff.
     assert_eq!(
         s.outcome,
         Outcome::Go(State::Retrying(Retrying {
@@ -223,8 +192,6 @@ fn delegate_runs_the_child_and_lifts_its_effects() {
 
 #[test]
 fn a_child_transition_can_be_a_parent_transition() {
-    // `embed` returns the full parent state, so the child reaching Exhausted
-    // moves the parent out of Retrying entirely.
     let (mut m, mut c) = (Impl, ctx(1));
     let s = job::step(
         &mut m,
@@ -257,20 +224,16 @@ fn a_static_parent_cell_beside_a_delegate_still_works() {
         s.effects.iter().copied().collect::<Vec<_>>(),
         [job::Effect::Log(job::Log)]
     );
-    // The delegate never ran, so the child context was never touched.
     assert_eq!(c.attempts_made, 0);
 }
 
 #[test]
 fn coverage_is_not_inherited_silently() {
-    // The parent's Retrying row still lists all three columns. Two delegate,
-    // one does not, and you can see which from the table alone.
     use tabular_center::Cell;
     assert_eq!(job::TABLE.cell(1, 0), Cell::Delegate { child: "retry" });
     assert_eq!(job::TABLE.cell(1, 1), Cell::Delegate { child: "retry" });
     assert_eq!(job::TABLE.cell(1, 2).static_target(), Some("Done"));
 
-    // Both machines are independently total.
     assert_eq!(job::TABLE.coverage().total(), 9);
     assert_eq!(retry::TABLE.coverage().total(), 9);
     assert_eq!(retry::TABLE.coverage().handle, 2);
@@ -278,8 +241,6 @@ fn coverage_is_not_inherited_silently() {
 
 #[test]
 fn the_child_can_be_driven_on_its_own() {
-    // Nothing about being a child changed the child. It has its own step,
-    // its own table, and no knowledge of the parent.
     let (mut m, mut c) = (Impl, retry::Ctx { max_attempts: 2 });
     let s = retry::step(
         &mut m,

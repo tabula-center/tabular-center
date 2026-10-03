@@ -21,6 +21,14 @@ clean_patterns=(
     '*.nix'
 )
 
+clean_paths=(
+    'tabular-center-fmt/*.rs'
+    'tabular-center-rust/examples/*.rs'
+    'tabular-center-rust/tabular-center-conformance/*.rs'
+    'tabular-center-rust/tabular-center/benches/*.rs'
+    'tabular-center-rust/tabular-center/tests/*.rs'
+)
+
 clean_files=(
     .editorconfig
     .gitignore
@@ -50,6 +58,9 @@ name_expression=(-false)
 for p in "${clean_patterns[@]}"; do
     name_expression+=(-o -name "$p")
 done
+for p in "${clean_paths[@]}"; do
+    name_expression+=(-o -path "./$p")
+done
 
 files=()
 while IFS= read -r f; do
@@ -78,6 +89,7 @@ comment_style() {
 
 find_comments() {
     STYLE="$1" FILE="$2" awk '
+        BEGIN { held_labels_only = 1 }
         function without_strings(s) {
             gsub(/"([^"\\]|\\.)*"/, "\"\"", s)
             if (ENVIRON["STYLE"] == "hash") gsub(/'"'"'[^'"'"']*'"'"'/, "", s)
@@ -90,7 +102,7 @@ find_comments() {
             if (line ~ /^\/\/ swift-tools-version:/) return 1
             if (line ~ /^[[:space:]]*# shellcheck (disable|source|shell)=/) return 1
             if (line ~ /@[0-9a-f]{40}[[:space:]]+# v[0-9][0-9A-Za-z.\-]*[[:space:]]*$/) return 1
-            if (ENVIRON["FILE"] ~ /\.tb\./ && line ~ /^[[:space:]]*\/\/([[:space:]]+[A-Za-z_][A-Za-z0-9_.]*){2,}[[:space:]]*$/) return 1
+            if (ENVIRON["FILE"] ~ /\.tb\./ && is_column_labels(line)) return 1
             return 0
         }
         function is_type_declaration(code) {
@@ -103,9 +115,53 @@ find_comments() {
             return code ~ /^[[:space:]]*(#!?\[|@[A-Za-z_])/
         }
         function hold(line) { held[++held_count] = sprintf("%s:%d: %s", ENVIRON["FILE"], FNR, line) }
-        function report_held(   i) { for (i = 1; i <= held_count; i++) print held[i]; held_count = 0 }
+        function report_held(   i) { for (i = 1; i <= held_count; i++) print held[i]; held_count = 0; held_labels_only = 1 }
         function comment_line(line) { if (seen_code) hold(line) }
         function trailing(line) { printf "%s:%d: %s\n", ENVIRON["FILE"], FNR, line }
+
+        function scan(line,   i, n, c, out, p, m) {
+            out = ""; n = length(line); i = 1; comment_at = 0
+            while (i <= n) {
+                if (raw_end != "") {
+                    p = index(substr(line, i), raw_end)
+                    if (p == 0) return out
+                    i += p - 1 + length(raw_end); raw_end = ""; out = out "\"\""; continue
+                }
+                if (in_string) {
+                    while (i <= n) {
+                        c = substr(line, i, 1)
+                        if (c == "\\") { i += 2; continue }
+                        i++
+                        if (c == "\"") { in_string = 0; break }
+                    }
+                    if (!in_string) out = out "\"\""
+                    continue
+                }
+                if (in_block_comment) {
+                    p = index(substr(line, i), "*/")
+                    if (p == 0) return out
+                    i += p + 1; in_block_comment = 0; continue
+                }
+                c = substr(line, i, 1)
+                if (substr(line, i, 2) == "//") { comment_at = i; return out }
+                if (substr(line, i, 2) == "/*") { comment_at = i; in_block_comment = 1; i += 2; continue }
+                if (ENVIRON["FILE"] !~ /\.rs$/ && substr(line, i, 3) == "\"\"\"") { raw_end = "\"\"\""; i += 3; continue }
+                if (ENVIRON["FILE"] ~ /\.rs$/ && (i == 1 || substr(line, i - 1, 1) !~ /[A-Za-z0-9_]/) && match(substr(line, i), /^b?r#*"/)) {
+                    m = substr(line, i, RLENGTH); sub(/^b?r/, "", m); sub(/"$/, "", m)
+                    raw_end = "\"" m; i += RLENGTH; continue
+                }
+                if (c == "\"") { in_string = 1; i++; continue }
+                if (c == "'"'"'" && match(substr(line, i), /^'"'"'(\\.|[^'"'"'\\])'"'"'/)) { i += RLENGTH; continue }
+                out = out c; i++
+            }
+            return out
+        }
+        function is_column_labels(line) {
+            return line ~ /^[[:space:]]*\/\/([[:space:]]+[A-Za-z_][A-Za-z0-9_.]*){2,}[[:space:]]*$/
+        }
+        function is_matrix_row(code) {
+            return code ~ /^[[:space:]]*[A-Z][A-Za-z0-9_]*[[:space:]]*=>[[:space:]]*\[/
+        }
 
         heredoc_end != "" {
             check = $0
@@ -114,13 +170,31 @@ find_comments() {
             if (check == heredoc_end) heredoc_end = ""
             next
         }
-        in_triple_quotes {
-            if (gsub(/"""/, "&") % 2 == 1) in_triple_quotes = 0
-            next
-        }
-        in_block_comment {
-            comment_line($0)
-            if ($0 ~ /\*\//) in_block_comment = 0
+        ENVIRON["STYLE"] == "slash" {
+            started_inside = (raw_end != "" || in_string)
+            started_in_comment = in_block_comment
+            code = scan($0)
+            if (started_inside && code ~ /^[[:space:]]*$/ && comment_at == 0) next
+            if (is_directive($0)) next
+            if (code ~ /^[[:space:]]*$/ && (comment_at > 0 || started_in_comment)) {
+                if (seen_code) {
+                    hold($0)
+                    if (!is_column_labels($0)) held_labels_only = 0
+                }
+                next
+            }
+            if (code ~ /^[[:space:]]*$/) {
+                if (seen_code) report_held()
+                held_labels_only = 1
+                next
+            }
+            if (comment_at > 0) trailing($0)
+            seen_code = 1
+            if (held_count > 0 && held_labels_only && is_matrix_row(code)) held_count = 0
+            if (is_type_declaration(code)) held_count = 0
+            if (is_attribute(code)) next
+            report_held()
+            held_labels_only = 1
             next
         }
         /^[[:space:]]*$/ {
@@ -130,24 +204,6 @@ find_comments() {
         is_directive($0) { next }
         {
             code = without_strings($0)
-
-            if (ENVIRON["STYLE"] == "slash") {
-                if (code ~ /^[[:space:]]*\/\//) { comment_line($0); next }
-                if (code ~ /^[[:space:]]*\/\*/) {
-                    comment_line($0)
-                    if (code !~ /\*\//) in_block_comment = 1
-                    next
-                }
-                if (code ~ /\/\/|\/\*/) trailing($0)
-                if (code ~ /\/\*/ && code !~ /\*\//) in_block_comment = 1
-                if (gsub(/"""/, "&", code) % 2 == 1) in_triple_quotes = 1
-                seen_code = 1
-                if (is_type_declaration(code)) { held_count = 0; next }
-                if (is_attribute(code)) next
-                report_held()
-                next
-            }
-
             if (code ~ /^[[:space:]]*#/) { comment_line($0); next }
             if (code ~ /[[:space:]]#/) trailing($0)
             if (is_just_recipe(code)) held_count = 0
@@ -174,4 +230,4 @@ if [ -n "$findings" ]; then
     exit 1
 fi
 
-echo "ok   no comments in ${#files[@]} files (${clean_patterns[*]} and ${#clean_files[@]} named files)"
+echo "ok   no comments in ${#files[@]} files (${clean_patterns[*]}, ${#clean_paths[@]} path patterns, ${#clean_files[@]} named files)"

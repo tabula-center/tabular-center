@@ -11,12 +11,10 @@ use tabular_center::{Handle, Perform, Step};
 
 #[derive(Debug, Default)]
 pub struct Ctx {
-    /// How long a run may last before the timer finishes itself.
     pub limit: u64,
     pub log: Vec<String>,
 }
 
-// The matrix lives in `machine.tb.rs`, per `spec/matrix-files.md`.
 #[path = "machine.tb.rs"]
 mod machine;
 
@@ -41,7 +39,6 @@ impl Handle<Timer, Idle, Start> for Impl {
 
 impl Handle<Timer, Running, Tick> for Impl {
     fn handle(&mut self, c: &mut Ctx, s: Running, a: Tick) -> Step<State, Effect> {
-        // No `if let`, no cast, no unwrap: the dispatcher already matched.
         if a.now.saturating_sub(s.since) >= c.limit {
             Step::go(State::Done(Done)).emit(
                 StopClock {
@@ -50,8 +47,6 @@ impl Handle<Timer, Running, Tick> for Impl {
                 .into(),
             )
         } else {
-            // Handled, and staying put. Distinct from `Ignored`, which would
-            // claim a tick is meaningless while running.
             Step::stay()
         }
     }

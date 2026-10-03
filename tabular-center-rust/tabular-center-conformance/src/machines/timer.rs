@@ -73,8 +73,6 @@ fn action_from(name: &str, a: &BTreeMap<String, i64>) -> Result<Action, String> 
     })
 }
 
-/// Render a state back into fixture vocabulary: variant name plus the fields
-/// the trace chose to assert on.
 fn describe(s: State, want: &BTreeMap<String, i64>) -> (String, BTreeMap<String, i64>) {
     let mut fields = BTreeMap::new();
     let name = match s {
@@ -150,9 +148,6 @@ impl Adapter for TimerAdapter {
     }
 }
 
-/// `Effect::StopClock` debug-prints as `StopClock`, which is already the last
-/// segment; keep the normalisation explicit anyway so an adapter that formats
-/// differently still compares correctly.
 pub fn normalise(e: &str) -> &str {
     last_segment(e)
 }

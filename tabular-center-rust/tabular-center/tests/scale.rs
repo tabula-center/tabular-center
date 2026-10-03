@@ -12,16 +12,14 @@
 // that needs a crate attribute past a certain size is a real cost; hiding it
 // behind more muncher tricks would trade a one-line fix for unreadable macro
 // rules.
-#![recursion_limit = "256"]
-
-//! **A genuine 8x12 machine, to retire a risk the plan has been carrying.**
 //!
+//! **A genuine 8x12 machine, to retire a risk the plan has been carrying.**
 //! `PLAN.md` lists "N x M cell count makes real machines unpleasant" with the
 //! mitigation "measure on a genuine 8x12 machine before M4". This is that
 //! measurement, and it is deliberately a machine someone might really write —
 //! an order lifecycle — rather than a synthetic grid.
-//!
 //! Findings are asserted below rather than described, so they cannot rot.
+#![recursion_limit = "256"]
 
 use tabular_center::{transition_matrix, Handle, Perform, Step};
 
@@ -62,44 +60,26 @@ transition_matrix! {
     Cancelled       => [  IGNORE,  IGNORE,     IGNORE,                                 IGNORE,                    IGNORE,   IGNORE, IGNORE,                         IGNORE,                       IGNORE,                                IGNORE,                                    IGNORE, IGNORE ];
 }
 
-// ---------------------------------------------------------------------------
-// The measurement
-// ---------------------------------------------------------------------------
-
 #[test]
 fn ninety_six_cells_cost_nine_implementations() {
     let c = TABLE.coverage();
     assert_eq!(c.total(), 96, "8 states x 12 actions");
 
-    // The number that matters. 96 cells, but only the HANDLE ones become
-    // members: the static kinds are resolved by the generator and cost one
-    // word each in the declaration.
     assert_eq!(c.required_members(), 9);
     assert_eq!(c.handle, 9);
     assert_eq!(c.go, 12);
     assert_eq!(c.ignore, 75);
 
-    // 78% of a realistic machine is IGNORE. That is the load-bearing fact
-    // behind the whole design: if those 75 cells each needed a body, nobody
-    // would write this. They need one word.
     assert_eq!(c.ignore_percent(), 78);
 }
 
 #[cfg(feature = "alloc")]
 #[test]
 fn a_realistic_machine_trips_the_ignore_heavy_lint() {
-    // An honest finding, not a bug. At 78% IGNORE this machine crosses the 70%
-    // threshold, and the lint is arguably right: the shipping half (Paid ->
-    // Preparing -> Shipped -> Delivered) shares almost no alphabet with the
-    // checkout half, and would be a cleaner pair of composed machines.
-    //
-    // Recorded rather than tuned. Moving the threshold to silence a machine
-    // that really is two machines would be fitting the rule to the sample.
     let r = tabular_center::lint::report(&TABLE);
     assert!(r.contains("tabular-center::ignore-heavy"), "{r}");
     assert!(r.contains("78%"), "{r}");
 
-    // `Cancelled` is genuinely terminal, and dead-row says so once.
     assert!(r.contains("every cell in row `Cancelled` ignores"), "{r}");
 }
 
@@ -110,16 +90,10 @@ fn the_grid_stays_readable_at_this_size() {
     let lines: Vec<&str> = grid.lines().collect();
     assert_eq!(lines.len(), 9, "header plus one line per state");
 
-    // Every line the same width means the columns still line up by eye, which
-    // is the entire reason for preferring positional rows over named cells.
     let widest = lines.iter().map(|l| l.len()).max().unwrap();
     assert!(widest < 400, "grid line width {widest}");
     assert!(grid.contains("GO(AwaitingPayment, RequestPayment)"));
 }
-
-// ---------------------------------------------------------------------------
-// The implementation cost, in full. Nine cells and nine effects.
-// ---------------------------------------------------------------------------
 
 struct Impl;
 
@@ -211,8 +185,6 @@ fn the_machine_actually_runs() {
         [Effect::RequestPayment(RequestPayment)]
     );
 
-    // Three retries then give up -- the kind of logic a HANDLE cell exists for
-    // and a matrix cannot express.
     c.attempts = 3;
     let s = step(
         &mut m,

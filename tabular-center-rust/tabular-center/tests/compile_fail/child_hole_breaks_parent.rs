@@ -52,9 +52,7 @@ impl Handle<retry::Retry, retry::Ready, retry::Attempt> for Impl {
         Step::stay()
     }
 }
-// retry::Waiting x retry::Elapsed is HANDLE and has no impl.
 
-// The lens is per (parent state, child); only the prism is per cell.
 impl Lens<job::Job, job::Retrying, retry::Marker> for Impl {
     fn child_state(&mut self, s: &job::Retrying) -> retry::State {
         s.child

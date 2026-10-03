@@ -30,6 +30,5 @@ fn main() {
         Ok(_) => {}
         Err((State::Idle(_), _)) => {}
         Err((State::Busy(_), _)) => {}
-        // `Done` is missing.
     }
 }

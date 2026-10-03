@@ -65,7 +65,6 @@ mod colored {
             state: Running,
             action: Tick,
         ) -> Step<State, Effect> {
-            // Suspends before deciding -- the point of a colored cell.
             YieldOnce(false).await;
             ctx.ticks_seen += 1;
             if action.now.saturating_sub(state.since) >= ctx.limit {
@@ -125,8 +124,6 @@ mod colored {
         ));
         assert_eq!(s.outcome, Outcome::Stay);
         assert_eq!(c.ticks_seen, 1);
-        // One poll to reach the cell's YieldOnce, one to finish. A `step` that
-        // did not await its cell could not have been Pending at all.
         assert_eq!(polls, 2, "step must propagate the cell's suspension");
     }
 
@@ -165,8 +162,6 @@ mod colored {
 
     #[test]
     fn the_table_does_not_know_the_color() {
-        // Color is how the cells are called, not what the matrix says: the
-        // same rows, the same TABLE, the same coverage as the plain timer.
         assert_eq!(TABLE.machine, "Timer");
         assert_eq!(TABLE.coverage().required_members(), 2);
     }
@@ -177,7 +172,6 @@ mod plain_prototype {
 
     pub struct Ctx;
 
-    // The uncolored default, spelled out.
     transition_matrix! {
         machine Toggle;
         context Ctx;
@@ -190,7 +184,6 @@ mod plain_prototype {
         states  { Off, On }
         actions { Flip }
 
-        //         Flip
         Off => [   GO!(On)   ];
         On  => [   HANDLE    ];
     }

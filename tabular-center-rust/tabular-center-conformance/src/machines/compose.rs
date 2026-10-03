@@ -110,7 +110,6 @@ impl Handle<retry::Retry, retry::Waiting, retry::Elapsed> for Impl {
     }
 }
 
-/// A child reaching its terminal state is the parent's cue to leave.
 fn embed_child(child: retry::State) -> job::State {
     match child {
         retry::State::Exhausted(_) => job::State::Done(job::Done),
@@ -125,7 +124,6 @@ fn lift_effect(e: retry::Effect) -> job::Effect {
     }
 }
 
-// The lens is per (parent state, child); only the action prism is per cell.
 impl tabular_center::Lens<job::Job, job::Retrying, retry::Marker> for Impl {
     fn child_state(&mut self, s: &job::Retrying) -> retry::State {
         s.child
@@ -158,10 +156,6 @@ macro_rules! job_prism {
 
 job_prism!(job::Run, retry::Action::Attempt(retry::Attempt));
 job_prism!(job::Tick, retry::Action::Elapsed(retry::Elapsed));
-
-// ---------------------------------------------------------------------------
-// Adapters
-// ---------------------------------------------------------------------------
 
 fn retry_state(name: &str, f: &BTreeMap<String, i64>) -> Result<retry::State, String> {
     Ok(match name {
@@ -286,9 +280,6 @@ impl Adapter for JobAdapter {
             },
         };
 
-        // `from Retrying child_attempt=N` starts the child in Waiting{N};
-        // absent means Ready. The trace format is flat by design, so a nested
-        // state is addressed by a prefixed field rather than by nesting.
         let mut state = match trace.from.as_str() {
             "Idle" => job::State::Idle(job::Idle),
             "Done" => job::State::Done(job::Done),

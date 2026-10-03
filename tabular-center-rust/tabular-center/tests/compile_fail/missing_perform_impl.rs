@@ -24,7 +24,6 @@ impl Perform<Timer, StartClock> for Impl {
         None
     }
 }
-// StopClock has no handler.
 
 fn main() {
     let _ = perform(&mut Impl, &mut Ctx, Effect::StartClock(StartClock));

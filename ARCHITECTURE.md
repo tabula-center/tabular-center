@@ -1225,9 +1225,11 @@ not prose for a person:
   the pin;
 - in a `justfile`, the comment line directly above a recipe, which
   `just --list` shows as the recipe's description;
-- the column-header line above a matrix in a `.tb.*` file
-  (`//    Start    Tick    Cancel`): the table's labels, data rather than
-  commentary, and aligned with the rows by `tabular-center-fmt`.
+- the column-header line above a matrix (`//    Start    Tick    Cancel`):
+  the table's labels, data rather than commentary, and aligned with the rows
+  by `tabular-center-fmt` -- anywhere in a `.tb.*` file, and elsewhere when it
+  sits directly above a matrix row (`Idle => [`), as in a test's
+  `transition_matrix!`.
 
 **Enforced, by stage.** `tools/no-comments` (root step and check
 `no-comments`) holds each comment block until the next line of code, then
@@ -1688,6 +1690,51 @@ are here. Grouped by file, so a reader of one finds its reasons in one place.
 - **`justfile`** recipes are thin aliases for `tools/verify` and the apps;
   the comment above each recipe is its description in `just --list`, which
   is why those lines are exempt from §15.
+
+### Rust tests, examples and the conformance harness
+
+What their comments carried that a reader of the tree needs:
+
+- **`tests/reference_timer.rs` is the macro's specification**, in five parts
+  -- domain types, the narrowed variant structs, the cell surface (the
+  `where` clause on `step`: one `Handle` bound per non-static cell; static
+  cells resolve in the dispatcher and appear nowhere), the dispatcher (no
+  wildcard arm, so a new state or action breaks the `match` -- a second
+  guarantee on top of the bounds), and the effect surface (one `Perform`
+  bound per effect variant). `tests/timer_matrix.rs` is the same machine
+  through the macro, asserted to agree; `asm-identical` checks they compile
+  to the same code.
+- **`tests/scale.rs` retired a risk by measurement**: a realistic 8x12 order
+  machine is 78% `IGNORE` -- the fact the design rests on -- and crosses the
+  `ignore-heavy` threshold, fairly; it needs `#![recursion_limit = "256"]`
+  (§14).
+- **Composition** (`tests/composition.rs`, `examples/04-login`,
+  `examples/05-iced`): one type implements parent and child cells, so the
+  parent passes itself to the child's `step`; the lens is written once per
+  (parent state, child), the prisms once per delegate cell; `embed` returns
+  the full parent state because a child transition is often a parent
+  transition; a composed child's effects are lifted and performed by the
+  parent, which decides what they mean, and a prism may decline.
+- **The driver takes one environment** for its two closures (cells and
+  context together), because two closures cannot each borrow them mutably;
+  `examples/03-retry` found that in the driver's signature.
+- **`PAYLOADS` records the types as declared** (`u32`); the lint
+  canonicalises (`int`) before rendering, so three implementations can agree
+  on a `.lint` while each generator reports its own source truthfully.
+- **The conformance harness** compares each generated `TABLE` with its
+  fixture cell by cell -- several wrong tables give right answers on any one
+  trace, so trace replay alone misses a mis-parsed cell kind -- and a
+  negative test proves the comparison can fail. Fixtures are discovered, not
+  listed, with a floor against a walk that finds nothing; the trace format is
+  flat, so a child's state is addressed by prefixed fields
+  (`child_attempt=1`); `.tbl` joins effects `GO(T, A, B)` and the rendered
+  grid `GO(T, A+B)`, deliberately (spec/cells.md). Several fixtures exist for
+  the `stay`/`ignored` distinction: a `HANDLE` cell that refuses is `stay`,
+  an `IGNORE` cell never runs.
+- **The benchmark** asserts parity first (same states, same effect counts),
+  interleaves rounds across the three versions so drift lands on all of
+  them, and keeps the work observable with `black_box`; `plain` returns
+  `(State, Option<Effect>)` and is expected to be faster.
 
 ### The checks, step by step
 

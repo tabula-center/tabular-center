@@ -20,10 +20,6 @@ pub struct Ctx {
     pub cycles: u32,
 }
 
-// The matrix lives in `machine.tb.rs`, per `spec/matrix-files.md`. `#[path]`
-// because `machine.tb` is not a valid module name; the glob re-export because
-// `transition_matrix!` generates `State`, `Action`, `Red` and the rest, so the
-// types this crate's users need are defined in there.
 #[path = "machine.tb.rs"]
 mod machine;
 
@@ -32,11 +28,6 @@ pub use machine::*;
 pub struct Controller;
 
 impl Handle<TrafficLight, Amber, Advance> for Controller {
-    /// The one cell with a decision in it: leaving amber counts a cycle.
-    ///
-    /// It could have been `GO!(Red)` — it is `HANDLE` because it touches
-    /// context, and a static cell cannot. That boundary is the whole reason
-    /// both kinds exist.
     fn handle(&mut self, ctx: &mut Ctx, _s: Amber, _a: Advance) -> Step<State, Effect> {
         ctx.cycles += 1;
         Step::go(State::Red(Red))

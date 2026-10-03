@@ -91,12 +91,6 @@ mod no_path {
     }
 }
 
-/// The same route, walked in both directions.
-///
-/// `back Back` names the action that reverses each hop, so `(Connecting, Back)`
-/// goes to `Idle` and `(Live, Back)` to `Connecting` -- derived, like the
-/// forward direction, from HANDLE cells only. Nothing here implements those
-/// cells, which is what proves they were derived.
 mod both_ways {
     use super::Ctx;
     use tabular_center::transition_matrix;
@@ -184,8 +178,6 @@ fn without_the_path_the_same_rows_are_a_different_machine() {
 
 #[test]
 fn a_path_may_be_walked_backwards() {
-    // No `Handle` impl exists for this machine at all: every cell is derived,
-    // forwards or back, so `Impl` satisfies it by implementing nothing.
     let s = both_ways::step(
         &mut Impl,
         &mut Ctx,
@@ -197,8 +189,6 @@ fn a_path_may_be_walked_backwards() {
         Outcome::Go(both_ways::State::Idle(both_ways::Idle))
     );
 
-    // Including at the path's end: walking back is not leaving, so this is a
-    // cell rather than `tabular-center::path-unterminated`.
     let s = both_ways::step(
         &mut Impl,
         &mut Ctx,
@@ -210,7 +200,6 @@ fn a_path_may_be_walked_backwards() {
         Outcome::Go(both_ways::State::Connecting(both_ways::Connecting))
     );
 
-    // And the forward direction is unchanged.
     let s = both_ways::step(
         &mut Impl,
         &mut Ctx,
@@ -223,9 +212,6 @@ fn a_path_may_be_walked_backwards() {
     );
 }
 
-/// The narrowed surface, per `spec/happy-paths.md` "Settled before
-/// implementation", in Rust's shape: `narrow::<From, Action, _>` takes the
-/// action that arrived, and its `Err` side is the whole `State`.
 mod narrowing {
     use super::{spine as m, Ctx, Impl};
 
@@ -238,19 +224,15 @@ mod narrowing {
 
     #[test]
     fn narrow_hands_back_whatever_else_the_matrix_did() {
-        // Drop in Connecting is a HANDLE the path does not name: it went to Failed.
         let a = m::Action::Drop(m::Drop);
         let r = m::narrow::<m::Connecting, m::Ready, _>(&mut Impl, &mut Ctx, m::Connecting, a);
         assert!(matches!(r, Err((m::State::Failed(_), _))));
 
-        // Start in Connecting is IGNORE: nothing moved, which is an outcome too.
         let a = m::Action::Start(m::Start);
         let r = m::narrow::<m::Connecting, m::Ready, _>(&mut Impl, &mut Ctx, m::Connecting, a);
         assert!(matches!(r, Err((m::State::Connecting(_), _))));
     }
 
-    /// The railway: each hop's other outcomes leave through `?`, and the happy
-    /// path reads straight down.
     fn connect(cells: &mut Impl, first: m::Action, then: m::Action) -> Result<m::Live, m::State> {
         let started = m::narrow::<m::Idle, m::Start, _>(cells, &mut Ctx, m::Idle, first);
         let (connecting, _) = started.map_err(|(state, _)| state)?;

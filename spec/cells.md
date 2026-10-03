@@ -334,7 +334,10 @@ language: Rust's `emit` panics on one and `try_emit` returns an error.
 - **`ignored` absorbs.** When `f` returns `ignored`, the result is `ignored`
   with no effects, even though the step before it emitted: a decision that is
   "not applicable" anywhere is not applicable as a whole, and an ignored step
-  emits nothing.
+  emits nothing. It is never a panic, and it is not given a type of its own:
+  a distinct outcome would be a variant every exhaustive match over `Step`
+  must handle, generated dispatchers included, for an outcome no matrix can
+  declare.
 - **`zip(other)` / `zipWith(other, g)`** is defined as
   `self.flatMap { x -> other.map { y -> g(x, y) } }`, so it can never disagree
   with `flatMap`: both `go` gives `go(g(x, y))` with this step's effects then

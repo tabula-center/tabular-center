@@ -42,9 +42,6 @@ struct Impl;
 
 impl Handle<Gate, Locked, Unlock> for Impl {
     fn handle(&mut self, _c: &mut Ctx, _s: Locked, _a: Unlock) -> Step<State, Effect> {
-        // The only route into `Open`, and it is deliberately dynamic: a
-        // statically resolvable transition here would make the matrix fully
-        // static and defeat the gate this fixture exists to pin.
         Step::go(State::Open(Open))
     }
 }
@@ -108,10 +105,6 @@ impl Adapter for EffectsNeverAdapter {
         for st in &trace.steps {
             let action = action_from(&st.action)?;
             let step = step(&mut cells, &mut ctx, state, action);
-            // Always empty: `Effect` has no variants, so nothing can construct
-            // one. Collected the same way as every other adapter rather than
-            // short-circuited to `vec![]`, so the trace assertions are testing
-            // the real path.
             let effects = step.effects.iter().map(|e| format!("{e:?}")).collect();
             let expect = match step.outcome {
                 Outcome::Stay => Expect::Stay,

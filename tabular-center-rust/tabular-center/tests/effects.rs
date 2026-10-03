@@ -49,9 +49,6 @@ impl Handle<Timer, Running, Tick> for Impl {
     }
 }
 
-// One `Perform` impl per effect variant. Delete either and this file stops
-// compiling with `the trait bound Impl: Perform<Timer, StopClock> is not
-// satisfied` -- the same error shape as a missing cell.
 impl Perform<Timer, StartClock> for Impl {
     fn perform(&mut self, c: &mut Ctx, _e: StartClock) -> Option<Action> {
         c.log.push("start".into());
@@ -61,7 +58,6 @@ impl Perform<Timer, StartClock> for Impl {
 
 impl Perform<Timer, StopClock> for Impl {
     fn perform(&mut self, c: &mut Ctx, e: StopClock) -> Option<Action> {
-        // The payload arrives destructured, exactly as a cell's does.
         c.log.push(format!("stop:{}", e.reason));
         None
     }
@@ -95,11 +91,6 @@ fn effect_payloads_are_narrowed() {
 
 #[test]
 fn step_and_perform_compose_through_the_driver() {
-    // The two halves meet here: `step` returns effects as data, `perform`
-    // carries them out, and the driver enqueues anything they produce.
-    // One environment holding everything both closures need. Before the
-    // driver took `env`, this did not compile: two closures cannot each
-    // capture `cells` and `ctx` mutably.
     let mut env = (Impl, ctx(3));
     let mut d: Driver<State, Action, 8> = Driver::new(State::Idle(Idle));
 
@@ -119,13 +110,10 @@ fn step_and_perform_compose_through_the_driver() {
 
 #[test]
 fn table_records_effects_by_bare_variant_name() {
-    // `StopClock { reason: 1 }` appears as `StopClock`, so grids and diagrams
-    // stay readable rather than carrying struct literals.
     assert_eq!(TABLE.cell(1, 2).static_effects(), &["StopClock"]);
     assert_eq!(TABLE.cell(2, 0).static_effects(), &["StartClock"]);
 }
 
-/// A machine that emits nothing.
 mod silent {
     use super::*;
 

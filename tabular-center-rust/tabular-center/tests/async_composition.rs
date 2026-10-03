@@ -17,7 +17,6 @@ mod common;
 use common::{block_on, YieldOnce};
 use tabular_center::{AsyncHandle, Delegate, Handle, Lens, Outcome, Step};
 
-/// A plain child: one HANDLE cell.
 mod plain {
     use tabular_center::transition_matrix;
 
@@ -34,13 +33,11 @@ mod plain {
         states  { Low, High }
         actions { Bump }
 
-        //         Bump
         Low  => [  HANDLE  ];
         High => [  IGNORE  ];
     }
 }
 
-/// The same child, colored.
 mod slow {
     use tabular_center::transition_matrix;
 
@@ -58,13 +55,11 @@ mod slow {
         states  { Low, High }
         actions { Bump }
 
-        //         Bump
         Low  => [  HANDLE  ];
         High => [  IGNORE  ];
     }
 }
 
-/// An async parent over the plain child.
 mod over_plain {
     use super::plain;
     use tabular_center::transition_matrix;
@@ -85,12 +80,10 @@ mod over_plain {
         states  { Busy { child: plain::State } }
         actions { Bump }
 
-        //         Bump
         Busy => [  DELEGATE!(plain)  ];
     }
 }
 
-/// An async parent over the async child.
 mod over_slow {
     use super::slow;
     use tabular_center::transition_matrix;
@@ -111,7 +104,6 @@ mod over_slow {
         states  { Busy { child: slow::State } }
         actions { Bump }
 
-        //         Bump
         Busy => [  DELEGATE!(slow)  ];
     }
 }

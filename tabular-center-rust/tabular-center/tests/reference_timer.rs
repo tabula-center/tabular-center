@@ -27,10 +27,6 @@
 
 use tabular_center::{Cell, Handle, Machine, Outcome, Perform, Step, Table};
 
-// ---------------------------------------------------------------------------
-// 1. Domain types
-// ---------------------------------------------------------------------------
-
 /// Payload-carrying state. Payloads cost nothing here, because coverage comes
 /// from member counting rather than from pattern matching -- there is no
 /// "strict mode / rich mode" fork in this design.
@@ -85,15 +81,6 @@ pub struct Ctx {
     pub last_stop_reason: Option<u32>,
 }
 
-// ---------------------------------------------------------------------------
-// 1b. Narrowed variant types
-// ---------------------------------------------------------------------------
-//
-// The generator synthesizes one struct per variant so cell members can take
-// concrete, already-destructured arguments. This is the piece that is
-// impractical to write by hand at scale, and the strongest argument for
-// generating the dispatcher rather than hand-writing a `match`.
-
 /// `State::Running`, narrowed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Running(pub u32);
@@ -112,10 +99,6 @@ pub struct Tick {
     pub now: u32,
 }
 
-// ---------------------------------------------------------------------------
-// 2. Cell surface
-// ---------------------------------------------------------------------------
-
 /// Machine marker, tying the four types together so `Handle` needs three
 /// parameters rather than six.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -128,40 +111,17 @@ impl Machine for Timer {
     type Ctx = Ctx;
 }
 
-// The cell surface is the `where` clause on `step` below: one
-// `Handle<Timer, StateVariant, ActionVariant>` bound per non-static cell.
-//
-// Static cells (`IGNORE`, `GO`, `EMIT`) appear nowhere: they are resolved in
-// the dispatcher. Six of this machine's nine cells are static, which is what
-// keeps an N x M matrix survivable.
-//
-// Drop either impl and this file does not compile, with `the trait bound
-// `TimerImpl: Handle<Timer, Idle, Start>` is not satisfied`. That is the
-// guarantee, and it comes from rustc, not from tabular-center.
-
-// ---------------------------------------------------------------------------
-// 3. Dispatcher
-// ---------------------------------------------------------------------------
-
-/// Dispatch one `(state, action)` pair.
-///
-/// Note the absence of a wildcard arm. Adding a variant to `State` or `Action`
-/// breaks this `match` at compile time via `rustc`'s own exhaustiveness
-/// checker -- a second, independent guarantee that stacks on top of the
-/// required-member one and that we get for free.
 pub fn step<C>(cells: &mut C, ctx: &mut Ctx, state: State, action: Action) -> Step<State, Effect>
 where
     C: Handle<Timer, Idle, Start> + Handle<Timer, Running, Tick>,
 {
     match (state, action) {
-        // -- Idle -------------------------------------------------------
         (State::Idle, Action::Start) => {
             <C as Handle<Timer, Idle, Start>>::handle(cells, ctx, Idle, Start)
         }
         (State::Idle, Action::Tick { .. }) => Step::ignored(),
         (State::Idle, Action::Cancel) => Step::ignored(),
 
-        // -- Running ----------------------------------------------------
         (State::Running(_), Action::Start) => Step::ignored(),
         (State::Running(since), Action::Tick { now }) => {
             <C as Handle<Timer, Running, Tick>>::handle(cells, ctx, Running(since), Tick { now })
@@ -170,19 +130,12 @@ where
             Step::go(State::Idle).emit(StopClock { reason: 0 }.into())
         }
 
-        // -- Done -------------------------------------------------------
         (State::Done, Action::Start) => Step::go(State::Running(0)).emit(StartClock.into()),
         (State::Done, Action::Tick { .. }) => Step::ignored(),
         (State::Done, Action::Cancel) => Step::ignored(),
     }
 }
 
-// ---------------------------------------------------------------------------
-// 4. Table
-// ---------------------------------------------------------------------------
-
-/// The same matrix as inert data. Diagram export, coverage reporting, and
-/// reachability analysis are pure functions of this.
 pub const TIMER_TABLE: Table<3, 3> = Table {
     machine: "Timer",
     states: ["Idle", "Running", "Done"],
@@ -209,10 +162,6 @@ pub const TIMER_TABLE: Table<3, 3> = Table {
     ],
 };
 
-// ---------------------------------------------------------------------------
-// A developer's implementation
-// ---------------------------------------------------------------------------
-
 #[derive(Default)]
 /// `pub` so `benches/dispatch.rs`, which includes this file as a module,
 /// can drive the same machine the tests do.
@@ -226,8 +175,6 @@ impl Handle<Timer, Idle, Start> for TimerImpl {
 
 impl Handle<Timer, Running, Tick> for TimerImpl {
     fn handle(&mut self, ctx: &mut Ctx, state: Running, action: Tick) -> Step<State, Effect> {
-        // The payload arrives destructured and non-optional: no `if let`, no
-        // `matches!`, no unwrap. Rule R2.
         ctx.ticks_seen += 1;
         let elapsed = action.now.saturating_sub(state.0);
         if elapsed >= ctx.limit {
@@ -237,16 +184,6 @@ impl Handle<Timer, Running, Tick> for TimerImpl {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// 5. Effect surface
-// ---------------------------------------------------------------------------
-//
-// One `Perform` bound per effect variant, bundled as `Handlers`. Adding a
-// variant adds a bound, so every handler in the codebase stops compiling.
-// That is the transition side's guarantee applied to the other half, and it
-// only works because the generator owns the effect enum: a hand-written enum
-// leaves it with no variant list to iterate.
 
 pub trait Handlers: Perform<Timer, StartClock> + Perform<Timer, StopClock> {}
 
@@ -279,14 +216,6 @@ fn perform_dispatches_with_a_narrowed_payload() {
     assert_eq!(ctx.last_stop_reason, Some(9));
 }
 
-// ---------------------------------------------------------------------------
-// Trace replay
-// ---------------------------------------------------------------------------
-
-/// Feed a sequence of actions through the machine, collecting every step.
-///
-/// This is the shape the cross-language conformance runner will drive
-/// (Phase 3), which is why it lives here rather than in a test body.
 fn replay(
     ctx: &mut Ctx,
     initial: State,
@@ -304,10 +233,6 @@ fn replay(
     }
     log
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[test]
 fn handle_cell_runs_developer_code() {
@@ -355,9 +280,6 @@ fn ignore_cells_report_ignored_not_stay() {
 
 #[test]
 fn handle_cell_receives_narrowed_payloads() {
-    // `running_tick` takes `Running(u32)` and `Tick { now }` directly. If the
-    // dispatcher passed `(State, Action)` this test could not be written
-    // without a re-bind, which is precisely the boilerplate the design removes.
     let mut ctx = Ctx {
         limit: 10,
         ..Default::default()
@@ -410,7 +332,7 @@ fn trace_replay_reaches_done() {
             State::Running(0),
             State::Running(0),
             State::Done,
-            State::Done, // Done x Cancel is IGNORE
+            State::Done,
         ]
     );
     assert!(log.last().unwrap().2.is_ignored());
@@ -423,7 +345,6 @@ fn table_matches_the_dispatcher() {
     assert_eq!(c.handle, 2);
     assert_eq!(c.ignore, 5);
     assert_eq!(c.go, 2);
-    // Exactly the two `Handle` bounds on `step`.
     assert_eq!(c.required_members(), 2);
 }
 

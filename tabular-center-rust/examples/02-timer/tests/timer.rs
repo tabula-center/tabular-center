@@ -41,8 +41,6 @@ fn the_limit_finishes_the_timer() {
 
 #[test]
 fn the_same_effect_carries_different_reasons() {
-    // Cancelling and elapsing both stop the clock; the payload is what
-    // tells a handler which happened.
     let mut c = ctx(100);
     let cancelled = step(
         &mut Impl,

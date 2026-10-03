@@ -7,7 +7,6 @@ use tabular_center_conformance::machines::{all, Adapter};
 use tabular_center_conformance::{last_segment, load, Expect, Trace};
 
 fn spec_root() -> PathBuf {
-    // The crate lives at tabular-center-rust/tabular-center-conformance; the spec is repo-relative.
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../spec/conformance")
 }
 
@@ -37,14 +36,6 @@ fn check_trace(adapter: &dyn Adapter, trace: &Trace) -> Vec<String> {
     errs
 }
 
-/// Write one rendering out, when asked with `--emit=<dir>`.
-///
-/// Nothing is compared here, and nothing is committed. `.tbl` and `.trace`
-/// are the contract; `.grid`, `.mmd`, `.lint` and `.cov` are renderings OF
-/// that contract, and every implementation produces its own at check time for
-/// `tools/verify renderings-agree` to diff against the others. A committed
-/// golden made one implementation's output the expectation for the other two,
-/// and had to be re-blessed whenever any of them changed a character.
 fn emit(dir: Option<&std::path::Path>, name: &str, ext: &str, got: &str) {
     if let Some(dir) = dir {
         let path = dir.join(format!("{name}.{ext}"));
@@ -55,8 +46,6 @@ fn emit(dir: Option<&std::path::Path>, name: &str, ext: &str, got: &str) {
 }
 
 fn main() -> ExitCode {
-    // Where to write renderings, if anywhere. No `--bless`: there is nothing
-    // committed to bless.
     let emit_dir =
         std::env::args().find_map(|a| a.strip_prefix("--emit=").map(std::path::PathBuf::from));
     if let Some(dir) = &emit_dir {
@@ -83,14 +72,7 @@ fn main() -> ExitCode {
 
         let mut errs = adapter.check_table(&spec);
         emit(emit_dir, name, "grid", &adapter.grid());
-        // The diagram. The only output compared ACROSS implementations, and
-        // the reason it is worth a golden: they had already drifted on edge
-        // ordering before anything looked.
         emit(emit_dir, name, "mmd", &adapter.mermaid());
-        // The lints carry the most per-language logic there is -- thresholds,
-        // the dead-row/no-static-exit subsumption, the fully-static gate on
-        // reachability. Nothing compared them across languages until now, so a
-        // rule could drift in one and nobody would know.
         emit(emit_dir, name, "lint", &adapter.lint());
         emit(emit_dir, name, "cov", &adapter.coverage_report());
         tables += 1;
@@ -107,10 +89,6 @@ fn main() -> ExitCode {
                 spec.actions.len(),
                 traces.len()
             );
-            // Lints are advisory as OUTPUT -- a rule that is a judgement call
-            // must not fail a build. But the output itself is compared against
-            // a golden above, because "advisory" is about the user's machine,
-            // not about whether three implementations agree.
             for line in adapter.lint().lines() {
                 println!("       {line}");
             }
@@ -143,12 +121,6 @@ fn main() -> ExitCode {
     println!();
     println!("conformance (rust): {tables} tables, {steps} trace steps, {failed} failed");
 
-    // A fixture with no adapter is skipped, not passed -- and each one is NAMED, on
-    // its own line starting with `skip `, because that prefix is what `tools/verify`
-    // collects into the ledger it prints before the verdict. A count said how many
-    // were missing without saying which, and a count is invisible to the ledger, so
-    // the one place skips are supposed to be visible was the one place these never
-    // appeared.
     let mut declared: Vec<String> = std::fs::read_dir(&root)
         .map(|d| {
             d.filter_map(Result::ok)
@@ -160,16 +132,12 @@ fn main() -> ExitCode {
         })
         .unwrap_or_default();
     declared.sort();
-    // `all()` again rather than a binding: the loop above consumes the vec,
-    // and `name()` is `&'static str`, so the names outlive the temporary.
-    // Building the adapters twice costs nothing and keeps the loop reading as
-    // a consuming iteration, which is what it is.
     let covered: Vec<&str> = all().iter().map(|a| a.name()).collect();
     for name in declared.iter().filter(|n| !covered.contains(&n.as_str())) {
         println!("skip {name} (no Rust adapter)");
     }
 
-    let _ = Expect::Stay; // keep the import honest across refactors
+    let _ = Expect::Stay;
     if failed == 0 {
         ExitCode::SUCCESS
     } else {

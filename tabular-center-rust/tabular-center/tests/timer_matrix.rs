@@ -31,10 +31,6 @@ transition_matrix! {
     Done    => [  GO!(Running { since: 0 }, StartClock), IGNORE,   IGNORE                       ];
 }
 
-// ---------------------------------------------------------------------------
-// The developer's side: two impls, because two cells are HANDLE.
-// ---------------------------------------------------------------------------
-
 #[derive(Default)]
 /// `pub` so `benches/dispatch.rs`, which includes this file as a module,
 /// can drive the same machine the tests do.
@@ -48,8 +44,6 @@ impl Handle<Timer, Idle, Start> for TimerImpl {
 
 impl Handle<Timer, Running, Tick> for TimerImpl {
     fn handle(&mut self, ctx: &mut Ctx, state: Running, action: Tick) -> Step<State, Effect> {
-        // Narrowed and destructured by the generated dispatcher: `state.since`
-        // and `action.now` are plain fields, not `Option`s behind a match.
         ctx.ticks_seen += 1;
         if action.now.saturating_sub(state.since) >= ctx.limit {
             Step::go(State::Done(Done)).emit(StopClock { reason: 1 }.into())
@@ -66,10 +60,6 @@ fn ctx(limit: u32) -> Ctx {
         last_stop_reason: None,
     }
 }
-
-// ---------------------------------------------------------------------------
-// Parity with the hand-written reference
-// ---------------------------------------------------------------------------
 
 #[test]
 fn handle_cell_dispatches_into_developer_code() {
@@ -151,14 +141,10 @@ fn full_trace_reaches_done() {
             State::Running(Running { since: 0 }),
             State::Running(Running { since: 0 }),
             State::Done(Done),
-            State::Done(Done), // Done x Cancel is IGNORE
+            State::Done(Done),
         ]
     );
 }
-
-// ---------------------------------------------------------------------------
-// The generated table
-// ---------------------------------------------------------------------------
 
 #[test]
 fn table_matches_the_declaration() {
@@ -172,14 +158,11 @@ fn table_matches_the_declaration() {
     assert_eq!(c.handle, 2);
     assert_eq!(c.ignore, 5);
     assert_eq!(c.go, 2);
-    // Exactly the two `Handle` impls above.
     assert_eq!(c.required_members(), 2);
 }
 
 #[test]
 fn go_targets_are_recorded_as_bare_variant_names() {
-    // `GO!(Running { since: 0 })` must appear as `Running`, not as the whole
-    // struct literal, or diagrams and grids become unreadable.
     assert_eq!(TABLE.cell(2, 0).static_target(), Some("Running"));
     assert_eq!(TABLE.cell(1, 2).static_target(), Some("Idle"));
     assert_eq!(TABLE.cell(1, 2).static_effects(), &["StopClock"]);
@@ -198,13 +181,10 @@ fn narrowed_structs_and_from_impls_exist() {
 fn table_renders_the_same_grid_as_the_reference() {
     let grid = tabular_center::export::to_grid(&TABLE);
     assert!(grid.contains("HANDLE"));
-    // Effects render as bare variant names now that the generator owns them.
     assert!(grid.contains("GO(Idle, StopClock)"), "{grid}");
 
     let mermaid = tabular_center::export::to_mermaid(&TABLE);
     assert!(mermaid.contains("[*] --> Idle"));
     assert!(mermaid.contains("Running --> Idle: Cancel / StopClock"));
-    // A HANDLE cell's target is not knowable at build time, so it is a
-    // self-loop rather than an invented edge.
     assert!(mermaid.contains("Idle --> Idle: Start / ?handle"));
 }

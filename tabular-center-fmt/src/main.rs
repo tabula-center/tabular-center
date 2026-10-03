@@ -11,7 +11,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-/// Directories that hold build output, never source.
 const SKIP: [&str; 5] = [".git", "target", "build", ".build", ".gradle"];
 
 fn is_matrix_file(path: &Path) -> bool {

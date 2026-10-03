@@ -47,10 +47,6 @@ impl Handle<Poll, Idle, Arm> for Impl {
     }
 }
 
-/// `stay`, not `ignored`: the tick is handled and changes nothing.
-///
-/// `one-action-per-state` asserts exactly this one step after an
-/// `Arm => ignored` from the same state, so the two outcomes sit side by side.
 impl Handle<Poll, Armed, Tick> for Impl {
     fn handle(&mut self, _c: &mut Ctx, _s: Armed, _a: Tick) -> Step<State, Effect> {
         Step::stay()
@@ -86,8 +82,6 @@ fn action_from(name: &str) -> Result<Action, String> {
     })
 }
 
-/// Exhaustive, so a state added to the matrix without a name here is a build
-/// error rather than a rendering the fixture never matches.
 fn name_of(s: State) -> &'static str {
     match s {
         State::Idle(_) => "Idle",

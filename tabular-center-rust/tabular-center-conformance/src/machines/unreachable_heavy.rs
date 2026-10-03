@@ -43,7 +43,6 @@ transition_matrix! {
 
 struct Impl;
 
-/// `stay`, not `ignored`, when refused: the cell ran and chose not to move.
 impl Handle<Link, Dialing, Ack> for Impl {
     fn handle(&mut self, c: &mut Ctx, _s: Dialing, _a: Ack) -> Step<State, Effect> {
         if c.accept {

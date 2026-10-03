@@ -62,10 +62,6 @@ impl Handle<Conn, Reconnecting, Open> for Impl {
     }
 }
 
-/// The only cell that advances the counter, and the only one that can: the
-/// `GO!` cells into `Backoff` are static, and a static cell cannot read the
-/// state it is leaving, so each of them restarts the count at zero. That is
-/// half of why this machine wants the field in `Ctx`.
 impl Handle<Conn, Backoff, Timeout> for Impl {
     fn handle(&mut self, c: &mut Ctx, s: Backoff, _a: Timeout) -> Step<State, Effect> {
         if s.attempt >= c.max_attempts {
@@ -100,8 +96,6 @@ fn action_from(name: &str) -> Result<Action, String> {
     })
 }
 
-/// Render a state back into fixture vocabulary: variant name plus the fields
-/// the trace chose to assert on.
 fn describe(s: State, want: &BTreeMap<String, i64>) -> (String, BTreeMap<String, i64>) {
     let (name, attempt) = match s {
         State::Connecting(v) => ("Connecting", Some(v.attempt)),
@@ -110,9 +104,6 @@ fn describe(s: State, want: &BTreeMap<String, i64>) -> (String, BTreeMap<String,
         State::Live(_) => ("Live", None),
     };
     let mut fields = BTreeMap::new();
-    // `filter` rather than nested `if`s: clippy reads the nested form as
-    // collapsible and the collapsed form does not type-check, which is a
-    // round trip worth skipping.
     if let Some(a) = attempt.filter(|_| want.contains_key("attempt")) {
         fields.insert("attempt".to_string(), a as i64);
     }

@@ -34,7 +34,6 @@ mod matrix;
 #[path = "../tests/reference_timer.rs"]
 mod reference;
 
-/// The Timer with no library: what the other two are measured against.
 mod plain {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum State {
@@ -64,8 +63,6 @@ mod plain {
         pub ticks_seen: u32,
     }
 
-    /// The same cells as `tests/timer_matrix.rs`, including the handler
-    /// bodies, so the only difference being timed is how dispatch is written.
     pub fn step(ctx: &mut Ctx, state: State, action: Action) -> (State, Option<Effect>) {
         match (state, action) {
             (State::Idle, Action::Start) => (State::Running(0), Some(Effect::StartClock)),
@@ -86,17 +83,6 @@ mod plain {
     }
 }
 
-/// The two dispatchers, each monomorphized for its cells and given a name
-/// `tools/asm-diff` can find in the emitted assembly.
-///
-/// PLAN.md, Phase 10: "identical after monomorphization" is a claim about
-/// code, and timing is the wrong instrument for it -- two runs of the same
-/// binary differ by more than the gap being measured. `nix run .#bench-asm`
-/// compiles this file with `--emit asm` and diffs these two bodies. They are
-/// `#[inline(never)]` so each is one function with one body, and
-/// `#[no_mangle]` so the symbol is the name below on every platform, rather
-/// than a hash that changes with the compiler. Nothing calls them; exporting
-/// is what keeps them in the output.
 #[no_mangle]
 #[inline(never)]
 pub fn tabular_center_asm_matrix(
@@ -108,7 +94,6 @@ pub fn tabular_center_asm_matrix(
     matrix::step(cells, ctx, state, action)
 }
 
-/// The hand-written expansion, wrapped the same way. See above.
 #[no_mangle]
 #[inline(never)]
 pub fn tabular_center_asm_reference(
@@ -120,16 +105,10 @@ pub fn tabular_center_asm_reference(
     reference::step(cells, ctx, state, action)
 }
 
-/// Timer limit for every version: three quiet ticks, then one that finishes.
 const LIMIT: u32 = 5;
 
-/// One cycle through the machine: every kind of cell, back to `Idle`.
-///
-/// Idle -Start-> Running(0) -Tick 1-> stay -Tick 2-> stay -Tick 9-> Done
-/// -Start-> Running(0) -Cancel-> Idle -Tick 3-> ignored.
 const CYCLE: [(u8, u32); 7] = [(0, 0), (1, 1), (1, 2), (1, 9), (0, 0), (2, 0), (1, 3)];
 
-/// States as a common code, so three different `State` types can be compared.
 const IDLE: u8 = 0;
 const RUNNING: u8 = 1;
 const DONE: u8 = 2;
@@ -256,13 +235,10 @@ fn run_plain(cycles: u32) -> (Vec<u8>, usize) {
     (visited, black_box(effects))
 }
 
-/// Cycles per timed round, and rounds per version.
 const CYCLES: u32 = 200_000;
 const ROUNDS: usize = 21;
 
 fn main() {
-    // Parity first. The three must visit the same states and emit the same
-    // number of effects, or the numbers below compare different machines.
     let expected = [RUNNING, RUNNING, RUNNING, DONE, RUNNING, IDLE, IDLE];
     let runs: [(&str, Run); 3] = [
         ("matrix", run_matrix),
@@ -275,14 +251,10 @@ fn main() {
         assert_eq!(effects, 4, "{name} emitted a different number of effects");
     }
 
-    // Rounds interleaved across versions, so drift in the machine's speed
-    // during the run lands on all three rather than on whichever went last.
     let mut samples: Vec<Vec<f64>> = vec![Vec::new(); runs.len()];
     for _ in 0..ROUNDS {
         for (i, (_, run)) in runs.iter().enumerate() {
             let start = Instant::now();
-            // The runner's own `black_box` on its effect count is what keeps
-            // the work from being optimized away; the result itself is spare.
             let _ = run(black_box(CYCLES));
             let steps = f64::from(CYCLES) * CYCLE.len() as f64;
             samples[i].push(start.elapsed().as_nanos() as f64 / steps);

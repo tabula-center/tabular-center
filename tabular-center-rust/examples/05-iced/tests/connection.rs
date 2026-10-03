@@ -27,11 +27,6 @@ fn a_tap_is_delegated_and_the_effect_is_lifted() {
     app.set_now(7);
     app.send(session::Action::Boot(session::Boot));
 
-    // One Tap, and four things happen without the UI knowing any of the
-    // words: the prism narrows it to the child's Start; the child's GO emits
-    // Dial; the LENS lifts that to the parent's Dial, because a composed
-    // child's effects are the parent's to interpret; the parent answers with
-    // its own Tap, which the mailbox delivers and the prism narrows to Ready.
     app.send(session::Action::Tap(session::Tap));
 
     let (status, inner) = app.describe();
@@ -44,8 +39,6 @@ fn a_tap_is_delegated_and_the_effect_is_lifted() {
 fn a_button_pressed_at_the_wrong_moment_is_a_decision() {
     let mut app = App::default();
 
-    // Tap before the session has booted: IGNORE, decided in the parent's
-    // table rather than by a disabled button in `view`.
     app.send(session::Action::Tap(session::Tap));
 
     assert_eq!(app.describe().0, "Booting");

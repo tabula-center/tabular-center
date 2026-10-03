@@ -14,17 +14,17 @@
 //! `Session`'s `step` carries `auth::Cells` in its bound set, so leaving any
 //! cell of the child unimplemented breaks the *parent's* build. A hand-written
 //! `HANDLE` could not give that: it is free to ignore the child entirely.
+//!
+//! Each matrix lives in its own `.tb.rs`, per `spec/matrix-files.md`, as a
+//! private module re-exported by the public one named for its machine.
 
 use tabular_center::{Delegate, Handle, Lens, Step};
 
-// Each matrix lives in its own `.tb.rs`, per `spec/matrix-files.md`, as a
-// private module re-exported by the public one named for its machine.
 #[path = "auth.tb.rs"]
 mod auth_matrix;
 #[path = "session.tb.rs"]
 mod session_matrix;
 
-/// The child: authentication, written knowing nothing about sessions.
 pub mod auth {
     #[derive(Debug, Default)]
     pub struct Ctx {
@@ -76,14 +76,11 @@ impl Handle<auth::Auth, auth::AwaitingCredentials, auth::Submit> for Impl {
     }
 }
 
-// The lens: once per (parent state, child), however many cells delegate.
 impl Lens<session::Session, session::LoggedOut, auth::Marker> for Impl {
     fn child_state(&mut self, s: &session::LoggedOut) -> auth::State {
         s.auth
     }
 
-    /// A child transition can be a parent transition: authenticating leaves
-    /// `LoggedOut` entirely, and locking out bans the session.
     fn embed(&mut self, _s: session::LoggedOut, child: auth::State) -> session::State {
         match child {
             auth::State::Authenticated(_) => session::State::Active(session::Active),
@@ -104,7 +101,6 @@ impl Lens<session::Session, session::LoggedOut, auth::Marker> for Impl {
     }
 }
 
-// The prisms: one per delegate cell, and the only genuinely per-cell part.
 impl Delegate<session::Session, session::LoggedOut, session::Credentials, auth::Marker> for Impl {
     fn to_child(
         &mut self,

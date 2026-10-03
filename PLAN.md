@@ -626,7 +626,7 @@ cases. Half of the toolkit already exists and is lawful:
       overflow (a programming error the type cannot rule out without
       splitting `Step`), with `try_emit` returning it as an error
 
-- [ ] **D4, found while writing the cases: what `and_then` returns when the
+- [x] **D4, found while writing the cases: what `and_then` returns when the
       continuation ignores.** `go(1)[a].and_then(|_| ignored)` would, read
       literally ("`f`'s outcome, with this step's effects followed by `f`'s"),
       be `Ignored` carrying `[a]` -- a step the spec forbids and D3 now
@@ -635,9 +635,23 @@ cases. Half of the toolkit already exists and is lawful:
       applicable as a whole. It is the only rule consistent with spec/cells.md
       and the laws (both identities and associativity checked over every
       outcome combination, by hand and by `tests/step_algebra.rs`), and it
-      makes `zip` with an ignored right side ignored. The alternative is to
-      panic on such a composition. Owner to confirm
-- [ ] **The release that ships this is 0.2.0, not 0.1.6.** D3 changes
+      makes `zip` with an ignored right side ignored. **Decided by the owner:
+      never panic; prefer a type that makes the absorption visible, unless
+      that is costly or breaks the API -- then absorb.** Both typed designs
+      were costed. A new outcome (`Absorbed`, carrying the dropped effects) is
+      a new variant of `Outcome` / `Step` in all three languages: it breaks
+      every exhaustive `match` / `when` / `switch` over them, including the
+      dispatchers the macro and both generators emit and users' own handlers,
+      and it is an outcome no matrix can declare, so the renderings, lints and
+      conformance format would all have to learn it -- costly *and*
+      breaking, even inside the 0.2.0 that is breaking anyway. An opt-in
+      strict variant (`and_then_strict`, returning the would-be-dropped
+      effects as an error) is additive, but leaves the default exactly as
+      silent, so it does not meet the goal either. **So: absorb**, as
+      implemented, specified in spec/cells.md 6 and documented on every
+      language page
+- [x] **The release that ships this is 0.2.0, not 0.1.6** (confirmed by the
+      owner: `nix run .#release -- 0.2.0`). D3 changes
       behaviour -- `Step::ignored().emit(e)` used to run and now panics --
       and RELEASING.md's test ("does an unchanged implementation still
       behave the same?") says that is breaking; one `VERSION` for all three
@@ -837,13 +851,42 @@ ARCHITECTURE 15's exemptions and `is_directive` if it is not already.
       trait and macro carries a comment, and every module a header. A small
       text check in `no-comments`' style for `.rs`, `.kt` and `.swift`, once
       their stages land (stage 4 for Rust)
-- [ ] Stage 4: Rust -- tests, examples, benches, the conformance crate and
-      the library. `reference_timer.rs` is "the macro's specification": its
-      header keeps that, and the part-by-part narrative inside it becomes
-      ARCHITECTURE 11.1's. Doc comments on public types and on
-      `transition_matrix!` stay; on functions and methods they go, so what
-      docs.rs shows is the module headers and the types -- carry any usage a
-      function's doc gave into its type's comment
+- [x] **Stage 4a: Rust outside the library** -- tests and compile-fail
+      fixtures, the bench, the conformance crate, the examples,
+      `tabular-center-fmt`: 68 files, 578 comment lines and 4 trailing
+      comments removed. Four files kept their main explanation in the first
+      block after the `use` lines (`scale.rs`'s "A genuine 8x12 machine, to
+      retire a risk"); those blocks are promoted into the file header rather
+      than deleted. What a reader needs is ARCHITECTURE 16, "Rust tests,
+      examples and the conformance harness". The column-label exemption now
+      covers a label line directly above a matrix row in any file, since test
+      matrices are not all `.tb.rs`.
+      Checked: lexed old and new, every file's code lines (string literals
+      included) are identical but for the four trailing comments; no new
+      blank line where rustfmt would remove one (start or end of a block, a
+      double blank); no removed comment held a doctest; the only removals
+      inside list contexts were struct-field docs and a comment between match
+      arms, which rustfmt never collapses
+      - [x] **A lexer bug caught by its own review list**: `tabular-center-fmt`'s
+            tests feed the formatter matrices inside multi-line raw strings,
+            `// idle` comments included, and a per-line lexer took those for
+            comments. Removing them would have changed the formatter's test
+            inputs. The lexer now carries string, raw-string and
+            block-comment state across lines
+      - [x] `no-comments` learned Rust: a character scanner carrying string,
+            raw string (`r#"..."#`, and Kotlin/Swift `"""`), char literal and
+            block-comment state across lines, the matrix-row label rule, and
+            `clean_paths` for path-scoped enforcement (the library's `src/`
+            waits for 4b). Ported line for line and run over the 68 files:
+            zero findings; run over their originals as a negative test: 582,
+            exactly the 578 lines and 4 trailing comments removed, and none of
+            the text inside the formatter's raw strings
+- [ ] Stage 4b: the library, `tabular-center-rust/tabular-center/src` -- 11
+      files, ~1,240 lines. Doc comments on public types and on
+      `transition_matrix!` stay; on functions and methods they go, carried
+      into the type's comment where a user needs the usage. Doctests inside
+      function docs are tests: they move into the type's comment or into
+      `tests/`, never disappear. The type-documentation check lands here
 - [ ] Stage 5: Kotlin, `*.kt` and `*.kts` -- ~2,900 lines. KDoc on classes,
       interfaces and objects stays. `ReferenceTimer.kt`'s `GENERATED`
       marker: check whether anything reads it before removing

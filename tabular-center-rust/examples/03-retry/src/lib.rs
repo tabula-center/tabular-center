@@ -14,11 +14,9 @@ use tabular_center::{Driver, Handle, Perform, Step};
 #[derive(Debug, Default)]
 pub struct Ctx {
     pub max_attempts: u32,
-    /// Every effect the handler carried out, in order.
     pub performed: Vec<String>,
 }
 
-// The matrix lives in `machine.tb.rs`, per `spec/matrix-files.md`.
 #[path = "machine.tb.rs"]
 mod machine;
 
@@ -50,10 +48,6 @@ impl Handle<Retry, Waiting, Elapsed> for Impl {
 }
 
 impl Perform<Retry, Sleep> for Impl {
-    /// Sleeping is what produces the next `Elapsed`.
-    ///
-    /// Returned as **data**. The driver enqueues it; this function cannot
-    /// reach `step` even if it wanted to.
     fn perform(&mut self, c: &mut Ctx, e: Sleep) -> Option<Action> {
         c.performed.push(format!("sleep:{}", e.ms));
         Some(Action::Elapsed(Elapsed))
@@ -67,14 +61,7 @@ impl Perform<Retry, GiveUp> for Impl {
     }
 }
 
-/// Drive the machine from `Ready` until nothing is pending.
-///
-/// The whole loop is four lines because the driver owns the mailbox: dispatch
-/// one action, and everything it causes drains before this returns.
 pub fn run(max_attempts: u32) -> (State, Ctx) {
-    // Both closures need the cells and the context, so they share one
-    // environment rather than capturing. Capturing does not compile, which is
-    // how this example found a bug in the driver's signature.
     let mut env = (
         Impl,
         Ctx {

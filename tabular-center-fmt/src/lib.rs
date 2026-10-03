@@ -42,15 +42,10 @@ impl fmt::Display for Refusal {
     }
 }
 
-/// The keys of a `.tb.` header line: a line starting with one of these and
-/// then `:` or `=` describes the matrix and is never a row of it.
 const HEADER_KEYS: [&str; 8] = [
     "machine", "states", "actions", "effects", "initial", "context", "paths", "cells",
 ];
 
-/// Formats a whole file. `Ok` holds the text to write -- identical to the
-/// input when nothing needed aligning. `Err` means the file must be left as
-/// it is.
 pub fn format(text: &str) -> Result<String, Refusal> {
     let lines: Vec<Vec<char>> = text.split('\n').map(|l| l.chars().collect()).collect();
     let parsed: Vec<Line> = lines.iter().map(|l| classify(l)).collect();
@@ -71,9 +66,6 @@ pub fn format(text: &str) -> Result<String, Refusal> {
             }
         }
         if j - i >= 2 {
-            // A run's edges are only trustworthy if the lines beside it can be
-            // read: an unreadable line at the same indentation may be a row
-            // this tool failed to recognise.
             for k in [i.checked_sub(1), Some(j)].into_iter().flatten() {
                 if let Some(Line::Unreadable(reason)) = parsed.get(k) {
                     if same_indent(&lines[k], &first.indent) {
@@ -95,7 +87,6 @@ pub fn format(text: &str) -> Result<String, Refusal> {
                 line: i + 1,
                 reason,
             })?;
-            // `splice` replaces lazily, as its iterator is consumed.
             out.splice(i..j, formatted).for_each(drop);
         }
         i = j;
@@ -124,9 +115,6 @@ struct Row {
 }
 
 impl Row {
-    /// Rows join a run only with rows of the same shape: same indentation,
-    /// same brackets, same trailing punctuation, same number of cells. The
-    /// last is why a row-arity fixture's rows are never realigned.
     fn shape(&self) -> (String, char, char, String, usize) {
         (
             self.indent.clone(),
@@ -171,9 +159,6 @@ fn closer_of(open: char) -> char {
     }
 }
 
-/// Every balanced bracket group in `code`, in the order they close. `Ok(None)`
-/// when the brackets do not balance on this line -- a multi-line construct,
-/// never a row. `Err` for text the tool cannot classify with confidence.
 fn groups(code: &[char]) -> Result<Option<Vec<Group>>, String> {
     let mut stack: Vec<(char, usize, usize)> = Vec::new();
     let mut commas: Vec<usize> = Vec::new();
@@ -234,7 +219,6 @@ fn groups(code: &[char]) -> Result<Option<Vec<Group>>, String> {
     Ok(if stack.is_empty() { Some(found) } else { None })
 }
 
-/// Splits a trailing `//` comment off, outside string literals.
 fn split_comment(body: &[char]) -> (Vec<char>, Vec<char>) {
     let mut in_string = false;
     let mut i = 0;
@@ -269,7 +253,6 @@ fn is_header(prefix: &str) -> bool {
         })
 }
 
-/// Reads one line as a row, if it is one.
 fn row(line: &[char]) -> Result<Option<Row>, String> {
     let n = line.iter().take_while(|c| matches!(c, ' ' | '\t')).count();
     let indent: String = line[..n].iter().collect();
@@ -293,8 +276,6 @@ fn row(line: &[char]) -> Result<Option<Row>, String> {
     let Some(all) = groups(code)? else {
         return Ok(None);
     };
-    // The groups a row's list can be: those followed by nothing but closers
-    // and punctuation, to the end of the code.
     let tail_ok = |g: &&Group| {
         code[g.end + 1..]
             .iter()
@@ -320,10 +301,6 @@ fn row(line: &[char]) -> Result<Option<Row>, String> {
     }))
 }
 
-/// Which group holds a row's cells: the shallowest `[` among the groups that
-/// close at the end of the line -- `[...]` inside `@Row(S.Idle::class, [...])`,
-/// and never the parentheses of one cell's own arguments -- or, with no `[`,
-/// the shallowest `(` that has a comma in it, for `listOf(a, b)` rows.
 fn list_of<'a>(chain: &[&'a Group]) -> Option<&'a Group> {
     let square = |g: &&Group| g.open == '[';
     if let Some(g) = shallowest(chain.iter().copied().filter(square)) {
@@ -333,7 +310,6 @@ fn list_of<'a>(chain: &[&'a Group]) -> Option<&'a Group> {
     shallowest(chain.iter().copied().filter(paren))
 }
 
-/// The shallowest group, the first of them on a tie.
 fn shallowest<'a>(groups: impl Iterator<Item = &'a Group>) -> Option<&'a Group> {
     let mut best: Option<&Group> = None;
     for g in groups {
@@ -344,8 +320,6 @@ fn shallowest<'a>(groups: impl Iterator<Item = &'a Group>) -> Option<&'a Group> 
     best
 }
 
-/// The cells of a row: where each starts within the list, and its text,
-/// split on commas outside brackets and strings.
 fn cells(inner: &[char]) -> Vec<(usize, String)> {
     let mut segments = Vec::new();
     let mut depth = 0usize;
@@ -398,7 +372,6 @@ fn trailing_spaces(chars: &[char]) -> usize {
     chars.iter().rev().take_while(|c| **c == ' ').count()
 }
 
-/// Aligns one run: every row has the same shape, so the same cell count.
 fn format_run(rows: &[&Row]) -> Result<Vec<String>, String> {
     let split: Vec<Vec<(usize, String)>> = rows.iter().map(|r| cells(&r.inner)).collect();
     if split.iter().flatten().any(|(_, t)| t.is_empty()) {
