@@ -15,6 +15,9 @@
 //! all three are run over the same actions and must visit the same states;
 //! a benchmark of three machines that disagree would measure nothing.
 //!
+//! Timing settles nothing about "identical": for that, `nix run .#bench-asm`
+//! diffs the optimised assembly of `matrix` and `reference` (`tools/asm-diff`).
+//!
 //! Timing is not a check: it varies with the machine running it, so nothing
 //! in `nix flake check` runs this. `cargo clippy --all-targets` compiles it,
 //! which keeps it building. Run it with `nix run .#bench`, or
@@ -81,6 +84,40 @@ mod plain {
             (State::Done, Action::Tick(_) | Action::Cancel) => (state, None),
         }
     }
+}
+
+/// The two dispatchers, each monomorphized for its cells and given a name
+/// `tools/asm-diff` can find in the emitted assembly.
+///
+/// PLAN.md, Phase 10: "identical after monomorphization" is a claim about
+/// code, and timing is the wrong instrument for it -- two runs of the same
+/// binary differ by more than the gap being measured. `nix run .#bench-asm`
+/// compiles this file with `--emit asm` and diffs these two bodies. They are
+/// `#[inline(never)]` so each is one function with one body, and
+/// `#[no_mangle]` so the symbol is the name below on every platform, rather
+/// than a hash that changes with the compiler. Nothing calls them; exporting
+/// is what keeps them in the output.
+#[no_mangle]
+#[inline(never)]
+pub fn tabular_center_asm_matrix(
+    cells: &mut matrix::TimerImpl,
+    ctx: &mut matrix::Ctx,
+    state: matrix::State,
+    action: matrix::Action,
+) -> tabular_center::Step<matrix::State, matrix::Effect> {
+    matrix::step(cells, ctx, state, action)
+}
+
+/// The hand-written expansion, wrapped the same way. See above.
+#[no_mangle]
+#[inline(never)]
+pub fn tabular_center_asm_reference(
+    cells: &mut reference::TimerImpl,
+    ctx: &mut reference::Ctx,
+    state: reference::State,
+    action: reference::Action,
+) -> tabular_center::Step<reference::State, reference::Effect> {
+    reference::step(cells, ctx, state, action)
 }
 
 /// Timer limit for every version: three quiet ticks, then one that finishes.
@@ -263,8 +300,8 @@ fn main() {
     println!();
     println!("`matrix` and `reference` should be indistinguishable: the claim is that");
     println!("they are the same code after monomorphization, which timing cannot");
-    println!("settle. `plain` is expected to be faster: it returns");
-    println!("`(State, Option<Effect>)` where the");
+    println!("settle (`nix run .#bench-asm` compares their assembly). `plain` is");
+    println!("expected to be faster: it returns `(State, Option<Effect>)` where the");
     println!("other two return a `Step` with an inline effects array. Read the");
     println!("minimums: they are the least disturbed by everything else on the machine.");
 }

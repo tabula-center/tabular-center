@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# Is the matrix dispatcher the same code as the hand-written one?
+#
+# PLAN.md, Phase 10: "identical after monomorphization", settled by comparing
+# optimised assembly rather than timings -- one run of `nix run .#bench`
+# showed a min-to-median spread wider than the gap it was measuring, so timing
+# can neither confirm nor refute the claim. Code can.
+#
+# Compiles benches/dispatch.rs with `--emit asm` and diffs two functions:
+#
+#   tabular_center_asm_matrix     wraps matrix::step     (tests/timer_matrix.rs)
+#   tabular_center_asm_reference  wraps reference::step  (tests/reference_timer.rs)
+#
+# Each wrapper is `#[no_mangle] #[inline(never)]`. LLVM may still inline the
+# generic `step` INTO its wrapper or keep it as a separate monomorphized
+# function the wrapper calls or jumps to; either way the dispatch body is
+# found -- the wrapper's own, or the `step` it calls -- and that is what is
+# compared. Which choice LLVM made is printed, because two sides that differ
+# in it differ in a way worth knowing.
+#
+# Normalised before the diff, and only these, since each differs by
+# construction rather than by codegen:
+#   - assembler directives with no code in them (.cfi_*, .p2align, .loc, ...)
+#     and comments;
+#   - local label numbers (.LBB3_2 / .LBB7_2 -> LBB_2; .Ltmp, .LCPI, .Lanon),
+#     which number functions in emission order;
+#   - mangled symbols' hashes and the module that differs by design: the two
+#     machines live in `dispatch::matrix` and `dispatch::reference`.
+# Everything else -- instructions, registers, immediates, field offsets -- is
+# compared as is. The reference's two StopClock reasons were aligned with the
+# matrix's (0 on Cancel, 1 on timeout) so constants are not a difference.
+#
+# Known, legitimate source of difference: the two `Ctx` types are not the
+# same struct (the reference's has a `last_stop_reason` field the perform
+# test uses). If rustc lays the shared fields out at different offsets, the
+# diff shows it as offsets and nothing else.
+#
+# Exit status: 0 identical, 1 different, 2 could not tell. Not a check yet --
+# its first answer has not been seen -- but shaped so it can become one.
+#
+#   tabular-center-rust/tools/asm-diff     (or: nix run .#bench-asm)
+#
+# The normalised bodies are kept in tabular-center-rust/target/asm-diff/ for
+# reading.
+
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+out=target/asm-diff
+mkdir -p "$out"
+
+# A stale .s from an earlier build would be compared as if it were this one.
+rm -f target/release/deps/dispatch-*.s
+
+echo "compiling benches/dispatch.rs with --emit asm (release, one codegen unit)" >&2
+# `link` alongside `asm` so cargo still finds the binary it expects; one
+# codegen unit so each function is emitted once, into one file.
+cargo rustc -q -p tabular-center --bench dispatch --release --offline --locked \
+    -- --emit=asm,link -C codegen-units=1
+
+asm=""
+for f in target/release/deps/dispatch-*.s; do
+    [ -f "$f" ] && asm="$f"
+done
+if [ -z "$asm" ]; then
+    echo "asm-diff: rustc wrote no target/release/deps/dispatch-*.s" >&2
+    exit 2
+fi
+echo "assembly: tabular-center-rust/$asm" >&2
+
+# body LABEL -- the lines of the function whose label is LABEL, up to
+# LLVM's end-of-function marker. Leading underscores are stripped from both
+# the label and LABEL before comparing: Mach-O adds one to every symbol, and
+# a mangled name already starts with one (`_ZN` on ELF, `__ZN` on Mach-O).
+# The marker is .Lfunc_endN on ELF, Lfunc_endN on Mach-O.
+body() {
+    SYM="$1" awk '
+        BEGIN { s = ENVIRON["SYM"]; sub(/^_+/, "", s) }
+        !on { l = $0; sub(/^_+/, "", l); if (l == s ":") on = 1; next }
+        /^\.?Lfunc_end[0-9]+:/ { exit }
+        { print }
+    ' "$asm"
+}
+
+# The full dispatch body behind a wrapper: the wrapper itself if `step` was
+# inlined into it, else the monomorphized `step` it calls or jumps to.
+# MODULE is the length-prefixed path segment in the legacy mangling
+# (6matrix, 9reference). Prints the body; reports the choice on stderr.
+resolve() {
+    local wrapper="$1" module="$2" side="$3" w callee
+    w="$(body "$wrapper")"
+    if [ -z "$w" ]; then
+        echo "asm-diff: no function \`$wrapper\` in the assembly" >&2
+        return 1
+    fi
+    callee="$(grep -oE "_ZN8dispatch${module}4step17h[0-9a-f]{16}E" <<<"$w" | head -1 || true)"
+    if [ -n "$callee" ]; then
+        echo "  $side: step is a separate function, called from the wrapper" >&2
+        body "$callee"
+    else
+        echo "  $side: step is inlined into the wrapper" >&2
+        printf '%s\n' "$w"
+    fi
+}
+
+# Normalisation, as listed at the top. POSIX classes rather than \s, so a
+# BSD sed reads it the same.
+normalise() {
+    sed -E \
+        -e '/^[[:space:]]*\.(cfi_|p2align|loc|file|type|size|globl|section|text)/d' \
+        -e '/^[[:space:]]*#/d' \
+        -e 's/[[:space:]]#[[:space:]].*$//' \
+        -e 's#[[:space:]]//.*$##' \
+        -e 's/[[:space:]];.*$//' \
+        -e 's/\.?LBB[0-9]+_/LBB_/g' \
+        -e 's/\.?LJTI[0-9]+_/LJTI_/g' \
+        -e 's/\.?LCPI[0-9]+_/LCPI_/g' \
+        -e 's/\.?Ltmp[0-9]+/Ltmp/g' \
+        -e 's/\.?Lanon\.[0-9a-f]+\.[0-9]+/Lanon/g' \
+        -e 's/17h[0-9a-f]{16}E/E/g' \
+        -e 's/_ZN[0-9]+_/_ZN_/g' \
+        -e 's/6matrix|9reference/<mod>/g' \
+        -e 's/\.\.matrix\.\.|\.\.reference\.\./..<mod>../g' \
+        -e 's/[[:space:]]+$//' \
+        -e '/^$/d'
+}
+
+echo "dispatch bodies:" >&2
+m="$(resolve tabular_center_asm_matrix 6matrix matrix)" || exit 2
+r="$(resolve tabular_center_asm_reference 9reference reference)" || exit 2
+
+normalise <<<"$m" >"$out/matrix.s"
+normalise <<<"$r" >"$out/reference.s"
+
+ml="$(wc -l <"$out/matrix.s" | tr -d ' ')"
+rl="$(wc -l <"$out/reference.s" | tr -d ' ')"
+echo "normalised: matrix $ml lines, reference $rl lines (in tabular-center-rust/$out/)" >&2
+
+if [ "$ml" -eq 0 ] || [ "$rl" -eq 0 ]; then
+    echo "asm-diff: an empty body compares equal to anything; refusing to say identical" >&2
+    exit 2
+fi
+
+if diff -u --label matrix --label reference "$out/matrix.s" "$out/reference.s"; then
+    echo
+    echo "IDENTICAL: the matrix dispatcher and the hand-written one compile to the"
+    echo "same code (after normalising labels, hashes and module paths)."
+    exit 0
+fi
+echo
+echo "DIFFERENT: see the diff above. A difference in offsets alone is the two Ctx"
+echo "types (see the header of this script); anything else is the macro's, and a"
+echo "bug by PLAN.md's own standard."
+exit 1

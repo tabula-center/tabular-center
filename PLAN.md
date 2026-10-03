@@ -41,7 +41,7 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 8 Introspection & tooling | **done (all three)** |
 | 9a Driver and mailbox | **done (all three)** |
 | 9b Rendering surface | **done** (Kotlin and Swift emitters, KSP, `composable-transition`) |
-| 10 Release | in progress: README, migration guide, versioning policy, benchmark done; publication and the assembly comparison open |
+| 10 Release | in progress: README, migration guide, versioning policy, benchmark done; publication open; the assembly comparison has its tool and awaits a run |
 
 One exception to the table, found by the audit below: Rust had no prototype
 colors. It has one now, `async`, composing in both directions the rule
@@ -2010,6 +2010,29 @@ a warning refuses nothing and every other fixture here proves a refusal.
       optimised assembly of `matrix` and `reference` (`cargo asm`, or
       `--emit asm` on the bench), not their timings. If they differ, the
       difference is a bug in the macro
+      - [x] The instrument: `nix run .#bench-asm` (`tabular-center-rust/tools/asm-diff`).
+            The bench exports both dispatchers as `#[no_mangle]
+            #[inline(never)]` wrappers; the tool compiles it with
+            `--emit=asm,link` and one codegen unit, resolves each side to its
+            full dispatch body (the wrapper if `step` was inlined into it,
+            else the monomorphized `step` it calls, and says which), and
+            diffs them after normalising only what differs by construction:
+            directives, comments, label numbers, mangling hashes, and the
+            `matrix`/`reference` module names. Exits 0 identical, 1
+            different, 2 undecided. No `cargo asm`: a dependency for one
+            `--emit` flag
+      - [x] The machines made comparable first. `reference_timer.rs` emitted
+            `StopClock { reason: 1 }` on Cancel and `reason: 2` on timeout,
+            where the matrix and `plain` emit 0 and 1 -- invisible to timing,
+            and an immediate-value difference to any assembly diff. Aligned
+            on the matrix's values, with the one test that asserted them.
+            The two `Ctx` types still differ (the reference's carries
+            `last_stop_reason` for its perform test); if that moves a field
+            offset, the diff shows offsets alone and the tool says so
+      - [ ] Run it, record the answer here, and if it is IDENTICAL make it a
+            check: deterministic under a pinned toolchain, and then a
+            regression in the macro's expansion fails CI instead of waiting
+            for someone to look
 - [ ] `Step`'s cost. A nanosecond a step over a plain `match`, from the
       outcome-plus-effects-array return value. Worth measuring what the
       default effect capacity `K` contributes before changing anything --

@@ -167,7 +167,7 @@ where
             <C as Handle<Timer, Running, Tick>>::handle(cells, ctx, Running(since), Tick { now })
         }
         (State::Running(_), Action::Cancel) => {
-            Step::go(State::Idle).emit(StopClock { reason: 1 }.into())
+            Step::go(State::Idle).emit(StopClock { reason: 0 }.into())
         }
 
         // -- Done -------------------------------------------------------
@@ -231,7 +231,7 @@ impl Handle<Timer, Running, Tick> for TimerImpl {
         ctx.ticks_seen += 1;
         let elapsed = action.now.saturating_sub(state.0);
         if elapsed >= ctx.limit {
-            Step::go(State::Done).emit(StopClock { reason: 2 }.into())
+            Step::go(State::Done).emit(StopClock { reason: 1 }.into())
         } else {
             Step::stay()
         }
@@ -332,7 +332,7 @@ fn static_go_cell_needs_no_developer_code() {
     assert_eq!(s.outcome, Outcome::Go(State::Idle));
     assert_eq!(
         s.effects.iter().copied().collect::<Vec<_>>(),
-        [Effect::StopClock(StopClock { reason: 1 })]
+        [Effect::StopClock(StopClock { reason: 0 })]
     );
 }
 

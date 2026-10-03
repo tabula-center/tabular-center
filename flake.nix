@@ -95,7 +95,7 @@
         # root's own. The languages' `verify` and `default` are deliberately
         # not merged: at the root, `verify` means every step.
         apps = {
-          inherit (langs.rust.apps.${system}) table-diff bench;
+          inherit (langs.rust.apps.${system}) table-diff bench bench-asm;
           inherit (langs.fmt.apps.${system}) tb-fmt;
           inherit (langs.kotlin.apps.${system}) gradle-lock;
           inherit (langs.swift.apps.${system}) swift-lock;
