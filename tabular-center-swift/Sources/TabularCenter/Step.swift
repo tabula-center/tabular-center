@@ -5,6 +5,28 @@
 /// this state*; `stay` means *the developer handled it and chose not to move*.
 /// The lints and the coverage report treat them differently, so collapsing
 /// them would lose real information.
+///
+/// A step is a value, and it composes (spec/cells.md 6):
+///
+/// - `map(_:)` applies its closure to a `.go` target; `.stay` and `.ignored`
+///   pass through.
+/// - `flatMap(_:)` runs its closure on a `.go` target and returns the
+///   closure's step, with this step's effects followed by the closure's.
+///   `.stay` and `.ignored` short-circuit without calling it. An `.ignored`
+///   from the closure absorbs: the result is `.ignored`, with no effects.
+/// - `zip(_:with:)` is `flatMap { x in other.map { y in transform(x, y) } }`,
+///   and `zip(_:)` pairs the targets. When this step is not `.go`, `other`'s
+///   effects are dropped.
+///
+/// ```swift
+/// func enter(_ s: S) -> Step<S, F> {
+///     s == .validating ? .go(s, effects: [.fetch]) : .go(s, effects: [])
+/// }
+/// Step<S, F>.go(.validating, effects: [.log]).flatMap(enter)
+/// // .go(.validating, effects: [.log, .fetch])
+/// ```
+///
+/// Every closure may throw; the operations rethrow.
 public enum Step<S, F> {
     /// Transition to the associated state.
     case go(S, effects: [F])
@@ -42,13 +64,40 @@ extension Step {
         return false
     }
 
-    /// Relabel the target state, keeping effects. Composition primitive.
-    public func mapState<T>(_ transform: (S) -> T) -> Step<T, F> {
+    public func map<T>(_ transform: (S) throws -> T) rethrows -> Step<T, F> {
         switch self {
-        case let .go(next, effects): return .go(transform(next), effects: effects)
+        case let .go(next, effects): return .go(try transform(next), effects: effects)
         case let .stay(effects): return .stay(effects: effects)
         case .ignored: return .ignored
         }
+    }
+
+    @available(*, deprecated, renamed: "map")
+    public func mapState<T>(_ transform: (S) -> T) -> Step<T, F> {
+        map(transform)
+    }
+
+    public func flatMap<T>(_ transform: (S) throws -> Step<T, F>) rethrows -> Step<T, F> {
+        switch self {
+        case let .go(next, effects):
+            switch try transform(next) {
+            case let .go(then, more): return .go(then, effects: effects + more)
+            case let .stay(more): return .stay(effects: effects + more)
+            case .ignored: return .ignored
+            }
+        case let .stay(effects): return .stay(effects: effects)
+        case .ignored: return .ignored
+        }
+    }
+
+    public func zip<T, U>(
+        _ other: Step<T, F>, with transform: (S, T) throws -> U
+    ) rethrows -> Step<U, F> {
+        try flatMap { x in try other.map { y in try transform(x, y) } }
+    }
+
+    public func zip<T>(_ other: Step<T, F>) -> Step<(S, T), F> {
+        self.zip(other) { ($0, $1) }
     }
 
     /// Relabel the effects, keeping the outcome.

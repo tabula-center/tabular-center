@@ -89,6 +89,15 @@ fun main(args: Array<String>) {
         }
     }
 
+    val (cases, algebraFailures) = replayStepAlgebra(root)
+    if (algebraFailures.isEmpty()) {
+        println("ok   step-algebra ($cases cases)")
+    } else {
+        println("FAIL step-algebra")
+        algebraFailures.forEach { println("       $it") }
+        failed++
+    }
+
     println()
     println("conformance (kotlin): ${adapters.size} tables, $steps trace steps, $failed failed")
 

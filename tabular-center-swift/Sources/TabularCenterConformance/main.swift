@@ -717,6 +717,20 @@ for adapter in adapters {
     }
 }
 
+do {
+    let algebra = replayStepAlgebra(try read("\(root)/step-algebra.cases"))
+    if algebra.failures.isEmpty {
+        print("ok   step-algebra (\(algebra.cases) cases)")
+    } else {
+        print("FAIL step-algebra")
+        for f in algebra.failures { print("       \(f)") }
+        failed += 1
+    }
+} catch {
+    print("FAIL step-algebra: \(error)")
+    failed += 1
+}
+
 print("")
 print("conformance (swift): \(adapters.count) tables, \(steps) trace steps, \(failed) failed")
 

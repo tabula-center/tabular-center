@@ -678,12 +678,25 @@ cases. Half of the toolkit already exists and is lawful:
       does, and `try_and_then` returns `CapacityError` instead. Law tests by
       exhaustive enumeration over small domains (no `proptest`: the library
       and its tests have no dependencies, ARCHITECTURE 16)
-- [ ] Kotlin: `map`, `flatMap`, `zipWith`, `zip` as `inline` extensions on
-      `Step`, keeping `Step`'s variance; law tests in the core's test suite
-- [ ] Swift: the same as methods on `Step`, `rethrows` where the closure
-      may throw; law tests
-- [ ] The three conformance harnesses replay `step-algebra.cases`; a case
-      file whose combinations are incomplete fails `fixtures-complete`
+- [x] **Kotlin** (expected green, not yet observed): `map`, `flatMap`,
+      `zip(other, transform)`, `zip(other)` as extensions on `Step`, keeping
+      its variance (`Stay` and `Ignored` pass through as themselves);
+      `mapState` deprecated with `ReplaceWith("map(f)")`; usage in `Step`'s
+      KDoc. `test/StepAlgebra.kt` enumerates the same domain as Rust's for
+      the functor, monad and applicative laws, absorption and the dropped
+      effects, run by `test/Main.kt`. Not `inline`, as first planned: the
+      operations are small and `inline` would freeze their bodies into every
+      caller's bytecode, a binary-compatibility cost for nothing measured
+- [x] **Swift** (expected green, not yet observed): `map(_:)`,
+      `flatMap(_:)`, `zip(_:with:)`, all `rethrows`, and `zip(_:)`;
+      `mapState` deprecated, `renamed: "map"`; usage in `Step`'s doc comment.
+      `TabularCenterCheck/StepAlgebra.swift` holds the laws; `zip(_:)`'s pair
+      is checked through `target` and `effects`, since tuples are not
+      `Equatable`
+- [x] The three conformance harnesses replay `step-algebra.cases` and each
+      fails on a missing outcome combination itself, rather than through
+      `fixtures-complete`, which knows only `.tbl` fixtures. Same parse,
+      build, render-as-text and completeness logic in all three
 - [ ] Docs: each language page gains a "Composing steps" section (samples
       included from compiled code, as every sample is); README's API table;
       ARCHITECTURE 2 a paragraph on why `Step` is the box and why the empty

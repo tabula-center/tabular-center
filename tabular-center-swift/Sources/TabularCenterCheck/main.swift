@@ -479,6 +479,7 @@ tableAndLints()
 lintRules()
 drivers()
 stores()
+stepAlgebra()
 await asyncStores()
 await observableStores()
 
