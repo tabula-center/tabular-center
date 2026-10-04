@@ -183,6 +183,13 @@ token, made once:
 Renewing: generate a new token with the same settings and replace the secret;
 nothing else changes.
 
+Each job first checks the token and stops with one of three errors. *Empty*:
+the secret is missing from the `upstream` environment. *Not accepted at
+all* ("Bad credentials"): mistyped, expired or revoked. *Cannot write*: the
+organization has not approved it yet -- a pending fine-grained token can still
+read this public repository, so a fetch succeeds while every write and API
+call fails -- or its repository access or permissions are wrong.
+
 ### Turning a registry on
 
 Each registry job is skipped until its switch is set, so a release tag pushed

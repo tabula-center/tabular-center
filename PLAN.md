@@ -571,6 +571,22 @@ in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
       script without a shebang (it is run as `bash swift-probe`), so stage 3's
       shebang survey missed it. One comment removed; it is in `no-comments`'
       list now
+- [x] **First runs found two faults of mine, both fixed.** (1) The `kotlin`
+      group held Kotlin at 2.1.20 for ever: its coupling looked for a KSP
+      named `<kotlin>-...`, but KSP changed scheme at 2.3.0 -- the last
+      prefixed release is `2.2.21-2.0.5`, later ones (`2.3.12` today) stand
+      alone -- and Kotlin is at 2.4.20. With Kotlin held, Compose 1.12.1 was
+      proposed, which needs the Kotlin Gradle Plugin 2.2 or newer, and
+      `gradle-lock` failed. Now the newest standalone KSP is preferred (the
+      prefixed scheme remains for the old world), Kotlin is never held for a
+      KSP, `deps-consistent` checks the prefix only on a prefixed version,
+      and a Compose release Gradle refuses for its minimum Kotlin is reverted
+      with the reason in the PR instead of failing the group. (2) The
+      `nix-inputs` group reached `gh pr view` and got `401 Bad credentials`
+      after a successful fetch -- the signature of a fine-grained token still
+      awaiting the organization's approval (it can read a public repository,
+      nothing more), or one mistyped, expired or revoked. Both jobs now check
+      the token first and say which of the three it is (RELEASING.md)
 - [ ] Expected red, recorded so it is not mistaken for a broken job: a
       kotlinc upgrade can reword the four messages the guarantee fixtures
       assert (spec/diagnostics.md forbids normalising them), and an iced

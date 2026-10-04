@@ -1452,8 +1452,13 @@ are here. Grouped by file, so a reader of one finds its reasons in one place.
   manifests; `check` (the `deps-consistent` step) reads every site and fails
   on any disagreement, on a site whose context no longer matches (the file
   changed shape, so the table must change with it), on a dependency with no
-  site, and on a broken coupling (KSP must be `<kotlin>-...`; swift-syntax's
-  major follows the Swift tools version, 5.9 being 509). Sites are per file,
+  site, and on a broken coupling (a prefixed KSP version must be
+  `<kotlin>-...` -- KSP 2.3 and later are versioned apart from Kotlin, so a
+  standalone version has no coupling to check; swift-syntax's major follows
+  the Swift tools version, 5.9 being 509). Compose's minimum Kotlin Gradle
+  Plugin is in no metadata, so `tools/upstream` learns it from Gradle: when a
+  Compose release is refused with "Minimal supported Kotlin Gradle Plugin
+  version is X", the update keeps the old Compose and says why. Sites are per file,
   never a global search: `05-iced` has its own `rust-version`, the
   application's, which is not the library's MSRV.
 - **Locks are checked, never written.** `Package.resolved` and the iced

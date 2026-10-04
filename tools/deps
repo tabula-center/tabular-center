@@ -12,8 +12,9 @@
 # written by sync and read by check; `major` is a manifest site holding
 # `<major>.0.0` (SwiftPM's `from:` floor); `lock` and `cargo-lock` are read
 # only -- a resolver writes them, and check asks that they agree. Couplings
-# from `follows`: ksp follows kotlin (its version starts `<kotlin>-`), and
-# swift-syntax follows swift-tools (5.9 is major 509).
+# from `follows`: a prefixed KSP version must start `<kotlin>-` (KSP 2.3 and
+# later stand alone, versioned apart from Kotlin), and swift-syntax follows
+# swift-tools (5.9 is major 509).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -128,8 +129,8 @@ validate() {
 couplings() {
     local bad=0 kotlin ksp tools syntax tools_major
     kotlin="$(field kotlin version)"; ksp="$(field ksp version)"
-    if [ "${ksp#"$kotlin"-}" = "$ksp" ]; then
-        echo "FAIL ksp $ksp does not belong to kotlin $kotlin: a KSP version is <kotlin>-<ksp>"
+    if [ "${ksp#*-}" != "$ksp" ] && [ "${ksp#"$kotlin"-}" = "$ksp" ]; then
+        echo "FAIL ksp $ksp does not belong to kotlin $kotlin: a prefixed KSP version is <kotlin>-<ksp>"
         bad=1
     fi
     tools="$(field swift-tools version)"; syntax="$(field swift-syntax version)"

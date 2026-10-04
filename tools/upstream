@@ -92,31 +92,40 @@ propose() {
     return 0
 }
 
+newest_ksp_for() {
+    local kotlin="$1" versions="$2" standalone
+    standalone="$(grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' <<<"$versions" | LC_ALL=C sort -V | tail -1 || true)"
+    if [ -n "$standalone" ]; then
+        printf '%s' "$standalone"
+        return 0
+    fi
+    grep -E "^${kotlin//./\\.}-[0-9]+(\.[0-9]+)*$" <<<"$versions" | LC_ALL=C sort -V | tail -1 || true
+}
+
+drop_row() {
+    local dep="$1" kept=() row
+    for row in ${rows[@]+"${rows[@]}"}; do
+        case "$row" in "| $dep |"*) ;; *) kept+=("$row") ;; esac
+    done
+    rows=(${kept[@]+"${kept[@]}"})
+}
+
 group_kotlin() {
-    local kotlin ksp compose newest_kotlin newest_ksp newest_compose kotlin_changed=0 url hash
+    local kotlin ksp compose newest_kotlin newest_ksp newest_compose
+    local kotlin_changed=0 compose_changed=0 url hash lock_log need
     kotlin="$(current kotlin)"; ksp="$(current ksp)"; compose="$(current compose)"
     newest_kotlin="$(maven_versions org/jetbrains/kotlin/kotlin-gradle-plugin | newest_stable)"
     newest_compose="$(maven_versions org/jetbrains/compose/compose-gradle-plugin | newest_stable)"
-    local ksp_versions
-    ksp_versions="$(maven_versions com/google/devtools/ksp/symbol-processing-api)"
     if [ -n "$newest_kotlin" ] && [ "$newest_kotlin" != "$kotlin" ]; then
-        newest_ksp="$(grep -E "^${newest_kotlin//./\\.}-[0-9]+(\.[0-9]+)*$" <<<"$ksp_versions" | LC_ALL=C sort -V | tail -1 || true)"
-        if [ -z "$newest_ksp" ]; then
-            notes+=("kotlin $newest_kotlin is out, but no KSP for it yet: kotlin stays at $kotlin")
-            newest_kotlin="$kotlin"
-        elif propose kotlin "$kotlin" "$newest_kotlin" "the published jars are compiled with it"; then
-            kotlin_changed=1
-            propose ksp "$ksp" "$newest_ksp" "pairs with kotlin $newest_kotlin" || true
-        fi
+        propose kotlin "$kotlin" "$newest_kotlin" "the published jars are compiled with it" && kotlin_changed=1
     fi
-    if [ "$kotlin_changed" -eq 0 ]; then
-        newest_ksp="$(grep -E "^${kotlin//./\\.}-[0-9]+(\.[0-9]+)*$" <<<"$ksp_versions" | LC_ALL=C sort -V | tail -1 || true)"
-        if [ -n "$newest_ksp" ] && [ "$newest_ksp" != "$ksp" ]; then
-            propose ksp "$ksp" "$newest_ksp" "for kotlin $kotlin" || true
-        fi
+    [ "$kotlin_changed" -eq 1 ] || newest_kotlin="$kotlin"
+    newest_ksp="$(newest_ksp_for "$newest_kotlin" "$(maven_versions com/google/devtools/ksp/symbol-processing-api)")"
+    if [ -n "$newest_ksp" ] && [ "$newest_ksp" != "$ksp" ]; then
+        propose ksp "$ksp" "$newest_ksp" "KSP 2.3 and later are versioned apart from Kotlin; the checks decide compatibility" || true
     fi
     if [ -n "$newest_compose" ] && [ "$newest_compose" != "$compose" ]; then
-        propose compose "$compose" "$newest_compose" "07-compose only" || true
+        propose compose "$compose" "$newest_compose" "07-compose only" && compose_changed=1
     fi
     [ "$update" -eq 1 ] || return 0
     [ "${#rows[@]}" -gt 0 ] || return 0
@@ -128,7 +137,23 @@ group_kotlin() {
         rm -f tabular-center-kotlin/nix/context.nix.bak
         echo "kotlinc $newest_kotlin hash: $hash"
     fi
-    nix run .#gradle-lock
+    lock_log="$(mktemp)"
+    if nix run .#gradle-lock 2>&1 | tee "$lock_log"; then
+        rm -f "$lock_log"
+        return 0
+    fi
+    need="$(sed -nE 's/.*Minimal supported Kotlin Gradle Plugin version is ([0-9][0-9.]*).*/\1/p' "$lock_log" | head -1)"
+    rm -f "$lock_log"
+    if [ "$compose_changed" -eq 1 ] && [ -n "$need" ]; then
+        set_version compose "$compose"
+        drop_row compose
+        notes+=("compose $newest_compose needs the Kotlin Gradle Plugin $need or newer, and Kotlin here is $newest_kotlin: compose stays at $compose")
+        ./tools/deps sync
+        nix run .#gradle-lock
+        return 0
+    fi
+    echo "upstream: gradle-lock failed for the kotlin group; nothing to propose until it resolves" >&2
+    return 1
 }
 
 group_swift() {

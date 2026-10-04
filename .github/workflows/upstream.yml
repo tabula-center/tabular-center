@@ -40,6 +40,25 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      - name: Check UPSTREAM_TOKEN before doing any work
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::UPSTREAM_TOKEN is empty: add it as a secret of the upstream environment (RELEASING.md, The upstream job)"
+            exit 1
+          fi
+          if ! login="$(gh api user --jq .login 2>&1)"; then
+            echo "::error::GitHub does not accept UPSTREAM_TOKEN at all ($login): it is mistyped, expired or revoked. Generate a new one (RELEASING.md, The upstream job)"
+            exit 1
+          fi
+          push="$(gh api "repos/$GITHUB_REPOSITORY" --jq .permissions.push 2>/dev/null || true)"
+          if [ "$push" != true ]; then
+            echo "::error::UPSTREAM_TOKEN belongs to $login but cannot write to $GITHUB_REPOSITORY: it is awaiting the organization's approval, or its repository access or permissions are wrong (RELEASING.md, The upstream job)"
+            exit 1
+          fi
+          echo "UPSTREAM_TOKEN: $login, with write access to $GITHUB_REPOSITORY"
+
       - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
 
       - name: Compare with upstream and apply
@@ -84,6 +103,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Check UPSTREAM_TOKEN before doing any work
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::UPSTREAM_TOKEN is empty: add it as a secret of the upstream environment (RELEASING.md, The upstream job)"
+            exit 1
+          fi
+          if ! login="$(gh api user --jq .login 2>&1)"; then
+            echo "::error::GitHub does not accept UPSTREAM_TOKEN at all ($login): it is mistyped, expired or revoked. Generate a new one (RELEASING.md, The upstream job)"
+            exit 1
+          fi
+          push="$(gh api "repos/$GITHUB_REPOSITORY" --jq .permissions.push 2>/dev/null || true)"
+          if [ "$push" != true ]; then
+            echo "::error::UPSTREAM_TOKEN belongs to $login but cannot write to $GITHUB_REPOSITORY: it is awaiting the organization's approval, or its repository access or permissions are wrong (RELEASING.md, The upstream job)"
+            exit 1
+          fi
+          echo "UPSTREAM_TOKEN: $login, with write access to $GITHUB_REPOSITORY"
 
       - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
 
