@@ -1018,6 +1018,8 @@ tabular-center/
     ├── verify                   # the single definition of green: runs the
     │                             #   cross-language steps, hands the rest to
     │                             #   tabular-center-*/tools/verify by name
+    ├── deps                     # dependencies.toml: sync it into every manifest, check none drifted
+    ├── upstream                 # newer upstream versions; --update applies them (network)
     ├── no-comments              # the Cleanness rule (§15), over the file types migrated
     └── docs                     # writes doc/, the Pages site: build output, deployed
                                   #   by .github/workflows/pages.yml; `tools/verify
@@ -1418,6 +1420,18 @@ are here. Grouped by file, so a reader of one finds its reasons in one place.
   `persist-credentials: false` because git would otherwise send the
   workflow's own token for every github.com URL, ahead of the mirror token,
   and the push would be refused as `github-actions[bot]`'s.
+- **`upstream.yml` runs daily** (an off-the-hour minute; top-of-hour cron is
+  delayed or dropped under load) and on demand: a matrix over the groups,
+  each running `nix run .#upstream -- --group G --update` and, when the tree
+  changed, committing to `upstream/G` and opening or updating that one pull
+  request; a `report` job keeps one issue, "Upstream: versions needing a
+  decision", for what needs a person. It pushes with `UPSTREAM_TOKEN`, a
+  fine-grained personal access token in the `upstream` environment, because a
+  pull request opened with the workflow's `GITHUB_TOKEN` triggers no
+  workflows and would carry no checks. A branch is pushed only when its tree
+  changed, so an update nobody has merged yet does not rerun CI every
+  morning. Nothing is merged by the job; a red check on an update PR is the
+  job working (a kotlinc release can reword a guarantee fixture's message).
 - **`pages.yml` deploys the site** that `tools/docs` generates, rendered by
   GitHub's Jekyll action (`jekyll-theme-primer`, per `doc/_config.yml`).
   `doc/` is build output and the site, so `doc/index.md` is the front page.
@@ -1425,6 +1439,30 @@ are here. Grouped by file, so a reader of one finds its reasons in one place.
   and `deploy-pages` fails loudly if it is wrong rather than letting Pages
   render README.md, which is how an earlier `pages.yml` failed. The custom
   domain is set on the same page.
+
+### Upstream versions: `dependencies.toml`
+
+- **Every pinned upstream version is written once**, in `dependencies.toml`,
+  with its policy (`auto`: the daily job may propose a newer one; `manual`: it
+  only reports one -- the Rust MSRV, the JVM target and the Swift tools
+  versions are promises to users) and whether it reaches users. Before it,
+  the Kotlin compiler version was typed in seven places and KSP's in four.
+- **`tools/deps` owns where each version is written**: a table of sites, each
+  a file and the context around the version on one line. `sync` writes
+  manifests; `check` (the `deps-consistent` step) reads every site and fails
+  on any disagreement, on a site whose context no longer matches (the file
+  changed shape, so the table must change with it), on a dependency with no
+  site, and on a broken coupling (KSP must be `<kotlin>-...`; swift-syntax's
+  major follows the Swift tools version, 5.9 being 509). Sites are per file,
+  never a global search: `05-iced` has its own `rust-version`, the
+  application's, which is not the library's MSRV.
+- **Locks are checked, never written.** `Package.resolved` and the iced
+  `Cargo.lock` are a resolver's output, so `check` asks only that they agree
+  (the lock on the declared release line); regenerating them -- and every
+  `flake.lock`, `gradle-lock.json` and `swift-lock.json` -- needs the network
+  and is the upstream job's work. So is the sha256 beside `kotlinVersion` in
+  `tabular-center-kotlin/nix/context.nix`: a Kotlin bump through `sync` alone
+  leaves the pinned compiler's hash stale, and the Kotlin checks say so.
 
 ### Nix: shared shape
 
@@ -1476,11 +1514,13 @@ are here. Grouped by file, so a reader of one finds its reasons in one place.
   a `swift-unavailable` check that passes and says so (red there would mean
   the flake can never pass on that platform, whatever anyone does).
 - **Checks and apps are different things.** A check is hermetic and offline;
-  an app may touch the network, the git index and a registry token. Exactly
-  two commands reach the network, `gradle-lock` and `swift-lock`; each
-  writes a committed lock that a derivation consumes as ordinary `fetchurl`s,
-  and neither is a derivation, since a check that reaches the network is not
-  a check. Every app starts by changing to the repository root: they all
+  an app may touch the network, the git index and a registry token. The
+  commands that reach the network are these, and only these: `gradle-lock`
+  and `swift-lock`, each writing a committed lock that a derivation consumes
+  as ordinary `fetchurl`s; `upstream`, which asks upstreams for newer versions
+  and, with `--update`, runs `tools/deps sync` and those two; and `release`
+  and `publish`, which reach the registries. None is a derivation, since a
+  check that reaches the network is not a check. Every app starts by changing to the repository root: they all
   assumed it, and `nix run .#docs` from a subdirectory failed on
   `./tools/docs: No such file` -- the bug was in all four apps at the time.
 - **Apps pin what the host would otherwise choose.** An app runs on the host,

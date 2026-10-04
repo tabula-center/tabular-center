@@ -5,7 +5,8 @@
 #   nix run .#gradle-lock              regenerate the lock
 #   nix run .#gradle-lock -- --check   verify the committed lock is current
 #
-# Needs network: one of the two commands in the repository that reach it.
+# Needs network, as the repository's few network commands do (ARCHITECTURE.md
+# 16 lists them).
 # Resolves every build under examples/ in a fresh Gradle home, recovers each
 # artifact's URL from the cache layout, and proves it by downloading the bytes
 # and matching their hash. ARCHITECTURE.md 16, "Scripts".

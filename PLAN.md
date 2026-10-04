@@ -461,7 +461,7 @@ in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
       `rust-examples`, `actions`. A group's failure does not block the others, and a
       group's PR is force-pushed rather than duplicated. Never auto-merged
 - [x] U3. **Decided: a fine-grained personal access token**, scoped to this
-      repository only, with Contents, Pull requests and **Workflows** write
+      repository only, with Contents, Pull requests, **Workflows** and Issues write
       (GitHub refuses a push that changes `.github/workflows/` without the
       last, and U4 makes the job edit the pinned actions there), the shortest
       expiry offered, stored as `UPSTREAM_TOKEN` in the `upstream`
@@ -492,11 +492,20 @@ in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
 
 **Tasks, after U1-U5:**
 
-- [ ] `dependencies.toml` with today's versions and policies;
+- [x] `dependencies.toml` with today's versions and policies;
       `tools/deps sync` writes them into every manifest (as `release` writes
       `VERSION`), and root `deps-consistent` checks nothing drifted. Moves the
-      seven Kotlin pins and four KSP pins to one line each
-- [ ] `tools/upstream` (an app, `nix run .#upstream [-- --group G]
+      seven Kotlin pins and four KSP pins to one line each.
+      **Done** (expected green, not yet observed): nine dependencies, 34
+      sites. Emulated against the tree, every site agrees; a dry run of
+      `sync` with Kotlin and KSP bumped changes exactly the 11 lines that pin
+      them and nothing else -- in particular not `05-iced`'s own
+      `rust-version`. Locks (`Package.resolved`, the iced `Cargo.lock`) are
+      checked, never written; regenerating them, the flake locks, and the
+      kotlinc hash beside `kotlinVersion` is `tools/upstream`'s work, next.
+      Not tracked: Gradle, which nixpkgs chooses and `gradle-lock.json`
+      records, and the flake inputs, which their own locks pin
+- [x] `tools/upstream` (an app, `nix run .#upstream [-- --group G]
       [--update]`): asks each upstream its newest version -- Maven Central's
       `maven-metadata.xml` for Kotlin, KSP and Compose, Gradle's
       `services.gradle.org/versions/current`, crates.io's API for iced,
@@ -507,7 +516,7 @@ in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
       all five `flake.lock`s together, as ARCHITECTURE 13 requires). The
       third command allowed to reach the network; ARCHITECTURE 16 and the two
       lock generators' headers say "two" and change with it
-- [ ] `.github/workflows/upstream.yml`: `schedule` daily at an off-the-hour
+- [x] `.github/workflows/upstream.yml`: `schedule` daily at an off-the-hour
       minute (top-of-hour cron is delayed or dropped under load), plus
       `workflow_dispatch`; a matrix over the groups; each runs
       `nix run .#upstream -- --group G --update`, and if the tree changed,
@@ -516,13 +525,34 @@ in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
       whether it is user-facing, and what a user-facing change means for the
       compatibility table. Every action pinned by commit, credentials only in
       the `upstream` environment, as in `publish.yml`
-- [ ] Reports without PRs: a `manual` dependency with a newer version, a
+- [x] Reports without PRs: a `manual` dependency with a newer version, a
       Kotlin held back because no KSP pairs with it yet, a `hold` that has
       been passed -- one issue, updated in place, labelled `upstream`
-- [ ] The `actions` group in `tools/upstream`: newest release tag per pinned
+- [x] The `actions` group in `tools/upstream`: newest release tag per pinned
       action through the GitHub API, tag resolved to a commit (annotated tags
       dereferenced to the commit they point at), SHA and `# vX` rewritten
       together; the same group covers every workflow file
+- [x] **Slice 2 landed** (expected to work, **not yet observed**: it needs
+      the token, the environment and a first run; RELEASING.md, "The upstream
+      job"). `tools/upstream` queries Maven Central's metadata (Kotlin, KSP,
+      Compose), `git ls-remote` (swift-syntax: the tags API caps at 100 in no
+      useful order, and swift-syntax has hundreds), crates.io (iced) and the
+      GitHub API (actions, and the `manual` report); with `--update` it edits
+      `dependencies.toml`, syncs, and regenerates what the change stales --
+      `gradle-lock.json` and the kotlinc hash (`nix store prefetch-file`),
+      `Package.resolved` and `swift-lock.json`, the iced `Cargo.lock`, all five
+      flake locks (subflakes first, the root last). Kotlin moves only with a
+      KSP for it, else it is held and the note reaches the report issue.
+      Emulated: the seven commit-pinned actions parse, `ci.yml`'s three
+      unpinned ones become notes, `set_version` edits only its section, the
+      hash rewrite changes exactly the line under the compiler's URL. The
+      workflow pushes a branch only when its tree changed. The "only two
+      network commands" claim, already untrue of `publish`, is now one list
+      in ARCHITECTURE 16 that the scripts point to, instead of five counts
+- [x] Found on the way: `tabular-center-swift/tools/swift-probe` is a shell
+      script without a shebang (it is run as `bash swift-probe`), so stage 3's
+      shebang survey missed it. One comment removed; it is in `no-comments`'
+      list now
 - [ ] Expected red, recorded so it is not mistaken for a broken job: a
       kotlinc upgrade can reword the four messages the guarantee fixtures
       assert (spec/diagnostics.md forbids normalising them), and an iced

@@ -1,0 +1,262 @@
+#!/usr/bin/env bash
+# Ask each upstream for its newest version, compare with dependencies.toml and
+# the locks, and -- with --update -- apply what policy and couplings allow.
+#
+#   tools/upstream --group G [--update] [--report FILE]
+#   nix run .#upstream -- --group kotlin --update --report body.md
+#
+# Groups: kotlin (Kotlin, KSP and Compose together, since they couple), swift
+# (swift-syntax, within the major the Swift tools version allows),
+# rust-examples (iced), nix-inputs (all five flake locks), actions (every
+# workflow action pinned to a commit), and report (the `manual` dependencies,
+# which this never changes). --update edits dependencies.toml, runs
+# `tools/deps sync`, and regenerates what the change stales: gradle-lock.json
+# and the kotlinc hash, Package.resolved and swift-lock.json, the iced
+# Cargo.lock, the flake locks. --report writes the changes as a markdown
+# table, for a pull request's body or the upstream issue.
+#
+# Needs network, git and nix: one of the repository's network commands
+# (ARCHITECTURE.md 16). Run by .github/workflows/upstream.yml.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+group=""
+update=0
+report=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --group) group="${2:-}"; shift 2 ;;
+        --update) update=1; shift ;;
+        --report) report="${2:-}"; shift 2 ;;
+        *) echo "usage: tools/upstream --group kotlin|swift|rust-examples|nix-inputs|actions|report [--update] [--report FILE]" >&2; exit 2 ;;
+    esac
+done
+
+MAVEN=https://repo1.maven.org/maven2
+USER_AGENT="tabular-center-upstream (https://github.com/tabula-center/tabular-center)"
+rows=()
+notes=()
+
+fetch() {
+    curl -fsSL --retry 3 -A "$USER_AGENT" "$@"
+}
+
+github() {
+    if [ -n "${GH_TOKEN:-}" ]; then
+        fetch -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/$1"
+    else
+        fetch -H "Accept: application/vnd.github+json" "https://api.github.com/$1"
+    fi
+}
+
+maven_versions() {
+    fetch "$MAVEN/$1/maven-metadata.xml" | grep -oE '<version>[^<]+</version>' | sed -E 's#</?version>##g'
+}
+
+newest_stable() {
+    grep -E '^[0-9]+(\.[0-9]+)*$' | LC_ALL=C sort -V | tail -1
+}
+
+current() {
+    awk -v d="$1" -v k="${2:-version}" '
+        /^\[/ { inside = ($0 == "[" d "]"); next }
+        inside && $0 ~ "^" k "[[:space:]]*=" { v = $0; sub(/^[^=]*=[[:space:]]*"/, "", v); sub(/".*$/, "", v); print v; exit }
+    ' dependencies.toml
+}
+
+set_version() {
+    local dep="$1" version="$2" tmp
+    tmp="$(mktemp)"
+    awk -v d="$dep" -v v="$version" '
+        /^\[/ { inside = ($0 == "[" d "]") }
+        inside && /^version[[:space:]]*=/ { print "version = \"" v "\""; next }
+        { print }
+    ' dependencies.toml >"$tmp"
+    cat "$tmp" >dependencies.toml
+    rm -f "$tmp"
+}
+
+reaches() {
+    if [ "$(current "$1" reaches-users)" = true ]; then echo yes; else echo no; fi
+}
+
+propose() {
+    local dep="$1" old="$2" new="$3" note="${4:-}"
+    if [ "$(current "$dep" hold)" = "$new" ]; then
+        notes+=("$dep $new is held in dependencies.toml (hold = \"$new\"); not proposed")
+        return 1
+    fi
+    echo "$dep: $old -> $new"
+    rows+=("| $dep | $old | $new | $(reaches "$dep") | $note |")
+    [ "$update" -eq 1 ] && set_version "$dep" "$new"
+    return 0
+}
+
+group_kotlin() {
+    local kotlin ksp compose newest_kotlin newest_ksp newest_compose kotlin_changed=0 url hash
+    kotlin="$(current kotlin)"; ksp="$(current ksp)"; compose="$(current compose)"
+    newest_kotlin="$(maven_versions org/jetbrains/kotlin/kotlin-gradle-plugin | newest_stable)"
+    newest_compose="$(maven_versions org/jetbrains/compose/compose-gradle-plugin | newest_stable)"
+    local ksp_versions
+    ksp_versions="$(maven_versions com/google/devtools/ksp/symbol-processing-api)"
+    if [ -n "$newest_kotlin" ] && [ "$newest_kotlin" != "$kotlin" ]; then
+        newest_ksp="$(grep -E "^${newest_kotlin//./\\.}-[0-9]+(\.[0-9]+)*$" <<<"$ksp_versions" | LC_ALL=C sort -V | tail -1 || true)"
+        if [ -z "$newest_ksp" ]; then
+            notes+=("kotlin $newest_kotlin is out, but no KSP for it yet: kotlin stays at $kotlin")
+            newest_kotlin="$kotlin"
+        elif propose kotlin "$kotlin" "$newest_kotlin" "the published jars are compiled with it"; then
+            kotlin_changed=1
+            propose ksp "$ksp" "$newest_ksp" "pairs with kotlin $newest_kotlin" || true
+        fi
+    fi
+    if [ "$kotlin_changed" -eq 0 ]; then
+        newest_ksp="$(grep -E "^${kotlin//./\\.}-[0-9]+(\.[0-9]+)*$" <<<"$ksp_versions" | LC_ALL=C sort -V | tail -1 || true)"
+        if [ -n "$newest_ksp" ] && [ "$newest_ksp" != "$ksp" ]; then
+            propose ksp "$ksp" "$newest_ksp" "for kotlin $kotlin" || true
+        fi
+    fi
+    if [ -n "$newest_compose" ] && [ "$newest_compose" != "$compose" ]; then
+        propose compose "$compose" "$newest_compose" "07-compose only" || true
+    fi
+    [ "$update" -eq 1 ] || return 0
+    [ "${#rows[@]}" -gt 0 ] || return 0
+    ./tools/deps sync
+    if [ "$kotlin_changed" -eq 1 ]; then
+        url="https://github.com/JetBrains/kotlin/releases/download/v${newest_kotlin}/kotlin-compiler-${newest_kotlin}.zip"
+        hash="$(nix store prefetch-file --json --hash-type sha256 "$url" | jq -r .hash)"
+        sed -E -i.bak "/kotlin-compiler-\\\$\\{kotlinVersion\\}\\.zip/{n;s#hash = \"[^\"]*\";#hash = \"${hash}\";#;}" tabular-center-kotlin/nix/context.nix
+        rm -f tabular-center-kotlin/nix/context.nix.bak
+        echo "kotlinc $newest_kotlin hash: $hash"
+    fi
+    nix run .#gradle-lock
+}
+
+group_swift() {
+    local syntax tools major newest beyond resolved
+    syntax="$(current swift-syntax)"; tools="$(current swift-tools)"
+    major="$(( ${tools%%.*} * 100 + ${tools#*.} ))"
+    local tags
+    tags="$(git ls-remote --tags --refs https://github.com/swiftlang/swift-syntax.git | sed -E 's#.*refs/tags/##')"
+    newest="$(grep -E "^${major}\.[0-9]+\.[0-9]+$" <<<"$tags" | LC_ALL=C sort -V | tail -1 || true)"
+    beyond="$(grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' <<<"$tags" | LC_ALL=C sort -V | tail -1 || true)"
+    if [ -n "$beyond" ] && [ "${beyond%%.*}" -gt "$major" ]; then
+        notes+=("swift-syntax $beyond exists, beyond major $major: it needs swift-tools raised (manual)")
+    fi
+    if [ -z "$newest" ] || [ "$newest" = "$syntax" ]; then return 0; fi
+    propose swift-syntax "$syntax" "$newest" "macro package only; not published" || return 0
+    [ "$update" -eq 1 ] || return 0
+    ./tools/deps sync
+    nix develop .#swift --command bash -c 'cd tabular-center-swift/macros && swift package update swift-syntax'
+    resolved="$(grep -A6 '"identity" : "swift-syntax"' tabular-center-swift/macros/Package.resolved | sed -nE 's/.*"version" : "([^"]+)".*/\1/p')"
+    if [ "$resolved" != "$newest" ]; then
+        set_version swift-syntax "$resolved"
+        notes+=("swift-syntax resolved to $resolved, not $newest")
+    fi
+    nix run .#swift-lock
+}
+
+group_rust_examples() {
+    local iced newest line
+    iced="$(current iced)"
+    newest="$(fetch "https://crates.io/api/v1/crates/iced" | jq -r .crate.max_stable_version)"
+    line="$(cut -d. -f1-2 <<<"$newest")"
+    if [ -z "$line" ] || [ "$line" = "$iced" ]; then return 0; fi
+    propose iced "$iced" "$line" "05-iced only; pre-1.0, so a minor is a breaking change" || return 0
+    [ "$update" -eq 1 ] || return 0
+    ./tools/deps sync
+    nix shell --inputs-from . nixpkgs#cargo --command cargo update --manifest-path tabular-center-rust/examples/05-iced/Cargo.toml
+}
+
+group_nix_inputs() {
+    local dir before after
+    [ "$update" -eq 1 ] || { echo "nix-inputs: compared by updating; run with --update"; return 0; }
+    before="$(mktemp)"; after="$(mktemp)"
+    for dir in tabular-center-rust tabular-center-kotlin tabular-center-swift tabular-center-fmt .; do
+        jq -r --arg d "$dir" '.nodes | to_entries[] | select(.value.locked.rev) | "\($d) \(.key) \(.value.locked.rev)"' "$dir/flake.lock" >>"$before"
+        nix flake update --flake "./$dir"
+        jq -r --arg d "$dir" '.nodes | to_entries[] | select(.value.locked.rev) | "\($d) \(.key) \(.value.locked.rev)"' "$dir/flake.lock" >>"$after"
+    done
+    while read -r dir input rev; do
+        local old
+        old="$(awk -v d="$dir" -v i="$input" '$1 == d && $2 == i { print $3 }' "$before")"
+        if [ "$old" != "$rev" ]; then
+            echo "$dir $input: ${old:0:12} -> ${rev:0:12}"
+            rows+=("| $input ($dir) | ${old:0:12} | ${rev:0:12} | no | moves the toolchains the checks use |")
+        fi
+    done <"$after"
+    rm -f "$before" "$after"
+    [ "${#rows[@]}" -gt 0 ] && nix run .#gradle-lock
+    return 0
+}
+
+group_actions() {
+    local line action repo sha tag latest new_sha f ref
+    while IFS= read -r line; do
+        action="$(sed -E 's|^uses: ([^@]+)@.*|\1|' <<<"$line")"
+        sha="$(sed -E 's|.*@([0-9a-f]{40}) .*|\1|' <<<"$line")"
+        tag="$(sed -E 's|.* # (v[^ ]+)$|\1|' <<<"$line")"
+        repo="$(cut -d/ -f1-2 <<<"$action")"
+        latest="$(github "repos/$repo/releases/latest" | jq -r .tag_name 2>/dev/null || true)"
+        if [ -z "$latest" ] || [ "$latest" = null ] || [ "$latest" = "$tag" ]; then continue; fi
+        new_sha="$(github "repos/$repo/commits/$latest" | jq -r .sha)"
+        echo "$action: $tag -> $latest"
+        rows+=("| $action | $tag | $latest | no | review the release notes: workflows holding credentials run it |")
+        if [ "$update" -eq 1 ]; then
+            for f in .github/workflows/*.yml; do
+                sed -i.bak "s|${action}@${sha} # ${tag}|${action}@${new_sha} # ${latest}|g" "$f"
+                rm -f "$f.bak"
+            done
+        fi
+    done < <(grep -hoE 'uses: [^@ ]+@[0-9a-f]{40} # v[^ ]+' .github/workflows/*.yml | sort -u)
+    while read -r _ ref; do
+        notes+=("$ref is not pinned to a commit, so this job cannot update it; pin it once by hand")
+    done < <(grep -hoE 'uses: [^@ ]+@[^ ]+' .github/workflows/*.yml | grep -vE '@[0-9a-f]{40}' | sort -u)
+}
+
+group_report() {
+    local rust swift
+    update=0
+    group_kotlin
+    group_swift
+    rows=()
+    rust="$(github repos/rust-lang/rust/releases/latest | jq -r .tag_name)"
+    swift="$(github repos/swiftlang/swift/releases/latest | jq -r .tag_name | sed -E 's/^swift-([0-9.]+)-RELEASE$/\1/')"
+    rows+=("| rust (MSRV) | $(current rust) | stable is $rust | yes | manual: raising the MSRV is a promise to users |")
+    rows+=("| swift-tools | $(current swift-tools) | Swift $swift is out | yes | manual: the minimum toolchain users need |")
+    rows+=("| jvm | $(current jvm) | not queried | yes | manual: the bytecode target users need |")
+    echo "rust stable $rust, swift $swift (manual: reported, never changed)"
+}
+
+case "$group" in
+    kotlin) group_kotlin ;;
+    swift) group_swift ;;
+    rust-examples) group_rust_examples ;;
+    nix-inputs) group_nix_inputs ;;
+    actions) group_actions ;;
+    report) group_report ;;
+    *) echo "unknown group: '$group'" >&2; exit 2 ;;
+esac
+
+if [ -n "$report" ]; then
+    {
+        echo "Upstream versions, group \`$group\`, checked by \`tools/upstream\`."
+        echo
+        if [ "${#rows[@]}" -gt 0 ]; then
+            echo "| dependency | current | upstream | reaches users | |"
+            echo "|---|---|---|---|---|"
+            printf '%s\n' "${rows[@]}"
+        else
+            echo "Nothing newer."
+        fi
+        if [ "${#notes[@]}" -gt 0 ]; then
+            echo
+            printf -- '- %s\n' "${notes[@]}"
+        fi
+        echo
+        echo "The checks on this pull request are the ordinary ones. A red check is the point:"
+        echo "a kotlinc upgrade can reword a guarantee fixture's message, and a pre-1.0 minor"
+        echo "can break an example. Move the fixture or the example, then merge."
+    } >"$report"
+fi
+[ "${#notes[@]}" -eq 0 ] || printf 'note: %s\n' "${notes[@]}"
+echo "changes: ${#rows[@]}"

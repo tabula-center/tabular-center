@@ -1,0 +1,60 @@
+# Every upstream version this repository pins, written once.
+#
+#   tools/deps sync       write these versions everywhere a build reads them
+#   tools/deps check      fail if any of those places disagrees (deps-consistent)
+#   tools/deps list       print the table: version, policy, whether it reaches users
+#
+# Per dependency: `version`; `policy`, either "auto" (the daily upstream job
+# may propose a newer one) or "manual" (it reports a newer one and proposes
+# nothing -- a promise to users, changed on purpose); `reaches-users`, whether
+# a consumer of the published libraries must match it; optionally `follows`,
+# a coupling the upstream job must honour, and `hold`, one version a
+# maintainer rejected. Where each version is written is tools/deps' table of
+# sites. ARCHITECTURE.md 16 and PLAN.md, "Upstream dependencies".
+
+[kotlin]
+version = "2.1.20"
+policy = "auto"
+reaches-users = true
+
+[ksp]
+version = "2.1.20-1.0.32"
+policy = "auto"
+reaches-users = true
+follows = "kotlin"
+
+[compose]
+version = "1.8.0"
+policy = "auto"
+reaches-users = false
+
+[jvm]
+version = "21"
+policy = "manual"
+reaches-users = true
+
+[rust]
+version = "1.75"
+policy = "manual"
+reaches-users = true
+
+[iced]
+version = "0.13"
+policy = "auto"
+reaches-users = false
+
+[swift-tools]
+version = "5.9"
+policy = "manual"
+reaches-users = true
+
+[swift-tools-examples]
+version = "5.7"
+policy = "manual"
+reaches-users = false
+
+[swift-syntax]
+version = "509.1.1"
+policy = "auto"
+reaches-users = false
+follows = "swift-tools"

@@ -1,6 +1,6 @@
 # The root's runnable entry points: `nix run .#verify` (every tools/verify
 # step), `.#docs [serve|build]`, `.#conformance`, and `.#release` and
-# `.#publish` from publish.nix. Apps run on the host and may touch the
+# `.#publish` from publish.nix, and `.#upstream`, the daily dependency check. Apps run on the host and may touch the
 # network, the git index and the working tree; checks may not. Each starts at
 # the repository root. table-diff, bench, gradle-lock and swift-lock belong to one
 # language and come from that language's flake.
@@ -86,6 +86,23 @@ let
 
   publish = import ./publish.nix ctx;
 
+  upstream = pkgs.writeShellApplication {
+    name = "tabular-center-upstream";
+    runtimeInputs = commonInputs ++ [
+      pkgs.git
+      pkgs.curl
+      pkgs.jq
+      pkgs.coreutils
+      pkgs.gnused
+      pkgs.gawk
+      pkgs.gnugrep
+      pkgs.diffutils
+    ];
+    text = ''
+      ${cdRoot}
+      ./tools/upstream "$@"
+    '';
+  };
 in
 {
   conformance = app conformance "tabular-center-conformance"
@@ -102,6 +119,9 @@ in
 
   publish = app publish.publish "tabular-center-publish"
     "Publish every language's package (dry run unless --execute)";
+
+  upstream = app upstream "tabular-center-upstream"
+    "Compare upstream versions with dependencies.toml; --update applies them";
 
   default = app verify "tabular-center-verify" "Run the checks";
 }

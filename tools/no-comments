@@ -41,8 +41,10 @@ clean_files=(
     .editorconfig
     .gitignore
     justfile
+    tools/deps
     tools/docs
     tools/no-comments
+    tools/upstream
     tools/verify
     tabular-center-fmt/tools/verify
     tabular-center-kotlin/tools/central-bundle
@@ -52,6 +54,7 @@ clean_files=(
     tabular-center-rust/tools/compile-fail
     tabular-center-rust/tools/verify
     tabular-center-swift/tools/swift-lock
+    tabular-center-swift/tools/swift-probe
     tabular-center-swift/tools/verify
 )
 

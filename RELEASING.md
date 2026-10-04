@@ -154,6 +154,35 @@ its own credentials. The order of work is still: `nix run .#release -- X.Y.Z`
 by hand, review, `git push --follow-tags`. The tag starts `publish` (crates.io,
 and Maven Central once enabled) and `swift-mirror` (Swift).
 
+### The upstream job
+
+`.github/workflows/upstream.yml` checks upstream versions every day and opens
+one pull request per group (PLAN.md, "Upstream dependencies"). It needs one
+token, made once:
+
+1. **Token.** GitHub -> Settings -> Developer settings -> Fine-grained
+   personal access tokens -> Generate new token.
+   - *Resource owner:* `tabula-center` (the organization may have to approve
+     fine-grained tokens first: organization Settings -> Personal access
+     tokens).
+   - *Repository access:* **Only select repositories** ->
+     `tabula-center/tabular-center`. Not the Swift mirror; not "All".
+   - *Permissions*, repository: **Contents** read and write (push the
+     `upstream/*` branches), **Pull requests** read and write, **Workflows**
+     read and write (the `actions` group edits `.github/workflows/`, and
+     GitHub refuses that push without it), **Issues** read and write (the
+     report issue). Metadata read-only is added by GitHub. Nothing else.
+   - *Expiration:* the shortest you will renew; the job fails with an
+     authentication error, by name, when it lapses.
+2. **Environment.** This repository -> Settings -> Environments -> New
+   environment `upstream`; *Deployment branches*: selected, `main` only.
+   Add the token as the environment **secret** `UPSTREAM_TOKEN`.
+3. **Try it.** Actions -> upstream -> Run workflow. Each group either says
+   "nothing newer" or opens a pull request whose checks are ci.yml's.
+
+Renewing: generate a new token with the same settings and replace the secret;
+nothing else changes.
+
 ### Turning a registry on
 
 Each registry job is skipped until its switch is set, so a release tag pushed

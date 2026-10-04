@@ -15,6 +15,7 @@ in
 
   licenses = verify "licenses";
   no-comments = verify "no-comments";
+  deps-consistent = verify "deps-consistent";
 
   matrix-covered = verify "matrix-covered";
 

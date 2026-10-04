@@ -3,7 +3,7 @@
 #   nix run .#gradle-lock [-- --check]   resolve the Gradle builds and write,
 #                                        or verify, nix/gradle-lock.json
 #
-# One of the two commands in the repository that reach the network; it runs
+# One of the repository's network commands (ARCHITECTURE.md 16); it runs
 # with the pinned Gradle and JDK so the lock records what the checks replay.
 ctx:
 

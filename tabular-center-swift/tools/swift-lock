@@ -5,8 +5,8 @@
 #   nix run .#swift-lock              regenerate the lock
 #   nix run .#swift-lock -- --check   verify the committed lock is current
 #
-# Needs network: the second of the two commands in the repository that reach
-# it, and the same shape as tools/gradle-lock. The URL is the GitHub archive of
+# Needs network, as the repository's few network commands do (ARCHITECTURE.md
+# 16 lists them); the same shape as tools/gradle-lock. The URL is the GitHub archive of
 # the revision Package.resolved pins; the hash is of the tarball as
 # downloaded. ARCHITECTURE.md 16, "Scripts".
 set -uo pipefail

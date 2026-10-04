@@ -1,0 +1,215 @@
+#!/usr/bin/env bash
+# The upstream versions in dependencies.toml, and every place a build reads
+# them.
+#
+#   tools/deps sync     write each version into its sites (manifests only)
+#   tools/deps check    fail if any site, or any lock, disagrees; the
+#                       deps-consistent step
+#   tools/deps list     the table: dependency, version, policy, reaches users
+#
+# A site is `dependency|kind|file|before|after`: the version sits between the
+# extended regexes `before` and `after` on one line. `manifest` sites are
+# written by sync and read by check; `major` is a manifest site holding
+# `<major>.0.0` (SwiftPM's `from:` floor); `lock` and `cargo-lock` are read
+# only -- a resolver writes them, and check asks that they agree. Couplings
+# from `follows`: ksp follows kotlin (its version starts `<kotlin>-`), and
+# swift-syntax follows swift-tools (5.9 is major 509).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+K=tabular-center-kotlin
+R=tabular-center-rust
+S=tabular-center-swift
+VERSION_RE='[0-9A-Za-z.+-]+'
+
+sites() {
+    cat <<SITES
+kotlin|manifest|$K/build.gradle.kts|kotlin\("jvm"\) version "|"
+kotlin|manifest|$K/ksp/build.gradle.kts|kotlin\("jvm"\) version "|"
+kotlin|manifest|$K/ksp/compile-fail/build.gradle.kts|kotlin\("jvm"\) version "|"
+kotlin|manifest|$K/examples/06-generated/build.gradle.kts|kotlin\("jvm"\) version "|"
+kotlin|manifest|$K/examples/07-compose/build.gradle.kts|kotlin\("jvm"\) version "|"
+kotlin|manifest|$K/examples/07-compose/build.gradle.kts|id\("org\.jetbrains\.kotlin\.plugin\.compose"\) version "|"
+kotlin|manifest|$K/nix/context.nix|kotlinVersion = "|"
+ksp|manifest|$K/ksp/build.gradle.kts|symbol-processing-api:|"
+ksp|manifest|$K/ksp/compile-fail/build.gradle.kts|id\("com\.google\.devtools\.ksp"\) version "|"
+ksp|manifest|$K/examples/06-generated/build.gradle.kts|id\("com\.google\.devtools\.ksp"\) version "|"
+ksp|manifest|$K/examples/07-compose/build.gradle.kts|id\("com\.google\.devtools\.ksp"\) version "|"
+compose|manifest|$K/examples/07-compose/build.gradle.kts|id\("org\.jetbrains\.compose"\) version "|"
+jvm|manifest|$K/build.gradle.kts|jvmToolchain\(|\)
+jvm|manifest|$K/ksp/build.gradle.kts|jvmToolchain\(|\)
+jvm|manifest|$K/ksp/compile-fail/build.gradle.kts|jvmToolchain\(|\)
+jvm|manifest|$K/examples/06-generated/build.gradle.kts|jvmToolchain\(|\)
+jvm|manifest|$K/examples/07-compose/build.gradle.kts|jvmToolchain\(|\)
+jvm|manifest|$K/nix/context.nix|jdk = pkgs\.jdk|;
+rust|manifest|$R/Cargo.toml|^rust-version = "|"
+rust|manifest|$R/examples/01-traffic-light/Cargo.toml|^rust-version = "|"
+rust|manifest|$R/examples/02-timer/Cargo.toml|^rust-version = "|"
+rust|manifest|$R/examples/03-retry/Cargo.toml|^rust-version = "|"
+rust|manifest|$R/examples/04-login/Cargo.toml|^rust-version = "|"
+rust|manifest|tabular-center-fmt/Cargo.toml|^rust-version = "|"
+rust|manifest|$R/rust-toolchain.toml|^channel = "|\.0"
+rust|manifest|tabular-center-fmt/rust-toolchain.toml|^channel = "|\.0"
+rust|manifest|$R/nix/context.nix|rust-bin\.stable\."|\.0"
+iced|manifest|$R/examples/05-iced/Cargo.toml|^iced = "|"
+iced|cargo-lock|$R/examples/05-iced/Cargo.lock|iced|
+swift-tools|manifest|$S/Package.swift|^// swift-tools-version: |$
+swift-tools|manifest|$S/macros/Package.swift|^// swift-tools-version: |$
+swift-tools-examples|manifest|$S/examples/Package.swift|^// swift-tools-version: |$
+swift-syntax|major|$S/macros/Package.swift|swift-syntax\.git", from: "|\.0\.0"
+swift-syntax|lock|$S/macros/Package.resolved|"version" : "|"
+SITES
+}
+
+declared() {
+    awk '
+        /^\[[A-Za-z0-9_-]+\][[:space:]]*$/ { dep = $0; gsub(/^\[|\][[:space:]]*$/, "", dep); print dep " name " dep; next }
+        dep != "" && /^[A-Za-z-]+[[:space:]]*=/ {
+            key = $0; sub(/[[:space:]]*=.*$/, "", key)
+            value = $0; sub(/^[^=]*=[[:space:]]*/, "", value); gsub(/^"|"[[:space:]]*$/, "", value)
+            print dep " " key " " value
+        }
+    ' dependencies.toml
+}
+
+field() {
+    declared | awk -v d="$1" -v k="$2" '$1 == d && $2 == k { print $3; exit }'
+}
+
+dependencies() {
+    declared | awk '$2 == "name" { print $1 }'
+}
+
+found_in() {
+    local file="$1" before="$2" after="$3"
+    grep -oE "${before}${VERSION_RE}${after}" "$file" | sed -E "s#${before}(${VERSION_RE})${after}#\\1#" || true
+}
+
+cargo_lock_version() {
+    awk -v name="$2" '$0 == "name = \"" name "\"" { getline; v = $0; sub(/^version = "/, "", v); sub(/"$/, "", v); print v }' "$1"
+}
+
+expected_at() {
+    local kind="$1" version="$2"
+    case "$kind" in
+        major) printf '%s' "${version%%.*}" ;;
+        *) printf '%s' "$version" ;;
+    esac
+}
+
+validate() {
+    local bad=0 dep policy users follows version
+    for dep in $(dependencies); do
+        version="$(field "$dep" version)"
+        policy="$(field "$dep" policy)"
+        users="$(field "$dep" reaches-users)"
+        follows="$(field "$dep" follows)"
+        if [ -z "$version" ]; then echo "FAIL dependencies.toml: [$dep] has no version"; bad=1; fi
+        case "$policy" in auto | manual) ;; *) echo "FAIL dependencies.toml: [$dep] policy must be auto or manual, not '$policy'"; bad=1 ;; esac
+        case "$users" in true | false) ;; *) echo "FAIL dependencies.toml: [$dep] reaches-users must be true or false"; bad=1 ;; esac
+        if [ -n "$follows" ] && [ -z "$(field "$follows" version)" ]; then
+            echo "FAIL dependencies.toml: [$dep] follows '$follows', which is not declared"
+            bad=1
+        fi
+        if ! sites | grep -q "^$dep|"; then
+            echo "FAIL dependencies.toml: [$dep] has no sites in tools/deps, so nothing would ever read it"
+            bad=1
+        fi
+    done
+    while IFS='|' read -r dep _; do
+        if [ -z "$(field "$dep" version)" ]; then
+            echo "FAIL tools/deps has a site for '$dep', which dependencies.toml does not declare"
+            bad=1
+        fi
+    done < <(sites)
+    return "$bad"
+}
+
+couplings() {
+    local bad=0 kotlin ksp tools syntax tools_major
+    kotlin="$(field kotlin version)"; ksp="$(field ksp version)"
+    if [ "${ksp#"$kotlin"-}" = "$ksp" ]; then
+        echo "FAIL ksp $ksp does not belong to kotlin $kotlin: a KSP version is <kotlin>-<ksp>"
+        bad=1
+    fi
+    tools="$(field swift-tools version)"; syntax="$(field swift-syntax version)"
+    tools_major="$(( ${tools%%.*} * 100 + ${tools#*.} ))"
+    if [ "${syntax%%.*}" != "$tools_major" ]; then
+        echo "FAIL swift-syntax $syntax does not match swift-tools $tools: its major must be $tools_major"
+        bad=1
+    fi
+    return "$bad"
+}
+
+check() {
+    local bad=0 dep kind file before after version expected found
+    validate || bad=1
+    couplings || bad=1
+    while IFS='|' read -r dep kind file before after; do
+        version="$(field "$dep" version)"
+        [ -n "$version" ] || continue
+        if [ ! -f "$file" ]; then
+            echo "FAIL $file: no such file (a site of $dep)"
+            bad=1
+            continue
+        fi
+        if [ "$kind" = cargo-lock ]; then
+            found="$(cargo_lock_version "$file" "$before")"
+            if [ -z "$found" ]; then
+                echo "FAIL $file: no $before package (a site of $dep)"; bad=1
+            elif [ "$found" != "$version" ] && [ "${found#"$version".}" = "$found" ]; then
+                echo "FAIL $file: $before $found is not on the $version line dependencies.toml declares; regenerate the lock"
+                bad=1
+            fi
+            continue
+        fi
+        expected="$(expected_at "$kind" "$version")"
+        found="$(found_in "$file" "$before" "$after")"
+        if [ -z "$found" ]; then
+            echo "FAIL $file: no $dep version where tools/deps looks (/${before}VERSION${after}/); the file changed shape"
+            bad=1
+        elif grep -qvx -- "$expected" <<<"$found"; then
+            echo "FAIL $file: $dep is $(tr '\n' ' ' <<<"$found")where dependencies.toml says $expected; run tools/deps sync"
+            bad=1
+        fi
+    done < <(sites)
+    if [ "$bad" -eq 0 ]; then
+        echo "ok   $(dependencies | grep -c .) dependencies, $(sites | grep -c .) sites, all agreeing with dependencies.toml"
+    fi
+    return "$bad"
+}
+
+sync() {
+    local dep kind file before after version expected tmp changed=0
+    validate
+    while IFS='|' read -r dep kind file before after; do
+        case "$kind" in manifest | major) ;; *) continue ;; esac
+        version="$(field "$dep" version)"
+        expected="$(expected_at "$kind" "$version")"
+        tmp="$(mktemp)"
+        sed -E "s#(${before})${VERSION_RE}(${after})#\\1${expected}\\2#g" "$file" >"$tmp"
+        if ! cmp -s "$tmp" "$file"; then
+            cat "$tmp" >"$file"
+            echo "wrote $dep $expected into $file"
+            changed=1
+        fi
+        rm -f "$tmp"
+    done < <(sites)
+    [ "$changed" -eq 1 ] || echo "nothing to write: every manifest already agrees"
+    echo "locks are not written here: regenerate them (gradle-lock, swift-lock, cargo) after a version change"
+}
+
+list() {
+    local dep
+    printf '%-22s %-16s %-7s %s\n' dependency version policy reaches-users
+    for dep in $(dependencies); do
+        printf '%-22s %-16s %-7s %s\n' "$dep" "$(field "$dep" version)" "$(field "$dep" policy)" "$(field "$dep" reaches-users)"
+    done
+}
+
+case "${1:-}" in
+    sync) sync ;;
+    check) check ;;
+    list) list ;;
+    *) echo "usage: tools/deps sync|check|list" >&2; exit 2 ;;
+esac

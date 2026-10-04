@@ -1,0 +1,101 @@
+# Daily: ask every upstream for its newest version, and open -- or update in
+# place -- one pull request per group with the change applied: nix-inputs,
+# kotlin, swift, rust-examples, actions. What needs a person (a `manual`
+# dependency with a newer upstream, a Kotlin waiting for its KSP) goes into one
+# issue instead, updated in place.
+#
+# The pull requests are opened with UPSTREAM_TOKEN, a fine-grained personal
+# access token, because a pull request opened with the workflow's own
+# GITHUB_TOKEN triggers no workflows: ci.yml would never run on it. With the
+# token, the checks on an update are exactly the checks on any change.
+# Nothing is ever merged here. A branch is pushed only when its tree changed,
+# so an unchanged update does not rerun CI every morning.
+#
+# Setup: RELEASING.md, "The upstream job". Design: PLAN.md, "Upstream
+# dependencies", and ARCHITECTURE.md 16.
+name: upstream
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    environment: upstream
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [nix-inputs, kotlin, swift, rust-examples, actions]
+    concurrency:
+      group: upstream-${{ matrix.group }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+
+      - name: Compare with upstream and apply
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_TOKEN }}
+          GROUP: ${{ matrix.group }}
+        run: nix run .#upstream -- --group "$GROUP" --update --report "$RUNNER_TEMP/body.md"
+
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_TOKEN }}
+          GROUP: ${{ matrix.group }}
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "nothing newer for $GROUP"
+            exit 0
+          fi
+          branch="upstream/$GROUP"
+          git config user.name "tabular-center upstream"
+          git config user.email "upstream@tabula.center"
+          git switch -C "$branch"
+          git add -A
+          git commit -q -m "upstream: update $GROUP" -m "$(cat "$RUNNER_TEMP/body.md")"
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q "$remote" "refs/heads/$branch" 2>/dev/null && git diff --quiet FETCH_HEAD HEAD; then
+            echo "$branch already holds this update; not pushing"
+          else
+            git push -q --force "$remote" "HEAD:refs/heads/$branch"
+          fi
+          state="$(gh pr view "$branch" --json state --jq .state 2>/dev/null || true)"
+          if [ "$state" = OPEN ]; then
+            gh pr edit "$branch" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr create --base main --head "$branch" \
+              --title "upstream: update $GROUP" --body-file "$RUNNER_TEMP/body.md"
+          fi
+
+  report:
+    runs-on: ubuntu-latest
+    environment: upstream
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+
+      - name: Report what needs a person
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_TOKEN }}
+        run: |
+          nix run .#upstream -- --group report --report "$RUNNER_TEMP/report.md"
+          title="Upstream: versions needing a decision"
+          number="$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --body-file "$RUNNER_TEMP/report.md"
+          else
+            gh issue create --title "$title" --body-file "$RUNNER_TEMP/report.md"
+          fi

@@ -3,7 +3,7 @@
 #   nix run .#swift-lock [-- --check]   resolve swift-syntax and write, or
 #                                       verify, nix/swift-lock.json
 #
-# One of the two commands in the repository that reach the network. It runs
+# One of the repository's network commands (ARCHITECTURE.md 16). It runs
 # inside the Swift dev shell, whose setup hooks nixpkgs' Swift depends on.
 ctx:
 
