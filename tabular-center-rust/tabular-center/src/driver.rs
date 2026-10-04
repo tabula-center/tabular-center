@@ -53,9 +53,7 @@ use crate::step::{Outcome, Step};
 /// - `Reentered`: [`Driver::run`] was called from inside itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DriverError {
-    QueueFull {
-        capacity: usize,
-    },
+    QueueFull { capacity: usize },
     Reentered,
 }
 

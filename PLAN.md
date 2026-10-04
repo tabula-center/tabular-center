@@ -925,6 +925,21 @@ ARCHITECTURE 15's exemptions and `is_directive` if it is not already.
       Checked as in 4a: code identical in all 11 files (strings included), no
       new blank-line hazards, and the only added lines are folded member
       lists and the relocated doctest line
+      - [x] **One rustfmt regression, found by `rust-fmt` after landing**:
+            `DriverError::QueueFull { capacity }` had been held vertical by
+            the doc comment on `capacity`; without it, rustfmt puts the
+            variant on one line. The review had treated field docs as safe
+            because rustfmt never collapses a `struct` item, but struct-like
+            *enum variants* follow `struct_variant_width` (35), with one
+            twist that explains why conformance's `CellSpec::Emit { effects }`
+            stayed vertical with no comment at all: if any struct-like variant
+            of an enum must be vertical (`Go { target, effects }`), rustfmt
+            lays all of them out vertically. Applied to every enum in the
+            tree, the rule predicts exactly the one diff the check reported.
+            The list-context review 4a ran, but 4b had not, was rerun on the
+            library: 26 removals, all at the start of a block (function
+            bodies, `if`, match arms, trait bodies, macro rules), which
+            rustfmt never folds into the opening line
       - [x] `no-comments` now enforces `*.rs` everywhere, and gains the
             documented check: in `documented_paths`, every file a header and
             every public type, trait and macro a comment. It flagged six items
