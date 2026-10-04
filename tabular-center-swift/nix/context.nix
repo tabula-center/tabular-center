@@ -91,6 +91,7 @@ let
 
   swiftSetup = ''
     export NIX_CC="${pkgs.stdenv.cc}"
+    export NIX_CC_USE_RESPONSE_FILE=0
     export LD_LIBRARY_PATH="${swiftLibraryPath}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
   '';
 
@@ -101,6 +102,7 @@ let
       {
         nativeBuildInputs = commonInputs ++ inputs;
         NIX_CC = "${pkgs.stdenv.cc}";
+        NIX_CC_USE_RESPONSE_FILE = "0";
       }
       ''
         export HOME="$TMPDIR/home"
@@ -124,6 +126,7 @@ let
     inherit name;
     packages = commonInputs ++ extra;
     LD_LIBRARY_PATH = swiftLibraryPath;
+    NIX_CC_USE_RESPONSE_FILE = "0";
     shellHook = ''
       echo "tabular-center :: ${name}"
       ${lib.optionalString (!swiftAvailable) ''
@@ -142,7 +145,7 @@ in
 
   toolchain = {
     inputs = lib.optionals swiftChecked swiftPkgs;
-    env = { NIX_CC = "${pkgs.stdenv.cc}"; };
+    env = { NIX_CC = "${pkgs.stdenv.cc}"; NIX_CC_USE_RESPONSE_FILE = "0"; };
     setup = lib.optionalString swiftChecked swiftSetup;
     available = swiftChecked;
     libraryPath = swiftLibraryPath;

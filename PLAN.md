@@ -415,6 +415,24 @@ decision, which was reversed twice and left a sentence behind each time.
 
 ---
 
+## Found on Darwin: response files and the Swift driver
+
+- [x] `check-darwin` failed `swift-codegen` with `The file "63" couldn't be
+      opened ... NSFilePath=/dev/fd/63 ... Bad file descriptor`, in the
+      first `swift run`, after SwiftPM began compiling. Nothing in the
+      repository passes a `/dev/fd` path; nixpkgs' Swift wrapper does: it
+      ends `exec "$prog" @<(printf "%q\n" ...)` when
+      `NIX_CC_USE_RESPONSE_FILE` is on, and that defaults on wherever the C
+      compiler is clang -- Darwin. The Swift driver re-opens the path
+      through Foundation once the pipe is gone. Read from nixpkgs'
+      `wrapper.sh` and `cc-wrapper/default.nix` before changing anything.
+      Fixed by turning response files off for Swift in every place the
+      toolchain is set up (ARCHITECTURE 16, "Nix: Swift"); command lines are
+      far below macOS's argument limit. Expected green on `check-darwin`, not
+      yet observed
+
+---
+
 ## Upstream dependencies: a daily check, update PRs, and compatibility tables
 
 Requested October 2026: a scheduled job that checks upstream versions every

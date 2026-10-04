@@ -1621,6 +1621,13 @@ are here. Grouped by file, so a reader of one finds its reasons in one place.
   because the augmented SwiftPM needs them and is itself part of the full
   set. The setup, `NIX_CC` included, is exported to apps too: run on the
   host without it, `swift-lock --check` died before printing a byte.
+  **Response files are off for Swift** (`NIX_CC_USE_RESPONSE_FILE=0`, in the
+  setup, the check builder, the shell and the root's `env`): nixpkgs' Swift
+  wrapper otherwise passes its arguments as `@<(printf ...)` wherever the C
+  compiler is clang, so on Darwin the Swift driver -- a Foundation program --
+  re-opens `/dev/fd/63` by path after the pipe behind it is gone, and fails
+  with "The file '63' couldn't be opened ... Bad file descriptor". Linux's
+  default is already off, which is why only `check-darwin` saw it.
 - **The Swift checks run on Linux** too, since that packaging was untangled;
   Darwin remains the primary toolchain (§13). Only Swift shells set
   `LD_LIBRARY_PATH`, a blunt instrument. The Swift shell opens at the root,
