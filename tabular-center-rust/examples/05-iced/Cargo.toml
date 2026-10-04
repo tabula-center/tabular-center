@@ -16,4 +16,4 @@ publish = false
 
 [dependencies]
 tabular-center = { path = "../../tabular-center" }
-iced = "0.13"
+iced = "0.14"
