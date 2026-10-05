@@ -63,5 +63,7 @@ fn view(app: &App) -> Element<'_, Message> {
 }
 
 fn main() -> iced::Result {
-    iced::run("tabular-center :: session", update, view)
+    iced::application(App::default, update, view)
+      .title("tabular-center :: session")
+      .run()
 }
