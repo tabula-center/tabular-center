@@ -9,7 +9,7 @@
 // Nothing publishes to it; it exists to be named. See
 // tabular-center-kotlin/examples/06-generated/settings.gradle.kts.
 plugins {
-    kotlin("jvm") version "2.4.20"
+    kotlin("jvm") version "2.1.20"
 }
 
 val tabulaRepo: String? = System.getenv("TABULAR_CENTER_MAVEN_REPO")?.takeIf { it.isNotBlank() }
@@ -19,7 +19,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.google.devtools.ksp:symbol-processing-api:2.3.12")
+    implementation("com.google.devtools.ksp:symbol-processing-api:2.1.20-1.0.32")
 }
 
 sourceSets["main"].kotlin {
