@@ -452,7 +452,8 @@ verified with, so a user can match their project to a release.
 | swift-syntax `509.1.1` | `macros/Package.swift` (`from: "509.0.0"`), `nix/swift-lock.json` | not yet: the macro package is not published |
 | Swift tools `5.9` (examples `5.7`) | `Package.swift` | yes: the minimum toolchain |
 | Rust MSRV `1.75`, edition 2021 | workspace `Cargo.toml`, `rust-toolchain.toml`, the nix pin | yes: policy, not a dependency |
-| iced `0.13` | `examples/05-iced` | no: an example's |
+| iced `0.14` | `examples/05-iced` | no: an example's |
+| the GUI example's Rust floor, `1.88` | `examples/05-iced/Cargo.toml` (`rust-gui`) | no: follows iced's own `rust-version` |
 | nixpkgs, rust-overlay, nixpkgs-swift | the five `flake.lock`s | no: build only, but they move rustc stable, Swift, ktlint, the JDK patch level |
 | GitHub Actions, by commit | the workflows (`# vX` annotations) | no |
 
@@ -587,6 +588,13 @@ in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
       awaiting the organization's approval (it can read a public repository,
       nothing more), or one mistyped, expired or revoked. Both jobs now check
       the token first and say which of the three it is (RELEASING.md)
+- [x] **The first `rust-examples` update was red, as designed**: iced 0.14
+      moved the window title out of `iced::run`; `main.rs` now uses
+      `iced::application(..).title(..).run()` (merged with the update). It
+      also exposed a coupling: iced 0.14 needs Rust 1.88, while `05-iced`
+      declared 1.85. The GUI example's floor is now `rust-gui` in
+      `dependencies.toml`, a `deps-consistent` site, raised by the
+      `rust-examples` group to each new iced release's `rust_version`
 - [ ] Expected red, recorded so it is not mistaken for a broken job: a
       kotlinc upgrade can reword the four messages the guarantee fixtures
       assert (spec/diagnostics.md forbids normalising them), and an iced
@@ -607,6 +615,51 @@ in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
       so a Gradle consumer on an older JVM is refused at resolution with a
       clear message; the page says so, and that Maven consumers get no such
       guard
+
+---
+
+## Backlog: the first upstream report
+
+The `report` group's first issue (October 2026), verbatim in substance:
+
+| dependency | current | upstream | reaches users |
+|---|---|---|---|
+| rust (MSRV) | 1.75 | stable is 1.99.0 | yes |
+| swift-tools | 5.9 | Swift 6.4.0 is out | yes |
+| jvm | 21 | not queried | yes |
+
+and: swift-syntax 604.0.0 exists, beyond major 509, which needs swift-tools
+raised. Each is `manual` -- a promise to users -- so the job reports and never
+changes them. Decisions, not chores:
+
+- [ ] **Rust MSRV, 1.75.** Raising it is a minor-version change in 0.x
+      (RELEASING.md, "Versioning") and drops every user on an older
+      toolchain; keeping it costs the library nothing today, since it has no
+      dependencies and uses no newer language feature. Decide what would
+      justify a raise (edition 2024 needs 1.85; a feature the macro wants),
+      write that rule into RELEASING.md, and raise only when a rule fires.
+      Stable's number alone is not a reason
+- [ ] **Swift tools, 5.9, and swift-syntax 509.** Blocked first by the
+      toolchain, not the decision: nixpkgs' Swift is 5.10.1 (Darwin's
+      `check-darwin` log shows `swift-5.10.1-lib`), so `swift-tools-version:
+      6.x` would not build here at all. Once nixpkgs ships Swift 6: tools 6.0
+      turns on the Swift 6 language mode for the package (strict concurrency
+      -- `Sendable` checking for every public type and the stores' actors),
+      and swift-syntax's major follows the toolchain (6.4 is 604), so the
+      macro package moves with it. Both change what users need; one 0.x minor
+      release, together
+- [ ] **JVM target, 21.** Reported as "not queried" because nothing in the
+      job asks for the newest LTS. Raising the bytecode target cuts off every
+      consumer on an older JVM (Gradle module metadata refuses them at
+      resolution; Maven consumers get a class-file error). 21 is the current
+      LTS line the jars need; the question is only when the next LTS is
+      worth requiring. Teach `tools/upstream` to report the newest LTS (a
+      source that publishes it, queried like the others) so the row says
+      something
+- [x] The report issue carried the pull requests' footer ("The checks on
+      this pull request are the ordinary ones..."), which is wrong for an
+      issue. It now says what the issue is for: these are never changed by
+      the job, decide or leave them
 
 ---
 

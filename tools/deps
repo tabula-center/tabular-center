@@ -13,8 +13,9 @@
 # `<major>.0.0` (SwiftPM's `from:` floor); `lock` and `cargo-lock` are read
 # only -- a resolver writes them, and check asks that they agree. Couplings
 # from `follows`: a prefixed KSP version must start `<kotlin>-` (KSP 2.3 and
-# later stand alone, versioned apart from Kotlin), and swift-syntax follows
-# swift-tools (5.9 is major 509).
+# later stand alone, versioned apart from Kotlin), swift-syntax follows
+# swift-tools (5.9 is major 509), and rust-gui -- the GUI example's own
+# rust-version -- is raised by tools/upstream to the iced release's floor.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -53,6 +54,7 @@ rust|manifest|$R/rust-toolchain.toml|^channel = "|\.0"
 rust|manifest|tabular-center-fmt/rust-toolchain.toml|^channel = "|\.0"
 rust|manifest|$R/nix/context.nix|rust-bin\.stable\."|\.0"
 iced|manifest|$R/examples/05-iced/Cargo.toml|^iced = "|"
+rust-gui|manifest|$R/examples/05-iced/Cargo.toml|^rust-version = "|"
 iced|cargo-lock|$R/examples/05-iced/Cargo.lock|iced|
 swift-tools|manifest|$S/Package.swift|^// swift-tools-version: |$
 swift-tools|manifest|$S/macros/Package.swift|^// swift-tools-version: |$

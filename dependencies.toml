@@ -43,6 +43,12 @@ version = "0.14"
 policy = "auto"
 reaches-users = false
 
+[rust-gui]
+version = "1.88"
+policy = "auto"
+reaches-users = false
+follows = "iced"
+
 [swift-tools]
 version = "5.9"
 policy = "manual"

@@ -1348,7 +1348,7 @@ are here. Grouped by file, so a reader of one finds its reasons in one place.
   library and nothing else. iced's tree needs edition 2024, which 1.75's
   cargo cannot parse (the first attempt failed on a vendored `getrandom`
   manifest), so the GUI example is its own package with its own lock, its
-  own `rust-version` (1.85, the application's) and a
+  own `rust-version` (the application's: 1.88 today, raised with iced's own floor by the upstream job, `rust-gui` in `dependencies.toml`) and a
   `rust-toolchain.toml` saying `stable`. rustup takes the *nearest* toolchain
   file walking up, and `tabular-center-rust/rust-toolchain.toml` pins 1.75,
   so without its own the example would build on the MSRV under rustup. Nix

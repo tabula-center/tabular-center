@@ -10,7 +10,7 @@ name = "iced-connection"
 description = "5. A GUI: the same machine driving iced, with the toolkit knowing nothing about it"
 version = "0.0.1"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "MIT"
 publish = false
 

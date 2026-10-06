@@ -181,12 +181,17 @@ group_swift() {
 }
 
 group_rust_examples() {
-    local iced newest line
+    local iced newest line floor rust_gui
     iced="$(current iced)"
     newest="$(fetch "https://crates.io/api/v1/crates/iced" | jq -r .crate.max_stable_version)"
     line="$(cut -d. -f1-2 <<<"$newest")"
     if [ -z "$line" ] || [ "$line" = "$iced" ]; then return 0; fi
     propose iced "$iced" "$line" "05-iced only; pre-1.0, so a minor is a breaking change" || return 0
+    floor="$(fetch "https://crates.io/api/v1/crates/iced/$newest" | jq -r '.version.rust_version // empty')"
+    rust_gui="$(current rust-gui)"
+    if [ -n "$floor" ] && [ "$(printf '%s\n%s\n' "$rust_gui" "$floor" | LC_ALL=C sort -V | tail -1)" != "$rust_gui" ]; then
+        propose rust-gui "$rust_gui" "$floor" "iced $newest needs Rust $floor; 05-iced's rust-version follows" || true
+    fi
     [ "$update" -eq 1 ] || return 0
     ./tools/deps sync
     nix shell --inputs-from . nixpkgs#cargo --command cargo update --manifest-path tabular-center-rust/examples/05-iced/Cargo.toml
@@ -278,9 +283,15 @@ if [ -n "$report" ]; then
             printf -- '- %s\n' "${notes[@]}"
         fi
         echo
-        echo "The checks on this pull request are the ordinary ones. A red check is the point:"
-        echo "a kotlinc upgrade can reword a guarantee fixture's message, and a pre-1.0 minor"
-        echo "can break an example. Move the fixture or the example, then merge."
+        if [ "$group" = report ]; then
+            echo "These are never changed by the job: each is a promise to users, raised on"
+            echo "purpose. Decide, change dependencies.toml and run tools/deps sync, or leave it;"
+            echo "this issue is rewritten every morning."
+        else
+            echo "The checks on this pull request are the ordinary ones. A red check is the point:"
+            echo "a kotlinc upgrade can reword a guarantee fixture's message, and a pre-1.0 minor"
+            echo "can break an example. Move the fixture or the example, then merge."
+        fi
     } >"$report"
 fi
 [ "${#notes[@]}" -eq 0 ] || printf 'note: %s\n' "${notes[@]}"
