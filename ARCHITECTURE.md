@@ -1018,6 +1018,7 @@ tabular-center/
     ├── verify                   # the single definition of green: runs the
     │                             #   cross-language steps, hands the rest to
     │                             #   tabular-center-*/tools/verify by name
+    ├── compat                   # compatibility.toml: a record per release; add, backfill, check
     ├── deps                     # dependencies.toml: sync it into every manifest, check none drifted
     ├── upstream                 # newer upstream versions; --update applies them (network)
     ├── no-comments              # the Cleanness rule (§15), over the file types migrated
@@ -1468,6 +1469,25 @@ are here. Grouped by file, so a reader of one finds its reasons in one place.
   and is the upstream job's work. So is the sha256 beside `kotlinVersion` in
   `tabular-center-kotlin/nix/context.nix`: a Kotlin bump through `sync` alone
   leaves the pinned compiler's hash stale, and the Kotlin checks say so.
+
+### Compatibility: `compatibility.toml`
+
+- **One record per release**, the versions it was built and verified with:
+  `dependencies.toml`'s, plus Gradle (from `gradle-lock.json`) and the
+  nixpkgs revision `flake.lock` pinned. `nix run .#release` adds the record
+  before `nix flake check`, so the record is checked with the release and a
+  failed release's restore removes it with everything else.
+  `tools/compat backfill` records the tags from before the file existed, by
+  reading each tag's manifests through `tools/deps`' table of sites
+  (`tools/deps at REV`); a version a tag's layout did not have is absent, not
+  guessed.
+- **A record is history.** Nothing compares the newest record with
+  `dependencies.toml`: `main` moves on between releases, and a release's
+  versions do not. The `compatibility` step checks only the file's shape --
+  known keys, X.Y.Z versions, none twice, in version order.
+- **Rendered, not committed as markdown**: `tools/docs` turns it into
+  `compatibility`, two tables per language -- what a project needs, and what
+  the release was verified with -- newest first.
 
 ### Nix: shared shape
 

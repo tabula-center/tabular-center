@@ -12,8 +12,8 @@
 #         tools/verify --list          (every step, with its owner)
 # Steps:  version docs matrix-covered diagnostics-coverage fixtures-complete
 #         no-bless no-generated diagnostics-tested renderings-agree tb-aligned
-#         licenses no-comments deps-consistent, + every step the language
-#         scripts list
+#         licenses no-comments deps-consistent compatibility, + every step
+#         the language scripts list
 #
 # Steps are declared once, in the arrays below; `--list` prints them for the
 # root. Each step's output is teed into one ledger, every skip is reprinted
@@ -433,7 +433,7 @@ step_tb_aligned() {
 }
 
 LANGS=(rust kotlin swift fmt)
-ROOT_STEPS=(version docs matrix-covered diagnostics-coverage fixtures-complete no-bless no-generated diagnostics-tested renderings-agree tb-aligned licenses no-comments deps-consistent)
+ROOT_STEPS=(version docs matrix-covered diagnostics-coverage fixtures-complete no-bless no-generated diagnostics-tested renderings-agree tb-aligned licenses no-comments deps-consistent compatibility)
 
 lang_script() { echo "tabular-center-$1/tools/verify"; }
 
@@ -496,6 +496,7 @@ for s in "${steps[@]}"; do
         licenses)             run licenses             step_licenses ;;
         no-comments)          run no-comments          ./tools/no-comments ;;
         deps-consistent)      run deps-consistent      ./tools/deps check ;;
+        compatibility)        run compatibility        ./tools/compat check ;;
         *)
             if sc="$(owner_of "$s")"; then
                 delegate "$sc" "$s"

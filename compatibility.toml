@@ -1,0 +1,10 @@
+# For each release of tabular-center, the dependency versions it was built and
+# verified with -- the record behind https://tabula.center/compatibility.
+#
+#   tools/compat add VERSION    nix run .#release does this before tagging
+#   tools/compat backfill       record every v* tag not yet recorded
+#   tools/compat check          well formed and in version order
+#
+# A record is history and is never edited to follow dependencies.toml. The
+# keys are dependencies.toml's names, plus `gradle` (from gradle-lock.json)
+# and `nixpkgs` (the revision flake.lock pinned). ARCHITECTURE.md 16.

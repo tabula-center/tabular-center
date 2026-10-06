@@ -41,6 +41,7 @@ clean_files=(
     .editorconfig
     .gitignore
     justfile
+    tools/compat
     tools/deps
     tools/docs
     tools/no-comments

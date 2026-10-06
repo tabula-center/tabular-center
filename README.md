@@ -7,6 +7,7 @@ State machines whose declaration *is* the transition matrix.
 **Documentation: <https://tabula.center/>** -- a
 page per language ([Rust](https://tabula.center/rust),
 [Kotlin](https://tabula.center/kotlin), [Swift](https://tabula.center/swift)),
+and [which versions each release needs](https://tabula.center/compatibility),
 with the same
 machine in each, the code you write around it, and what the compiler says when
 a cell is missing.

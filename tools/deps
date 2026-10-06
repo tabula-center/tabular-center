@@ -6,6 +6,8 @@
 #   tools/deps check    fail if any site, or any lock, disagrees; the
 #                       deps-consistent step
 #   tools/deps list     the table: dependency, version, policy, reaches users
+#   tools/deps at REV   the versions the manifests held at git revision REV, one
+#                       `dependency version` per line (tools/compat backfill)
 #
 # A site is `dependency|kind|file|before|after`: the version sits between the
 # extended regexes `before` and `after` on one line. `manifest` sites are
@@ -202,6 +204,20 @@ sync() {
     echo "locks are not written here: regenerate them (gradle-lock, swift-lock, cargo) after a version change"
 }
 
+at() {
+    local rev="$1" dep kind file before after seen=" " text found
+    while IFS='|' read -r dep kind file before after; do
+        case "$seen" in *" $dep "*) continue ;; esac
+        case "$kind" in manifest | lock) ;; *) continue ;; esac
+        text="$(git show "$rev:$file" 2>/dev/null || true)"
+        [ -n "$text" ] || continue
+        found="$(grep -m1 -oE "${before}${VERSION_RE}${after}" <<<"$text" | sed -E "s#${before}(${VERSION_RE})${after}#\\1#" || true)"
+        [ -n "$found" ] || continue
+        echo "$dep $found"
+        seen="$seen$dep "
+    done < <(sites)
+}
+
 list() {
     local dep
     printf '%-22s %-16s %-7s %s\n' dependency version policy reaches-users
@@ -214,5 +230,6 @@ case "${1:-}" in
     sync) sync ;;
     check) check ;;
     list) list ;;
-    *) echo "usage: tools/deps sync|check|list" >&2; exit 2 ;;
+    at) [ -n "${2:-}" ] || { echo "usage: tools/deps at REV" >&2; exit 2; }; at "$2" ;;
+    *) echo "usage: tools/deps sync|check|list|at REV" >&2; exit 2 ;;
 esac

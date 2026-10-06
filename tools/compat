@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+# compatibility.toml: for each release, the dependency versions it was built
+# and verified with, so a user can match their project to a release. Rendered
+# by tools/docs as https://tabula.center/compatibility.
+#
+#   tools/compat add VERSION   record VERSION from the tree as it is now
+#                              (nix run .#release does this before tagging)
+#   tools/compat backfill      record every v* tag not yet recorded, reading
+#                              each tag's manifests through tools/deps' sites
+#   tools/compat check         the file is well formed: the compatibility step
+#
+# A record is history: it is never compared with dependencies.toml, which
+# moves on between releases. Backfilled records hold what each tag's
+# manifests say; a version a tag's layout did not have is simply absent.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+FILE=compatibility.toml
+KEYS="kotlin ksp jvm rust swift-tools compose iced rust-gui swift-tools-examples swift-syntax gradle nixpkgs"
+GRADLE_LOCK=tabular-center-kotlin/nix/gradle-lock.json
+
+records() {
+    awk '
+        /^\[\[release\]\][[:space:]]*$/ { n++; next }
+        n > 0 && /^[A-Za-z-]+[[:space:]]*=/ {
+            key = $0; sub(/[[:space:]]*=.*$/, "", key)
+            value = $0; sub(/^[^=]*=[[:space:]]*"/, "", value); sub(/"[[:space:]]*$/, "", value)
+            print n "|" key "|" value
+        }
+    ' "$FILE"
+}
+
+recorded_versions() {
+    records | awk -F'|' '$2 == "version" { print $3 }'
+}
+
+gradle_of() {
+    sed -nE 's/^[[:space:]]*"gradle"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -1
+}
+
+nixpkgs_of() {
+    awk '
+        /^    "nixpkgs": \{/ { inside = 1; next }
+        inside && /"rev":/ { v = $0; sub(/.*"rev":[[:space:]]*"/, "", v); sub(/".*/, "", v); print v; exit }
+        inside && /^    }/ { inside = 0 }
+    '
+}
+
+now_values() {
+    awk '
+        /^\[[A-Za-z0-9_-]+\][[:space:]]*$/ { dep = $0; gsub(/^\[|\][[:space:]]*$/, "", dep); next }
+        dep != "" && /^version[[:space:]]*=/ { v = $0; sub(/^[^=]*=[[:space:]]*"/, "", v); sub(/".*$/, "", v); print dep " " v }
+    ' dependencies.toml
+    echo "gradle $(gradle_of <"$GRADLE_LOCK")"
+    echo "nixpkgs $(nixpkgs_of <flake.lock)"
+}
+
+values_at() {
+    local rev="$1" g n
+    ./tools/deps at "$rev"
+    g="$(git show "$rev:$GRADLE_LOCK" 2>/dev/null | gradle_of || true)"
+    [ -z "$g" ] || echo "gradle $g"
+    n="$(git show "$rev:flake.lock" 2>/dev/null | nixpkgs_of || true)"
+    [ -z "$n" ] || echo "nixpkgs $n"
+}
+
+block() {
+    local version="$1" date="$2" values="$3" key value
+    printf '\n[[release]]\nversion = "%s"\ndate = "%s"\n' "$version" "$date"
+    for key in $KEYS; do
+        value="$(awk -v k="$key" '$1 == k { print $2; exit }' <<<"$values")"
+        [ -z "$value" ] || printf '%s = "%s"\n' "$key" "$value"
+    done
+}
+
+header() {
+    awk '
+        /^\[\[release\]\]/ { exit }
+        { lines[++n] = $0 }
+        END { while (n > 0 && lines[n] ~ /^[[:space:]]*$/) n--; for (i = 1; i <= n; i++) print lines[i] }
+    ' "$FILE"
+}
+
+rewrite_sorted() {
+    local extra="$1" dir version
+    dir="$(mktemp -d)"
+    awk -v dir="$dir" '
+        /^\[\[release\]\][[:space:]]*$/ { n++; out = dir "/" n; print "" >out; print $0 >>out; next }
+        n > 0 { print >>(dir "/" n) }
+    ' "$FILE"
+    if [ -n "$extra" ]; then printf '%s\n' "$extra" >"$dir/new"; fi
+    {
+        header
+        for f in "$dir"/*; do
+            [ -f "$f" ] || continue
+            version="$(sed -nE 's/^version = "([^"]+)"$/\1/p' "$f" | head -1)"
+            printf '%s\t%s\n' "$version" "$f"
+        done | LC_ALL=C sort -V | while IFS=$'\t' read -r _ f; do
+            echo
+            sed -e '/^[[:space:]]*$/d' "$f"
+        done
+    } >"$FILE.tmp"
+    mv "$FILE.tmp" "$FILE"
+    rm -rf "$dir"
+}
+
+add() {
+    local version="$1"
+    if recorded_versions | grep -qx -- "$version"; then
+        echo "compatibility.toml already records $version"
+        return 0
+    fi
+    rewrite_sorted "$(block "$version" "$(date -u +%Y-%m-%d)" "$(now_values)")"
+    echo "recorded $version in compatibility.toml"
+}
+
+backfill() {
+    local tag version added=0
+    while IFS= read -r tag; do
+        version="${tag#v}"
+        if recorded_versions | grep -qx -- "$version"; then continue; fi
+        rewrite_sorted "$(block "$version" "$(git log -1 --format=%cs "$tag")" "$(values_at "$tag")")"
+        echo "recorded $version from $tag"
+        added=$((added + 1))
+    done < <(git tag -l 'v[0-9]*' | LC_ALL=C sort -V)
+    echo "backfilled $added release(s); review compatibility.toml and commit it"
+}
+
+check() {
+    local bad=0 versions sorted
+    if [ ! -f "$FILE" ]; then
+        echo "FAIL $FILE is missing"
+        return 1
+    fi
+    while IFS='|' read -r n key value; do
+        case " version date $KEYS " in
+            *" $key "*) ;;
+            *) echo "FAIL $FILE: record $n has an unknown key '$key'"; bad=1 ;;
+        esac
+        if [ -z "$value" ]; then echo "FAIL $FILE: record $n has an empty $key"; bad=1; fi
+        if [ "$key" = version ] && ! [[ "$value" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "FAIL $FILE: record $n's version '$value' is not X.Y.Z"
+            bad=1
+        fi
+    done < <(records)
+    local n_records
+    n_records="$(grep -c '^\[\[release\]\]' "$FILE" || true)"
+    versions="$(recorded_versions)"
+    if [ "$(grep -c . <<<"$versions" || true)" != "$n_records" ]; then
+        echo "FAIL $FILE: every [[release]] needs exactly one version"
+        bad=1
+    fi
+    if [ -n "$(sort <<<"$versions" | uniq -d)" ]; then
+        echo "FAIL $FILE: $(sort <<<"$versions" | uniq -d | tr '\n' ' ')recorded twice"
+        bad=1
+    fi
+    sorted="$(LC_ALL=C sort -V <<<"$versions")"
+    if [ "$versions" != "$sorted" ]; then
+        echo "FAIL $FILE: records are not in version order; tools/compat add and backfill keep them sorted"
+        bad=1
+    fi
+    [ "$bad" -eq 0 ] && echo "ok   $FILE: $n_records release record(s), well formed and in order"
+    return "$bad"
+}
+
+case "${1:-}" in
+    add) [ -n "${2:-}" ] || { echo "usage: tools/compat add VERSION" >&2; exit 2; }; add "$2" ;;
+    backfill) backfill ;;
+    check) check ;;
+    *) echo "usage: tools/compat add VERSION|backfill|check" >&2; exit 2 ;;
+esac

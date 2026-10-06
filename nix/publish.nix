@@ -47,6 +47,7 @@ in
 
       echo "== setting version to $version =="
       echo "$version" > VERSION
+      ./tools/compat add "$version"
 
       sed -i "s/^version = \".*\"$/version = \"$version\"/" tabular-center-rust/Cargo.toml
 

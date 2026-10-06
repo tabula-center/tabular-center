@@ -41,7 +41,7 @@ page() {
 nav() {
     printf -- '<a href="./"><img src="assets/logo.svg" alt="tabular-center" width="32" height="32" style="vertical-align: middle"></a> '
     printf -- '[Home](./) · [Rust](rust) · [Kotlin](kotlin) · [Swift](swift) · '
-    printf -- '[Migrating](migrating) · [Cells](cells) · [Diagnostics](diagnostics) · '
+    printf -- '[Migrating](migrating) · [Compatibility](compatibility) · [Cells](cells) · [Diagnostics](diagnostics) · '
     printf -- '[Matrix files](matrix-files) · [Source](%s)\n\n' "$REPO_URL"
 }
 
@@ -773,6 +773,81 @@ line per row. See [Swift](swift) for what is available today and what waits
 on the `@Machine` macro.
 MD
 } > "$out/migrating.md"
+
+compat_rows() {
+    awk -v keys="$1" '
+        function flush(   i, ks, line, val) {
+            if (!seen) return
+            line = "| " v["version"]
+            split(keys, ks, " ")
+            for (i = 1; i in ks; i++) {
+                val = (ks[i] in v) ? v[ks[i]] : "--"
+                if (ks[i] == "nixpkgs" && val != "--") val = "`" substr(val, 1, 12) "`"
+                line = line " | " val
+            }
+            rows[++r] = line " |"
+            delete v
+            seen = 0
+        }
+        /^\[\[release\]\][[:space:]]*$/ { flush(); seen = 1; next }
+        seen && /^[A-Za-z-]+[[:space:]]*=/ {
+            k = $0; sub(/[[:space:]]*=.*$/, "", k)
+            val = $0; sub(/^[^=]*=[[:space:]]*"/, "", val); sub(/"[[:space:]]*$/, "", val)
+            v[k] = val
+        }
+        END { flush(); for (i = r; i >= 1; i--) print rows[i] }
+    ' compatibility.toml
+}
+
+compat_table() {
+    local heading="$1" keys="$2" labels="$3" columns separator="|" i
+    columns="$(awk -F'|' '{ print NF + 1 }' <<<"$labels")"
+    for ((i = 0; i < columns; i++)); do separator="$separator---|"; done
+    printf -- '### %s\n\n| release | %s |\n%s\n' "$heading" "$labels" "$separator"
+    compat_rows "$keys"
+    printf '\n'
+}
+
+{
+    front "Compatibility"
+    prose <<'MD'
+# Compatibility
+
+For each release, the versions it was built and verified with, newest first.
+**What your project needs** is what a consumer must match; **verified with**
+is what the release's checks ran on, so a release can be reproduced. A `--`
+is a version that release did not record. The record is `compatibility.toml`
+in the repository, written when a release is tagged.
+
+MD
+    if ! grep -q '^\[\[release\]\]' compatibility.toml; then
+        prose <<'MD'
+No release is recorded yet.
+MD
+    else
+        printf '## Rust\n\n'
+        compat_table "What your project needs" "rust" "Rust (MSRV)"
+        compat_table "Verified with" "nixpkgs iced rust-gui" "nixpkgs | iced (example) | Rust for the GUI example"
+        prose <<'MD'
+The library has no dependencies; `no_std`, with `alloc` for `export` and
+`lint`.
+
+MD
+        printf '## Kotlin\n\n'
+        compat_table "What your project needs" "kotlin jvm ksp" "compiled with Kotlin | JVM | KSP (processor)"
+        compat_table "Verified with" "gradle compose nixpkgs" "Gradle | Compose (example) | nixpkgs"
+        prose <<'MD'
+The jars are JVM bytecode for the release's JVM version; Gradle module
+metadata refuses an older JVM at resolution, Maven consumers get a class-file
+error instead.
+
+MD
+        printf '## Swift\n\n'
+        compat_table "What your project needs" "swift-tools" "Swift tools"
+        compat_table "Verified with" "swift-tools-examples swift-syntax nixpkgs" "examples' tools | swift-syntax (macro package) | nixpkgs"
+    fi
+} > "$out/compatibility.md"
+
 
 mkdir -p "$out/assets" "$out/_includes"
 cp assets/*.svg "$out/assets/"

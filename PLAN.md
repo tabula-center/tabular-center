@@ -607,8 +607,21 @@ in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
       minor is a breaking change pre-1.0. The PR stays red until a person
       moves the fixture or the example -- which is the point of running the
       checks on it
-- [ ] `compatibility.toml`, backfilled for every release so far from the
+- [x] `compatibility.toml`, backfilled for every release so far from the
       tags (each tag's manifests are the record), and appended by `release`.
+      **Done** (expected to work, not yet observed): `tools/compat add`
+      (called by `release` before `nix flake check`), `backfill` (reads each
+      `v*` tag through `tools/deps at REV`, the site table applied to a git
+      revision), `check` (the `compatibility` step: shape only, since a record
+      is history and `main` moves on). The page is `compatibility` on the
+      site, linked from every page's navigation and the README. The file
+      starts empty: the tags are in your repository, not in the tarball this
+      was written from, so **run `tools/compat backfill` once and commit the
+      result**; nothing was guessed. The "what was verified with" table holds
+      the pinned inputs (nixpkgs revision, Gradle, the examples' versions)
+      rather than tool versions read by running each toolchain, which would
+      make recording a release depend on building every toolchain first.
+      Originally specified:
       Two tables per language on the page: **what your project needs** --
       Rust: MSRV, edition, `no_std` (and that `export`/`lint` need `alloc`);
       Kotlin: the compiler the jars were built with, JVM 21+, the KSP version
