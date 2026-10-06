@@ -9,6 +9,11 @@
 //!   hand in exactly the shape the macro expands to.
 //! - `plain`: below, what someone writes with no library at all -- one
 //!   `match`, no traits, no `Step`, returning `(State, Option<Effect>)`.
+//! - `step k=K`: `plain`'s machine returning `Step<State, Effect, K>`, for K
+//!   from 1 (the fewest that hold this machine's effects) to 8. Against
+//!   `plain`, it is what `Step` itself costs; across K, what the inline
+//!   effects array's size costs -- the question to answer before touching
+//!   the array that keeps `Step` allocation-free.
 //!
 //! The first two are included from the test files rather than copied, so the
 //! machines timed here are the machines the test suite checks. Before timing,
@@ -107,6 +112,34 @@ pub fn tabular_center_asm_reference(
 
 const LIMIT: u32 = 5;
 
+mod capacity {
+    use super::plain::{Action, Ctx, Effect, State};
+    use tabular_center::Step;
+
+    pub fn step<const K: usize>(
+        ctx: &mut Ctx,
+        state: State,
+        action: Action,
+    ) -> Step<State, Effect, K> {
+        match (state, action) {
+            (State::Idle, Action::Start) => Step::go(State::Running(0)).emit(Effect::StartClock),
+            (State::Idle, Action::Tick(_) | Action::Cancel) => Step::ignored(),
+            (State::Running(_), Action::Start) => Step::ignored(),
+            (State::Running(since), Action::Tick(now)) => {
+                ctx.ticks_seen += 1;
+                if now.saturating_sub(since) >= ctx.limit {
+                    Step::go(State::Done).emit(Effect::StopClock(1))
+                } else {
+                    Step::stay()
+                }
+            }
+            (State::Running(_), Action::Cancel) => Step::go(State::Idle).emit(Effect::StopClock(0)),
+            (State::Done, Action::Start) => Step::go(State::Running(0)).emit(Effect::StartClock),
+            (State::Done, Action::Tick(_) | Action::Cancel) => Step::ignored(),
+        }
+    }
+}
+
 const CYCLE: [(u8, u32); 7] = [(0, 0), (1, 1), (1, 2), (1, 9), (0, 0), (2, 0), (1, 3)];
 
 const IDLE: u8 = 0;
@@ -165,6 +198,10 @@ fn plain_code(s: &plain::State) -> u8 {
 /// count of effects emitted, which every version must consume so none of
 /// them can have its work optimized away.
 type Run = fn(u32) -> (Vec<u8>, usize);
+
+type MatrixStep = tabular_center::Step<matrix::State, matrix::Effect>;
+type ReferenceStep = tabular_center::Step<reference::State, reference::Effect>;
+type PlainStep = (plain::State, Option<plain::Effect>);
 
 fn run_matrix(cycles: u32) -> (Vec<u8>, usize) {
     let mut cells = matrix::TimerImpl;
@@ -235,17 +272,48 @@ fn run_plain(cycles: u32) -> (Vec<u8>, usize) {
     (visited, black_box(effects))
 }
 
+fn run_step<const K: usize>(cycles: u32) -> (Vec<u8>, usize) {
+    let mut ctx = plain::Ctx {
+        limit: LIMIT,
+        ticks_seen: 0,
+    };
+    let mut state = plain::State::Idle;
+    let mut visited = Vec::new();
+    let mut effects = 0;
+    for cycle in 0..cycles {
+        for &(kind, now) in black_box(&CYCLE) {
+            let s = capacity::step::<K>(&mut ctx, state, plain_action(kind, now));
+            effects += s.effects.len();
+            if let tabular_center::Outcome::Go(next) = s.outcome {
+                state = next;
+            }
+            if cycle == 0 {
+                visited.push(plain_code(&state));
+            }
+        }
+    }
+    (visited, black_box(effects))
+}
+
+fn step_bytes<const K: usize>() -> usize {
+    size_of::<tabular_center::Step<plain::State, plain::Effect, K>>()
+}
+
 const CYCLES: u32 = 200_000;
 const ROUNDS: usize = 21;
 
 fn main() {
     let expected = [RUNNING, RUNNING, RUNNING, DONE, RUNNING, IDLE, IDLE];
-    let runs: [(&str, Run); 3] = [
-        ("matrix", run_matrix),
-        ("reference", run_reference),
-        ("plain", run_plain),
+    let runs: [(&str, Run, usize); 7] = [
+        ("matrix", run_matrix, size_of::<MatrixStep>()),
+        ("reference", run_reference, size_of::<ReferenceStep>()),
+        ("plain", run_plain, size_of::<PlainStep>()),
+        ("step k=1", run_step::<1>, step_bytes::<1>()),
+        ("step k=2", run_step::<2>, step_bytes::<2>()),
+        ("step k=4", run_step::<4>, step_bytes::<4>()),
+        ("step k=8", run_step::<8>, step_bytes::<8>()),
     ];
-    for (name, run) in runs {
+    for (name, run, _) in runs {
         let (visited, effects) = run(1);
         assert_eq!(visited, expected, "{name} visited different states");
         assert_eq!(effects, 4, "{name} emitted a different number of effects");
@@ -253,7 +321,7 @@ fn main() {
 
     let mut samples: Vec<Vec<f64>> = vec![Vec::new(); runs.len()];
     for _ in 0..ROUNDS {
-        for (i, (_, run)) in runs.iter().enumerate() {
+        for (i, (_, run, _)) in runs.iter().enumerate() {
             let start = Instant::now();
             let _ = run(black_box(CYCLES));
             let steps = f64::from(CYCLES) * CYCLE.len() as f64;
@@ -263,17 +331,19 @@ fn main() {
 
     println!("dispatch cost, ns per step ({ROUNDS} rounds of {CYCLES} cycles)");
     println!();
-    println!("  version         min   median");
-    for ((name, _), times) in runs.iter().zip(samples.iter_mut()) {
+    println!("  version         min   median   bytes returned");
+    for ((name, _, bytes), times) in runs.iter().zip(samples.iter_mut()) {
         times.sort_by(|a, b| a.total_cmp(b));
         let median = times[times.len() / 2];
-        println!("  {name:<10} {:>8.2} {median:>8.2}", times[0]);
+        println!("  {name:<10} {:>8.2} {median:>8.2}   {bytes:>5}", times[0]);
     }
     println!();
     println!("`matrix` and `reference` should be indistinguishable: the claim is that");
     println!("they are the same code after monomorphization, which timing cannot");
     println!("settle (`nix run .#bench-asm` compares their assembly). `plain` is");
     println!("expected to be faster: it returns `(State, Option<Effect>)` where the");
-    println!("other two return a `Step` with an inline effects array. Read the");
-    println!("minimums: they are the least disturbed by everything else on the machine.");
+    println!("other two return a `Step` with an inline effects array. `step k=1`");
+    println!("against `plain` is what `Step` costs with the smallest array; k=1 to");
+    println!("k=8 is what the array's size adds. Read the minimums: they are the");
+    println!("least disturbed by everything else on the machine.");
 }

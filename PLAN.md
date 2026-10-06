@@ -601,7 +601,8 @@ in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
       makes it do. Now any commit on the branch (since `main`) by an author
       other than `upstream@tabula.center` makes the job leave the branch
       alone, with a notice, until its pull request is merged or closed
-- [ ] Expected red, recorded so it is not mistaken for a broken job: a
+- [x] Expected red, recorded so it is not mistaken for a broken job (and in
+      RELEASING.md, "A red update"; it happened, with iced 0.14): a
       kotlinc upgrade can reword the four messages the guarantee fixtures
       assert (spec/diagnostics.md forbids normalising them), and an iced
       minor is a breaking change pre-1.0. The PR stays red until a person
@@ -630,10 +631,10 @@ in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
       the nixpkgs revision, so a release can be reproduced. A check that the
       newest entry matches `dependencies.toml` whenever `VERSION` is a
       released version
-- [ ] The Gradle module metadata already carries `org.gradle.jvm.version=21`,
+- [x] The Gradle module metadata already carries `org.gradle.jvm.version=21`,
       so a Gradle consumer on an older JVM is refused at resolution with a
       clear message; the page says so, and that Maven consumers get no such
-      guard
+      guard -- the compatibility page's Kotlin section says both
 
 ---
 
@@ -910,7 +911,8 @@ cases. Half of the toolkit already exists and is lawful:
       this item named does not exist; the README has no API table to extend);
       ARCHITECTURE 2 says why `Step` is the box, why the empty cases
       short-circuit, and why `Ignored` absorbs
-- [ ] Not in scope, recorded so it is not mistaken for an omission: async
+**Not in scope**, recorded so it is not mistaken for an omission (a note,
+not a box -- it can never be closed): async
       combinators (`AsyncHandle` cells await before returning a `Step`, so a
       `Step` is already a value), traversals over effects, and a monad over
       `Ctx` -- shared state threaded by the machine, not by values
@@ -2875,6 +2877,19 @@ a warning refuses nothing and every other fixture here proves a refusal.
       default effect capacity `K` contributes before changing anything --
       the array is what makes `Step` allocation-free, which is not to be
       traded casually
+      - [x] The instrument: `nix run .#bench` now also times `step k=K`,
+            `plain`'s machine returning `Step<State, Effect, K>` for K = 1, 2,
+            4 and 8, and prints every version's return size in bytes. The
+            macro does not expose `K`, so this is the way to vary it alone:
+            `plain` against `step k=1` is what `Step` itself costs (the
+            outcome enum, `emit`'s checks) with the smallest array that holds
+            this machine's one effect; `k=1` to `k=8` is what the array's size
+            adds. The same parity check runs first: every version must visit
+            the same states and emit the same four effects
+      - [ ] Run it, record the numbers here, and decide: if the cost tracks
+            the bytes, a smaller default `K` (or one chosen per machine) is
+            worth a design; if `step k=1` is already most of the gap, the
+            array is not the cost and stays as it is
 - [x] **One definition of green.** `tools/verify` is it; `nix flake check` runs
       its steps in a sandbox and CI runs the flake. Any new check goes in
       `tools/verify`, never directly in the workflow.
