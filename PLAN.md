@@ -1318,6 +1318,13 @@ deprecation period, and `VERSION` stays where it is.
 - [ ] Confirmed on a real run: a Rust check's `drvPath` is unchanged by an
       edit under `tabular-center-kotlin/`, and changed by one under `spec/`.
       Written, not yet observed; the commands are in the patch's message
+      - [x] **First half observed** (October 2026): `rust-test`'s `drvPath`
+            was byte-identical before and after an edit to
+            `tabular-center-kotlin/README.md` -- a check is given its own
+            language's directory, `spec/` and `.editorconfig`, and nothing
+            else
+      - [ ] Second half: the same comparison around an edit under `spec/`,
+            which must change it
 
 ### The documentation site
 
@@ -2373,6 +2380,22 @@ and `tabular-center-kotlin/ksp/golden/`, not guessed (0f asked for exactly this 
       `tabular-center-kotlin/compile_fail/` fixtures match (0f), and KSP with it — a decision
       of its own. Once made, this is one more branch in `prototypeModifiers`
       and a `-Xcontext-parameters` in the example build.
+      - [x] **The compiler block is gone** (October 2026): the upstream job
+            moved kotlinc to 2.4.20, where context parameters are stable
+      - [ ] **Now blocked on KSP's API instead.** The processor reads a
+            prototype through KSP's symbol API, and KSP 2.3.12 -- the version
+            pinned -- has no accessor for a declaration's context parameters:
+            searched across all 56 files of its `api` module at that tag, the
+            only mention is `utils.kt`'s flag telling the *validator* whether
+            to accept them. So "one more branch in `prototypeModifiers`" has
+            nothing to read. Tracked upstream: google/ksp#2472 ("Support
+            getting context parameters", open) and #3217 ("Add implementation
+            for context parameters", open). Reading the prototype's source
+            text instead would be a parser of our own for Kotlin syntax --
+            the thing KSP exists so we need not write -- so the plan is to
+            wait: the daily `kotlin` group proposes the KSP release that ships
+            the accessor, and this becomes the small change it was meant to
+            be
 - [x] ~~Emit abstract class~~ — **superseded** by `codegen/Emit.kt`: the
       surface is `interface Cells` (Phase 6's Kotlin finding: a class extends
       one parent, so abstract members would cap composition at one child),
@@ -2872,7 +2895,7 @@ a warning refuses nothing and every other fixture here proves a refusal.
             twin; two sides that resolve to one symbol are IDENTICAL by the
             compiler's own comparison, and only two surviving bodies are
             diffed
-- [ ] `Step`'s cost. A nanosecond a step over a plain `match`, from the
+- [x] `Step`'s cost. A nanosecond a step over a plain `match`, from the
       outcome-plus-effects-array return value. Worth measuring what the
       default effect capacity `K` contributes before changing anything --
       the array is what makes `Step` allocation-free, which is not to be
@@ -2886,10 +2909,26 @@ a warning refuses nothing and every other fixture here proves a refusal.
             this machine's one effect; `k=1` to `k=8` is what the array's size
             adds. The same parity check runs first: every version must visit
             the same states and emit the same four effects
-      - [ ] Run it, record the numbers here, and decide: if the cost tracks
-            the bytes, a smaller default `K` (or one chosen per machine) is
-            worth a design; if `step k=1` is already most of the gap, the
-            array is not the cost and stays as it is
+      - [x] **Run (October 2026, Rust 1.94), minimums in ns per step:**
+            `plain` 0.52 (16 bytes returned); `step k=1` 0.58 (24); `k=2`
+            0.57 (32); `k=4` 0.56 (48); `k=8` 0.59 (80); `matrix` 0.59 and
+            `reference` 0.61 (32 each). Read: **the array's size costs nothing
+            measurable** -- 24 to 80 bytes, 0.56 to 0.59, no trend, inside the
+            noise -- and `Step` itself costs about 0.05 ns a step over `plain`
+            (~10%), which is the outcome enum and `emit`'s checks, already
+            whole at `k=1`. **Decided: the array stays as it is**, and the
+            default `K` with it. (Under 1.75 the recorded gap was nearer two
+            to one; on 1.94 it is a tenth. `matrix`, `reference` and `step
+            k=2` -- one 32-byte `Step` -- agree, as the identical assembly
+            says they must.) Running it also found a fault in `bench-asm`: a
+            second run in a working tree failed, fixed by giving `asm-diff`
+            its own target directory.
+            **Reproduced** by a second run: `plain` 0.52, `step k=1..8` 0.57 to
+            0.58, `matrix` 0.58, `reference` 0.59. And `bench-asm`, after the
+            fix, on 1.94: IDENTICAL by LLVM merging the dispatchers (the
+            reference wrapper an alias of the matrix's), with `step` now
+            inlined into the wrapper where 1.75 kept it a separate function --
+            `asm-diff` resolves both shapes
 - [x] **One definition of green.** `tools/verify` is it; `nix flake check` runs
       its steps in a sandbox and CI runs the flake. Any new check goes in
       `tools/verify`, never directly in the workflow.

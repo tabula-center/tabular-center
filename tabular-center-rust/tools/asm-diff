@@ -16,20 +16,21 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 out=target/asm-diff
-deps=target/release/deps
+build="$out/build"
+deps="$build/release/deps"
 mkdir -p "$out"
-rm -f "$deps"/dispatch-*.s
 
 echo "compiling benches/dispatch.rs with --emit asm (release, one codegen unit)" >&2
 cargo rustc -q -p tabular-center --bench dispatch --release --offline --locked \
-    -- --emit=asm,link -C codegen-units=1
+    --target-dir "$build" -- --emit=asm,link -C codegen-units=1
 
 asm=""
 for f in "$deps"/dispatch-*.s; do
-    [ -f "$f" ] && asm="$f"
+    [ -f "$f" ] || continue
+    if [ -z "$asm" ] || [ "$f" -nt "$asm" ]; then asm="$f"; fi
 done
 if [ -z "$asm" ]; then
-    echo "asm-diff: rustc wrote no $deps/dispatch-*.s" >&2
+    echo "asm-diff: no $deps/dispatch-*.s after building; delete $build and run again" >&2
     exit 2
 fi
 echo "assembly: tabular-center-rust/$asm" >&2
