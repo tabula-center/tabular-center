@@ -41,7 +41,7 @@ rewrite. Written between impl 1 and impl 2, it costs a week.
 | 8 Introspection & tooling | **done (all three)** |
 | 9a Driver and mailbox | **done (all three)** |
 | 9b Rendering surface | **done** (Kotlin and Swift emitters, KSP, `composable-transition`) |
-| 10 Release | in progress: README, migration guide, versioning policy, benchmark done; Maven Central published, crates.io and Swift pending |
+| 10 Release | in progress: README, migration guide, versioning policy, benchmark done; published: Maven Central, crates.io, the Swift mirror (up to 0.2.0); Swift Package Index listing pending |
 
 One exception to the table, found by the audit below: Rust had no prototype
 colors. It has one now, `async`, composing in both directions the rule
@@ -2707,7 +2707,24 @@ a warning refuses nothing and every other fixture here proves a refusal.
             real run found: `SIGNING_KEY_ID` in gpg's long form, and the
             registry switch set as an environment variable (both under
             "Audit, October 2026")
-      - [ ] crates.io and the Swift Package Index: not yet reported
+      - [x] **crates.io: published** (crates.io/crates/tabular-center).
+            Releases are tagged `v0.1.1` through `v0.2.0` in this repository
+      - [x] **Swift: published through the mirror.** Checked against the
+            mirror itself (October 2026): `tabula-center/tabular-center-swift`
+            holds tags `0.1.2` through `0.1.6` and `0.2.0`, so SwiftPM users can
+            already depend on it. There is no Swift registry to upload to;
+            the mirror *is* the publication
+      - [ ] **Swift Package Index: not listed.** Its public package list
+            (12,213 entries) has no `tabula-center` repository. The index is
+            discovery, not distribution: a repository URL is submitted once,
+            through swiftpackageindex.com's "Add a Package", which adds it to
+            `SwiftPackageIndex/PackageList`'s `packages.json` (entries are
+            written `https://github.com/<owner>/<repo>.git`). Submit the
+            mirror, `https://github.com/tabula-center/tabular-center-swift.git`
+            -- never this repository, whose `Package.swift` is not at the
+            root. A person's step: it is a pull request from a GitHub account
+      - [ ] Then `tools/compat backfill` once, now that the tags are known to
+            exist (`v0.1.1`..`v0.2.0`), and commit `compatibility.toml`
       *Distribution decided, and made checkable before any credential
       exists.* Rust: crates.io receives an archive of the crate directory
       alone, so `rust-package` runs `cargo package` -- which builds the crate

@@ -139,7 +139,8 @@ deletion.
 
 Swift has no registry: SwiftPM and the Swift Package Index resolve from a git
 repository with `Package.swift` at its root, and this repository's is in
-`tabular-center-swift/`. So Swift is published through a **mirror**,
+`tabular-center-swift/`. Being listed on the Swift Package Index is discovery,
+not publication: the mirror's tags are what users resolve. So Swift is published through a **mirror**,
 `tabula-center/tabular-center-swift`: pushing the release tag runs
 `.github/workflows/swift-mirror.yml`, which splits `tabular-center-swift/` out
 with `git subtree split` -- that directory and its history, nothing else -- and
@@ -154,7 +155,10 @@ only Swift:
 Before the first release, once: create the empty mirror repository, add a
 fine-grained token with `contents: write` on it (and nothing else) as this
 repository's `SWIFT_MIRROR_TOKEN` secret, and register the mirror -- not this
-repository -- with the Swift Package Index. The workflow refuses a tag that
+repository -- with the Swift Package Index: on swiftpackageindex.com, "Add a
+Package", submit `https://github.com/tabula-center/tabular-center-swift.git`.
+That opens a pull request adding it to the index's package list; once merged,
+the index finds new tags by itself. The workflow refuses a tag that
 disagrees with `VERSION`.
 
 That the mirror would build is checked on every push, not discovered at

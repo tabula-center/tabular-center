@@ -94,7 +94,7 @@ all three against one shared set of cases:
 | 8 | Introspection, lints, renderings | done (all three); renderings produced by each and diffed (`renderings-agree`) |
 | 9a | Driver and mailbox | done (all three) |
 | 9b | Rendering surface | done (Kotlin and Swift; `@Composable` and `@ViewBuilder` renderers) |
-| 10 | Release | in progress: Maven Central published; crates.io and Swift pending |
+| 10 | Release | in progress: published: Maven Central, crates.io, the Swift mirror (up to 0.2.0); Swift Package Index listing pending |
 
 See `ARCHITECTURE.md` for the design, `PLAN.md` for the task breakdown, and
 `tabular-center-<lang>/examples/` for the worked machines — the same four core examples in every
