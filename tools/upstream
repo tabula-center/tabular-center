@@ -9,7 +9,9 @@
 # (swift-syntax, within the major the Swift tools version allows),
 # rust-examples (iced), nix-inputs (all five flake locks), actions (every
 # workflow action pinned to a commit), and report (the `manual` dependencies,
-# which this never changes). --update edits dependencies.toml, runs
+# which this never changes; the JVM's newest LTS is derived from OpenJDK's GA
+# tags and the two-year cadence since 17 -- 17, 21, 25, every fourth
+# release). --update edits dependencies.toml, runs
 # `tools/deps sync`, and regenerates what the change stales: gradle-lock.json
 # and the kotlinc hash, Package.resolved and swift-lock.json, the iced
 # Cargo.lock, the flake locks. --report writes the changes as a markdown
@@ -243,8 +245,17 @@ group_actions() {
     done < <(grep -hoE 'uses: [^@ ]+@[^ ]+' .github/workflows/*.yml | grep -vE '@[0-9a-f]{40}' | sort -u)
 }
 
+newest_jdk_lts() {
+    local newest v lts=""
+    newest="$(git ls-remote --tags --refs https://github.com/openjdk/jdk.git 'jdk-*-ga' 2>/dev/null |
+        sed -nE 's#.*refs/tags/jdk-([0-9]+)-ga$#\1#p' | sort -n | tail -1)"
+    [ -n "$newest" ] || return 0
+    for ((v = 17; v <= newest; v += 4)); do lts="$v"; done
+    printf '%s %s' "$lts" "$newest"
+}
+
 group_report() {
-    local rust swift
+    local rust swift jdk lts newest
     update=0
     group_kotlin
     group_swift
@@ -253,7 +264,13 @@ group_report() {
     swift="$(github repos/swiftlang/swift/releases/latest | jq -r .tag_name | sed -E 's/^swift-([0-9.]+)-RELEASE$/\1/')"
     rows+=("| rust (MSRV) | $(current rust) | stable is $rust | yes | manual: raising the MSRV is a promise to users |")
     rows+=("| swift-tools | $(current swift-tools) | Swift $swift is out | yes | manual: the minimum toolchain users need |")
-    rows+=("| jvm | $(current jvm) | not queried | yes | manual: the bytecode target users need |")
+    jdk="$(newest_jdk_lts)"
+    if [ -n "$jdk" ]; then
+        lts="${jdk% *}"; newest="${jdk#* }"
+        rows+=("| jvm | $(current jvm) | newest LTS is $lts (newest release $newest) | yes | manual: the bytecode target users need; raising it also needs pkgs.jdk$lts in the pinned nixpkgs |")
+    else
+        rows+=("| jvm | $(current jvm) | not queried: openjdk/jdk's tags were unreachable | yes | manual: the bytecode target users need |")
+    fi
     echo "rust stable $rust, swift $swift (manual: reported, never changed)"
 }
 

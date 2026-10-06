@@ -689,6 +689,15 @@ changes them. Decisions, not chores:
       release, together
 - [x] **JVM target, 21 -- decided: no bump for now** (owner, October 2026).
       The question returns when there is a reason to require a newer LTS.
+      - [x] **The report shows the newest LTS** (it said "not queried"): "newest
+            LTS is 25 (newest release 27)". The newest GA release comes from
+            OpenJDK's own tags (`jdk-NN-ga` in `openjdk/jdk`, read with `git
+            ls-remote`, as swift-syntax's are), and the LTS is derived from the
+            published two-year cadence since 17 -- 17, 21, 25, every fourth
+            release. Adoptium's API and endoflife.date, which state LTS
+            outright, could not be reached to confirm their formats, and a
+            schema guessed is worse than a rule documented; if the cadence ever
+            changes, this line of `tools/upstream` changes with it
       Originally: **JVM target, 21.** Reported as "not queried" because nothing in the
       job asks for the newest LTS. Raising the bytecode target cuts off every
       consumer on an older JVM (Gradle module metadata refuses them at
