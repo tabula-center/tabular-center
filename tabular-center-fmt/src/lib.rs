@@ -130,7 +130,7 @@ fn same_indent(line: &[char], indent: &str) -> bool {
     let n = indent.chars().count();
     line.len() >= n
         && line[..n].iter().copied().eq(indent.chars())
-        && line.get(n).map_or(true, |c| *c != ' ')
+        && line.get(n).is_none_or(|c| *c != ' ')
 }
 
 fn classify(line: &[char]) -> Line {
@@ -313,7 +313,7 @@ fn list_of<'a>(chain: &[&'a Group]) -> Option<&'a Group> {
 fn shallowest<'a>(groups: impl Iterator<Item = &'a Group>) -> Option<&'a Group> {
     let mut best: Option<&Group> = None;
     for g in groups {
-        if best.map_or(true, |b| g.depth < b.depth) {
+        if best.is_none_or(|b| g.depth < b.depth) {
             best = Some(g);
         }
     }

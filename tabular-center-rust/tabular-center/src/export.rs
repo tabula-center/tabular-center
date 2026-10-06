@@ -152,7 +152,7 @@ pub fn to_grid<const N: usize, const M: usize>(t: &Table<N, M>) -> String {
 
     for (i, state) in t.states.iter().enumerate() {
         line.clear();
-        line.push_str(&format!("{:w$}", state, w = row_label_w));
+        line.push_str(&format!("{state:row_label_w$}"));
         for (j, text) in texts[i].iter().enumerate() {
             line.push_str(&format!("  {:w$}", text, w = col_w[j]));
         }

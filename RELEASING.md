@@ -95,6 +95,7 @@ breaking.
 | A new runtime lint | minor | advisory; it never fails a build |
 | A rendering's format (`.grid`, `.mmd`, `.lint`, `.cov`) | minor | not a build contract, but tooling may parse it; say so in the notes |
 | A runtime type or function (`Step`, `Table`, `Driver`) | ordinary semver | the runtime is a library like any other |
+| A toolchain floor raised: the Rust MSRV, the JVM bytecode target, the Swift tools version | minor | a consumer on an older toolchain stops building, though nothing in their code changed; when to raise is the rule below |
 
 Two consequences worth stating.
 
@@ -105,6 +106,23 @@ Two consequences worth stating.
   implementations had to work around -- a member that should not have been
   required -- removing it is still a signature change. It goes out as a major
   with a note, not as a patch that breaks a build nobody expected to break.
+
+### When the Rust MSRV is raised
+
+The MSRV is **the newest stable release at least six months old** on the day
+it is raised, and it is raised in a minor release, when there is a reason: a
+language or standard-library feature the code wants, a check's tooling that
+needs it, or the floor falling more than a year behind stable. Stable's
+number alone is not a reason -- the daily upstream report shows it every
+morning, and a floor that chased it would drop users for nothing. One number
+pins both the promise and the checks (`rust` in `dependencies.toml`), so the
+library is always built and linted with exactly the oldest toolchain it
+claims.
+
+October 2026: 1.75 to **1.94**. The floor had fallen nearly three years
+behind (stable was 1.99.0); 1.94.0 (2026-03-05) was the newest release at
+least six months old, and present in the pinned rust-overlay, which 1.99.0
+was not yet.
 
 ## Releasing
 

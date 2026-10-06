@@ -37,7 +37,7 @@ let
     if builtins.pathExists ../rust-toolchain.toml
     then pkgs.rust-bin.fromRustupToolchainFile ../rust-toolchain.toml
     else
-      pkgs.rust-bin.stable."1.75.0".default.override {
+      pkgs.rust-bin.stable."1.94.0".default.override {
         extensions = [ "rust-src" "rust-analyzer" "clippy" "rustfmt" ];
         targets = [ "thumbv7em-none-eabihf" ];
       };

@@ -1345,14 +1345,15 @@ are here. Grouped by file, so a reader of one finds its reasons in one place.
   unit-tested is a loop nobody has watched (`cargo run -p retry` prints a
   trace).
 - **`05-iced` is not a workspace member, and has its own toolchain file.**
-  The library's MSRV is 1.75 and the four members hold it: they depend on the
-  library and nothing else. iced's tree needs edition 2024, which 1.75's
-  cargo cannot parse (the first attempt failed on a vendored `getrandom`
-  manifest), so the GUI example is its own package with its own lock, its
+  The library's MSRV (`rust` in `dependencies.toml`) is what the four members
+  hold: they depend on the library and nothing else. iced's floor moves on its
+  own and has passed the MSRV before -- under 1.75, iced's edition-2024 tree
+  could not even be parsed (a vendored `getrandom` manifest) -- so the GUI
+  example is its own package with its own lock, its
   own `rust-version` (the application's: 1.88 today, raised with iced's own floor by the upstream job, `rust-gui` in `dependencies.toml`) and a
   `rust-toolchain.toml` saying `stable`. rustup takes the *nearest* toolchain
-  file walking up, and `tabular-center-rust/rust-toolchain.toml` pins 1.75,
-  so without its own the example would build on the MSRV under rustup. Nix
+  file walking up, and `tabular-center-rust/rust-toolchain.toml` pins the
+  MSRV, so without its own the example would build on the MSRV under rustup. Nix
   names current stable itself (`rustStable`) and never reads that file. It is
   also the first example with a third-party dependency, which is why the Rust
   flake vendors its `Cargo.lock`.

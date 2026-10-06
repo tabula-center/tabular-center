@@ -1,10 +1,11 @@
-# Current stable, not the library's 1.75.
+# Current stable, not the library's pinned MSRV.
 #
 # This example sits inside tabular-center-rust/, whose rust-toolchain.toml pins
 # the MSRV -- and rustup takes the NEAREST toolchain file walking up from the
-# working directory. Without this one, `cargo test` here under rustup (anyone
-# building without nix) would use 1.75, which cannot even parse
-# iced's edition-2024 dependencies. The nix check names current stable itself
-# (`rustStable` in ../../nix/context.nix) and never reads this file.
+# working directory. The GUI example follows iced's floor (`rust-gui` in
+# dependencies.toml), which moves on its own and can pass the library's MSRV,
+# so under rustup (anyone building without nix) it uses stable rather than the
+# pin. The nix check names current stable itself (`rustStable` in
+# ../../nix/context.nix) and never reads this file.
 [toolchain]
 channel = "stable"

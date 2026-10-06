@@ -651,7 +651,27 @@ and: swift-syntax 604.0.0 exists, beyond major 509, which needs swift-tools
 raised. Each is `manual` -- a promise to users -- so the job reports and never
 changes them. Decisions, not chores:
 
-- [ ] **Rust MSRV, 1.75.** Raising it is a minor-version change in 0.x
+- [x] **Rust MSRV, 1.75 -> 1.94** (October 2026, on the owner's direction;
+      ships in the next minor release, 0.3.0, since 0.2.0 is out). The rule,
+      now in RELEASING.md: the newest stable at least six months old when
+      raised, raised in a minor release and only for a reason. 1.94.0
+      (2026-03-05) qualifies, and is in the pinned rust-overlay
+      (2026-09-16), which 1.99.0 (2026-10-01) is not. All ten sites moved
+      with it -- the workspace and four examples' `rust-version`, the
+      formatter's, both `rust-toolchain.toml`s, the Nix pin -- and a raised
+      toolchain floor is now a row in RELEASING.md's breaking-change table
+      (minor). Nineteen releases of new lints, scanned for in advance since
+      `clippy -D warnings` runs on the MSRV and no clippy runs where this was
+      written: two `map_or(true, ..)` became `is_none_or` (unnecessary_map_or,
+      1.84), and the two format calls inlinable in full became
+      `{st:label_w$}` / `{state:row_label_w$}` (uninlined_format_args, warn
+      by default since 1.88; mixed calls are not reported). No hits for the
+      others looked for (doc_lazy_continuation, needless_lifetimes on impls,
+      legacy numeric constants, unexpected cfgs). Expected green, not yet
+      observed: a lint missed here is the first thing the run will say.
+      The prose that said "1.75" now names the MSRV without a number, and the
+      Rust page takes it from `dependencies.toml`, so the next raise cannot
+      leave it stale. Originally recorded: Raising it is a minor-version change in 0.x
       (RELEASING.md, "Versioning") and drops every user on an older
       toolchain; keeping it costs the library nothing today, since it has no
       dependencies and uses no newer language feature. Decide what would
@@ -667,7 +687,9 @@ changes them. Decisions, not chores:
       and swift-syntax's major follows the toolchain (6.4 is 604), so the
       macro package moves with it. Both change what users need; one 0.x minor
       release, together
-- [ ] **JVM target, 21.** Reported as "not queried" because nothing in the
+- [x] **JVM target, 21 -- decided: no bump for now** (owner, October 2026).
+      The question returns when there is a reason to require a newer LTS.
+      Originally: **JVM target, 21.** Reported as "not queried" because nothing in the
       job asks for the newest LTS. Raising the bytecode target cuts off every
       consumer on an older JVM (Gradle module metadata refuses them at
       resolution; Maven consumers get a class-file error). 21 is the current

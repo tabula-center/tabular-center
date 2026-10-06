@@ -99,7 +99,7 @@ Part of `nix flake check`, at the root and in this language's own flake.
 The examples depend on the library **by path, the way a user would**, and sit
 outside its workspace: this directory is its own cargo workspace, and
 `05-iced` its own package with its own lock and its own `rust-toolchain.toml`
-(current stable; the four above hold the library's 1.75). That is the only
+(current stable; the four above hold the library's MSRV). That is the only
 place the public API is exercised from outside, and it is how the driver's
 borrow bug was found -- every unit test had passed because none of them needed
 two closures to touch the same state.

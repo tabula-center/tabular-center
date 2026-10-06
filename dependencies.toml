@@ -34,7 +34,7 @@ policy = "manual"
 reaches-users = true
 
 [rust]
-version = "1.75"
+version = "1.94"
 policy = "manual"
 reaches-users = true
 

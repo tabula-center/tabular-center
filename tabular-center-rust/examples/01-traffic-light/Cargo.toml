@@ -3,7 +3,7 @@ name = "traffic-light"
 description = "1. The minimum: three states, two actions, no payloads, no effects"
 version = "0.0.1"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.94"
 license = "MIT"
 publish = false
 

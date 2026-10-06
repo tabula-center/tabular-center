@@ -213,13 +213,17 @@ prose <<'MD'
 
 `transition_matrix!` is a `macro_rules!` macro. No proc-macro crate, no build
 script, no dependencies at all -- the library's `[dependencies]` table is
-empty, and it builds `#![no_std]` with `default-features = false`. MSRV 1.75.
+empty, and it builds `#![no_std]` with `default-features = false`.
 
-Not on crates.io yet. Until then, depend on the repository:
-
+MD
+printf 'MSRV %s. On [crates.io](https://crates.io/crates/tabular-center):\n\n' \
+    "$(awk '/^\[rust\]/ { r = 1; next } /^\[/ { r = 0 } r && /^version/ { gsub(/.*= *"|".*/, ""); print; exit }' dependencies.toml)"
+prose <<'MD'
 ```toml
 [dependencies]
-tabular-center = { git = "https://github.com/tabula-center/tabular-center" }
+MD
+printf 'tabular-center = "%s"\n' "$(cut -d. -f1-2 VERSION)"
+prose <<'MD'
 ```
 
 ## The matrix

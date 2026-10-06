@@ -367,7 +367,7 @@ pub fn spec_grid(s: &Spec) -> String {
     out.push_str(line.trim_end());
     out.push('\n');
     for (i, st) in s.states.iter().enumerate() {
-        line = format!("{:w$}", st, w = label_w);
+        line = format!("{st:label_w$}");
         for (j, t) in texts[i].iter().enumerate() {
             line.push_str(&format!("  {:w$}", t, w = col_w[j]));
         }
