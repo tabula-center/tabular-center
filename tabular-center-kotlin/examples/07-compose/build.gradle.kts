@@ -9,10 +9,10 @@
 // The Compose compiler moved into the Kotlin distribution with 2.0, so
 // this version tracks the Kotlin one exactly, not the Compose one below.
 plugins {
-    kotlin("jvm") version "2.1.20"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.1.20"
-    id("org.jetbrains.compose") version "1.8.0"
-    id("com.google.devtools.ksp") version "2.1.20-1.0.32"
+    kotlin("jvm") version "2.4.20"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.20"
+    id("org.jetbrains.compose") version "1.12.1"
+    id("com.google.devtools.ksp") version "2.3.12"
 }
 
 val tabulaRepo: String? = System.getenv("TABULAR_CENTER_MAVEN_REPO")?.takeIf { it.isNotBlank() }
