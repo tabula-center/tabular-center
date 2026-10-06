@@ -1315,7 +1315,7 @@ deprecation period, and `VERSION` stays where it is.
       `self.sourceInfo` survives only as an evaluation-time guard -- a boolean,
       which carries no store path -- so a flake that cannot see spec/ still
       says why
-- [ ] Confirmed on a real run: a Rust check's `drvPath` is unchanged by an
+- [x] Confirmed on a real run: a Rust check's `drvPath` is unchanged by an
       edit under `tabular-center-kotlin/`, and changed by one under `spec/`.
       Written, not yet observed; the commands are in the patch's message
       - [x] **First half observed** (October 2026): `rust-test`'s `drvPath`
@@ -1323,8 +1323,11 @@ deprecation period, and `VERSION` stays where it is.
             `tabular-center-kotlin/README.md` -- a check is given its own
             language's directory, `spec/` and `.editorconfig`, and nothing
             else
-      - [ ] Second half: the same comparison around an edit under `spec/`,
-            which must change it
+      - [x] **Second half observed**: the same comparison around an edit to
+            `spec/cells.md` changed it -- every check reads `spec/`, the one
+            input all three languages share by design. Both halves seen, so
+            "independent" is a property the derivations themselves show, not
+            only one the layout implies
 
 ### The documentation site
 
