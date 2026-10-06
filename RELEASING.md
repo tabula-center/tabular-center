@@ -183,6 +183,12 @@ token, made once:
 Renewing: generate a new token with the same settings and replace the secret;
 nothing else changes.
 
+**A red update** is the job working: the new version broke something here.
+Fix it on the update's own branch (`upstream/<group>`) and push; from your
+first commit the job leaves that branch alone -- it never overwrites a branch
+with a commit from anyone but itself -- so merge the pull request once it is
+green. Closing it instead drops the update until the next upstream release.
+
 Each job first checks the token and stops with one of three errors. *Empty*:
 the secret is missing from the `upstream` environment. *Not accepted at
 all* ("Bad credentials"): mistyped, expired or revoked. *Cannot write*: the

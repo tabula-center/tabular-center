@@ -9,7 +9,9 @@
 # GITHUB_TOKEN triggers no workflows: ci.yml would never run on it. With the
 # token, the checks on an update are exactly the checks on any change.
 # Nothing is ever merged here. A branch is pushed only when its tree changed,
-# so an unchanged update does not rerun CI every morning.
+# so an unchanged update does not rerun CI every morning, and never once a
+# person has committed to it (a fix for what the update broke): any author but
+# upstream@tabula.center on the branch means it is theirs until merged.
 #
 # Setup: RELEASING.md, "The upstream job". Design: PLAN.md, "Upstream
 # dependencies", and ARCHITECTURE.md 16.
@@ -83,8 +85,17 @@ jobs:
           git add -A
           git commit -q -m "upstream: update $GROUP" -m "$(cat "$RUNNER_TEMP/body.md")"
           remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          if git fetch -q "$remote" "refs/heads/$branch" 2>/dev/null && git diff --quiet FETCH_HEAD HEAD; then
-            echo "$branch already holds this update; not pushing"
+          if git fetch -q "$remote" "refs/heads/$branch" 2>/dev/null; then
+            people="$(git log --format=%ae origin/main..FETCH_HEAD | grep -vx 'upstream@tabula.center' || true)"
+            if [ -n "$people" ]; then
+              echo "::notice::$branch has commits from $(sort -u <<<"$people" | tr '\n' ' ')- a person is finishing it, so it is left alone; merge or close its pull request"
+              exit 0
+            fi
+            if git diff --quiet FETCH_HEAD HEAD; then
+              echo "$branch already holds this update; not pushing"
+            else
+              git push -q --force "$remote" "HEAD:refs/heads/$branch"
+            fi
           else
             git push -q --force "$remote" "HEAD:refs/heads/$branch"
           fi

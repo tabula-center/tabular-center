@@ -595,6 +595,12 @@ in Kotlin and Swift; what a user must match is compilers, KSP and the JVM.
       declared 1.85. The GUI example's floor is now `rust-gui` in
       `dependencies.toml`, a `deps-consistent` site, raised by the
       `rust-examples` group to each new iced release's `rust_version`
+- [x] **Fixing a red update on its own branch would be undone the next
+      morning**: the job rebuilt `upstream/<group>` from `main` and
+      force-pushed whenever the tree differed, which a person's fix always
+      makes it do. Now any commit on the branch (since `main`) by an author
+      other than `upstream@tabula.center` makes the job leave the branch
+      alone, with a notice, until its pull request is merged or closed
 - [ ] Expected red, recorded so it is not mistaken for a broken job: a
       kotlinc upgrade can reword the four messages the guarantee fixtures
       assert (spec/diagnostics.md forbids normalising them), and an iced
