@@ -2770,7 +2770,15 @@ a warning refuses nothing and every other fixture here proves a refusal.
             holds tags `0.1.2` through `0.1.6` and `0.2.0`, so SwiftPM users can
             already depend on it. There is no Swift registry to upload to;
             the mirror *is* the publication
-      - [ ] **Swift Package Index: not listed.** Its public package list
+      - [ ] **Swift Package Index: submitted, awaiting the index's merge.**
+            Filed October 6, 2026 as SwiftPackageIndex/PackageList#15555
+            ("Add tabula-center"), with exactly the mirror's URL,
+            `https://github.com/tabula-center/tabular-center-swift.git`. The
+            index's bot labelled it "Add Package [Automatic PR]" and opened
+            PackageList#15556; both open when last checked. Done when #15556
+            is merged and the package page exists; nothing further is ours to
+            do unless the index's validation raises something on the PR.
+            What was known before submitting: Its public package list
             (12,213 entries) has no `tabula-center` repository. The index is
             discovery, not distribution: a repository URL is submitted once,
             through swiftpackageindex.com's "Add a Package", which adds it to
@@ -2779,8 +2787,19 @@ a warning refuses nothing and every other fixture here proves a refusal.
             mirror, `https://github.com/tabula-center/tabular-center-swift.git`
             -- never this repository, whose `Package.swift` is not at the
             root. A person's step: it is a pull request from a GitHub account
-      - [ ] Then `tools/compat backfill` once, now that the tags are known to
-            exist (`v0.1.1`..`v0.2.0`), and commit `compatibility.toml`
+      - [x] Then `tools/compat backfill` once, now that the tags are known to
+            exist (`v0.1.1`..`v0.2.0`), and commit `compatibility.toml`.
+            **Done and pushed** (October 2026): seven records, 0.1.1 to 0.2.0,
+            every one with all twelve versions plus its date, so each tag's
+            layout held every site `tools/deps at` reads. All seven say Rust
+            1.75, Kotlin 2.1.20, KSP 2.1.20-1.0.32, JVM 21, Swift tools 5.9 --
+            including 0.2.0, which looked wrong against `main` and is right:
+            the `v0.2.0` tag's own `dependencies.toml` and Gradle build say
+            Kotlin 2.1.20, so 0.2.0 was tagged before the upstream Kotlin
+            merge. **The next release is the first to carry Kotlin 2.4.20, KSP
+            2.3.12 and the Rust 1.94 MSRV**, all user-facing; with the MSRV
+            raise that makes it 0.3.0, and its compatibility record will say
+            so
       *Distribution decided, and made checkable before any credential
       exists.* Rust: crates.io receives an archive of the crate directory
       alone, so `rust-package` runs `cargo package` -- which builds the crate
