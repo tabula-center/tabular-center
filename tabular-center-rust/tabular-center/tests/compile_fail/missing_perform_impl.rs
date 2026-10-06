@@ -1,4 +1,4 @@
-//~ EXPECT: the trait bound `Impl: Perform<Timer, StopClock>` is not satisfied
+//~ EXPECT: Perform<Timer, StopClock>
 //
 // The effect surface, same guarantee as the cell surface. `StopClock` is a
 // declared effect variant with no `Perform` impl, so `perform` will not

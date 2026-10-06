@@ -667,8 +667,27 @@ changes them. Decisions, not chores:
       `{st:label_w$}` / `{state:row_label_w$}` (uninlined_format_args, warn
       by default since 1.88; mixed calls are not reported). No hits for the
       others looked for (doc_lazy_continuation, needless_lifetimes on impls,
-      legacy numeric constants, unexpected cfgs). Expected green, not yet
-      observed: a lint missed here is the first thing the run will say.
+      legacy numeric constants, unexpected cfgs). The first run named one the
+      scan had not looked for: `redundant_guards`, which now treats
+      `if effects.is_empty()` on a slice as a pattern (`effects: []`) --
+      `to_grid`'s `Cell::Go` arm. The look-alike guards elsewhere test a
+      `Vec`, a `BTreeMap` or a variable outside the pattern, which no
+      pattern can express, so they are not reported.
+      The next run found the compiler's own wording moved: rustc 1.94 reports
+      a missing bound reached through a generated bundle by the bundle's name
+      (`the trait bound `Impl: Handlers` is not satisfied`), where 1.75 named
+      the leaf (`Impl: Perform<Timer, StopClock>`), with the leaf now in a
+      label. Two compile-fail fixtures asserted the old headline:
+      `missing_perform_impl.rs` (through `Handlers`) and, by elimination --
+      the run's tail showed one failure of two, the other sorts before the
+      first visible pass -- `child_hole_breaks_parent.rs` (a parent's step
+      requiring its child's cells). Both now expect only the leaf bound,
+      `Perform<Timer, StopClock>` and `Handle<Retry, Waiting, Elapsed>`: the
+      fact each fixture exists to prove, a substring of both compilers'
+      output, and in neither fixture's source, so rustc's echoed source lines
+      cannot satisfy it. And the harness now prints rustc's whole output
+      when a fixture fails, not three `error` lines, so a moved message is
+      read once instead of guessed at.
       The prose that said "1.75" now names the MSRV without a number, and the
       Rust page takes it from `dependencies.toml`, so the next raise cannot
       leave it stale. Originally recorded: Raising it is a minor-version change in 0.x

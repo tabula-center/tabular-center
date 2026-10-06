@@ -110,7 +110,10 @@ pub fn to_grid<const N: usize, const M: usize>(t: &Table<N, M>) -> String {
     fn cell_text(c: &Cell) -> String {
         match c {
             Cell::Ignore => String::from("IGNORE"),
-            Cell::Go { target, effects } if effects.is_empty() => format!("GO({target})"),
+            Cell::Go {
+                target,
+                effects: [],
+            } => format!("GO({target})"),
             Cell::Go { target, effects } => format!("GO({}, {})", target, effects.join("+")),
             Cell::Emit { effects } => format!("EMIT({})", effects.join("+")),
             Cell::Handle => String::from("HANDLE"),

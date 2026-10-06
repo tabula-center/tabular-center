@@ -1,4 +1,4 @@
-//~ EXPECT: the trait bound `Impl: tabular_center::Handle<Retry, Waiting, Elapsed>` is not satisfied
+//~ EXPECT: Handle<Retry, Waiting, Elapsed>
 //
 // The composition property, as a test:
 //

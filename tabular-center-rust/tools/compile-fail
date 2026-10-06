@@ -49,8 +49,8 @@ for f in "$FIXTURES"/*.rs; do
     else
         echo "FAIL $name"
         echo "     expected: $expect"
-        echo "     got:"
-        printf '%s\n' "$err" | grep -E '^(error|warning)' | head -3 | sed 's/^/       /'
+        echo "     rustc said, in full:"
+        printf '%s\n' "$err" | head -60 | sed 's/^/       /'
         fail=$((fail + 1))
     fi
 done
