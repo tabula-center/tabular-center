@@ -39,13 +39,13 @@ let
 
   jdkHome = jdk.home or "${jdk}";
 
-  kotlinVersion = "2.4.20";
+  kotlinVersion = "2.4.21";
   kotlinc = pkgs.stdenvNoCC.mkDerivation {
     pname = "kotlinc";
     version = kotlinVersion;
     src = pkgs.fetchurl {
       url = "https://github.com/JetBrains/kotlin/releases/download/v${kotlinVersion}/kotlin-compiler-${kotlinVersion}.zip";
-      hash = "sha256-WenKdMeQTvLBIrEhFJN2c8zOaN6CCmY/DtZsz4eZ4Lc=";
+      hash = "sha256-fMFA522vQWoEJKVVf5mv18qJ69Rj6hEBJh4+AcM+dc0=";
     };
     nativeBuildInputs = [ pkgs.unzip pkgs.makeWrapper ];
     dontConfigure = true;

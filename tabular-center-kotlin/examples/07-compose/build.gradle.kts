@@ -9,8 +9,8 @@
 // The Compose compiler moved into the Kotlin distribution with 2.0, so
 // this version tracks the Kotlin one exactly, not the Compose one below.
 plugins {
-    kotlin("jvm") version "2.4.20"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.4.20"
+    kotlin("jvm") version "2.4.21"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.21"
     id("org.jetbrains.compose") version "1.12.1"
     id("com.google.devtools.ksp") version "2.3.12"
 }
