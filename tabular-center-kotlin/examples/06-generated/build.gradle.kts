@@ -7,7 +7,7 @@
 // KSP releases are tied to a specific Kotlin compiler build, so this
 // version and the one above move together or not at all.
 plugins {
-    kotlin("jvm") version "2.4.20"
+    kotlin("jvm") version "2.4.21"
     id("com.google.devtools.ksp") version "2.3.12"
 }
 

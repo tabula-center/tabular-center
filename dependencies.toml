@@ -13,7 +13,7 @@
 # sites. ARCHITECTURE.md 16 and PLAN.md, "Upstream dependencies".
 
 [kotlin]
-version = "2.4.20"
+version = "2.4.21"
 policy = "auto"
 reaches-users = true
 
