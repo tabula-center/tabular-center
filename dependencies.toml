@@ -24,7 +24,7 @@ reaches-users = true
 follows = "kotlin"
 
 [compose]
-version = "1.12.1"
+version = "1.12.2"
 policy = "auto"
 reaches-users = false
 
