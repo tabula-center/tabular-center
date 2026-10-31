@@ -18,7 +18,7 @@ policy = "auto"
 reaches-users = true
 
 [ksp]
-version = "2.3.12"
+version = "2.3.13"
 policy = "auto"
 reaches-users = true
 follows = "kotlin"
